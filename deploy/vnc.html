@@ -265,7 +265,11 @@
       connect();
     };
 
-    window.addEventListener('DOMContentLoaded', connect);
+    if (document.readyState === 'loading') {
+      window.addEventListener('DOMContentLoaded', connect);
+    } else {
+      connect();
+    }
   </script>
 </body>
 </html>

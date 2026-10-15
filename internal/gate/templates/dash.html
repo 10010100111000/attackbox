@@ -20,6 +20,10 @@
       }
     }
   </script>
+  <link rel="stylesheet" href="/xterm/xterm.css">
+  <script src="/xterm/winbox.bundle.min.js"></script>
+  <script src="/xterm/xterm.js"></script>
+  <script src="/xterm/addon-fit.js"></script>
   <style>
     .shadcn-card {
       background: #ffffff;
@@ -52,6 +56,40 @@
     }
     .shadcn-btn-danger:hover:not(:disabled) {
       background-color: #fee2e2;
+    }
+
+    /* WinBox 现代暗黑靶场风格定制 */
+    .winbox {
+      background: #18181b !important;
+      border-radius: 10px !important;
+      overflow: hidden !important;
+      box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.45), 0 8px 10px -6px rgba(0, 0, 0, 0.3) !important;
+      border: 1px solid #3f3f46 !important;
+    }
+    .winbox .wb-header {
+      background: #121215 !important;
+      border-bottom: 1px solid #27272a !important;
+      height: 38px !important;
+      line-height: 38px !important;
+      padding: 0 12px !important;
+    }
+    .winbox .wb-title {
+      font-family: 'JetBrains Mono', ui-monospace, monospace !important;
+      font-size: 12px !important;
+      color: #f4f4f5 !important;
+      font-weight: 600 !important;
+      letter-spacing: -0.01em !important;
+    }
+    .winbox .wb-control {
+      opacity: 0.75 !important;
+      transition: opacity 0.15s ease !important;
+    }
+    .winbox .wb-control:hover {
+      opacity: 1 !important;
+    }
+    .winbox .wb-body {
+      background: #09090b !important;
+      overflow: hidden !important;
     }
   </style>
 </head>
@@ -170,50 +208,58 @@
       <!-- ==================== 普通用户视图：靶场工作台 ==================== -->
       <section id="view-workspace" class="space-y-6">
 
-        <!-- 1. 远程渗透操作环境 (直连卡片：点击即启动并自动跳转) -->
-        <div class="shadcn-card p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div>
-            <div class="flex items-center gap-2.5">
-              <h2 class="text-sm font-semibold text-zinc-900">远程渗透操作环境</h2>
-              <span id="env-status-badge" class="px-2 py-0.5 rounded-full text-[11px] font-medium bg-zinc-100 text-zinc-500 border border-zinc-200 flex items-center">
-                <span id="env-status-dot" class="w-1.5 h-1.5 rounded-full bg-zinc-400 mr-1.5"></span>
-                <span id="env-status-text">未启动</span>
-              </span>
+        <!-- 1. 远程渗透操作环境 (现代多窗口拖拽工作台) -->
+        <div class="shadcn-card p-5 space-y-4">
+          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div>
+              <div class="flex items-center gap-2.5 flex-wrap">
+                <h2 class="text-sm font-semibold text-zinc-900">远程渗透工作台</h2>
+                <span id="env-status-badge" class="px-2 py-0.5 rounded-full text-[11px] font-medium bg-zinc-100 text-zinc-500 border border-zinc-200 flex items-center">
+                  <span id="env-status-dot" class="w-1.5 h-1.5 rounded-full bg-zinc-400 mr-1.5"></span>
+                  <span id="env-status-text">未启动</span>
+                </span>
+                <span id="box-slot-badge" class="px-2 py-0.5 rounded text-[11px] font-mono bg-zinc-100 text-zinc-600 border border-zinc-200">
+                  沙箱: <span id="box-slot-id">分配中...</span>
+                </span>
+                <span id="active-windows-badge" class="hidden px-2 py-0.5 rounded-full text-[11px] font-medium bg-blue-50 text-blue-700 border border-blue-200">
+                  活动窗口: <span id="active-windows-count">0</span>
+                </span>
+              </div>
+              <p class="text-xs text-zinc-500 mt-1">支持自由拖拽、新建多个并发独立 CLI 终端，或在工作台内直接嵌入 GUI 桌面</p>
             </div>
-            <p class="text-xs text-zinc-500 mt-1">点击任意入口即刻部署并直接进入，无需前置启动</p>
-          </div>
-          <div class="flex items-center gap-2.5 flex-wrap">
-            <!-- 1. 命令行终端 CLI (点击转圈 -> 启动并直接跳转) -->
-            <button onclick="launchAndGo('cli')" id="btn-enter-cli" class="px-3.5 py-2 rounded-lg text-xs font-medium border border-zinc-300 hover:border-zinc-400 bg-white hover:bg-zinc-50 text-zinc-800 shadow-sm flex items-center gap-1.5 transition-all">
-              <svg id="icon-cli-default" class="w-3.5 h-3.5 text-zinc-600" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M8 9l3 3-3 3m5 0h3M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
-              </svg>
-              <svg id="icon-cli-spinner" class="animate-spin w-3.5 h-3.5 text-zinc-800 hidden" fill="none" viewBox="0 0 24 24">
-                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-              </svg>
-              <span id="btn-enter-cli-text">进入 CLI 终端</span>
-            </button>
+            <div class="flex items-center gap-2 flex-wrap">
+              <!-- 新建 CLI 终端窗口 (WinBox + xterm 多开) -->
+              <button onclick="createCliWindow()" id="btn-create-cli" class="px-3.5 py-2 rounded-lg text-xs font-medium border border-zinc-300 hover:border-zinc-400 bg-white hover:bg-zinc-50 text-zinc-800 shadow-sm flex items-center gap-1.5 transition-all">
+                <svg class="w-3.5 h-3.5 text-zinc-600" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"></path>
+                </svg>
+                <span>新建 CLI 终端</span>
+              </button>
 
-            <!-- 2. 图形桌面 GUI (点击转圈 -> 启动并直接跳转) -->
-            <button onclick="launchAndGo('gui')" id="btn-enter-gui" class="px-3.5 py-2 rounded-lg text-xs font-medium border border-zinc-300 hover:border-zinc-400 bg-white hover:bg-zinc-50 text-zinc-800 shadow-sm flex items-center gap-1.5 transition-all">
-              <svg id="icon-gui-default" class="w-3.5 h-3.5 text-zinc-600" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"></path>
-              </svg>
-              <svg id="icon-gui-spinner" class="animate-spin w-3.5 h-3.5 text-zinc-800 hidden" fill="none" viewBox="0 0 24 24">
-                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-              </svg>
-              <span id="btn-enter-gui-text">进入 GUI 桌面</span>
-            </button>
+              <!-- 桌面窗口 (在当前工作台弹出 WinBox 浮动桌面) -->
+              <button onclick="openGuiWindow()" id="btn-open-gui-win" class="px-3.5 py-2 rounded-lg text-xs font-medium border border-zinc-300 hover:border-zinc-400 bg-white hover:bg-zinc-50 text-zinc-800 shadow-sm flex items-center gap-1.5 transition-all">
+                <svg class="w-3.5 h-3.5 text-zinc-600" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"></path>
+                </svg>
+                <span>GUI 桌面窗口</span>
+              </button>
 
-            <!-- 3. 释放销毁按钮 (仅在运行中出现) -->
-            <button onclick="destroyEnv()" id="btn-destroy-env" class="px-3 py-2 rounded-lg text-xs font-medium shadcn-btn-danger flex items-center gap-1.5 transition-all hidden" title="彻底销毁快照并释放资源">
-              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
-              </svg>
-              <span>释放环境</span>
-            </button>
+              <!-- 独立标签页全屏 (保留外链形式) -->
+              <button onclick="launchFullscreenGui()" id="btn-gui-fullscreen" class="px-3 py-2 rounded-lg text-xs font-medium shadcn-btn-outline flex items-center gap-1 text-zinc-600 hover:text-zinc-900" title="在独立浏览器标签页以全屏模式打开远程桌面">
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path>
+                </svg>
+                <span>全屏桌面</span>
+              </button>
+
+              <!-- 释放环境按钮 -->
+              <button onclick="destroyEnv()" id="btn-destroy-env" class="px-3 py-2 rounded-lg text-xs font-medium shadcn-btn-danger flex items-center gap-1.5 transition-all hidden" title="彻底销毁快照并释放当前沙箱所有窗口">
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
+                </svg>
+                <span>释放沙箱</span>
+              </button>
+            </div>
           </div>
         </div>
 
@@ -383,6 +429,7 @@
   <script>
     const state = {
       user: null,
+      boxId: '',
       activeTab: 'workspace',
       cliRunning: false,
       guiRunning: false,
@@ -392,6 +439,10 @@
       users: []
     };
 
+    let cliCount = 0;
+    const openCliWindows = new Map();
+    let guiWindow = null;
+
     function showToast(msg) {
       const container = document.getElementById('toast-container');
       const el = document.createElement('div');
@@ -399,6 +450,16 @@
       el.textContent = msg;
       container.appendChild(el);
       setTimeout(() => el.remove(), 2500);
+    }
+
+    function updateActiveWindowsBadge() {
+      const count = openCliWindows.size + (guiWindow ? 1 : 0);
+      const badge = document.getElementById('active-windows-badge');
+      const countEl = document.getElementById('active-windows-count');
+      if (badge && countEl) {
+        countEl.textContent = count;
+        badge.classList.toggle('hidden', count === 0);
+      }
     }
 
     // --- 登录/注册 Tab 切换 ---
@@ -442,6 +503,8 @@
     }
 
     async function logout() {
+      // 退出前关闭所有窗口
+      closeAllWindows();
       try {
         await fetch('/api/logout', { method: 'POST' });
       } catch (e) {}
@@ -451,28 +514,216 @@
       showToast('已安全退出');
     }
 
-    // --- 远程环境控制 (点击直接启动并跳转，无多余按键) ---
-    // --- 远程环境控制 (点击即刻直连打开，零弹窗拦截，后台按需秒级拉起) ---
-    function launchAndGo(type) {
-      const isCli = type === 'cli';
-      const targetUrl = isCli ? '/term' : '/vnc/vnc.html?path=vnc/websockify';
+    function closeAllWindows() {
+      for (const [id, item] of openCliWindows.entries()) {
+        try {
+          if (item.ws) item.ws.close();
+          if (item.wb) item.wb.close();
+        } catch (e) {}
+      }
+      openCliWindows.clear();
+      if (guiWindow) {
+        try { guiWindow.close(); } catch(e){}
+        guiWindow = null;
+      }
+      updateActiveWindowsBadge();
+    }
 
-      // 必须在原生用户点击事件中同步调用 window.open，规避异步 fetch 后浏览器弹窗拦截 (Popup Blocker)
-      const win = window.open(targetUrl, '_blank');
-      if (!win) {
-        showToast('新窗口已被浏览器拦截，请在地址栏允许弹窗后重试');
+    // --- 核心功能：创建独立可拖拽可并发的 CLI 终端窗口 ---
+    function createCliWindow() {
+      cliCount++;
+      const currentNum = cliCount;
+      const winId = 'w' + Math.random().toString(36).substring(2, 7);
+
+      const container = document.createElement('div');
+      container.style.width = '100%';
+      container.style.height = '100%';
+      container.style.padding = '6px';
+      container.style.boxSizing = 'border-box';
+      container.style.background = '#09090b';
+
+      // 错落层叠 cascade 坐标
+      const offsetX = 50 + ((currentNum - 1) % 7) * 35;
+      const offsetY = 70 + ((currentNum - 1) % 7) * 28;
+      const boxSlot = state.boxId || 'box';
+      const title = `终端 #${currentNum} (parrot@${boxSlot}) [${winId}]`;
+
+      let ws = null;
+      let fit = null;
+
+      const wb = new WinBox({
+        title: title,
+        x: offsetX,
+        y: offsetY,
+        width: Math.min(window.innerWidth - 60, 780),
+        height: Math.min(window.innerHeight - 80, 480),
+        mount: container,
+        onclose: function () {
+          if (ws) {
+            try { ws.close(); } catch (e) {}
+          }
+          openCliWindows.delete(winId);
+          updateActiveWindowsBadge();
+        },
+        onresize: function () {
+          if (fit) {
+            fit.fit();
+            sendSize();
+          }
+        },
+        onmove: function () {
+          if (fit) fit.fit();
+        }
+      });
+
+      // 初始化 xterm
+      const term = new Terminal({
+        cursorBlink: true,
+        cursorStyle: 'block',
+        scrollback: 3000,
+        fontFamily: "'JetBrains Mono', 'Fira Code', ui-monospace, Menlo, Consolas, monospace",
+        fontSize: 13,
+        lineHeight: 1.25,
+        theme: {
+          background: '#09090b',
+          foreground: '#e4e4e7',
+          cursor: '#10b981',
+          cursorAccent: '#09090b',
+          selectionBackground: 'rgba(255, 255, 255, 0.16)',
+          black: '#18181b',
+          red: '#ef4444',
+          green: '#22c55e',
+          yellow: '#eab308',
+          blue: '#3b82f6',
+          magenta: '#a855f7',
+          cyan: '#06b6d4',
+          white: '#f4f4f5',
+          brightBlack: '#71717a',
+          brightRed: '#f87171',
+          brightGreen: '#4ade80',
+          brightYellow: '#fde047',
+          brightBlue: '#60a5fa',
+          brightMagenta: '#c084fc',
+          brightCyan: '#22d3ee',
+          brightWhite: '#ffffff'
+        }
+      });
+
+      fit = new FitAddon.FitAddon();
+      term.loadAddon(fit);
+      term.open(container);
+      setTimeout(() => {
+        fit.fit();
+        term.focus();
+      }, 60);
+
+      const scheme = location.protocol === 'https:' ? 'wss://' : 'ws://';
+      ws = new WebSocket(`${scheme}${location.host}/term/ws?win=${winId}`);
+      ws.binaryType = 'arraybuffer';
+
+      function sendSize() {
+        if (ws && ws.readyState === WebSocket.OPEN) {
+          ws.send(JSON.stringify({ cols: term.cols, rows: term.rows }));
+        }
+      }
+
+      ws.onopen = function () {
+        sendSize();
+        term.focus();
+        showToast(`终端 #${currentNum} 已连接就绪`);
+      };
+
+      ws.onmessage = function (e) {
+        if (typeof e.data !== 'string') {
+          term.write(new Uint8Array(e.data));
+        }
+      };
+
+      ws.onclose = function (e) {
+        if (e.code === 4001) {
+          term.write('\r\n\x1b[33m[AttackBox] 该窗口已被新会话抢占接管。\x1b[0m\r\n');
+        } else {
+          term.write('\r\n\x1b[90m[AttackBox] 终端连接已断开。\x1b[0m\r\n');
+        }
+      };
+
+      ws.onerror = function () {
+        term.write('\r\n\x1b[31m[AttackBox] 网络连接异常。\x1b[0m\r\n');
+      };
+
+      term.onData(function (data) {
+        if (ws && ws.readyState === WebSocket.OPEN) {
+          ws.send(new TextEncoder().encode(data));
+        }
+      });
+
+      container.addEventListener('click', () => term.focus());
+
+      openCliWindows.set(winId, { wb, term, fit, ws });
+      updateActiveWindowsBadge();
+      state.cliRunning = true;
+      state.envRunning = true;
+      renderEnvStatus();
+    }
+
+    // --- 核心功能：在工作台内弹出可拖拽 GUI 桌面窗口 ---
+    function openGuiWindow() {
+      if (guiWindow) {
+        guiWindow.restore();
+        guiWindow.focus();
         return;
       }
 
-      showToast(isCli ? '正在连接 CLI 终端...' : '正在进入 GUI 远程桌面...');
-      setTimeout(renderEnvStatus, 1500);
+      const iframe = document.createElement('iframe');
+      iframe.src = '/vnc/vnc.html?path=vnc/websockify';
+      iframe.style.width = '100%';
+      iframe.style.height = '100%';
+      iframe.style.border = 'none';
+
+      const boxSlot = state.boxId || 'box';
+      guiWindow = new WinBox({
+        title: `远程桌面 (MATE Desktop) - parrot@${boxSlot}`,
+        x: 80,
+        y: 50,
+        width: Math.min(window.innerWidth - 60, 1060),
+        height: Math.min(window.innerHeight - 80, 680),
+        mount: iframe,
+        onclose: function () {
+          guiWindow = null;
+          updateActiveWindowsBadge();
+        }
+      });
+
+      updateActiveWindowsBadge();
+      showToast('已拉起 GUI 远程桌面窗口');
+      state.guiRunning = true;
+      state.envRunning = true;
+      renderEnvStatus();
     }
 
+    // --- 独立全屏标签页打开 GUI ---
+    function launchFullscreenGui() {
+      const win = window.open('/vnc/vnc.html?path=vnc/websockify', '_blank');
+      if (!win) {
+        showToast('浏览器拦截了弹窗，请在地址栏允许弹出窗口');
+        return;
+      }
+      showToast('正在新标签页全屏连入 GUI 桌面...');
+      state.guiRunning = true;
+      state.envRunning = true;
+      renderEnvStatus();
+    }
+
+    // --- 彻底销毁与释放环境 ---
     async function destroyEnv() {
-      if (!confirm('确定要释放并销毁当前沙箱环境吗？未保存的渗透数据将被清空。')) return;
+      if (!confirm('确定要释放并销毁当前沙箱环境吗？未保存的数据将被清空，所有打开的终端与桌面窗口将同步关闭。')) return;
       const btn = document.getElementById('btn-destroy-env');
       btn.disabled = true;
       btn.classList.add('opacity-70', 'cursor-not-allowed');
+
+      // 本地先关闭所有窗口
+      closeAllWindows();
+
       try {
         const resp = await fetch('/api/env/destroy', { method: 'POST' });
         const data = await resp.json();
@@ -494,7 +745,7 @@
     }
 
     function renderEnvStatus() {
-      const isRunning = !!(state.envRunning || state.cliRunning || state.guiRunning);
+      const isRunning = !!(state.envRunning || state.cliRunning || state.guiRunning || openCliWindows.size > 0 || guiWindow);
       state.envRunning = isRunning;
 
       const badge = document.getElementById('env-status-badge');
@@ -775,6 +1026,7 @@
         const data = await resp.json();
         if (data.loggedIn && data.user) {
           state.user = data.user;
+          state.boxId = data.boxId || '';
           state.cliRunning = !!data.cliRunning;
           state.guiRunning = !!data.guiRunning;
           state.envRunning = state.cliRunning || state.guiRunning;
@@ -784,6 +1036,10 @@
           document.getElementById('app-view').classList.remove('hidden');
 
           document.getElementById('current-username').textContent = state.user.username;
+          const slotEl = document.getElementById('box-slot-id');
+          if (slotEl) {
+            slotEl.textContent = state.boxId ? `${state.boxId} (隔离隔离)` : '自动调度';
+          }
           const roleTag = document.getElementById('current-role-tag');
           const isAdmin = state.user.role === 'admin';
           roleTag.textContent = isAdmin ? 'ADMIN' : 'USER';

@@ -156,9 +156,15 @@ func (g *Gate) termWS(w http.ResponseWriter, r *http.Request) {
 	}
 	defer c.Close()
 
-	// 严格单活跃会话：若已有活动终端窗口，向其发送 4001 Preempted 并关闭
+	winID := r.URL.Query().Get("win")
+	if winID == "" {
+		winID = "default"
+	}
+	sessKey := b.ID + ":" + winID
+
+	// 窗口会话管理：若该特定窗口已有连接，发送 4001 并关闭旧连接
 	g.cliMu.Lock()
-	if oldConn, exists := g.activeCLI[b.ID]; exists && oldConn != nil {
+	if oldConn, exists := g.activeCLI[sessKey]; exists && oldConn != nil {
 		_ = oldConn.WriteControl(
 			websocket.CloseMessage,
 			websocket.FormatCloseMessage(4001, "preempted"),
@@ -166,13 +172,13 @@ func (g *Gate) termWS(w http.ResponseWriter, r *http.Request) {
 		)
 		_ = oldConn.Close()
 	}
-	g.activeCLI[b.ID] = c
+	g.activeCLI[sessKey] = c
 	g.cliMu.Unlock()
 
 	defer func() {
 		g.cliMu.Lock()
-		if g.activeCLI[b.ID] == c {
-			delete(g.activeCLI, b.ID)
+		if g.activeCLI[sessKey] == c {
+			delete(g.activeCLI, sessKey)
 		}
 		g.cliMu.Unlock()
 	}()

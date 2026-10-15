@@ -390,13 +390,16 @@ func (g *Gate) apiMe(w http.ResponseWriter, r *http.Request) {
 	b, _ := g.boxFor(r)
 	cliRunning := false
 	guiRunning := false
+	boxID := ""
 	if b != nil {
 		cliRunning, guiRunning = g.boxes.DetailedStatus(r.Context(), b)
+		boxID = b.ID
 	}
 
 	writeJSON(w, map[string]any{
 		"loggedIn":   true,
 		"user":       map[string]any{"username": s.User, "role": s.Role},
+		"boxId":      boxID,
 		"cliRunning": cliRunning,
 		"guiRunning": guiRunning,
 		"envRunning": cliRunning || guiRunning,
@@ -493,14 +496,18 @@ func (g *Gate) apiGuiToggle(w http.ResponseWriter, r *http.Request) {
 // closeBoxSessions 彻底切断指定沙箱的所有活跃 WebSocket 会话 (CLI 与 GUI)
 func (g *Gate) closeBoxSessions(boxID string) {
 	g.cliMu.Lock()
-	if conn, ok := g.activeCLI[boxID]; ok && conn != nil {
-		_ = conn.WriteControl(
-			websocket.CloseMessage,
-			websocket.FormatCloseMessage(websocket.CloseNormalClosure, "environment destroyed"),
-			time.Now().Add(time.Second),
-		)
-		_ = conn.Close()
-		delete(g.activeCLI, boxID)
+	for key, conn := range g.activeCLI {
+		if strings.HasPrefix(key, boxID+":") || key == boxID {
+			if conn != nil {
+				_ = conn.WriteControl(
+					websocket.CloseMessage,
+					websocket.FormatCloseMessage(websocket.CloseNormalClosure, "environment destroyed"),
+					time.Now().Add(time.Second),
+				)
+				_ = conn.Close()
+			}
+			delete(g.activeCLI, key)
+		}
 	}
 	g.cliMu.Unlock()
 
