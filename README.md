@@ -146,14 +146,9 @@ attackbox/
 │   │   ├── attackboxd.service  # 网关主守护进程
 │   │   └── attackbox-fw.service# 启动自动加载软路由与防火墙服务
 │   └── vnc.html                # 极简轻量版 noVNC 远程桌面客户端 (部署至 /usr/share/novnc)
-├── scripts/
-│   ├── attackbox-net.sh        # 宿主机网络初始化与 nftables 防火墙脚本
-│   └── box-launch.sh           # 沙箱生命周期引导脚本 (core / gui / stop / clean)
-└── scripts/tests/              # 自动化测试套件
-    ├── test_single_session.py  # 单活跃会话互斥抢占与 PTY 回显全链路测试
-    ├── test_vnc_ws.py          # noVNC RFC 6455 Binary 子协议协商测试
-    ├── test_term_ws.py         # 终端 WebSocket 交互性测试
-    └── test_lifecycle.py       # 方案 A 懒加载启停基准测试
+└── scripts/
+    ├── attackbox-net.sh        # 宿主机网络初始化与 nftables 防火墙脚本
+    └── box-launch.sh           # 沙箱生命周期引导脚本 (core / gui / stop / clean)
 ```
 
 ---
@@ -174,19 +169,6 @@ sudo journalctl -u attackboxd -f -n 50
 
 # 查看当前 nftables 安全规则
 sudo nft list table inet attackbox
-```
-
-### 2. 自动化全链路验收验证
-进入 `scripts/tests/` 目录运行测试脚本：
-```bash
-# 验证单活跃会话抢占与原生 PTY 交互
-python3 scripts/tests/test_single_session.py
-
-# 验证 noVNC 二进制协议升级与 RFB 握手
-python3 scripts/tests/test_vnc_ws.py
-
-# 运行沙箱生命周期懒加载与秒开基准测试
-python3 scripts/tests/test_lifecycle.py
 ```
 
 ### 3. 用户与管理员初始凭据

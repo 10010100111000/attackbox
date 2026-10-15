@@ -25,6 +25,43 @@
     #screen > canvas {
       outline: none;
     }
+
+    /* 顶部半透明浮动控制条 (鼠标悬停或轻触时显现) */
+    #toolbar {
+      position: fixed;
+      top: 12px;
+      right: 16px;
+      z-index: 100;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      opacity: 0.3;
+      transition: opacity 0.2s ease;
+    }
+    #toolbar:hover, #toolbar:focus-within {
+      opacity: 1;
+    }
+    .tool-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 5px 10px;
+      font-size: 11px;
+      font-weight: 500;
+      color: #e4e4e7;
+      background: rgba(24, 24, 27, 0.85);
+      border: 1px solid rgba(63, 63, 70, 0.6);
+      backdrop-filter: blur(8px);
+      border-radius: 6px;
+      cursor: pointer;
+      user-select: none;
+      transition: background-color 0.15s ease, color 0.15s ease;
+    }
+    .tool-btn:hover {
+      background: rgba(39, 39, 42, 0.95);
+      color: #ffffff;
+    }
+
     #status-pill {
       position: fixed;
       top: 14px;
@@ -71,6 +108,7 @@
       background: rgba(127, 29, 29, 0.9);
       border-color: rgba(239, 68, 68, 0.6);
       color: #fecaca;
+      pointer-events: auto;
     }
     .pill-btn {
       display: inline-flex;
@@ -92,30 +130,21 @@
   </style>
 </head>
 <body>
+  <!-- 顶部轻量浮动工具条 -->
+  <div id="toolbar">
+    <button class="tool-btn" id="btn-cad" title="向桌面发送 Ctrl+Alt+Del 按键组合">Ctrl+Alt+Del</button>
+    <button class="tool-btn" id="btn-fs" title="切换全屏模式">全屏</button>
+    <button class="tool-btn" id="btn-reload" title="刷新重连桌面">重连</button>
+  </div>
+
   <div id="status-pill">
     <div class="spinner" id="status-spinner"></div>
-    <span id="status-text">正在按需拉起图形桌面 (约 2-3 秒)...</span>
+    <span id="status-text">正在按需拉起图形桌面...</span>
   </div>
   <div id="screen"></div>
 
-  <script type="module" crossorigin="anonymous">
+  <script type="module">
     import RFB from './core/rfb.js';
-
-    // 监控底层 WebSocket 关闭状态码（检测 4001 会话抢占）
-    let lastWsCloseCode = 0;
-    const NativeWebSocket = window.WebSocket;
-    window.WebSocket = function(url, protocols) {
-      const ws = new NativeWebSocket(url, protocols);
-      ws.addEventListener('close', (e) => {
-        lastWsCloseCode = e.code;
-      });
-      return ws;
-    };
-    window.WebSocket.prototype = NativeWebSocket.prototype;
-    window.WebSocket.CONNECTING = NativeWebSocket.CONNECTING;
-    window.WebSocket.OPEN = NativeWebSocket.OPEN;
-    window.WebSocket.CLOSING = NativeWebSocket.CLOSING;
-    window.WebSocket.CLOSED = NativeWebSocket.CLOSED;
 
     const pill = document.getElementById('status-pill');
     const pillText = document.getElementById('status-text');
@@ -136,7 +165,11 @@
         clearTimeout(reconnectTimer);
         reconnectTimer = null;
       }
-      lastWsCloseCode = 0;
+      if (rfb) {
+        try { rfb.disconnect(); } catch (e) {}
+        rfb = null;
+      }
+
       pill.className = '';
       pill.style.display = 'flex';
       pill.style.pointerEvents = 'none';
@@ -150,7 +183,7 @@
 
         // 核心渲染调优：低延迟、自适应视口
         rfb.scaleViewport = true;
-        rfb.resizeSession = true;
+        rfb.resizeSession = false;
         rfb.clipViewport = false;
         rfb.compressionLevel = 2; // 极速压缩模式
         rfb.qualityLevel = 6;      // 高保真与帧率均衡
@@ -171,8 +204,9 @@
           pill.classList.remove('connected');
           spinner.style.display = 'none';
 
-          // 单活跃会话：若被其他窗口抢占，停止无限自动重连，展示切回按钮
-          if (lastWsCloseCode === 4001) {
+          // 单活跃会话抢占检测：从底层 WebSocket 检查状态码 4001
+          const wsCode = rfb._sock && rfb._sock._websocket ? rfb._sock._websocket.code : 0;
+          if (wsCode === 4001) {
             pill.className = 'warning';
             pillText.innerHTML = '桌面已在其他窗口接入，本窗口已挂起 <button class="pill-btn" id="btn-reclaim-vnc">切回此窗口</button>';
             const reclaimBtn = document.getElementById('btn-reclaim-vnc');
@@ -183,8 +217,17 @@
           }
 
           pill.classList.add('error');
-          pillText.textContent = e.detail && e.detail.clean ? '桌面会话已关闭' : '连接中断，2秒后尝试重新连入...';
-          if (!e.detail || !e.detail.clean) {
+          const isClean = e.detail && e.detail.clean;
+          pillText.innerHTML = isClean
+            ? '桌面会话已关闭 <button class="pill-btn" id="btn-retry-vnc">重新连接</button>'
+            : '连接中断，2秒后尝试重新连入... <button class="pill-btn" id="btn-retry-vnc">立即重连</button>';
+
+          const retryBtn = document.getElementById('btn-retry-vnc');
+          if (retryBtn) {
+            retryBtn.onclick = () => { connect(); };
+          }
+
+          if (!isClean) {
             retryCount++;
             reconnectTimer = setTimeout(connect, 2000);
           }
@@ -205,6 +248,22 @@
         pillText.textContent = '初始化失败: ' + err.message;
       }
     }
+
+    // 绑定顶部快捷按键
+    document.getElementById('btn-cad').onclick = () => {
+      if (rfb) rfb.sendCtrlAltDel();
+    };
+    document.getElementById('btn-fs').onclick = () => {
+      if (!document.fullscreenElement) {
+        document.documentElement.requestFullscreen().catch(() => {});
+      } else {
+        document.exitFullscreen().catch(() => {});
+      }
+    };
+    document.getElementById('btn-reload').onclick = () => {
+      retryCount = 0;
+      connect();
+    };
 
     window.addEventListener('DOMContentLoaded', connect);
   </script>

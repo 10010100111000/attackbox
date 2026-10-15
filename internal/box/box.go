@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"time"
 
 	"attackbox/internal/cfg"
 )
@@ -116,7 +117,19 @@ func (m *Manager) EnsureGUI(ctx context.Context, b *cfg.Box) error {
 		return fmt.Errorf("launch box gui: %v: %s", err, strings.TrimSpace(string(out)))
 	}
 
-	return nil
+	// 轮询等待 gui.sock 真正创建就绪
+	for i := 0; i < 40; i++ {
+		if _, err := os.Stat(guiSock); err == nil {
+			return nil
+		}
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-time.After(100 * time.Millisecond):
+		}
+	}
+
+	return fmt.Errorf("gui socket %s not ready after launch", guiSock)
 }
 
 // DetailedStatus 查询核心沙箱与图形桌面各自的运行状态

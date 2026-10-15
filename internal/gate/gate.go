@@ -124,6 +124,9 @@ func (g *Gate) Handler() http.Handler {
 	mux.HandleFunc("POST /api/admin/broadcast", g.adminAuth(g.apiAdminBroadcast))
 
 	// 受保护的静态资源与 WebSocket 桥接
+	mux.HandleFunc("GET /vnc", func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, "/vnc/vnc.html?path=vnc/websockify", http.StatusSeeOther)
+	})
 	mux.Handle("GET /vnc/", g.auth(http.StripPrefix("/vnc/", g.novnc).ServeHTTP))
 	mux.HandleFunc("GET /vnc/websockify", g.auth(g.vncWS))
 	mux.HandleFunc("GET /websockify", g.auth(g.vncWS))

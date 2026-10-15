@@ -93,8 +93,10 @@ start_gui() {
   fi
 
   rm -f "$GUISOCK"
+  rm -f "${ROOTFS}/tmp/.X11-unix/X${DISP}" "${ROOTFS}/tmp/.X${DISP}-lock"
+
   nohup ip netns exec "$NETNS" /usr/sbin/chroot "$ROOTFS" /bin/bash -c "
-    /usr/bin/Xtigervnc \":$DISP\" -rfbunixpath /run/attackbox/gui.sock -rfbunixmode 384 \
+    /usr/bin/Xtigervnc \":$DISP\" -rfbunixpath /run/attackbox/gui.sock -rfbunixmode 0666 \
       -SecurityTypes None -AlwaysShared -geometry 1280x800 -depth 24 &
     XVNC_PID=\$!
 
@@ -116,7 +118,7 @@ start_gui() {
   echo "$!" > "${RUNDIR}/gui.pid"
 
   # 等待 GUI 套接字就绪
-  for i in $(seq 1 30); do
+  for i in $(seq 1 40); do
     [ -S "$GUISOCK" ] && break
     sleep 0.1
   done
@@ -132,6 +134,7 @@ stop_gui() {
     rm -f "${RUNDIR}/gui.pid"
   fi
   rm -f "$GUISOCK"
+  rm -f "${ROOTFS}/tmp/.X11-unix/X${DISP}" "${ROOTFS}/tmp/.X${DISP}-lock"
 }
 
 case "$MODE" in
