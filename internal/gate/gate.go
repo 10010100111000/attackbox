@@ -127,11 +127,11 @@ func (g *Gate) Handler() http.Handler {
 	mux.HandleFunc("GET /vnc", func(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, "/vnc/vnc.html?path=vnc/websockify", http.StatusSeeOther)
 	})
-	mux.Handle("GET /vnc/", g.auth(http.StripPrefix("/vnc/", g.novnc).ServeHTTP))
+	mux.Handle("GET /vnc/", http.StripPrefix("/vnc/", g.novnc))
 	mux.HandleFunc("GET /vnc/websockify", g.auth(g.vncWS))
 	mux.HandleFunc("GET /websockify", g.auth(g.vncWS))
 
-	mux.Handle("GET /xterm/", g.auth(http.StripPrefix("/xterm/", g.xterm).ServeHTTP))
+	mux.Handle("GET /xterm/", http.StripPrefix("/xterm/", g.xterm))
 	mux.HandleFunc("GET /term", g.auth(g.termPage))
 	mux.HandleFunc("GET /term/ws", g.auth(g.termWS))
 
