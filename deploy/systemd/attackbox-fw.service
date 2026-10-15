@@ -1,0 +1,13 @@
+[Unit]
+Description=attackbox per-UID egress policy
+Before=attackboxd.service
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/local/sbin/attackbox-fw box1
+
+[Install]
+WantedBy=multi-user.target

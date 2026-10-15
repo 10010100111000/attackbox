@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="zh-CN" class="h-full bg-zinc-950">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>AttackBox 远程桌面</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; }
+    html, body {
+      margin: 0;
+      padding: 0;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background-color: #09090b;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    }
+    #screen {
+      width: 100%;
+      height: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    #screen > canvas {
+      outline: none;
+    }
+    #status-pill {
+      position: fixed;
+      top: 14px;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 100;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 14px;
+      border-radius: 9999px;
+      background: rgba(24, 24, 27, 0.85);
+      border: 1px solid rgba(63, 63, 70, 0.6);
+      backdrop-filter: blur(8px);
+      color: #e4e4e7;
+      font-size: 12px;
+      font-weight: 500;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+      transition: opacity 0.3s ease, transform 0.3s ease;
+      pointer-events: none;
+    }
+    .spinner {
+      width: 13px;
+      height: 13px;
+      border: 2px solid rgba(228, 228, 231, 0.2);
+      border-top-color: #38bdf8;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+    #status-pill.connected {
+      opacity: 0;
+      transform: translate(-50%, -10px);
+    }
+    #status-pill.warning {
+      background: rgba(30, 25, 10, 0.95);
+      border-color: rgba(245, 158, 11, 0.6);
+      color: #fef3c7;
+      pointer-events: auto;
+    }
+    #status-pill.error {
+      background: rgba(127, 29, 29, 0.9);
+      border-color: rgba(239, 68, 68, 0.6);
+      color: #fecaca;
+    }
+    .pill-btn {
+      display: inline-flex;
+      align-items: center;
+      padding: 3px 10px;
+      background: #ffffff;
+      color: #09090b;
+      font-size: 11px;
+      font-weight: 600;
+      border-radius: 9999px;
+      border: none;
+      cursor: pointer;
+      margin-left: 6px;
+      transition: background-color 0.15s ease;
+    }
+    .pill-btn:hover {
+      background: #f4f4f5;
+    }
+  </style>
+</head>
+<body>
+  <div id="status-pill">
+    <div class="spinner" id="status-spinner"></div>
+    <span id="status-text">正在按需拉起图形桌面 (约 2-3 秒)...</span>
+  </div>
+  <div id="screen"></div>
+
+  <script type="module" crossorigin="anonymous">
+    import RFB from './core/rfb.js';
+
+    // 监控底层 WebSocket 关闭状态码（检测 4001 会话抢占）
+    let lastWsCloseCode = 0;
+    const NativeWebSocket = window.WebSocket;
+    window.WebSocket = function(url, protocols) {
+      const ws = new NativeWebSocket(url, protocols);
+      ws.addEventListener('close', (e) => {
+        lastWsCloseCode = e.code;
+      });
+      return ws;
+    };
+    window.WebSocket.prototype = NativeWebSocket.prototype;
+    window.WebSocket.CONNECTING = NativeWebSocket.CONNECTING;
+    window.WebSocket.OPEN = NativeWebSocket.OPEN;
+    window.WebSocket.CLOSING = NativeWebSocket.CLOSING;
+    window.WebSocket.CLOSED = NativeWebSocket.CLOSED;
+
+    const pill = document.getElementById('status-pill');
+    const pillText = document.getElementById('status-text');
+    const spinner = document.getElementById('status-spinner');
+    const screen = document.getElementById('screen');
+
+    const urlParams = new URLSearchParams(window.location.search);
+    const path = urlParams.get('path') || 'vnc/websockify';
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const wsUrl = `${protocol}//${window.location.host}/${path}`;
+
+    let rfb = null;
+    let retryCount = 0;
+    let reconnectTimer = null;
+
+    function connect() {
+      if (reconnectTimer) {
+        clearTimeout(reconnectTimer);
+        reconnectTimer = null;
+      }
+      lastWsCloseCode = 0;
+      pill.className = '';
+      pill.style.display = 'flex';
+      pill.style.pointerEvents = 'none';
+      spinner.style.display = 'block';
+      pillText.textContent = retryCount > 0 ? `重试连接桌面 (${retryCount})...` : '正在按需拉起图形桌面...';
+
+      try {
+        rfb = new RFB(screen, wsUrl, {
+          wsProtocols: ['binary']
+        });
+
+        // 核心渲染调优：低延迟、自适应视口
+        rfb.scaleViewport = true;
+        rfb.resizeSession = true;
+        rfb.clipViewport = false;
+        rfb.compressionLevel = 2; // 极速压缩模式
+        rfb.qualityLevel = 6;      // 高保真与帧率均衡
+
+        rfb.addEventListener('connect', () => {
+          retryCount = 0;
+          pill.classList.add('connected');
+          setTimeout(() => {
+            if (pill.classList.contains('connected')) {
+              pill.style.display = 'none';
+            }
+          }, 400);
+          rfb.focus();
+        });
+
+        rfb.addEventListener('disconnect', (e) => {
+          pill.style.display = 'flex';
+          pill.classList.remove('connected');
+          spinner.style.display = 'none';
+
+          // 单活跃会话：若被其他窗口抢占，停止无限自动重连，展示切回按钮
+          if (lastWsCloseCode === 4001) {
+            pill.className = 'warning';
+            pillText.innerHTML = '桌面已在其他窗口接入，本窗口已挂起 <button class="pill-btn" id="btn-reclaim-vnc">切回此窗口</button>';
+            const reclaimBtn = document.getElementById('btn-reclaim-vnc');
+            if (reclaimBtn) {
+              reclaimBtn.onclick = () => { connect(); };
+            }
+            return;
+          }
+
+          pill.classList.add('error');
+          pillText.textContent = e.detail && e.detail.clean ? '桌面会话已关闭' : '连接中断，2秒后尝试重新连入...';
+          if (!e.detail || !e.detail.clean) {
+            retryCount++;
+            reconnectTimer = setTimeout(connect, 2000);
+          }
+        });
+
+        rfb.addEventListener('securityfailure', () => {
+          pill.style.display = 'flex';
+          pill.classList.remove('connected');
+          spinner.style.display = 'none';
+          pill.classList.add('error');
+          pillText.textContent = '远程桌面鉴权失败，请重新登录平台';
+        });
+
+      } catch (err) {
+        pill.style.display = 'flex';
+        pill.classList.add('error');
+        spinner.style.display = 'none';
+        pillText.textContent = '初始化失败: ' + err.message;
+      }
+    }
+
+    window.addEventListener('DOMContentLoaded', connect);
+  </script>
+</body>
+</html>

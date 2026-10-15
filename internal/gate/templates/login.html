@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>attackbox</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style>
+html,body{margin:0;height:100%;background:#0d0f12;color:#c8d0da;
+  font:14px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace}
+body{display:grid;place-items:center}
+form{background:#14181d;border:1px solid #242b33;padding:28px 32px;min-width:320px}
+h1{font-size:15px;margin:0 0 18px;letter-spacing:.14em;text-transform:uppercase;color:#6f7d8c}
+input{width:100%;box-sizing:border-box;background:#0a0c0f;border:1px solid #2b333d;
+  color:#7dd3a0;padding:10px 12px;font:inherit;outline:none}
+input:focus{border-color:#3d6b52}
+button{margin-top:14px;width:100%;padding:10px;background:#1d2a22;color:#9fe7bd;
+  border:1px solid #2f4a3a;font:inherit;cursor:pointer}
+button:hover{background:#243528}
+.err{color:#e2725b;margin:0 0 12px}
+</style></head>
+<body>
+<form method="post" action="/login">
+  <h1>attackbox</h1>
+  {{if .Error}}<p class="err">{{.Error}}</p>{{end}}
+  <input name="token" placeholder="access token" autocomplete="off" autofocus>
+  <button type="submit">enter</button>
+</form>
+</body></html>

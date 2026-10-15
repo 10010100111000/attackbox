@@ -1,0 +1,20 @@
+{
+  "listen": ":443",
+  "cert": "/etc/ssl/novnc/cert.pem",
+  "key": "/etc/ssl/novnc/key.pem",
+  "novncDir": "/usr/share/novnc",
+  "xtermDir": "/usr/local/share/attackbox/xterm",
+  "boxes": [
+    { "id": "box1", "user": "box1", "display": 5, "ttlMinutes": 120 },
+    { "id": "box2", "user": "box2", "display": 6, "ttlMinutes": 120 },
+    { "id": "box3", "user": "box3", "display": 7, "ttlMinutes": 120 },
+    { "id": "box4", "user": "box4", "display": 8, "ttlMinutes": 120 }
+  ],
+  "users": [
+    { "name": "user1", "box": "box1", "token": "tok-user1-pass" },
+    { "name": "user2", "box": "box2", "token": "tok-user2-pass" },
+    { "name": "user3", "box": "box3", "token": "tok-user3-pass" },
+    { "name": "user4", "box": "box4", "token": "tok-user4-pass" },
+    { "name": "laji",  "box": "box1", "token": "048ea79f23a6c17e79aa4baef2fba020" }
+  ]
+}
