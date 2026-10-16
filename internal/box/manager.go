@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"net"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -15,6 +16,22 @@ import (
 
 	"attackbox/internal/config"
 )
+
+// checkGUISocket 探测 Unix Socket 是否真正接受连接，防止 Xtigervnc 崩溃后的陈旧套接字伪存活
+func checkGUISocket(sockPath string, cleanIfDead bool) bool {
+	if _, err := os.Stat(sockPath); err != nil {
+		return false
+	}
+	conn, err := net.DialTimeout("unix", sockPath, 150*time.Millisecond)
+	if err != nil {
+		if cleanIfDead {
+			_ = os.Remove(sockPath)
+		}
+		return false
+	}
+	_ = conn.Close()
+	return true
+}
 
 type Manager struct {
 	Snapshots *SnapshotManager
@@ -109,6 +126,16 @@ func (m *Manager) startLocked(ctx context.Context, b *config.Box) error {
 	return nil
 }
 
+func slotIndex(b *config.Box) int {
+	if b.Index > 0 {
+		return b.Index
+	}
+	if n, err := strconv.Atoi(strings.TrimPrefix(b.ID, "box")); err == nil && n > 0 {
+		return n
+	}
+	return 1
+}
+
 // startCore 纯 Go 原生实现网络命名空间、veth 虚拟网卡、挂载设备树与权限初始化
 func (m *Manager) startCore(ctx context.Context, b *config.Box, rootfs string) error {
 	_ = os.MkdirAll(b.RunDir, 01777)
@@ -119,10 +146,11 @@ func (m *Manager) startCore(ctx context.Context, b *config.Box, rootfs string) e
 	_ = os.Remove(filepath.Join(b.RunDir, "unshare.pid"))
 	_ = os.Remove(filepath.Join(b.RunDir, "core.ready"))
 
-	netns := "ab-" + b.ID
-	vethHost := "veth-" + b.ID + "-br"
-	vethGuest := "veth-" + b.ID
-	boxIP := fmt.Sprintf("10.200.0.%d/24", 10+b.Display)
+	idx := slotIndex(b)
+	netns := fmt.Sprintf("ab-b%d", idx)
+	vethHost := fmt.Sprintf("vh%d", idx)
+	vethGuest := fmt.Sprintf("vb%d", idx)
+	boxIP := fmt.Sprintf("10.200.0.%d/24", 10+idx)
 
 	// 1. 原生 ip netns 隔离网络环境
 	out, _ := exec.CommandContext(ctx, "ip", "netns", "list").Output()
@@ -132,7 +160,7 @@ func (m *Manager) startCore(ctx context.Context, b *config.Box, rootfs string) e
 		}
 	}
 
-	// 2. 创建并配置 veth 虚拟网卡对
+	// 2. 创建并配置 veth 虚拟网卡对 (安全短网卡名，绝不超限 IFNAMSIZ 15字符)
 	if err := exec.CommandContext(ctx, "ip", "link", "show", vethHost).Run(); err != nil {
 		_ = exec.CommandContext(ctx, "ip", "link", "del", vethHost).Run()
 		_ = exec.CommandContext(ctx, "ip", "link", "del", vethGuest).Run()
@@ -148,7 +176,7 @@ func (m *Manager) startCore(ctx context.Context, b *config.Box, rootfs string) e
 
 	boxUser := b.User
 	if boxUser == "" {
-		boxUser = b.ID
+		boxUser = "box"
 	}
 
 	// 3. 构造私有 Mount/PID Namespace 内执行的挂载与 Init 脚本
@@ -164,15 +192,25 @@ mount --make-rprivate /
 # 挂载设备树与独立虚拟文件系统
 mount --bind "$ROOTFS" "$ROOTFS"
 mount --make-rprivate "$ROOTFS"
-mount --rbind /dev "$ROOTFS/dev"
-mount --make-rprivate "$ROOTFS/dev"
+
+# 挂载受控的独立虚拟设备树（杜绝物理块设备 /dev/vda* 暴露）
+mount -t tmpfs tmpfs "$ROOTFS/dev" -o rw,nosuid,mode=0755
+for d in null zero full random urandom tty ptmx; do
+  touch "$ROOTFS/dev/$d"
+  mount --bind "/dev/$d" "$ROOTFS/dev/$d"
+done
+mkdir -p "$ROOTFS/dev/pts" "$ROOTFS/dev/shm" "$ROOTFS/dev/net"
 mount -t devpts devpts "$ROOTFS/dev/pts" -o rw,nosuid,noexec,relatime,gid=5,mode=620,ptmxmode=666
 mount -t tmpfs tmpfs "$ROOTFS/dev/shm" -o rw,nosuid,nodev,mode=1777
+[ -e /dev/net/tun ] && touch "$ROOTFS/dev/net/tun" && mount --bind /dev/net/tun "$ROOTFS/dev/net/tun" 2>/dev/null || true
 chmod 666 "$ROOTFS/dev/ptmx" 2>/dev/null || true
 
-# 挂载属于本沙箱独立 PID namespace 的 proc 与 sys
+# 挂载属于本沙箱独立 PID namespace 的 proc 与只读 sysfs
 mount -t proc proc "$ROOTFS/proc"
-mount -t sysfs sys "$ROOTFS/sys"
+mount -t sysfs sys "$ROOTFS/sys" -o ro,nosuid,nodev,noexec
+
+# 屏蔽 SysRq 触发器，杜绝容器特权导致宿主机内核崩溃
+mount -t tmpfs tmpfs "$ROOTFS/proc/sysrq-trigger" -o ro 2>/dev/null || true
 
 # 挂载宿主-沙箱通信套接字目录
 mkdir -p "$ROOTFS/run/attackbox"
@@ -255,11 +293,12 @@ exec chroot "$ROOTFS" /bin/bash -c "
 	cgDir := filepath.Join(parentCg, b.ID)
 	if err := os.MkdirAll(cgDir, 0755); err == nil {
 		_ = os.WriteFile(filepath.Join(cgDir, "pids.max"), []byte("512\n"), 0644)
-		_ = os.WriteFile(filepath.Join(cgDir, "memory.max"), []byte("4G\n"), 0644)
+		_ = os.WriteFile(filepath.Join(cgDir, "memory.max"), []byte("2G\n"), 0644)
+		_ = os.WriteFile(filepath.Join(cgDir, "cpu.max"), []byte("200000 100000\n"), 0644)
 		if cmd.Process != nil {
 			_ = os.WriteFile(filepath.Join(cgDir, "cgroup.procs"), []byte(strconv.Itoa(cmd.Process.Pid)+"\n"), 0644)
 		}
-		log.Printf("[SECURITY] cgroups v2 applied: box=%s cg=%s pids.max=512 memory.max=4G", b.ID, cgDir)
+		log.Printf("[SECURITY] cgroups v2 applied: box=%s cg=%s pids.max=512 memory.max=2G cpu.max=2cores", b.ID, cgDir)
 	}
 
 	// 异步自动收割退出状态，彻底杜绝宿主机僵尸进程残留
@@ -315,7 +354,7 @@ func (m *Manager) EnsureGUI(ctx context.Context, b *config.Box) error {
 	}
 
 	guiSock := filepath.Join(b.RunDir, "gui.sock")
-	if _, err := os.Stat(guiSock); err == nil {
+	if checkGUISocket(guiSock, true) {
 		return nil
 	}
 
@@ -388,9 +427,9 @@ su - %s -c "
 		_ = os.WriteFile(filepath.Join("/sys/fs/cgroup/attackbox", b.ID, "cgroup.procs"), []byte(strconv.Itoa(cmd.Process.Pid)+"\n"), 0644)
 	}
 
-	// 轮询等待 gui.sock 真正创建就绪
+	// 轮询等待 gui.sock 真正创建就绪且可连接
 	for i := 0; i < 40; i++ {
-		if _, err := os.Stat(guiSock); err == nil {
+		if checkGUISocket(guiSock, false) {
 			return nil
 		}
 		select {
@@ -408,7 +447,7 @@ func (m *Manager) DetailedStatus(ctx context.Context, b *config.Box) (coreRunnin
 	coreRunning = m.Status(ctx, b).Running()
 	if coreRunning {
 		guiSock := filepath.Join(b.RunDir, "gui.sock")
-		if _, err := os.Stat(guiSock); err == nil {
+		if checkGUISocket(guiSock, true) {
 			guiRunning = true
 		}
 	}
@@ -495,8 +534,13 @@ func (m *Manager) kickLocked(ctx context.Context, b *config.Box) error {
 	}
 
 	// 3. 注销网络命名空间与网卡对
-	netns := "ab-" + b.ID
+	idx := slotIndex(b)
+	netns := fmt.Sprintf("ab-b%d", idx)
+	vethHost := fmt.Sprintf("vh%d", idx)
 	_ = exec.CommandContext(ctx, "ip", "netns", "del", netns).Run()
+	_ = exec.CommandContext(ctx, "ip", "link", "del", vethHost).Run()
+	// 兼容清理旧版命名格式
+	_ = exec.CommandContext(ctx, "ip", "netns", "del", "ab-"+b.ID).Run()
 	_ = exec.CommandContext(ctx, "ip", "link", "del", "veth-"+b.ID+"-br").Run()
 
 	// 4. 物理销毁快照
@@ -505,7 +549,14 @@ func (m *Manager) kickLocked(ctx context.Context, b *config.Box) error {
 	_ = m.Snapshots.Destroy(b.ID)
 
 	// 5. 清理 cgroups 资源控制组
-	_ = os.Remove(fmt.Sprintf("/sys/fs/cgroup/attackbox/%s", b.ID))
+	cgDir := fmt.Sprintf("/sys/fs/cgroup/attackbox/%s", b.ID)
+	_ = os.WriteFile(filepath.Join(cgDir, "cgroup.kill"), []byte("1\n"), 0644)
+	for retry := 0; retry < 20; retry++ {
+		if err := os.Remove(cgDir); err == nil {
+			break
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
 
 	// 6. 清理运行时文件
 	_ = os.Remove(filepath.Join(b.RunDir, "core.ready"))

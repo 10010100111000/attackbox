@@ -6,6 +6,7 @@ import (
 	"log"
 	"net"
 	"net/http"
+	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -25,7 +26,17 @@ var upgrader = websocket.Upgrader{
 	ReadBufferSize:  1 << 15,
 	WriteBufferSize: 1 << 15,
 	Subprotocols:    []string{"binary"},
-	CheckOrigin:     func(r *http.Request) bool { return true },
+	CheckOrigin: func(r *http.Request) bool {
+		origin := r.Header.Get("Origin")
+		if origin == "" {
+			return true
+		}
+		u, err := url.Parse(origin)
+		if err != nil {
+			return false
+		}
+		return strings.EqualFold(u.Host, r.Host)
+	},
 }
 
 func keepalive(c *safeConn, stop <-chan struct{}) {
@@ -55,7 +66,7 @@ func (g *Gateway) vncWS(w http.ResponseWriter, r *http.Request) {
 	defer cancel()
 	if err := g.boxes.EnsureGUI(ctx, b); err != nil {
 		log.Printf("vncWS ensure GUI %s: %v", b.ID, err)
-		http.Error(w, "cannot start desktop: "+err.Error(), http.StatusInternalServerError)
+		http.Error(w, "cannot start desktop", http.StatusInternalServerError)
 		return
 	}
 
@@ -151,12 +162,13 @@ func (g *Gateway) termWS(w http.ResponseWriter, r *http.Request) {
 	defer cancel()
 	if err := g.boxes.Ensure(ctx, b); err != nil {
 		log.Printf("termWS ensure core %s: %v", b.ID, err)
-		http.Error(w, "cannot start sandbox: "+err.Error(), http.StatusInternalServerError)
+		http.Error(w, "cannot start sandbox", http.StatusInternalServerError)
 		return
 	}
 
 	rawConn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
+		log.Printf("termWS upgrade error: %v", err)
 		return
 	}
 	c := newSafeConn(rawConn)

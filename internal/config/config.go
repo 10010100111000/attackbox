@@ -16,19 +16,25 @@ type Box struct {
 	RunDir     string `json:"runDir"`
 	GuiSocket  string `json:"guiSocket"`
 	TTLMinutes int    `json:"ttlMinutes"`
+	Index      int    `json:"index"`
 }
 
 // Config defines the global server configuration.
 type Config struct {
-	Listen   string `json:"listen"`
-	Cert     string `json:"cert"`
-	Key      string `json:"key"`
-	WebDir   string `json:"webDir"`
-	NovncDir   string `json:"novncDir"`
-	XtermDir   string `json:"xtermDir"`
-	BaseRootfs string `json:"baseRootfs"`
-	BoxesDir   string `json:"boxesDir"`
-	Boxes      []Box  `json:"boxes"`
+	Listen      string `json:"listen"`
+	Cert        string `json:"cert"`
+	Key         string `json:"key"`
+	WebDir      string `json:"webDir"`
+	NovncDir    string `json:"novncDir"`
+	XtermDir    string `json:"xtermDir"`
+	BaseRootfs  string `json:"baseRootfs"`
+	BoxesDir    string `json:"boxesDir"`
+	MaxSlots    int    `json:"maxSlots"`
+	BaseDisplay int    `json:"baseDisplay"`
+	SandboxUser string `json:"sandboxUser"`
+	TTLMinutes  int    `json:"ttlMinutes"`
+	TrustProxy  bool   `json:"trustProxy"`
+	Boxes       []Box  `json:"boxes"`
 }
 
 // Load reads and parses configuration from a JSON file on disk.
@@ -70,19 +76,59 @@ func (c *Config) defaults() {
 	if c.XtermDir == "" {
 		c.XtermDir = "/usr/local/share/attackbox/xterm"
 	}
-	for i := range c.Boxes {
-		b := &c.Boxes[i]
-		if b.RunDir == "" {
-			b.RunDir = "/run/attackbox/" + b.ID
+	if c.MaxSlots <= 0 {
+		if len(c.Boxes) > 0 {
+			c.MaxSlots = len(c.Boxes)
+		} else {
+			c.MaxSlots = 20
 		}
-		if b.GuiSocket == "" {
-			b.GuiSocket = b.RunDir + "/gui.sock"
+	}
+	if c.BaseDisplay <= 0 {
+		c.BaseDisplay = 100
+	}
+	if c.SandboxUser == "" {
+		c.SandboxUser = "box"
+	}
+	if c.TTLMinutes <= 0 {
+		c.TTLMinutes = 120
+	}
+
+	// 动态由 MaxSlots 派生所有沙箱槽位 (兼容静态 Boxes 配置)
+	if len(c.Boxes) == 0 {
+		c.Boxes = make([]Box, c.MaxSlots)
+		for i := 0; i < c.MaxSlots; i++ {
+			idx := i + 1
+			c.Boxes[i] = Box{
+				ID:         fmt.Sprintf("box%d", idx),
+				User:       c.SandboxUser,
+				Display:    c.BaseDisplay + idx,
+				RunDir:     fmt.Sprintf("/run/attackbox/box%d", idx),
+				GuiSocket:  fmt.Sprintf("/run/attackbox/box%d/gui.sock", idx),
+				TTLMinutes: c.TTLMinutes,
+				Index:      idx,
+			}
 		}
-		if b.User == "" {
-			b.User = b.ID
-		}
-		if b.TTLMinutes <= 0 {
-			b.TTLMinutes = 120
+	} else {
+		for i := range c.Boxes {
+			b := &c.Boxes[i]
+			if b.Index <= 0 {
+				b.Index = i + 1
+			}
+			if b.User == "" {
+				b.User = c.SandboxUser
+			}
+			if b.Display <= 0 {
+				b.Display = c.BaseDisplay + b.Index
+			}
+			if b.RunDir == "" {
+				b.RunDir = fmt.Sprintf("/run/attackbox/%s", b.ID)
+			}
+			if b.GuiSocket == "" {
+				b.GuiSocket = b.RunDir + "/gui.sock"
+			}
+			if b.TTLMinutes <= 0 {
+				b.TTLMinutes = c.TTLMinutes
+			}
 		}
 	}
 }

@@ -28,6 +28,16 @@ function showToast(msg) {
   setTimeout(() => el.remove(), 2500);
 }
 
+function escapeHtml(str) {
+  if (str === null || str === undefined) return '';
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
 // ==================== 登录 / 注册 Tab 切换与提交 ====================
 
 let authMode = 'login';
@@ -216,23 +226,33 @@ function renderUsersTable() {
   const tbody = document.getElementById('admin-users-tbody');
   tbody.innerHTML = state.users.map(u => `
     <tr>
-      <td class="py-2.5 px-4 font-medium text-zinc-900">${u.username}</td>
+      <td class="py-2.5 px-4 font-medium text-zinc-900">${escapeHtml(u.username)}</td>
       <td class="py-2.5 px-4">
         <span class="px-2 py-0.5 rounded text-[10px] font-medium ${u.role === 'admin' ? 'bg-zinc-900 text-white' : 'bg-zinc-100 text-zinc-700'}">
           ${u.role === 'admin' ? '管理员' : '普通用户'}
         </span>
       </td>
       <td class="py-2.5 px-4">${u.active ? '<span class="text-emerald-600 font-medium">正常</span>' : '<span class="text-zinc-400">已禁用</span>'}</td>
-      <td class="py-2.5 px-4 text-zinc-400 font-mono text-[11px]">${u.created_at ? u.created_at.slice(0, 10) : '-'}</td>
+      <td class="py-2.5 px-4 text-zinc-400 font-mono text-[11px]">${escapeHtml(u.created_at ? u.created_at.slice(0, 10) : '-')}</td>
       <td class="py-2.5 px-4 text-right space-x-1.5">
-        <button onclick="openResetPassModal('${u.username}')" class="px-2 py-1 rounded border border-zinc-200 hover:bg-zinc-100 text-zinc-600">重置密码</button>
-        <button onclick="toggleUserActive('${u.username}')" class="px-2 py-1 rounded border border-zinc-200 hover:bg-zinc-100 text-zinc-600">
+        <button data-action="reset" data-username="${escapeHtml(u.username)}" class="px-2 py-1 rounded border border-zinc-200 hover:bg-zinc-100 text-zinc-600">重置密码</button>
+        <button data-action="toggle" data-username="${escapeHtml(u.username)}" class="px-2 py-1 rounded border border-zinc-200 hover:bg-zinc-100 text-zinc-600">
           ${u.active ? '禁用' : '启用'}
         </button>
-        <button onclick="deleteUser('${u.username}')" class="px-2 py-1 rounded border border-zinc-200 hover:bg-red-50 text-red-600">删除</button>
+        <button data-action="delete" data-username="${escapeHtml(u.username)}" class="px-2 py-1 rounded border border-zinc-200 hover:bg-red-50 text-red-600">删除</button>
       </td>
     </tr>
   `).join('');
+
+  tbody.onclick = function(e) {
+    const btn = e.target.closest('button[data-action]');
+    if (!btn) return;
+    const action = btn.dataset.action;
+    const username = btn.dataset.username;
+    if (action === 'reset') openResetPassModal(username);
+    else if (action === 'toggle') toggleUserActive(username);
+    else if (action === 'delete') deleteUser(username);
+  };
 }
 
 function openAddUserModal() {
@@ -289,8 +309,9 @@ async function submitAddUser(e) {
 
 function openResetPassModal(username) {
   document.getElementById('modal-title').textContent = `重置用户【${username}】密码`;
-  document.getElementById('modal-body').innerHTML = `
-    <form onsubmit="submitResetPass(event, '${username}')" class="space-y-3.5 text-xs">
+  const body = document.getElementById('modal-body');
+  body.innerHTML = `
+    <form id="reset-pass-form" class="space-y-3.5 text-xs">
       <div>
         <label class="block font-medium text-zinc-700 mb-1">新密码</label>
         <input id="reset-user-pass" type="password" required placeholder="输入新密码" class="w-full px-3 py-2 border border-zinc-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-zinc-900" />
@@ -301,6 +322,10 @@ function openResetPassModal(username) {
       </div>
     </form>
   `;
+  const form = document.getElementById('reset-pass-form');
+  if (form) {
+    form.onsubmit = (e) => submitResetPass(e, username);
+  }
   document.getElementById('modal-overlay').classList.remove('hidden');
 }
 

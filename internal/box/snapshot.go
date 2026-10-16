@@ -51,15 +51,32 @@ func EnsureBaseRootfs(baseRootfs string) error {
 		return fmt.Errorf("create base snapshot: %v: %s", err, string(out))
 	}
 
-	// 2. 深度脱敏与清洗：移除宿主机所有私密数据与活动日志
+	// 2. 深度脱敏与清洗：移除宿主机所有私密数据、SSH主机私钥、历史服务与账户信息
 	sensitivePaths := []string{
 		filepath.Join(baseRootfs, "var/lib/attackbox"),
 		filepath.Join(baseRootfs, "etc/attackbox"),
 		filepath.Join(baseRootfs, "etc/ssl/novnc"),
+		filepath.Join(baseRootfs, "etc/kasmvnc"),
+		filepath.Join(baseRootfs, "var/lib/lightdm/data"),
+		filepath.Join(baseRootfs, "etc/sudoers.d/laji"),
 	}
 	for _, p := range sensitivePaths {
 		_ = os.RemoveAll(p)
 	}
+
+	// 移除老旧服务单元文件、SSH 主机私钥与 Linux 备份文件
+	_ = exec.Command("sh", "-c", fmt.Sprintf("rm -f %s/etc/systemd/system/pwnbox* %s/etc/systemd/system/kasmvnc* %s/etc/ssh/ssh_host_* %s/etc/*- 2>/dev/null || true",
+		baseRootfs, baseRootfs, baseRootfs, baseRootfs)).Run()
+
+	// 清理账户脱敏：彻底抹除 laji、parrot 及历史 box1..8，只保留唯一通用用户 box
+	cleanCmd := fmt.Sprintf(`
+		sed -i '/^laji:/d; /^parrot:/d; /^box[0-9]:/d' %s/etc/passwd %s/etc/shadow %s/etc/subuid %s/etc/subgid 2>/dev/null || true
+		sed -i 's/,laji//g; s/laji,//g; s/laji//g; s/,parrot//g; s/parrot,//g; s/parrot//g' %s/etc/group %s/etc/gshadow 2>/dev/null || true
+		chroot %s /bin/bash -c 'groupadd box 2>/dev/null || true; useradd -u 1001 -g box -m -s /bin/bash box 2>/dev/null || true' 2>/dev/null || true
+		echo 'box ALL=(ALL) NOPASSWD: ALL' > %s/etc/sudoers.d/attackbox
+		chmod 0440 %s/etc/sudoers.d/attackbox
+	`, baseRootfs, baseRootfs, baseRootfs, baseRootfs, baseRootfs, baseRootfs, baseRootfs, baseRootfs, baseRootfs)
+	_ = exec.Command("sh", "-c", cleanCmd).Run()
 
 	// 清理 root 与 home 下私密数据，清理临时文件与系统日志，并恢复标准 root 环境配置
 	_ = exec.Command("sh", "-c", fmt.Sprintf("rm -rf %s/root/* %s/root/.* %s/home/* %s/tmp/* %s/var/tmp/* %s/var/log/* 2>/dev/null || true; cp -r /etc/skel/. %s/root/ 2>/dev/null || true",

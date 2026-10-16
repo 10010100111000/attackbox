@@ -8,6 +8,7 @@ Type=simple
 ExecStart=/usr/local/bin/attackboxd -config /etc/attackbox/config.json
 Restart=on-failure
 RestartSec=2
+KillMode=process
 LimitNOFILE=65535
 StandardOutput=journal
 StandardError=journal

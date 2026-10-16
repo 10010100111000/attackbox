@@ -51,7 +51,9 @@ table inet attackbox {
     }
     chain input {
         type filter hook input priority 0;
-        iifname "br0" tcp dport { 22, 443 } reject
+        iifname "br0" ct state established,related accept
+        iifname "br0" icmp type echo-request accept
+        iifname "br0" reject
     }
 }
 `, wanIF)

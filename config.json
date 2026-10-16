@@ -1,13 +1,11 @@
 {
   "listen": ":443",
-  "cert": "/etc/ssl/novnc/cert.pem",
-  "key": "/etc/ssl/novnc/key.pem",
+  "cert": "/etc/attackbox/certs/cert.pem",
+  "key": "/etc/attackbox/certs/key.pem",
   "novncDir": "/usr/share/novnc",
   "xtermDir": "/usr/local/share/attackbox/xterm",
-  "boxes": [
-    { "id": "box1", "display": 5, "ttlMinutes": 120 },
-    { "id": "box2", "display": 6, "ttlMinutes": 120 },
-    { "id": "box3", "display": 7, "ttlMinutes": 120 },
-    { "id": "box4", "display": 8, "ttlMinutes": 120 }
-  ]
+  "maxSlots": 20,
+  "sandboxUser": "box",
+  "ttlMinutes": 120,
+  "trustProxy": false
 }

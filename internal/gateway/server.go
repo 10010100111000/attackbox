@@ -22,11 +22,34 @@ import (
 
 var ErrNoAvailableBox = errors.New("no available sandbox slot")
 
-func logAuth(format string, v ...any) { log.Printf("[AUTH] "+format, v...) }
-func logEnv(format string, v ...any)  { log.Printf("[ENV] "+format, v...) }
-func logTerm(format string, v ...any) { log.Printf("[TERM] "+format, v...) }
-func logGUI(format string, v ...any)  { log.Printf("[GUI] "+format, v...) }
-func logSec(format string, v ...any)  { log.Printf("[SECURITY] "+format, v...) }
+func sanitizeLogArg(v any) any {
+	if s, ok := v.(string); ok {
+		s = strings.ReplaceAll(s, "\r", " ")
+		s = strings.ReplaceAll(s, "\n", " ")
+		return s
+	}
+	if err, ok := v.(error); ok {
+		s := err.Error()
+		s = strings.ReplaceAll(s, "\r", " ")
+		s = strings.ReplaceAll(s, "\n", " ")
+		return s
+	}
+	return v
+}
+
+func sanitizeArgs(args []any) []any {
+	out := make([]any, len(args))
+	for i, a := range args {
+		out[i] = sanitizeLogArg(a)
+	}
+	return out
+}
+
+func logAuth(format string, v ...any) { log.Printf("[AUTH] "+format, sanitizeArgs(v)...) }
+func logEnv(format string, v ...any)  { log.Printf("[ENV] "+format, sanitizeArgs(v)...) }
+func logTerm(format string, v ...any) { log.Printf("[TERM] "+format, sanitizeArgs(v)...) }
+func logGUI(format string, v ...any)  { log.Printf("[GUI] "+format, sanitizeArgs(v)...) }
+func logSec(format string, v ...any)  { log.Printf("[SECURITY] "+format, sanitizeArgs(v)...) }
 
 // BoxLease 沙箱租约生命周期，与用户账号绑定，完全独立于单端 HTTP 会话
 type BoxLease struct {
@@ -96,12 +119,46 @@ func New(c *config.Config, m *box.Manager) (*Gateway, error) {
 		return nil, fmt.Errorf("init auth store at %s: %w", dbPath, err)
 	}
 
+	userLeases := map[string]*BoxLease{}
+	if records, err := store.GetActiveBoxLeases(); err == nil {
+		now := time.Now()
+		for _, rec := range records {
+			if rec.ExpiresAt.After(now) {
+				userLeases[rec.Username] = &BoxLease{
+					BoxID:     rec.BoxID,
+					User:      rec.Username,
+					StartedAt: rec.StartedAt,
+					ExpiresAt: rec.ExpiresAt,
+				}
+				logEnv("restored active lease from db: user=%s box=%s expires=%s", rec.Username, rec.BoxID, rec.ExpiresAt.Format("15:04:05"))
+			} else {
+				_ = store.DeleteBoxLease(rec.Username)
+			}
+		}
+	}
+
+	sessMap := map[string]*session{}
+	if records, err := store.GetActiveSessions(); err == nil {
+		now := time.Now()
+		for _, rec := range records {
+			if rec.ExpiresAt.After(now) {
+				sessMap[rec.Token] = &session{
+					User:    rec.Username,
+					Role:    rec.Role,
+					Expires: rec.ExpiresAt,
+				}
+			} else {
+				_ = store.DeleteSession(rec.Token)
+			}
+		}
+	}
+
 	return &Gateway{
 		cfg:        c,
 		boxes:      m,
 		authStore:  store,
-		sess:       map[string]*session{},
-		userLeases: map[string]*BoxLease{},
+		sess:       sessMap,
+		userLeases: userLeases,
 		activeCLI:  map[string]*safeConn{},
 		activeGUI:  map[string]*safeConn{},
 		broadcast: BroadcastConfig{
@@ -111,6 +168,40 @@ func New(c *config.Config, m *box.Manager) (*Gateway, error) {
 		novnc: http.FileServer(http.Dir(c.NovncDir)),
 		xterm: http.FileServer(http.Dir(c.XtermDir)),
 	}, nil
+}
+
+// Reconcile 在网关启动时对账：保留处于活跃租约中且运行中的沙箱，清理死掉的沙箱或无租约残留
+func (g *Gateway) Reconcile(ctx context.Context) {
+	g.mu.Lock()
+	activeByBox := make(map[string]string)
+	for user, lease := range g.userLeases {
+		activeByBox[lease.BoxID] = user
+	}
+	g.mu.Unlock()
+
+	for i := range g.cfg.Boxes {
+		b := &g.cfg.Boxes[i]
+		user, leased := activeByBox[b.ID]
+		status := g.boxes.Status(ctx, b)
+
+		if leased {
+			if status.Running() {
+				logEnv("reconcile: preserved active sandbox box=%s user=%s pid=%d", b.ID, user, status.MainPID)
+			} else {
+				logEnv("reconcile: leased sandbox is dead, recycling box=%s user=%s", b.ID, user)
+				g.mu.Lock()
+				delete(g.userLeases, user)
+				g.mu.Unlock()
+				_ = g.authStore.DeleteBoxLease(user)
+				_ = g.boxes.Kick(ctx, b)
+			}
+		} else {
+			if status.Running() {
+				logEnv("reconcile: cleaning unleased leftover box=%s", b.ID)
+				_ = g.boxes.Kick(ctx, b)
+			}
+		}
+	}
 }
 
 // Run 定时扫描会话与沙箱 TTL：两层完全解耦，锁内快速摘除，锁外异步 Kick I/O
@@ -125,6 +216,8 @@ func (g *Gateway) Run(ctx context.Context) {
 			now := time.Now()
 			var toKick []*config.Box
 			var toCloseBoxIDs []string
+			var expiredUsers []string
+			var expiredTokens []string
 
 			// 第一阶段：原子快速内存状态更新 (微秒级立即释放锁)
 			g.mu.Lock()
@@ -133,6 +226,7 @@ func (g *Gateway) Run(ctx context.Context) {
 				if now.After(s.Expires) {
 					logAuth("session expired: user=%s", s.User)
 					delete(g.sess, tok)
+					expiredTokens = append(expiredTokens, tok)
 				}
 			}
 
@@ -145,11 +239,18 @@ func (g *Gateway) Run(ctx context.Context) {
 						toCloseBoxIDs = append(toCloseBoxIDs, lease.BoxID)
 					}
 					delete(g.userLeases, username)
+					expiredUsers = append(expiredUsers, username)
 				}
 			}
 			g.mu.Unlock() // 立即释放全局锁，保证前台所有用户 HTTP API 绝对不卡顿
 
 			// 第二阶段：在锁外执行慢速 I/O 与连接切断
+			for _, tok := range expiredTokens {
+				_ = g.authStore.DeleteSession(tok)
+			}
+			for _, u := range expiredUsers {
+				_ = g.authStore.DeleteBoxLease(u)
+			}
 			for _, boxID := range toCloseBoxIDs {
 				g.closeBoxSessions(boxID)
 			}
@@ -298,13 +399,15 @@ func (g *Gateway) acquireBoxFor(r *http.Request) (*config.Box, *session, error) 
 		bid := g.cfg.Boxes[i].ID
 		if !inUse[bid] {
 			b := &g.cfg.Boxes[i]
-			expires := time.Now().Add(time.Duration(b.TTLMinutes) * time.Minute)
+			now := time.Now()
+			expires := now.Add(time.Duration(b.TTLMinutes) * time.Minute)
 			g.userLeases[s.User] = &BoxLease{
 				BoxID:     bid,
 				User:      s.User,
-				StartedAt: time.Now(),
+				StartedAt: now,
 				ExpiresAt: expires,
 			}
+			_ = g.authStore.SaveBoxLease(s.User, bid, now, expires)
 			logEnv("lease acquired: user=%s box=%s ttl=%dm expires=%s", s.User, bid, b.TTLMinutes, expires.Format("15:04:05"))
 			g.mu.Unlock()
 			return b, s, nil
@@ -331,6 +434,9 @@ func (g *Gateway) evictUser(ctx context.Context, username string) {
 		delete(g.userLeases, username)
 	}
 	g.mu.Unlock()
+
+	_ = g.authStore.DeleteBoxLease(username)
+	_ = g.authStore.DeleteSessionsByUsername(username)
 
 	if boxIDToKick != "" {
 		logEnv("evict user: user=%s box=%s", username, boxIDToKick)

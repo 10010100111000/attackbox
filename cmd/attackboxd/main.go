@@ -11,6 +11,7 @@ import (
 	"log"
 	"net"
 	"net/http"
+	"strings"
 	"time"
 
 	"attackbox/internal/box"
@@ -40,20 +41,20 @@ func main() {
 	}
 
 	mgr := box.NewManagerWithConfig(c.BoxesDir, c.BaseRootfs)
-	for i := range c.Boxes {
-		_ = mgr.Kick(context.Background(), &c.Boxes[i])
-	}
 
 	gw, err := gateway.New(c, mgr)
 	if err != nil {
 		log.Fatalf("gateway: %v", err)
 	}
 
+	// 启动对账：从 SQLite 恢复活跃沙箱租约，仅清理死掉的沙箱或无租约残留，重启绝不踢下线
+	gw.Reconcile(context.Background())
+
 	go gw.Run(context.Background())
 
 	srv := &http.Server{
 		Addr:              c.Listen,
-		Handler:           withLogging(gw.Handler()),
+		Handler:           withLogging(gw.Handler(), c.TrustProxy),
 		ReadHeaderTimeout: 10 * time.Second,
 		// A WebSocket upgrade only exists on HTTP/1.1. Go enables HTTP/2
 		// automatically for TLS servers, and Cloudflare then negotiates h2
@@ -86,28 +87,40 @@ func (s *statusWriter) Hijack() (net.Conn, *bufio.ReadWriter, error) {
 	return h.Hijack()
 }
 
-func withLogging(h http.Handler) http.Handler {
+func withLogging(h http.Handler, trustProxy bool) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		sw := &statusWriter{ResponseWriter: w, code: 200}
 		start := time.Now()
 		h.ServeHTTP(sw, r)
 		log.Printf("%s %s host=%s status=%d dur=%s ip=%s ua=%q",
-			r.Method, r.URL.RequestURI(), r.Host, sw.code,
+			sanitizeLog(r.Method), sanitizeLog(r.URL.RequestURI()), sanitizeLog(r.Host), sw.code,
 			time.Since(start).Truncate(time.Millisecond),
-			clientIP(r), trim(r.UserAgent(), 70))
+			sanitizeLog(clientIP(r, trustProxy)), trim(sanitizeLog(r.UserAgent()), 70))
 	})
 }
 
-// clientIP prefers the header Cloudflare sets, so the log shows the real user.
-func clientIP(r *http.Request) string {
-	if v := r.Header.Get("CF-Connecting-IP"); v != "" {
-		return v
+// clientIP checks reverse proxy headers only if trustProxy is enabled in config.
+func clientIP(r *http.Request, trustProxy bool) string {
+	if trustProxy {
+		if v := strings.TrimSpace(r.Header.Get("CF-Connecting-IP")); v != "" {
+			return v
+		}
+		if v := strings.TrimSpace(r.Header.Get("X-Forwarded-For")); v != "" {
+			parts := strings.Split(v, ",")
+			return strings.TrimSpace(parts[0])
+		}
 	}
 	host, _, err := net.SplitHostPort(r.RemoteAddr)
 	if err != nil {
 		return r.RemoteAddr
 	}
 	return host
+}
+
+func sanitizeLog(s string) string {
+	s = strings.ReplaceAll(s, "\r", " ")
+	s = strings.ReplaceAll(s, "\n", " ")
+	return s
 }
 
 func trim(s string, n int) string {

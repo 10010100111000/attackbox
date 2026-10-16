@@ -6,16 +6,22 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"math"
 	"net/http"
 	"os"
+	"regexp"
 	"strconv"
 	"strings"
 	"syscall"
 	"time"
 
+	"attackbox/internal/auth"
+
 	"github.com/gorilla/websocket"
 )
+
+var validUsername = regexp.MustCompile(`^[a-zA-Z0-9_-]{3,32}$`)
 
 // ---------- 认证 API ----------
 
@@ -31,6 +37,11 @@ func (g *Gateway) apiLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if !validUsername.MatchString(req.Username) {
+		writeJSON(w, map[string]any{"success": false, "error": "用户名或密码错误"})
+		return
+	}
+
 	u, err := g.authStore.Authenticate(req.Username, req.Password)
 	if err != nil {
 		logAuth("login failed: user=%s ip=%s reason=%v", req.Username, r.RemoteAddr, err)
@@ -40,13 +51,15 @@ func (g *Gateway) apiLogin(w http.ResponseWriter, r *http.Request) {
 	logAuth("login success: user=%s role=%s ip=%s", u.Username, u.Role, r.RemoteAddr)
 
 	tok := randHex(32)
+	expires := time.Now().Add(24 * time.Hour)
 	g.mu.Lock()
 	g.sess[tok] = &session{
 		User:    u.Username,
 		Role:    u.Role,
-		Expires: time.Now().Add(24 * time.Hour),
+		Expires: expires,
 	}
 	g.mu.Unlock()
+	_ = g.authStore.SaveSession(tok, u.Username, u.Role, expires)
 
 	http.SetCookie(w, &http.Cookie{
 		Name:     "ab",
@@ -54,7 +67,7 @@ func (g *Gateway) apiLogin(w http.ResponseWriter, r *http.Request) {
 		Path:     "/",
 		HttpOnly: true,
 		SameSite: http.SameSiteLaxMode,
-		Expires:  time.Now().Add(24 * time.Hour),
+		Expires:  expires,
 	})
 
 	writeJSON(w, map[string]any{
@@ -73,27 +86,33 @@ func (g *Gateway) apiRegister(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if len(req.Username) < 3 || len(req.Password) < 6 {
-		writeJSON(w, map[string]any{"success": false, "error": "用户名至少3位，密码至少6位"})
+	if !validUsername.MatchString(req.Username) || len(req.Password) < 6 {
+		writeJSON(w, map[string]any{"success": false, "error": "用户名需3-32位字母数字下划线或连字符，密码至少6位"})
 		return
 	}
 
 	u, err := g.authStore.Register(req.Username, req.Password)
 	if err != nil {
 		logAuth("register failed: user=%s ip=%s reason=%v", req.Username, r.RemoteAddr, err)
-		writeJSON(w, map[string]any{"success": false, "error": "该用户名已被注册"})
+		if errors.Is(err, auth.ErrUserExists) {
+			writeJSON(w, map[string]any{"success": false, "error": "该用户名已被注册"})
+		} else {
+			writeJSON(w, map[string]any{"success": false, "error": "注册失败，请检查输入格式"})
+		}
 		return
 	}
 	logAuth("register success: user=%s role=%s ip=%s", u.Username, u.Role, r.RemoteAddr)
 
 	tok := randHex(32)
+	expires := time.Now().Add(24 * time.Hour)
 	g.mu.Lock()
 	g.sess[tok] = &session{
 		User:    u.Username,
 		Role:    u.Role,
-		Expires: time.Now().Add(24 * time.Hour),
+		Expires: expires,
 	}
 	g.mu.Unlock()
+	_ = g.authStore.SaveSession(tok, u.Username, u.Role, expires)
 
 	http.SetCookie(w, &http.Cookie{
 		Name:     "ab",
@@ -101,7 +120,7 @@ func (g *Gateway) apiRegister(w http.ResponseWriter, r *http.Request) {
 		Path:     "/",
 		HttpOnly: true,
 		SameSite: http.SameSiteLaxMode,
-		Expires:  time.Now().Add(24 * time.Hour),
+		Expires:  expires,
 	})
 
 	writeJSON(w, map[string]any{
@@ -122,6 +141,7 @@ func (g *Gateway) apiLogout(w http.ResponseWriter, r *http.Request) {
 		}
 		delete(g.sess, c.Value)
 		g.mu.Unlock()
+		_ = g.authStore.DeleteSession(c.Value)
 	}
 	http.SetCookie(w, &http.Cookie{
 		Name:     "ab",
@@ -201,7 +221,7 @@ func (g *Gateway) apiCliToggle(w http.ResponseWriter, r *http.Request) {
 
 	if err := g.boxes.Ensure(ctx, allocatedBox); err != nil {
 		logEnv("start sandbox failed: user=%s box=%s err=%v", s.User, allocatedBox.ID, err)
-		writeJSON(w, map[string]any{"success": false, "error": "启动沙箱环境失败: " + err.Error()})
+		writeJSON(w, map[string]any{"success": false, "error": "启动沙箱环境失败，请重试或联系管理员"})
 		return
 	}
 
@@ -251,7 +271,7 @@ func (g *Gateway) apiGuiToggle(w http.ResponseWriter, r *http.Request) {
 	logGUI("start desktop requested: user=%s box=%s", s.User, allocatedBox.ID)
 	if err := g.boxes.EnsureGUI(ctx, allocatedBox); err != nil {
 		logGUI("ensure desktop failed: user=%s box=%s err=%v", s.User, allocatedBox.ID, err)
-		writeJSON(w, map[string]any{"success": false, "error": "启动 GUI 桌面失败: " + err.Error()})
+		writeJSON(w, map[string]any{"success": false, "error": "启动 GUI 桌面失败，请重试或联系管理员"})
 		return
 	}
 
@@ -309,6 +329,7 @@ func (g *Gateway) apiEnvDestroy(w http.ResponseWriter, r *http.Request) {
 	g.mu.Lock()
 	delete(g.userLeases, s.User)
 	g.mu.Unlock()
+	_ = g.authStore.DeleteBoxLease(s.User)
 
 	writeJSON(w, map[string]any{"success": true, "cliRunning": false, "guiRunning": false, "envRunning": false})
 }
@@ -381,7 +402,8 @@ func (g *Gateway) apiAdminMetrics(w http.ResponseWriter, r *http.Request) {
 func (g *Gateway) apiAdminListUsers(w http.ResponseWriter, r *http.Request) {
 	list, err := g.authStore.ListUsers()
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		logSec("admin list users error: %v", err)
+		http.Error(w, "internal server error", http.StatusInternalServerError)
 		return
 	}
 	writeJSON(w, list)
@@ -397,12 +419,21 @@ func (g *Gateway) apiAdminCreateUser(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, map[string]any{"success": false, "error": "无效的请求格式"})
 		return
 	}
+	if !validUsername.MatchString(req.Username) || len(req.Password) < 6 {
+		writeJSON(w, map[string]any{"success": false, "error": "用户名需3-32位字母数字下划线或连字符，密码至少6位"})
+		return
+	}
 	if req.Role != "admin" && req.Role != "user" {
 		req.Role = "user"
 	}
 	_, err := g.authStore.CreateUser(req.Username, req.Password, req.Role)
 	if err != nil {
-		writeJSON(w, map[string]any{"success": false, "error": err.Error()})
+		if errors.Is(err, auth.ErrUserExists) {
+			writeJSON(w, map[string]any{"success": false, "error": "该用户名已存在"})
+		} else {
+			logSec("admin create user failed: %v", err)
+			writeJSON(w, map[string]any{"success": false, "error": "创建用户失败"})
+		}
 		return
 	}
 	writeJSON(w, map[string]any{"success": true})
@@ -416,9 +447,32 @@ func (g *Gateway) apiAdminToggleUser(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, map[string]any{"success": false, "error": "无效的请求格式"})
 		return
 	}
+
+	targetUser, err := g.authStore.GetUser(req.Username)
+	if err != nil {
+		writeJSON(w, map[string]any{"success": false, "error": "用户不存在"})
+		return
+	}
+
+	// 杜绝自锁与失去最后一个活跃管理员
+	s := g.lookup(r)
+	if s != nil && s.User == req.Username && targetUser.Active {
+		writeJSON(w, map[string]any{"success": false, "error": "禁止操作：无法禁用当前正在登录的管理员账号"})
+		return
+	}
+
+	if targetUser.Role == "admin" && targetUser.Active {
+		adminCount, err := g.authStore.CountActiveAdmins()
+		if err != nil || adminCount <= 1 {
+			writeJSON(w, map[string]any{"success": false, "error": "禁止操作：系统必须保留至少一个处于启用状态的管理员账号"})
+			return
+		}
+	}
+
 	newActive, err := g.authStore.ToggleActive(req.Username)
 	if err != nil {
-		writeJSON(w, map[string]any{"success": false, "error": err.Error()})
+		logSec("admin toggle user %s error: %v", req.Username, err)
+		writeJSON(w, map[string]any{"success": false, "error": "更新用户状态失败"})
 		return
 	}
 	// 若用户被置为禁用 (active == false)，立即将其连根拔起踢下线并销毁环境！
@@ -437,9 +491,18 @@ func (g *Gateway) apiAdminResetPass(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, map[string]any{"success": false, "error": "无效的请求格式"})
 		return
 	}
+	if len(req.Password) < 6 {
+		writeJSON(w, map[string]any{"success": false, "error": "密码长度至少6位"})
+		return
+	}
 	err := g.authStore.UpdatePassword(req.Username, req.Password)
 	if err != nil {
-		writeJSON(w, map[string]any{"success": false, "error": err.Error()})
+		if errors.Is(err, auth.ErrUserNotFound) {
+			writeJSON(w, map[string]any{"success": false, "error": "用户不存在"})
+		} else {
+			logSec("admin reset pass %s error: %v", req.Username, err)
+			writeJSON(w, map[string]any{"success": false, "error": "重置密码失败"})
+		}
 		return
 	}
 	// 重置密码后强制让旧会话失效，要求使用新密码重新登录
@@ -455,9 +518,32 @@ func (g *Gateway) apiAdminDeleteUser(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, map[string]any{"success": false, "error": "无效的请求格式"})
 		return
 	}
-	err := g.authStore.DeleteUser(req.Username)
+
+	s := g.lookup(r)
+	if s != nil && s.User == req.Username {
+		writeJSON(w, map[string]any{"success": false, "error": "禁止操作：无法删除当前正在登录的管理员账号"})
+		return
+	}
+
+	targetUser, err := g.authStore.GetUser(req.Username)
 	if err != nil {
-		writeJSON(w, map[string]any{"success": false, "error": err.Error()})
+		writeJSON(w, map[string]any{"success": false, "error": "用户不存在"})
+		return
+	}
+
+	// 杜绝删除最后一个管理员
+	if targetUser.Role == "admin" {
+		adminCount, err := g.authStore.CountActiveAdmins()
+		if err != nil || adminCount <= 1 {
+			writeJSON(w, map[string]any{"success": false, "error": "禁止删除：系统必须保留至少一个处于启用状态的管理员账号"})
+			return
+		}
+	}
+
+	err = g.authStore.DeleteUser(req.Username)
+	if err != nil {
+		logSec("admin delete user %s error: %v", req.Username, err)
+		writeJSON(w, map[string]any{"success": false, "error": "删除用户失败"})
 		return
 	}
 	// 用户已被物理删除，立即踢出并释放其占据的靶场资源

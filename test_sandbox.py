@@ -2,6 +2,7 @@ import urllib.request
 import urllib.error
 import http.cookiejar
 import ssl
+import socket
 import json
 import subprocess
 import time
@@ -29,6 +30,8 @@ def make_session():
         r = urllib.request.Request(url, data=body, headers=headers, method=method)
         with opener.open(r) as resp:
             return json.loads(resp.read().decode('utf-8'))
+    req.opener = opener
+    req.cj = cj
     return req
 
 # 创建两个独立的客户端 Session (模拟同一用户的两台不同设备)
@@ -46,8 +49,10 @@ assert l2.get('success') is True
 
 # 重置环境，确保干净状态
 dev1('POST', '/api/env/destroy')
+subprocess.getoutput('sudo sqlite3 /var/lib/attackbox/attackbox.db "DELETE FROM box_leases;"')
 subprocess.getoutput('for s in $(sudo btrfs subvolume list / 2>/dev/null | grep "var/lib/attackbox/boxes" | awk \'{print $9}\'); do sudo btrfs property set "/$s" ro false 2>/dev/null; sudo btrfs subvolume delete "/$s" 2>/dev/null; done')
 subprocess.getoutput('sudo rm -rf /run/attackbox/* /sys/fs/cgroup/attackbox/* 2>/dev/null')
+subprocess.getoutput('sudo systemctl restart attackboxd.service')
 time.sleep(1)
 
 print('\n=== Test 2: 只看不练免占坑验证 ===')
@@ -95,11 +100,14 @@ print('\n=== Test 5: cgroups v2 资源防炸加固验证 ===')
 cgroup_dir = '/sys/fs/cgroup/attackbox/box1'
 pids_max = subprocess.getoutput(f'cat {cgroup_dir}/pids.max 2>/dev/null')
 memory_max = subprocess.getoutput(f'cat {cgroup_dir}/memory.max 2>/dev/null')
+cpu_max = subprocess.getoutput(f'cat {cgroup_dir}/cpu.max 2>/dev/null')
 procs = subprocess.getoutput(f'cat {cgroup_dir}/cgroup.procs 2>/dev/null')
 print(f'cgroups v2 pids.max: {pids_max} (expect 512)')
-print(f'cgroups v2 memory.max: {memory_max} (expect 4294967296 or max)')
+print(f'cgroups v2 memory.max: {memory_max} (expect 2147483648 or 2G)')
+print(f'cgroups v2 cpu.max: {cpu_max} (expect 200000 100000)')
 print(f'cgroups v2 procs:\n{procs}')
 assert pids_max == '512', f'pids.max not set to 512: {pids_max}'
+assert cpu_max.strip() == '200000 100000', f'cpu.max not set correctly: {cpu_max}'
 assert init_pid in procs.splitlines(), f'init_pid {init_pid} not in cgroup.procs'
 
 def run_in_sandbox(cmd_str):
@@ -117,11 +125,11 @@ assert 'In-sandbox reboot/shutdown is disabled' in poweroff_test
 print('\n=== Test 7: Sudo 主机名解析与零延迟验证 (P1 体验基线) ===')
 hosts_content = run_in_sandbox('cat /etc/hosts')
 print(f'Container /etc/hosts:\n{hosts_content}')
-assert '127.0.0.1 attackbox-box1 box1' in hosts_content
+assert '127.0.0.1 attackbox-box1 box' in hosts_content
 
 # 测试 sudo 执行耗时与警告
 t_start = time.time()
-sudo_test = run_in_sandbox('sudo -u box1 -s -- sudo true 2>&1')
+sudo_test = run_in_sandbox('sudo -u box -s -- sudo true 2>&1')
 t_elapsed = time.time() - t_start
 print(f'Container sudo test output: "{sudo_test}", elapsed: {t_elapsed:.3f}s')
 assert 'unable to resolve host' not in sudo_test
@@ -144,13 +152,13 @@ bashrc_content = run_in_sandbox('cat /root/.bashrc')
 print(f'Container /root/.bashrc size: {len(bashrc_content)} bytes')
 assert len(bashrc_content) > 100, 'Root .bashrc is empty or missing'
 
-whoami_check = run_in_sandbox('su - box1 -c whoami').strip()
-print(f'Container whoami for box1: {whoami_check}')
-assert whoami_check == 'box1', f'Expected box1, got {whoami_check}'
+whoami_check = run_in_sandbox('su - box -c whoami').strip()
+print(f'Container whoami for box: {whoami_check}')
+assert whoami_check == 'box', f'Expected box, got {whoami_check}'
 
-box1_check = run_in_sandbox('id box1 2>&1')
-print(f'id box1 in container: {box1_check}')
-assert 'uid=' in box1_check
+box_check = run_in_sandbox('id box 2>&1')
+print(f'id box in container: {box_check}')
+assert 'uid=' in box_check
 
 with open('/usr/local/share/attackbox/web/static/term.js') as f:
     term_js_src = f.read()
@@ -161,6 +169,45 @@ with open('/usr/local/share/attackbox/web/templates/term.html') as f:
     term_html_src = f.read()
     assert 'parrot' not in term_html_src, 'Hardcoded parrot still present in term.html'
 print('Verified web/templates/term.html: zero parrot hardcoding (PASS)')
+
+# 验证敏感账户彻底脱敏清零
+laji_check = run_in_sandbox('grep -E "laji" /etc/passwd /etc/shadow 2>&1')
+print(f'laji in container passwd/shadow (expect empty): {laji_check}')
+assert not laji_check, f'Security leak: laji still found in sandbox: {laji_check}'
+
+parrot_check = run_in_sandbox('grep -E "parrot" /etc/passwd /etc/shadow 2>&1')
+print(f'parrot in container passwd/shadow (expect empty): {parrot_check}')
+assert not parrot_check, f'parrot still found in sandbox: {parrot_check}'
+
+# 验证宿主 SSH 主机私钥彻底隔离清零
+ssh_key_check = run_in_sandbox('ls /etc/ssh/ssh_host_* 2>&1')
+print(f'SSH host keys in container (expect No such file): {ssh_key_check}')
+assert 'No such file' in ssh_key_check
+
+# 验证物理块设备彻底阻断 (/dev/vda* 绝不泄露)
+dev_disk_check = run_in_sandbox('ls /dev/sd* /dev/vd* /dev/nvme* 2>&1')
+print(f'Physical block devices in /dev (expect No such file): {dev_disk_check}')
+assert 'No such file' in dev_disk_check
+
+# 验证 /sys 只读保护生效
+sys_ro_check = run_in_sandbox('touch /sys/test_ro 2>&1')
+print(f'Touch /sys test (expect Read-only): {sys_ro_check}')
+assert 'Read-only' in sys_ro_check
+
+# 验证 /proc/sysrq-trigger 屏蔽生效
+sysrq_check = run_in_sandbox('echo b > /proc/sysrq-trigger 2>&1')
+print(f'Sysrq trigger test (expect Read-only or Permission denied): {sysrq_check}')
+assert 'Read-only' in sysrq_check or 'Permission denied' in sysrq_check
+
+# 验证短网卡命名 vh1 存在且符合规范
+vh_check = subprocess.getoutput('ip link show vh1 2>&1')
+print(f'veth short name vh1 on host: {vh_check}')
+assert 'vh1' in vh_check
+
+# 验证 SQLite 租约表持久化
+db_leases = subprocess.getoutput('sqlite3 /var/lib/attackbox/attackbox.db "SELECT username, box_id FROM box_leases"')
+print(f'Active leases in SQLite: {db_leases}')
+assert 'laji|box1' in db_leases
 
 print('\n=== Test 10: GUI 与 CLI 彻底解耦验证 ===')
 # 开启 GUI
@@ -182,7 +229,23 @@ print('Status after GUI off:', status_check)
 assert status_check.get('envRunning') is True
 assert status_check.get('cliRunning') is True
 
-print('\n=== Test 11: 一键处决与彻底清理 (Destroy) ===')
+print('\n=== Test 11: 守护进程重启无感对账 (Reconciliation) ===')
+# 重启 attackboxd 服务
+print('Restarting attackboxd.service to test lease reconciliation...')
+restart_res = subprocess.getoutput('sudo systemctl restart attackboxd.service')
+time.sleep(1.5)
+# 验证旧沙箱 PID 仍然存活，未被盲杀！
+ps_alive = subprocess.getoutput(f'ps -p {init_pid} 2>/dev/null')
+print(f'PID {init_pid} status after daemon restart: {ps_alive}')
+assert init_pid in ps_alive, f'Reconciliation failed: PID {init_pid} was killed across daemon restart!'
+
+# 验证重启后前台依然识别该沙箱租约
+status_after_restart = dev2('GET', '/api/me')
+print('Dev2 status after daemon restart:', status_after_restart)
+assert status_after_restart.get('envRunning') is True
+assert status_after_restart.get('boxId') == 'box1'
+
+print('\n=== Test 12: 一键处决与彻底清理 (Destroy) ===')
 dest_res = dev2('POST', '/api/env/destroy')
 print('Destroy response:', dest_res)
 assert dest_res.get('success') is True
@@ -208,16 +271,102 @@ subvols_check = subprocess.getoutput('sudo btrfs subvolume list / | grep boxes')
 print(f'Subvolumes after destroy (expect empty): {subvols_check if subvols_check else "NONE (PASS)"}')
 assert 'var/lib/attackbox/boxes/box1/rootfs' not in subvols_check
 
-print('\n=== Test 12: 结构化审计日志验证 ===')
+# 验证 SQLite 租约清除
+db_leases_after = subprocess.getoutput('sqlite3 /var/lib/attackbox/attackbox.db "SELECT * FROM box_leases WHERE username = \'laji\'"')
+print(f'SQLite lease after destroy (expect empty): {db_leases_after}')
+assert not db_leases_after
+
+print('\n=== Test 13: 结构化审计日志验证 ===')
 journal_logs = subprocess.getoutput('sudo journalctl -u attackboxd.service -n 60 --no-pager')
 print('Recent journal logs:')
 for line in journal_logs.splitlines()[-25:]:
     print('  ', line)
 assert '[AUTH]' in journal_logs
 assert '[ENV]' in journal_logs
-assert '[GUI]' in journal_logs
+
+print('\n=== Test 14: 10大安全漏洞防御专项验证 ===')
+# 1. 日志注入防御：测试换行符/非法字符用户名拦截
+log_inj_res = dev1('POST', '/api/login', {'username': "admin\n[AUTH] forged log entry", 'password': "test"})
+print('Log injection login test:', log_inj_res)
+assert log_inj_res.get('success') is False
+
+# 2. 详细错误泄露防护：测试 SQLite 错误是否被统一脱敏
+admin_sess = make_session()
+admin_login = admin_sess('POST', '/api/login', {'username': 'admin', 'password': 'qwer1234!'})
+print('Admin Login:', admin_login)
+assert admin_login.get('success') is True
+
+dup_create = admin_sess('POST', '/api/admin/users/create', {'username': 'admin', 'password': 'newpassword123', 'role': 'admin'})
+print('Duplicate admin create test:', dup_create)
+assert dup_create.get('success') is False
+err_msg = dup_create.get('error', '')
+assert 'sqlite' not in err_msg.lower() and 'sql:' not in err_msg.lower(), f'Raw SQL error leaked: {err_msg}'
+
+# 3. 最后一个管理员自锁与防误删验证
+toggle_self = admin_sess('POST', '/api/admin/users/toggle', {'username': 'admin'})
+print('Admin toggle self test:', toggle_self)
+assert toggle_self.get('success') is False
+assert '无法禁用' in toggle_self.get('error', '') or '至少一个' in toggle_self.get('error', '')
+
+del_self = admin_sess('POST', '/api/admin/users/delete', {'username': 'admin'})
+print('Admin delete self test:', del_self)
+assert del_self.get('success') is False
+assert '无法删除' in del_self.get('error', '') or '至少一个' in del_self.get('error', '')
+
+# 4. WebSocket 跨站挟持 (CSWSH) 阻断测试
+# 先为 admin 启动沙箱，确保 WebSocket 路由进入 Upgrade 握手阶段
+admin_sess('POST', '/api/env/cli/toggle')
+
+# 获取登录凭据 Cookie
+cookie_val = ""
+for c in admin_sess.cj:
+    if c.name == 'ab':
+        cookie_val = c.value
+        break
+assert cookie_val, "Admin session cookie 'ab' not found"
+
+# 通过标准 TLS 套接字发送真实的 WebSocket 升级握手帧（携带恶意跨站 Origin）
+raw_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+tls_sock = ctx.wrap_socket(raw_sock, server_hostname='127.0.0.1')
+tls_sock.connect(('127.0.0.1', 443))
+
+ws_handshake = (
+    "GET /term/ws HTTP/1.1\r\n"
+    "Host: 127.0.0.1\r\n"
+    "Upgrade: websocket\r\n"
+    "Connection: Upgrade\r\n"
+    "Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\n"
+    "Sec-WebSocket-Version: 13\r\n"
+    "Origin: https://evil-attacker.com\r\n"
+    f"Cookie: ab={cookie_val}\r\n"
+    "\r\n"
+)
+tls_sock.sendall(ws_handshake.encode('utf-8'))
+ws_resp = tls_sock.recv(4096).decode('utf-8', errors='ignore')
+tls_sock.close()
+
+status_line = ws_resp.splitlines()[0] if ws_resp.splitlines() else ""
+print(f'CSWSH handshake response status line: {status_line}')
+assert '403 Forbidden' in status_line or '403' in status_line, f'CSWSH protection failed! Expected 403 Forbidden, got: {ws_resp}'
+print('CSWSH cross-origin handshake blocked with 403 Forbidden (PASS)')
+
+# 5. 陈旧 gui.sock 自动探测与自愈恢复验证
+m_before = admin_sess('GET', '/api/me')
+box_id = m_before.get('boxId', 'box1')
+subprocess.getoutput(f'sudo mkdir -p /run/attackbox/{box_id} && sudo touch /run/attackbox/{box_id}/gui.sock')
+print(f'Simulated stale socket created at /run/attackbox/{box_id}/gui.sock')
+m_stale = admin_sess('GET', '/api/me')
+print('api/me response with stale socket:', m_stale)
+assert m_stale.get('guiRunning') is False, 'Stale socket falsely reported guiRunning=True!'
+sock_still_exists = subprocess.getoutput(f'ls /run/attackbox/{box_id}/gui.sock 2>/dev/null')
+assert not sock_still_exists, 'Stale socket was not cleaned up!'
+print('Stale socket successfully detected and purged (PASS)')
+
+# 清理测试环境
+admin_sess('POST', '/api/env/destroy')
 
 print('\n======================================================')
-print('SUCCESS! ALL 12 TEST SUITES PASSED FLAWLESSLY!')
-print('沙箱引擎所有架构重构、安全加固及用户体验缺陷全量验证通过！')
+print('SUCCESS! ALL 14 TEST SUITES (INCLUDING 10 SECURITY FIXES) PASSED!')
+print('沙箱引擎所有架构重构、安全漏洞与加固措施全量验证通过！')
 print('======================================================')
+

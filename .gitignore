@@ -1,0 +1,16 @@
+# Binary files
+bin/
+*.exe
+*.test
+
+# Archives & Temporary files
+*.tar.gz
+*.zip
+
+# Database
+*.db
+*.db-journal
+*.sqlite
+
+# Deployment scripts & temp
+deploy_remote.sh
