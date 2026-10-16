@@ -68,10 +68,9 @@ func (s *Store) initSchema() error {
 
 	// 保证默认管理员账号存在
 	var count int
-	_ = s.db.QueryRow("SELECT COUNT(*) FROM users WHERE username = 'admin' OR username = 'laji'").Scan(&count)
+	_ = s.db.QueryRow("SELECT COUNT(*) FROM users WHERE username = 'admin'").Scan(&count)
 	if count == 0 {
 		hash, _ := bcrypt.GenerateFromPassword([]byte("qwer1234!"), bcrypt.DefaultCost)
-		_, _ = s.db.Exec("INSERT INTO users (username, password_hash, role, active) VALUES (?, ?, 'admin', 1)", "laji", string(hash))
 		_, _ = s.db.Exec("INSERT INTO users (username, password_hash, role, active) VALUES (?, ?, 'admin', 1)", "admin", string(hash))
 	}
 

@@ -1,270 +1,21 @@
-// Package gate is the single-port web gateway: auth, routing and bridging.
-package gate
+package gateway
 
 import (
 	"bufio"
 	"context"
 	"crypto/rand"
-	"embed"
 	"encoding/hex"
 	"encoding/json"
-	"fmt"
-	"html/template"
-	"log"
 	"math"
 	"net/http"
 	"os"
 	"strconv"
 	"strings"
-	"sync"
 	"syscall"
 	"time"
 
 	"github.com/gorilla/websocket"
-
-	"attackbox/internal/auth"
-	"attackbox/internal/box"
-	"attackbox/internal/cfg"
 )
-
-//go:embed templates/*.html
-var tmplFS embed.FS
-
-type session struct {
-	User    string
-	Role    string
-	BoxID   string
-	Expires time.Time
-}
-
-type BroadcastConfig struct {
-	Enabled bool   `json:"enabled"`
-	Message string `json:"message"`
-}
-
-type Gate struct {
-	cfg       *cfg.Config
-	boxes     *box.Manager
-	authStore *auth.Store
-	tmpl      *template.Template
-
-	mu        sync.Mutex
-	sess      map[string]*session // cookieValue -> session
-	userBoxes map[string]string   // username -> boxID
-	broadcast BroadcastConfig
-
-	cliMu     sync.Mutex
-	activeCLI map[string]*websocket.Conn // boxID -> current active CLI connection
-
-	guiMu     sync.Mutex
-	activeGUI map[string]*websocket.Conn // boxID -> current active GUI connection
-
-	novnc http.Handler
-	xterm http.Handler
-}
-
-func New(c *cfg.Config, m *box.Manager) (*Gate, error) {
-	t, err := template.ParseFS(tmplFS, "templates/*.html")
-	if err != nil {
-		return nil, err
-	}
-
-	dbPath := "/var/lib/attackbox/attackbox.db"
-	store, err := auth.NewStore(dbPath)
-	if err != nil {
-		return nil, fmt.Errorf("init auth store at %s: %w", dbPath, err)
-	}
-
-	return &Gate{
-		cfg:       c,
-		boxes:     m,
-		authStore: store,
-		tmpl:      t,
-		sess:      map[string]*session{},
-		userBoxes: map[string]string{},
-		activeCLI: map[string]*websocket.Conn{},
-		activeGUI: map[string]*websocket.Conn{},
-		broadcast: BroadcastConfig{
-			Enabled: true,
-			Message: "欢迎使用 AttackBox 靶场工作台，实验结束后请随手关闭不再使用的环境。",
-		},
-		novnc: http.FileServer(http.Dir(c.NovncDir)),
-		xterm: http.FileServer(http.Dir(c.XtermDir)),
-	}, nil
-}
-
-func (g *Gate) Handler() http.Handler {
-	mux := http.NewServeMux()
-
-	// 页面渲染路由
-	mux.HandleFunc("GET /{$}", g.indexPage)
-	mux.HandleFunc("GET /login", g.indexPage)
-	mux.HandleFunc("GET /logout", g.logout)
-
-	// Web 认证 API
-	mux.HandleFunc("POST /api/login", g.apiLogin)
-	mux.HandleFunc("POST /api/register", g.apiRegister)
-	mux.HandleFunc("POST /api/logout", g.apiLogout)
-	mux.HandleFunc("GET /api/me", g.apiMe)
-
-	// 渗透环境控制 API (支持 CLI、GUI 独立启停及一键销毁)
-	mux.HandleFunc("POST /api/env/toggle", g.auth(g.apiCliToggle))
-	mux.HandleFunc("POST /api/env/cli/toggle", g.auth(g.apiCliToggle))
-	mux.HandleFunc("POST /api/env/gui/toggle", g.auth(g.apiGuiToggle))
-	mux.HandleFunc("POST /api/env/destroy", g.auth(g.apiEnvDestroy))
-	mux.HandleFunc("GET /api/env/status", g.auth(g.apiEnvStatus))
-
-	// 管理员专属 API (需要 role == 'admin')
-	mux.HandleFunc("GET /api/admin/metrics", g.adminAuth(g.apiAdminMetrics))
-	mux.HandleFunc("GET /api/admin/users", g.adminAuth(g.apiAdminListUsers))
-	mux.HandleFunc("POST /api/admin/users/create", g.adminAuth(g.apiAdminCreateUser))
-	mux.HandleFunc("POST /api/admin/users/toggle", g.adminAuth(g.apiAdminToggleUser))
-	mux.HandleFunc("POST /api/admin/users/reset-pass", g.adminAuth(g.apiAdminResetPass))
-	mux.HandleFunc("POST /api/admin/users/delete", g.adminAuth(g.apiAdminDeleteUser))
-	mux.HandleFunc("POST /api/admin/broadcast", g.adminAuth(g.apiAdminBroadcast))
-
-	// 受保护的静态资源与 WebSocket 桥接
-	mux.HandleFunc("GET /vnc", func(w http.ResponseWriter, r *http.Request) {
-		http.Redirect(w, r, "/vnc/vnc.html?path=vnc/websockify", http.StatusSeeOther)
-	})
-	mux.Handle("GET /vnc/", http.StripPrefix("/vnc/", g.novnc))
-	mux.HandleFunc("GET /vnc/websockify", g.auth(g.vncWS))
-	mux.HandleFunc("GET /websockify", g.auth(g.vncWS))
-
-	mux.Handle("GET /xterm/", http.StripPrefix("/xterm/", g.xterm))
-	mux.HandleFunc("GET /term", g.auth(g.termPage))
-	mux.HandleFunc("GET /term/ws", g.auth(g.termWS))
-
-	return mux
-}
-
-// Run 定期清理过期 session
-func (g *Gate) Run(ctx context.Context) {
-	t := time.NewTicker(30 * time.Second)
-	defer t.Stop()
-	for {
-		select {
-		case <-ctx.Done():
-			return
-		case <-t.C:
-			g.mu.Lock()
-			now := time.Now()
-			for k, s := range g.sess {
-				if now.After(s.Expires) {
-					// 超时自动关闭环境
-					if s.BoxID != "" {
-						if b := g.cfg.BoxByID(s.BoxID); b != nil {
-							log.Printf("session expired for %s, tearing down %s", s.User, b.ID)
-							_ = g.boxes.Kick(ctx, b)
-						}
-						delete(g.userBoxes, s.User)
-					}
-					delete(g.sess, k)
-				}
-			}
-			g.mu.Unlock()
-		}
-	}
-}
-
-// ---------- 鉴权拦截器 ----------
-
-func (g *Gate) auth(h http.HandlerFunc) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		s := g.lookup(r)
-		if s == nil {
-			if strings.HasSuffix(r.URL.Path, "/websockify") || r.URL.Path == "/term/ws" {
-				http.Error(w, "unauthorized", http.StatusUnauthorized)
-				return
-			}
-			http.Redirect(w, r, "/login", http.StatusSeeOther)
-			return
-		}
-		h(w, r)
-	}
-}
-
-func (g *Gate) adminAuth(h http.HandlerFunc) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		s := g.lookup(r)
-		if s == nil || s.Role != "admin" {
-			http.Error(w, `{"error":"forbidden: admin access required"}`, http.StatusForbidden)
-			return
-		}
-		h(w, r)
-	}
-}
-
-func (g *Gate) lookup(r *http.Request) *session {
-	c, err := r.Cookie("ab")
-	if err != nil {
-		return nil
-	}
-	g.mu.Lock()
-	defer g.mu.Unlock()
-	s := g.sess[c.Value]
-	if s == nil {
-		return nil
-	}
-	if time.Now().After(s.Expires) {
-		delete(g.sess, c.Value)
-		return nil
-	}
-	return s
-}
-
-func (g *Gate) boxFor(r *http.Request) (*cfg.Box, *session) {
-	s := g.lookup(r)
-	if s == nil {
-		return nil, nil
-	}
-	g.mu.Lock()
-	boxID := g.userBoxes[s.User]
-	if boxID == "" {
-		boxID = s.BoxID
-	}
-	if boxID == "" {
-		// 方案 A 懒加载：如果用户尚未分配槽位，自动寻找空闲槽位绑定
-		inUse := make(map[string]bool)
-		for _, bid := range g.userBoxes {
-			inUse[bid] = true
-		}
-		for i := range g.cfg.Boxes {
-			if !inUse[g.cfg.Boxes[i].ID] {
-				boxID = g.cfg.Boxes[i].ID
-				g.userBoxes[s.User] = boxID
-				s.BoxID = boxID
-				break
-			}
-		}
-	}
-	g.mu.Unlock()
-
-	if boxID == "" {
-		boxID = "box1"
-	}
-	return g.cfg.BoxByID(boxID), s
-}
-
-// ---------- 页面渲染 ----------
-
-func (g *Gate) indexPage(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	w.Header().Set("Cache-Control", "no-store")
-	if err := g.tmpl.ExecuteTemplate(w, "dash.html", map[string]any{}); err != nil {
-		log.Printf("render dash.html: %v", err)
-	}
-}
-
-func (g *Gate) termPage(w http.ResponseWriter, r *http.Request) {
-	b, s := g.boxFor(r)
-	if b == nil {
-		http.Error(w, "environment not running", http.StatusNotFound)
-		return
-	}
-	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	_ = g.tmpl.ExecuteTemplate(w, "term.html", map[string]any{"User": s.User, "Box": b})
-}
 
 // ---------- 认证 API ----------
 
@@ -273,7 +24,7 @@ type authReq struct {
 	Password string `json:"password"`
 }
 
-func (g *Gate) apiLogin(w http.ResponseWriter, r *http.Request) {
+func (g *Gateway) apiLogin(w http.ResponseWriter, r *http.Request) {
 	var req authReq
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeJSON(w, map[string]any{"success": false, "error": "无效的请求格式"})
@@ -313,7 +64,7 @@ func (g *Gate) apiLogin(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-func (g *Gate) apiRegister(w http.ResponseWriter, r *http.Request) {
+func (g *Gateway) apiRegister(w http.ResponseWriter, r *http.Request) {
 	var req authReq
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeJSON(w, map[string]any{"success": false, "error": "无效的请求格式"})
@@ -358,7 +109,7 @@ func (g *Gate) apiRegister(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-func (g *Gate) apiLogout(w http.ResponseWriter, r *http.Request) {
+func (g *Gateway) apiLogout(w http.ResponseWriter, r *http.Request) {
 	c, err := r.Cookie("ab")
 	if err == nil {
 		g.mu.Lock()
@@ -375,12 +126,12 @@ func (g *Gate) apiLogout(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, map[string]any{"success": true})
 }
 
-func (g *Gate) logout(w http.ResponseWriter, r *http.Request) {
+func (g *Gateway) logout(w http.ResponseWriter, r *http.Request) {
 	g.apiLogout(w, r)
 	http.Redirect(w, r, "/login", http.StatusSeeOther)
 }
 
-func (g *Gate) apiMe(w http.ResponseWriter, r *http.Request) {
+func (g *Gateway) apiMe(w http.ResponseWriter, r *http.Request) {
 	s := g.lookup(r)
 	if s == nil {
 		writeJSON(w, map[string]any{"loggedIn": false})
@@ -407,9 +158,9 @@ func (g *Gate) apiMe(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// ---------- 渗透环境控制 (CLI/GUI 独立启停与一键释放) ----------
+// ---------- 渗透环境控制 API ----------
 
-func (g *Gate) apiCliToggle(w http.ResponseWriter, r *http.Request) {
+func (g *Gateway) apiCliToggle(w http.ResponseWriter, r *http.Request) {
 	b, s := g.boxFor(r)
 	if b == nil || s == nil {
 		http.Error(w, "unauthorized", http.StatusUnauthorized)
@@ -421,7 +172,6 @@ func (g *Gate) apiCliToggle(w http.ResponseWriter, r *http.Request) {
 
 	coreRunning, guiRunning := g.boxes.DetailedStatus(ctx, b)
 	if coreRunning {
-		// 如果 GUI 未运行，关闭 CLI 即彻底释放沙箱；若 GUI 在运行，仅保留 GUI
 		if !guiRunning {
 			_ = g.boxes.Kick(ctx, b)
 			g.mu.Lock()
@@ -435,7 +185,6 @@ func (g *Gate) apiCliToggle(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// 启动 CLI (核心沙箱，毫秒级)
 	if err := g.boxes.Ensure(ctx, b); err != nil {
 		writeJSON(w, map[string]any{"success": false, "error": "启动 CLI 沙箱失败: " + err.Error()})
 		return
@@ -449,7 +198,7 @@ func (g *Gate) apiCliToggle(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, map[string]any{"success": true, "cliRunning": true, "guiRunning": guiRunning})
 }
 
-func (g *Gate) apiGuiToggle(w http.ResponseWriter, r *http.Request) {
+func (g *Gateway) apiGuiToggle(w http.ResponseWriter, r *http.Request) {
 	b, s := g.boxFor(r)
 	if b == nil || s == nil {
 		http.Error(w, "unauthorized", http.StatusUnauthorized)
@@ -461,7 +210,6 @@ func (g *Gate) apiGuiToggle(w http.ResponseWriter, r *http.Request) {
 
 	coreRunning, guiRunning := g.boxes.DetailedStatus(ctx, b)
 	if guiRunning {
-		// 独立停止 GUI 桌面并切断 GUI 连接
 		g.guiMu.Lock()
 		if conn, ok := g.activeGUI[b.ID]; ok && conn != nil {
 			_ = conn.WriteControl(
@@ -479,7 +227,6 @@ func (g *Gate) apiGuiToggle(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// 启动 GUI 桌面 (按需启动核心与桌面)
 	if err := g.boxes.EnsureGUI(ctx, b); err != nil {
 		writeJSON(w, map[string]any{"success": false, "error": "启动 GUI 桌面失败: " + err.Error()})
 		return
@@ -493,8 +240,7 @@ func (g *Gate) apiGuiToggle(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, map[string]any{"success": true, "cliRunning": true, "guiRunning": true})
 }
 
-// closeBoxSessions 彻底切断指定沙箱的所有活跃 WebSocket 会话 (CLI 与 GUI)
-func (g *Gate) closeBoxSessions(boxID string) {
+func (g *Gateway) closeBoxSessions(boxID string) {
 	g.cliMu.Lock()
 	for key, conn := range g.activeCLI {
 		if strings.HasPrefix(key, boxID+":") || key == boxID {
@@ -524,7 +270,7 @@ func (g *Gate) closeBoxSessions(boxID string) {
 	g.guiMu.Unlock()
 }
 
-func (g *Gate) apiEnvDestroy(w http.ResponseWriter, r *http.Request) {
+func (g *Gateway) apiEnvDestroy(w http.ResponseWriter, r *http.Request) {
 	b, s := g.boxFor(r)
 	if b == nil || s == nil {
 		http.Error(w, "unauthorized", http.StatusUnauthorized)
@@ -534,11 +280,9 @@ func (g *Gate) apiEnvDestroy(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
 
-	// 1. 彻底断开所有活跃终端与桌面 WebSocket 连接，触发底层 PTY 进程与套接字立即销毁
 	g.closeBoxSessions(b.ID)
-
-	// 2. 终止沙箱进程、命名空间、卸载挂载并删除快照
 	_ = g.boxes.Kick(ctx, b)
+
 	g.mu.Lock()
 	delete(g.userBoxes, s.User)
 	s.BoxID = ""
@@ -547,8 +291,7 @@ func (g *Gate) apiEnvDestroy(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, map[string]any{"success": true, "cliRunning": false, "guiRunning": false, "envRunning": false})
 }
 
-
-func (g *Gate) apiEnvStatus(w http.ResponseWriter, r *http.Request) {
+func (g *Gateway) apiEnvStatus(w http.ResponseWriter, r *http.Request) {
 	s := g.lookup(r)
 	if s == nil {
 		http.Error(w, "unauthorized", http.StatusUnauthorized)
@@ -569,9 +312,9 @@ func (g *Gate) apiEnvStatus(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, map[string]any{"running": running, "box": boxID})
 }
 
-// ---------- 管理员专属 API ----------
+// ---------- 管理员 API ----------
 
-func (g *Gate) apiAdminMetrics(w http.ResponseWriter, r *http.Request) {
+func (g *Gateway) apiAdminMetrics(w http.ResponseWriter, r *http.Request) {
 	cpuPercent := getCPUPercent()
 	memUsed, memTotal := getMemUsageGB()
 	diskUsed, diskTotal := getDiskUsageGB("/var/lib/attackbox")
@@ -594,7 +337,7 @@ func (g *Gate) apiAdminMetrics(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-func (g *Gate) apiAdminListUsers(w http.ResponseWriter, r *http.Request) {
+func (g *Gateway) apiAdminListUsers(w http.ResponseWriter, r *http.Request) {
 	list, err := g.authStore.ListUsers()
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -603,7 +346,7 @@ func (g *Gate) apiAdminListUsers(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, list)
 }
 
-func (g *Gate) apiAdminCreateUser(w http.ResponseWriter, r *http.Request) {
+func (g *Gateway) apiAdminCreateUser(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		Username string `json:"username"`
 		Password string `json:"password"`
@@ -624,7 +367,7 @@ func (g *Gate) apiAdminCreateUser(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, map[string]any{"success": true})
 }
 
-func (g *Gate) apiAdminToggleUser(w http.ResponseWriter, r *http.Request) {
+func (g *Gateway) apiAdminToggleUser(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		Username string `json:"username"`
 	}
@@ -640,7 +383,7 @@ func (g *Gate) apiAdminToggleUser(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, map[string]any{"success": true})
 }
 
-func (g *Gate) apiAdminResetPass(w http.ResponseWriter, r *http.Request) {
+func (g *Gateway) apiAdminResetPass(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		Username string `json:"username"`
 		Password string `json:"password"`
@@ -657,7 +400,7 @@ func (g *Gate) apiAdminResetPass(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, map[string]any{"success": true})
 }
 
-func (g *Gate) apiAdminDeleteUser(w http.ResponseWriter, r *http.Request) {
+func (g *Gateway) apiAdminDeleteUser(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		Username string `json:"username"`
 	}
@@ -673,7 +416,7 @@ func (g *Gate) apiAdminDeleteUser(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, map[string]any{"success": true})
 }
 
-func (g *Gate) apiAdminBroadcast(w http.ResponseWriter, r *http.Request) {
+func (g *Gateway) apiAdminBroadcast(w http.ResponseWriter, r *http.Request) {
 	var req BroadcastConfig
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeJSON(w, map[string]any{"success": false, "error": "无效请求"})
@@ -685,7 +428,7 @@ func (g *Gate) apiAdminBroadcast(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, map[string]any{"success": true})
 }
 
-// ---------- 内部工具函数 ----------
+// ---------- 系统监控与工具函数 ----------
 
 func writeJSON(w http.ResponseWriter, data any) {
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")

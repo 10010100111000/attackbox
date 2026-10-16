@@ -1,4 +1,4 @@
-package gate
+package gateway
 
 import (
 	"context"
@@ -39,7 +39,7 @@ func keepalive(c *websocket.Conn, stop <-chan struct{}) {
 
 // vncWS bridges a browser WebSocket to the box RFB unix socket, byte for byte.
 // 方案 A 懒加载：用户访问 GUI 时，按需拉起 TigerVNC 与 MATE 桌面
-func (g *Gate) vncWS(w http.ResponseWriter, r *http.Request) {
+func (g *Gateway) vncWS(w http.ResponseWriter, r *http.Request) {
 	b, s := g.boxFor(r)
 	if b == nil || s == nil {
 		http.Error(w, "no box", http.StatusInternalServerError)
@@ -134,7 +134,7 @@ func (g *Gate) vncWS(w http.ResponseWriter, r *http.Request) {
 
 // termWS bridges terminal WebSocket to a real PTY inside the sandbox.
 // 方案 A 懒加载：用户访问 CLI 时，毫秒级快速拉起沙箱 Core 并建立双向交互
-func (g *Gate) termWS(w http.ResponseWriter, r *http.Request) {
+func (g *Gateway) termWS(w http.ResponseWriter, r *http.Request) {
 	b, s := g.boxFor(r)
 	if b == nil || s == nil {
 		http.Error(w, "no box", http.StatusInternalServerError)

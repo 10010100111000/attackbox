@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>AttackBox 远程桌面</title>
+  <title>AttackBox 远程桌面 - {{.Box.ID}}</title>
   <style>
     *, *::before, *::after { box-sizing: border-box; }
     html, body {
@@ -14,6 +14,7 @@
       overflow: hidden;
       background-color: #09090b;
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      color: #e4e4e7;
     }
     #screen {
       width: 100%;
@@ -26,42 +27,68 @@
       outline: none;
     }
 
-    /* 顶部半透明浮动控制条 (鼠标悬停或轻触时显现) */
+    /* 顶部极简浮动工具条 (鼠标滑过或聚焦时完全显现) */
     #toolbar {
       position: fixed;
-      top: 12px;
+      top: 10px;
       right: 16px;
       z-index: 100;
       display: flex;
       align-items: center;
-      gap: 6px;
-      opacity: 0.3;
-      transition: opacity 0.2s ease;
+      gap: 8px;
+      padding: 4px 8px;
+      background: rgba(18, 18, 21, 0.85);
+      border: 1px solid rgba(39, 39, 42, 0.7);
+      backdrop-filter: blur(8px);
+      border-radius: 8px;
+      opacity: 0.35;
+      transition: opacity 0.2s ease, transform 0.2s ease;
+      user-select: none;
     }
     #toolbar:hover, #toolbar:focus-within {
       opacity: 1;
     }
+
+    .toolbar-brand {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 11px;
+      font-weight: 600;
+      color: #f4f4f5;
+      padding-right: 6px;
+      border-right: 1px solid #27272a;
+    }
+
+    .toolbar-badge {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      font-size: 10px;
+      padding: 1px 6px;
+      background: #27272a;
+      color: #a1a1aa;
+      border-radius: 4px;
+    }
+
     .tool-btn {
       display: inline-flex;
       align-items: center;
       gap: 4px;
-      padding: 5px 10px;
+      padding: 4px 8px;
       font-size: 11px;
       font-weight: 500;
-      color: #e4e4e7;
-      background: rgba(24, 24, 27, 0.85);
-      border: 1px solid rgba(63, 63, 70, 0.6);
-      backdrop-filter: blur(8px);
+      color: #d4d4d8;
+      background: #18181b;
+      border: 1px solid #27272a;
       border-radius: 6px;
       cursor: pointer;
-      user-select: none;
       transition: background-color 0.15s ease, color 0.15s ease;
     }
     .tool-btn:hover {
-      background: rgba(39, 39, 42, 0.95);
+      background: #27272a;
       color: #ffffff;
     }
 
+    /* 状态指示浮胶囊 */
     #status-pill {
       position: fixed;
       top: 14px;
@@ -71,49 +98,46 @@
       display: flex;
       align-items: center;
       gap: 8px;
-      padding: 6px 14px;
+      padding: 6px 16px;
       border-radius: 9999px;
-      background: rgba(24, 24, 27, 0.85);
-      border: 1px solid rgba(63, 63, 70, 0.6);
+      background: rgba(18, 18, 21, 0.9);
+      border: 1px solid rgba(39, 39, 42, 0.8);
       backdrop-filter: blur(8px);
       color: #e4e4e7;
       font-size: 12px;
       font-weight: 500;
-      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5);
       transition: opacity 0.3s ease, transform 0.3s ease;
-      pointer-events: none;
     }
     .spinner {
-      width: 13px;
-      height: 13px;
+      width: 12px;
+      height: 12px;
       border: 2px solid rgba(228, 228, 231, 0.2);
-      border-top-color: #38bdf8;
+      border-top-color: #10b981;
       border-radius: 50%;
       animation: spin 0.8s linear infinite;
     }
-    @keyframes spin {
-      to { transform: rotate(360deg); }
-    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
     #status-pill.connected {
       opacity: 0;
-      transform: translate(-50%, -10px);
+      transform: translate(-50%, -12px);
+      pointer-events: none;
     }
     #status-pill.warning {
       background: rgba(30, 25, 10, 0.95);
       border-color: rgba(245, 158, 11, 0.6);
       color: #fef3c7;
-      pointer-events: auto;
     }
     #status-pill.error {
       background: rgba(127, 29, 29, 0.9);
       border-color: rgba(239, 68, 68, 0.6);
       color: #fecaca;
-      pointer-events: auto;
     }
     .pill-btn {
       display: inline-flex;
       align-items: center;
-      padding: 3px 10px;
+      padding: 2px 8px;
       background: #ffffff;
       color: #09090b;
       font-size: 11px;
@@ -124,37 +148,40 @@
       margin-left: 6px;
       transition: background-color 0.15s ease;
     }
-    .pill-btn:hover {
-      background: #f4f4f5;
-    }
+    .pill-btn:hover { background: #f4f4f5; }
   </style>
 </head>
 <body>
-  <!-- 顶部轻量浮动工具条 -->
+  <!-- 顶部浮动快捷条 -->
   <div id="toolbar">
-    <button class="tool-btn" id="btn-cad" title="向桌面发送 Ctrl+Alt+Del 按键组合">Ctrl+Alt+Del</button>
-    <button class="tool-btn" id="btn-fs" title="切换全屏模式">全屏</button>
-    <button class="tool-btn" id="btn-reload" title="刷新重连桌面">重连</button>
+    <div class="toolbar-brand">
+      <span>TigerVNC + MATE</span>
+      <span class="toolbar-badge">{{.User}}@{{.Box.ID}}</span>
+    </div>
+    <button class="tool-btn" id="btn-cad" title="向桌面发送 Ctrl+Alt+Del 快捷键组合">Ctrl+Alt+Del</button>
+    <button class="tool-btn" id="btn-fs" title="切换全屏显示">全屏</button>
+    <button class="tool-btn" id="btn-reload" title="重新连入桌面">重连</button>
   </div>
 
+  <!-- 状态指示器 -->
   <div id="status-pill">
     <div class="spinner" id="status-spinner"></div>
-    <span id="status-text">正在按需拉起图形桌面...</span>
+    <span id="status-text">正在连接图形远程桌面...</span>
   </div>
+
+  <!-- Canvas 挂载视口 -->
   <div id="screen"></div>
 
   <script type="module">
-    import RFB from './core/rfb.js';
+    import RFB from '/vnc/core/rfb.js';
 
     const pill = document.getElementById('status-pill');
     const pillText = document.getElementById('status-text');
     const spinner = document.getElementById('status-spinner');
     const screen = document.getElementById('screen');
 
-    const urlParams = new URLSearchParams(window.location.search);
-    const path = urlParams.get('path') || 'vnc/websockify';
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const wsUrl = `${protocol}//${window.location.host}/${path}`;
+    const wsUrl = `${protocol}//${window.location.host}/vnc/ws`;
 
     let rfb = null;
     let retryCount = 0;
@@ -172,21 +199,19 @@
 
       pill.className = '';
       pill.style.display = 'flex';
-      pill.style.pointerEvents = 'none';
       spinner.style.display = 'block';
-      pillText.textContent = retryCount > 0 ? `重试连接桌面 (${retryCount})...` : '正在按需拉起图形桌面...';
+      pillText.textContent = retryCount > 0 ? `正在尝试重新连接 (${retryCount})...` : '正在连接图形远程桌面...';
 
       try {
         rfb = new RFB(screen, wsUrl, {
           wsProtocols: ['binary']
         });
 
-        // 核心渲染调优：低延迟、自适应视口
         rfb.scaleViewport = true;
         rfb.resizeSession = false;
         rfb.clipViewport = false;
-        rfb.compressionLevel = 2; // 极速压缩模式
-        rfb.qualityLevel = 6;      // 高保真与帧率均衡
+        rfb.compressionLevel = 2;
+        rfb.qualityLevel = 6;
 
         rfb.addEventListener('connect', () => {
           retryCount = 0;
@@ -204,28 +229,23 @@
           pill.classList.remove('connected');
           spinner.style.display = 'none';
 
-          // 单活跃会话抢占检测：从底层 WebSocket 检查状态码 4001
           const wsCode = rfb._sock && rfb._sock._websocket ? rfb._sock._websocket.code : 0;
           if (wsCode === 4001) {
             pill.className = 'warning';
             pillText.innerHTML = '桌面已在其他窗口接入，本窗口已挂起 <button class="pill-btn" id="btn-reclaim-vnc">切回此窗口</button>';
             const reclaimBtn = document.getElementById('btn-reclaim-vnc');
-            if (reclaimBtn) {
-              reclaimBtn.onclick = () => { connect(); };
-            }
+            if (reclaimBtn) reclaimBtn.onclick = () => connect();
             return;
           }
 
           pill.classList.add('error');
           const isClean = e.detail && e.detail.clean;
           pillText.innerHTML = isClean
-            ? '桌面会话已关闭 <button class="pill-btn" id="btn-retry-vnc">重新连接</button>'
-            : '连接中断，2秒后尝试重新连入... <button class="pill-btn" id="btn-retry-vnc">立即重连</button>';
+            ? '远程桌面已断开 <button class="pill-btn" id="btn-retry-vnc">重新连接</button>'
+            : '连接中断，将在 2 秒后尝试重连... <button class="pill-btn" id="btn-retry-vnc">立即重连</button>';
 
           const retryBtn = document.getElementById('btn-retry-vnc');
-          if (retryBtn) {
-            retryBtn.onclick = () => { connect(); };
-          }
+          if (retryBtn) retryBtn.onclick = () => connect();
 
           if (!isClean) {
             retryCount++;
@@ -238,7 +258,7 @@
           pill.classList.remove('connected');
           spinner.style.display = 'none';
           pill.classList.add('error');
-          pillText.textContent = '远程桌面鉴权失败，请重新登录平台';
+          pillText.textContent = '远程桌面鉴权失败，请重新登录';
         });
 
       } catch (err) {
@@ -249,7 +269,6 @@
       }
     }
 
-    // 绑定顶部快捷按键
     document.getElementById('btn-cad').onclick = () => {
       if (rfb) rfb.sendCtrlAltDel();
     };

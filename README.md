@@ -1,126 +1,63 @@
-# AttackBox - 轻量高密 Web 远程渗透测试环境系统
+# AttackBox - 轻量级 Web 远程渗透测试环境系统
 
-AttackBox 是一个面向高密并发、具备原生免密 sudo 高权限、秒级创建与物理销毁的 Web 远程渗透测试工作台。系统基于 Linux 原生 btrfs 瞬态快照（写时复制）与内核三层软路由转发，免容器运行时（无 Dockerfile / 无 GB 级镜像），通过单端口 443 统一交付极简 Web 控制台、现代 PTY 命令行终端与极简远程桌面。
-
----
-
-## 核心设计特性
-
-1. **瞬态快照，物理零污染销毁**：
-   沙箱槽位基于 btrfs 写时复制（CoW）机制，秒级派生宿主根目录快照。用户在沙箱内的所有新建、修改、安装与配置操作均隔离于快照层，释放环境时物理删除子卷，宿主机 100% 保持纯净无残留。
-
-2. **方案 A 懒加载与轻量核心秒开**：
-   沙箱解耦为核心层（Core）与桌面层（GUI）。用户访问 CLI 时仅启动核心层（耗时仅 **0.55 秒**，空载内存仅 **6 MB**）；仅当访问远程桌面时才按需拉起 TigerVNC 与 MATE 桌面，杜绝无意义的桌面资源空转。
-
-3. **原生免密 sudo 提权**：
-   沙箱内部以 `parrot` 用户登录，具备完整免密 `sudo` 权限，支持自由修改 `/etc/hosts`、安装新工具、调试内核网络与运行任意安全 POC / 扫描脚本。
-
-4. **内核三层软路由与单向安全边界**：
-   * 宿主机维护原生虚拟网桥 `br0` (`10.200.0.1/24`)，开启内核 `ip_forward`。
-   * **靶场自适应互通**：沙箱流量由内核路由无缝自适应转发至同机 Docker 靶机（`172.17.0.0/16`）或远端 VPN 靶场（`10.10.0.0/16`）。
-   * **出口单向拦截**：宿主机 nftables 强行拦截来自沙箱发往公网物理网卡（`ens3`）与宿主机管理端口（22/443）的流量，仅放行公共 DNS 解析（`1.1.1.1:53`）。
-
-5. **严格单活跃会话互斥抢占 (Single Active Session)**：
-   CLI 终端与 GUI 桌面均实行严格单活跃会话管理。新窗口接入时，网关主动向旧窗口发送 RFC 6455 状态码 `4001`（`preempted`）关闭连接；前端捕获该状态码后立即终止自动重试，展示悬浮挂起遮罩并提供“切回此窗口接管”按钮，彻底根除多窗口输入混淆与死循环互踢。
-
-6. **原生极简解耦 PTY 终端**：
-   废除复杂的 Tmux 套接字依赖与分屏状态栏，网关直接使用 Go `creack/pty` 与 WebSocket 二进制流连接沙箱内的标准登录 Shell（`su - parrot`），搭配基于 `JetBrains Mono` 字体、支持清屏与全屏的极简暗黑终端界面。
-
-7. **轻量化远程桌面**：
-   剔除官方 noVNC 臃肿侧边栏，采用自研极简客户端（`deploy/vnc.html`，~160 行代码），调优压缩比（`compressionLevel: 2`, `qualityLevel: 6`）；MATE 桌面强制关闭动画合成器，单桌面空载内存低至 ~400MB。
-
-8. **单二进制 Go 网关与 Web 认证体系**：
-   单二进制 `attackboxd` 监听 443 端口，内置 SQLite 数据库（`bcrypt` 密码加密）与 RBAC 用户体系。支持管理员实时监控 VPS 资源状态、管理用户生命周期，普通用户无需繁琐启动步骤，点击直接转圈秒开并跳转。
+AttackBox 是一个基于 Linux 原生 btrfs 写时复制（CoW）快照与网络命名空间（network namespace）构建的轻量级 Web 远程渗透测试工作台。全栈基于 Go 语言原生实现，无外部 Bash 脚本依赖、无重量级 Docker/VM 镜像开销，通过单一 443 端口提供完整的 Web 管理控制台、多命令行虚拟终端空间及独立远程桌面。
 
 ---
 
-## 系统架构拓扑
+## 核心架构设计
+
+1. **btrfs 瞬态快照隔离**：
+   沙箱槽位基于 btrfs 写时复制（CoW）机制，秒级派生宿主根目录快照。用户在沙箱环境内的文件修改、工具安装和网络配置均隔离于快照层。释放环境时直接删除子卷，宿主机系统 100% 保持纯净无残留。
+
+2. **纯 Go 原生底层调度 (零 Shell 脚本)**：
+   完全废除外部 Bash 脚本。沙箱的核心网络命名空间创建、veth 虚拟网卡对配置、虚拟设备文件树挂载（`/dev/pts`, `/dev/shm`, `/proc`, `/sys`）、Xtigervnc 桌面会话管理以及快照物理销毁，全部由 Go 代码（`internal/box`）原生调用系统底层接口完成。
+
+3. **宿主网络自适应与出向安全隔离**：
+   网关启动时自动在宿主机初始化原生网桥 `br0` (`10.200.0.1/24`) 并下发 nftables 隔离规则：
+   * 沙箱流量通过三层软路由自适应直通本地 Docker 靶机（`172.17.0.0/16`）及远端 VPN 靶场（`10.10.0.0/16`）。
+   * 默认阻断沙箱向外部物理网卡路由未授权流量，仅放行指定公共 DNS 服务，形成严密的安全边界。
+
+4. **单会话互斥管理**：
+   CLI 终端与 GUI 桌面均支持基于 WebSocket 的会话互斥。若同一槽位在其他页面建立新会话，网关主动发送 RFC 6455 状态码 `4001`（`preempted`）挂起旧窗口，避免并发连接导致状态混淆。
+
+5. **Web 虚拟终端空间与独立桌面**：
+   * **Web 虚拟终端空间 (`/term`)**：以独立浏览器新窗口打开，提供桌面级多命令行窗口工作区。支持在画布内按需新建多个命令行窗口，支持自由拖拽排布、边缘拉伸调节，通过 `ResizeObserver` 自动触发 `xterm.js` 与底层 Linux PTY 窗口大小同步。
+   * **独立远程桌面 (`/gui`)**：以独立浏览器新窗口全屏打开，前端基于 noVNC 核心库（`core/rfb.js`）直连 WebSocket 网桥，自适应画布缩放。
+   * **控制台主页 (`/`)**：纯净的管理入口，仅负责用户认证、沙箱状态监测、环境销毁及靶机路由信息展示。
+
+6. **前后端解耦与单端口网关**：
+   `attackboxd` 后端统一基于 443 端口交付 HTTPS REST API、WebSocket 协议桥接与 SQLite RBAC 鉴权；前端 Web 资源作为独立 `web/` 目录挂载运行，修改前端模板与脚本保存后 F5 刷新即生效，无需重新编译二进制。
+
+---
+
+## 系统拓扑结构
 
 ```mermaid
 graph TD
-    Client["用户浏览器 (Chrome / Firefox / Edge)"] -->|HTTPS / WSS (Port 443)| Gateway["attackboxd (Go 单二进制网关)"]
+    Client["用户浏览器 (Chrome / Edge / Firefox)"] -->|HTTPS / WSS (Port 443)| Gateway["attackboxd (统一网关服务)"]
+    Gateway -->|静态资源与模板读取 (F5 实时生效)| WebDir["web/ 目录 (templates & static)"]
 
-    subgraph "宿主 Host (Parrot OS 7.4 / Btrfs 文件系统)"
-        Gateway -->|Web 认证与 RBAC 管理| AuthStore["SQLite 认证库 (attackbox.db)"]
-        Gateway -->|单活跃会话调度 (activeCLI / activeGUI)| SessionMgr["会话锁与抢占控制 (Code 4001)"]
-        Gateway -->|原生 PTY 二进制字节流| PTYBridge["Linux 伪终端 (su - parrot)"]
-        Gateway -->|RFB 二进制协议桥接| VNCBridge["TigerVNC Unix Socket (:N)"]
+    subgraph "宿主系统 (Host OS / btrfs 文件系统)"
+        Gateway -->|原生网络与防火墙初始化| NetFW["内核 br0 网桥与 nftables 规则"]
+        Gateway -->|用户认证与 RBAC 管理| AuthStore["SQLite 认证库 (attackbox.db)"]
+        Gateway -->|原生快照与容器调度| BoxMgr["Go 沙箱生命周期引擎 (internal/box)"]
+        Gateway -->|原生 PTY 字节流| PTYBridge["PTY 终端桥接 (su - parrot)"]
+        Gateway -->|RFB 协议转发| VNCBridge["TigerVNC Unix Socket (:N)"]
 
-        subgraph "宿主内核网络与安全边界"
-            Bridge["内核网桥 br0 (10.200.0.1/24)"]
-            Bridge -->|内网直通 (自适应)| DockerNet["本地 Docker 靶机 (172.17.0.0/16)"]
-            Bridge -->|路由直通 (自适应)| VPNNet["远端 VPN 靶场 (10.10.0.0/16)"]
-            Bridge -.->|nftables 单向拦截出口| WAN["物理网卡 ens3 (仅放行 1.1.1.1:53 DNS)"]
-            Bridge -.->|nftables 阻断管理面| HostMgmt["宿主管理端口 (22 / 443)"]
+        subgraph "网络边界与路由策略"
+            NetFW -->|内网路由| DockerNet["本地 Docker 靶机 (172.17.0.0/16)"]
+            NetFW -->|路由互通| VPNNet["远端 VPN 靶场 (10.10.0.0/16)"]
+            NetFW -.->|nftables 拦截规则| WAN["物理网卡出口 (仅允许 DNS)"]
         end
 
-        subgraph "沙箱槽位 (boxN 瞬态快照 /var/lib/attackbox/boxes/boxN)"
-            NetNS["网络命名空间 (ab-boxN)"]
-            Chroot["独立根文件系统快照 (btrfs CoW)"]
-            DevPts["独立 devpts (ptmxmode=666) 与 dev/shm (1777)"]
-            MateDesktop["Xtigervnc + MATE 极简桌面 (按需拉起)"]
-            DirectShell["原生 Bash 交互 Shell (无 Tmux 依赖)"]
+        subgraph "沙箱槽位 (boxN 快照目录)"
+            BoxMgr -->|Go 原生配置| NetNS["网络命名空间 (ab-boxN)"]
+            BoxMgr -->|btrfs 原生命令| Chroot["文件系统快照 (btrfs CoW)"]
+            BoxMgr -->|Go 原生挂载| DevPts["隔离 devpts / dev / proc / sys"]
+            PTYBridge --> DirectShell["交互式 Shell 进程"]
+            VNCBridge --> MateDesktop["TigerVNC + MATE 桌面 (按需)"]
         end
     end
-
-    SessionMgr -.->|挂起通知| Client
-    PTYBridge --> DirectShell
-    VNCBridge --> MateDesktop
-```
-
----
-
-## 核心实现技术细节
-
-### 1. 方案 A 沙箱懒加载与分级启停
-沙箱生命周期控制脚本位于 [`scripts/box-launch.sh`](file:///F:/deepseek/attackbox/scripts/box-launch.sh)：
-* **Core 核心模式**：执行 `btrfs subvolume snapshot` 派生子卷，创建 `ab-boxN` 虚拟网卡对并连接 `br0`，挂载独立的 `/dev/pts`、`/dev/shm` 与 `tmpfs`。启动耗时 ~0.5s，内存占用 ~6MB。
-* **GUI 桌面模式**：在 Core 基础之上，按需启动 `Xtigervnc` 监听独立 Unix 套接字（`gui.sock`），并调优加载轻量 MATE 桌面会话。
-* **销毁模式**：终止槽位 cgroup 内所有进程，清理网络命名空间与 veth 设备，卸载所有临时挂载点，物理执行 `btrfs subvolume delete` 销毁快照。
-
-### 2. 原生解耦 PTY 终端架构
-网关 WebSocket 终端桥接位于 [`internal/gate/ws.go`](file:///F:/deepseek/attackbox/internal/gate/ws.go)：
-* 丢弃传统的 Tmux IPC 包装层，直接调用 Go `creack/pty.StartWithSize`：
-  ```go
-  cmd := exec.Command("/usr/bin/ip", "netns", "exec", netns,
-      "/usr/sbin/chroot", rootfs,
-      "/usr/bin/su", "-", "parrot")
-  ```
-* 终端尺寸动态监听：前端 xterm 缩放时向服务端发送 `{"cols": X, "rows": Y}` JSON 数据包，网关自动调用 `pty.Setsize` 实时同步内核终端窗口大小。
-
-### 3. 单活跃会话互斥锁与抢占协议
-在网关结构体 `Gate` 中维护并发互斥字典：
-```go
-type Gate struct {
-    cliMu     sync.Mutex
-    activeCLI map[string]*websocket.Conn // boxID -> current active CLI connection
-
-    guiMu     sync.Mutex
-    activeGUI map[string]*websocket.Conn // boxID -> current active GUI connection
-}
-```
-* **抢占断开**：当同槽位建立新连接时，服务端调用 `oldConn.WriteControl` 发送带有自定义代码 `4001` 的 Close 帧，随后关闭底层连接；
-* **前端防护**：前端通过 Monkey-patch 监控原生 WebSocket 关闭事件，捕获 `4001` 后切断重试定时器，展示沉浸式挂起提示，并激活“切回此窗口接管”手动唤醒按键。
-
-### 4. 网络隔离与 nftables 规则
-网络初始化脚本位于 [`scripts/attackbox-net.sh`](file:///F:/deepseek/attackbox/scripts/attackbox-net.sh)：
-```nft
-table inet attackbox {
-    chain forward {
-        type filter hook forward priority 0; policy drop;
-        # 允许已建立的连接与沙箱间/靶机间互通
-        ct state established,related accept
-        iifname "br0" oifname "br0" accept
-        # 允许直通本地 Docker 网桥与 VPN 隧道
-        iifname "br0" oifname "docker0" accept
-        iifname "br0" oifname "tun*" accept
-        iifname "br0" oifname "wg*" accept
-        # 仅放行指定公共 DNS 解析
-        iifname "br0" ip daddr 1.1.1.1 udp dport 53 accept
-        # 坚决拍死通往物理网卡的一切公网流量
-        iifname "br0" oifname "ens3" reject
-    }
-}
 ```
 
 ---
@@ -130,48 +67,48 @@ table inet attackbox {
 ```
 attackbox/
 ├── cmd/
-│   └── attackboxd/             # 单二进制网关主程序入口 (main.go)
-├── internal/
+│   └── attackboxd/             # 网关主程序入口 (main.go)
+├── internal/                   # 纯 Go 后端核心逻辑
 │   ├── auth/                   # SQLite 用户持久化与 bcrypt 认证模块 (store.go)
-│   ├── box/                    # btrfs 瞬态快照管理与槽位租约池 (snapshot.go, pool.go)
-│   ├── cfg/                    # 配置文件解析与默认参数注入 (cfg.go)
-│   └── gate/                   # HTTP 路由、Web 页面渲染与 WebSocket 桥接
-│       ├── gate.go             # 核心路由、用户 CRUD 与系统监控 API
-│       ├── ws.go               # PTY 与 VNC WebSocket 桥接及单活跃会话管理
-│       └── templates/          # Go 嵌入式前端模板
-│           ├── dash.html       # 极简卡片式仪表盘、登录注册与管理员后台
-│           └── term.html       # 现代极简 JetBrains Mono 终端界面
+│   ├── box/                    # Go 原生沙箱生命周期管理引擎
+│   │   ├── manager.go          # 原生核心沙箱与桌面会话创建、状态检查与销毁
+│   │   ├── network.go          # 原生宿主网桥 (br0) 与 nftables 出网安全基线管理
+│   │   └── snapshot.go         # btrfs CoW 瞬态快照管理
+│   ├── config/                 # 配置文件解析与参数结构 (config.go)
+│   └── gateway/                # 统一 Web 网关、REST API 与 WebSocket 桥接
+│       ├── server.go           # 网关服务核心、路由注册、中间件与页面渲染
+│       ├── api.go              # 用户认证、沙箱控制、管理员运维 REST API 与工具函数
+│       └── websocket.go        # PTY 与 VNC WebSocket 协议桥接
+├── web/                        # 前端 Web 资源目录 (独立于二进制，F5 刷新即生效)
+│   ├── templates/              # HTML 页面模板 (dash.html, term.html, gui.html)
+│   └── static/                 # 扁平化前端静态资源 (dash.css, dash.js, term.css, term.js)
 ├── deploy/
-│   ├── systemd/                # systemd 服务单元文件
-│   │   ├── attackboxd.service  # 网关主守护进程
-│   │   └── attackbox-fw.service# 启动自动加载软路由与防火墙服务
-│   └── vnc.html                # 极简轻量版 noVNC 远程桌面客户端 (部署至 /usr/share/novnc)
-└── scripts/
-    ├── attackbox-net.sh        # 宿主机网络初始化与 nftables 防火墙脚本
-    └── box-launch.sh           # 沙箱生命周期引导脚本 (core / gui / stop / clean)
+│   └── systemd/                # systemd 服务单元配置文件
+│       └── attackboxd.service  # 网关守护进程服务 (开机自启)
+├── config.json                 # 靶场运行配置文件
+└── README.md
 ```
 
 ---
 
-## 运维与管理指南
+## 运维管理指南
 
-### 1. 服务控制与日常运维
-网关与防火墙均已配置为 systemd 守护进程：
+### 1. 服务控制
 ```bash
-# 查看网关实时运行状态
+# 查看网关服务状态
 sudo systemctl status attackboxd
 
 # 重启网关服务
 sudo systemctl restart attackboxd
 
-# 实时查看网关访问与调度日志
+# 查看网关运行日志
 sudo journalctl -u attackboxd -f -n 50
 
-# 查看当前 nftables 安全规则
+# 查看当前 nftables 过滤规则
 sudo nft list table inet attackbox
 ```
 
-### 3. 用户与管理员初始凭据
-* 默认管理员账号：`laji` 或 `admin`
-* 默认初始密码：`qwer1234!`
-* 平台访问入口：`https://microsb.de/` (自动重定向至登录页)
+### 2. 初始访问与凭据
+* 访问入口：`https://<服务器地址>/`
+* 默认管理员账号：`admin`
+* 默认管理员密码：`qwer1234!`

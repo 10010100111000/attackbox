@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>AttackBox 虚拟终端空间 - {{.Box.ID}}</title>
+  <link rel="stylesheet" href="/xterm/xterm.css">
+  <link rel="stylesheet" href="/static/term.css">
+</head>
+<body>
+
+  <!-- 顶部工作区工具栏 -->
+  <header id="top-bar">
+    <div class="brand-section">
+      <div class="brand-title">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#10b981" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="4 17 10 11 4 5"></polyline>
+          <line x1="12" y1="19" x2="20" y2="19"></line>
+        </svg>
+        <span>AttackBox 虚拟终端空间</span>
+      </div>
+      <span class="box-badge">parrot@{{.Box.ID}}</span>
+    </div>
+
+    <div class="action-buttons">
+      <button onclick="createTerminalWindow()" class="btn-primary" title="在工作区内新建一个独立的命令行窗口">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <line x1="12" y1="5" x2="12" y2="19"></line>
+          <line x1="5" y1="12" x2="19" y2="12"></line>
+        </svg>
+        <span>新建命令行</span>
+      </button>
+      <button onclick="cascadeWindows()" class="btn-secondary" title="自动整齐排列所有打开的窗口">
+        <span>整齐排列</span>
+      </button>
+      <button onclick="closeAllWindows()" class="btn-secondary" title="关闭当前所有命令行">
+        <span>关闭全部</span>
+      </button>
+    </div>
+  </header>
+
+  <!-- 虚拟桌面工作区画布 -->
+  <main id="workspace-canvas">
+    <div id="empty-hint" style="display: none;">
+      <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="#3f3f46" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+        <polyline points="4 17 10 11 4 5"></polyline>
+        <line x1="12" y1="19" x2="20" y2="19"></line>
+      </svg>
+      <p>当前工作区暂无打开的命令行</p>
+      <p style="color: #52525b; font-size: 11px;">点击右上角「新建命令行」按钮即可开启窗口</p>
+    </div>
+  </main>
+
+  <script>
+    window.boxSlot = "{{.Box.ID}}";
+    window.currentUser = "{{.User}}";
+  </script>
+  <script src="/xterm/xterm.js"></script>
+  <script src="/xterm/addon-fit.js"></script>
+  <script src="/static/term.js"></script>
+</body>
+</html>

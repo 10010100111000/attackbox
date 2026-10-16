@@ -1,0 +1,369 @@
+<!DOCTYPE html>
+<html lang="zh-CN" class="h-full antialiased">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AttackBox 靶场工作台</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Inter', '-apple-system', 'BlinkMacSystemFont', 'PingFang SC', 'Microsoft YaHei', 'sans-serif'],
+            mono: ['JetBrains Mono', 'monospace'],
+          }
+        }
+      }
+    }
+  </script>
+  <!-- 样式与业务脚本 -->
+  <link rel="stylesheet" href="/static/dash.css">
+  <script src="/static/dash.js"></script>
+</head>
+<body class="min-h-full bg-[#fafafa] text-zinc-900 flex flex-col selection:bg-zinc-900 selection:text-white">
+
+  <!-- 消息提示容器 -->
+  <div id="toast-container" class="fixed bottom-5 right-5 z-50 flex flex-col gap-2 pointer-events-none"></div>
+
+  <!-- ==================== 1. 登录 / 注册视图 ==================== -->
+  <div id="auth-view" class="min-h-screen flex flex-col justify-center items-center px-4 py-12">
+    <div class="w-full max-w-[380px]">
+      <div class="flex flex-col items-center mb-6 text-center">
+        <div class="w-9 h-9 rounded-xl bg-zinc-900 text-white flex items-center justify-center mb-3">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M8 9l3 3-3 3m5 0h3M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
+          </svg>
+        </div>
+        <h1 class="text-lg font-semibold tracking-tight text-zinc-900">AttackBox 靶场工作台</h1>
+        <p class="text-xs text-zinc-500 mt-1">极简远程渗透环境与靶机实训平台</p>
+      </div>
+
+      <div class="shadcn-card p-6">
+        <div class="grid grid-cols-2 p-1 bg-zinc-100 rounded-lg mb-5">
+          <button id="tab-login" onclick="switchAuthTab('login')" class="py-1.5 text-xs font-medium rounded-md bg-white text-zinc-900 shadow-sm transition-all">
+            登录
+          </button>
+          <button id="tab-register" onclick="switchAuthTab('register')" class="py-1.5 text-xs font-medium rounded-md text-zinc-500 hover:text-zinc-900 transition-all">
+            注册
+          </button>
+        </div>
+
+        <form onsubmit="handleAuthSubmit(event)" class="space-y-4">
+          <div>
+            <label class="block text-xs font-medium text-zinc-700 mb-1.5">账号</label>
+            <input id="auth-username" type="text" required placeholder="输入用户名"
+              class="w-full px-3 py-2 text-xs bg-white border border-zinc-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-zinc-900" />
+          </div>
+          <div>
+            <label class="block text-xs font-medium text-zinc-700 mb-1.5">密码</label>
+            <input id="auth-password" type="password" required placeholder="••••••••"
+              class="w-full px-3 py-2 text-xs bg-white border border-zinc-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-zinc-900" />
+          </div>
+          <button type="submit" id="auth-submit-btn" class="w-full py-2 px-4 rounded-lg text-xs font-medium shadcn-btn-primary">
+            进入平台
+          </button>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== 2. 主应用视图 ==================== -->
+  <div id="app-view" class="hidden flex-1 flex flex-col min-h-screen">
+
+    <!-- 顶部全局通知横幅 -->
+    <div id="global-banner" class="hidden border-b px-4 py-2 text-xs bg-zinc-900 text-zinc-100">
+      <div class="max-w-5xl mx-auto flex items-center justify-between gap-4">
+        <div class="flex items-center gap-2">
+          <span id="banner-badge" class="px-1.5 py-0.5 rounded font-semibold text-[10px] bg-zinc-700 text-white">公告</span>
+          <span id="banner-text" class="font-medium"></span>
+        </div>
+        <button onclick="dismissBanner()" class="opacity-70 hover:opacity-100 p-0.5" title="关闭">
+          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"></path>
+          </svg>
+        </button>
+      </div>
+    </div>
+
+    <!-- 顶部极简导航栏 -->
+    <header class="bg-white border-b border-zinc-200 sticky top-0 z-30">
+      <div class="max-w-5xl mx-auto px-4 sm:px-6 h-14 flex items-center justify-between gap-4">
+        <div class="flex items-center gap-6">
+          <div class="flex items-center gap-2">
+            <div class="w-6 h-6 rounded-md bg-zinc-900 text-white flex items-center justify-center">
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M8 9l3 3-3 3m5 0h3M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
+              </svg>
+            </div>
+            <span class="font-semibold text-sm tracking-tight">AttackBox</span>
+          </div>
+
+          <!-- 导航菜单（普通用户仅显示工作台，管理员显示管理菜单） -->
+          <nav class="hidden sm:flex items-center gap-1">
+            <button onclick="switchTab('workspace')" data-tab="workspace" class="nav-tab px-2.5 py-1.5 rounded-md text-xs font-medium">
+              靶场工作台
+            </button>
+            <button onclick="switchTab('admin-vps')" data-tab="admin-vps" class="nav-tab admin-only px-2.5 py-1.5 rounded-md text-xs font-medium hidden">
+              VPS 状态与监控
+            </button>
+            <button onclick="switchTab('admin-users')" data-tab="admin-users" class="nav-tab admin-only px-2.5 py-1.5 rounded-md text-xs font-medium hidden">
+              用户管理
+            </button>
+            <button onclick="switchTab('admin-broadcast')" data-tab="admin-broadcast" class="nav-tab admin-only px-2.5 py-1.5 rounded-md text-xs font-medium hidden">
+              全局通知
+            </button>
+          </nav>
+        </div>
+
+        <div class="flex items-center gap-2">
+          <div class="px-2 py-1 rounded bg-zinc-100 text-xs font-medium text-zinc-700 flex items-center gap-1.5">
+            <span id="current-username">user</span>
+            <span id="current-role-tag" class="text-[10px] px-1 rounded bg-zinc-900 text-white">USER</span>
+          </div>
+          <button onclick="logout()" class="p-1.5 text-zinc-400 hover:text-zinc-900" title="退出登录">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"></path>
+            </svg>
+          </button>
+        </div>
+      </div>
+    </header>
+
+    <!-- 主内容容器 -->
+    <main class="flex-1 max-w-5xl w-full mx-auto px-4 sm:px-6 py-6">
+
+      <!-- ==================== 普通用户视图：靶场工作台 ==================== -->
+      <section id="view-workspace" class="space-y-6">
+
+        <!-- 1. 远程渗透控制栏 (仅保留正确的 CLI 与 GUI 两个入口) -->
+        <div class="shadcn-card p-5">
+          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div>
+              <div class="flex items-center gap-2.5 flex-wrap">
+                <h2 class="text-sm font-semibold text-zinc-900">远程渗透工作台</h2>
+                <span id="env-status-badge" class="px-2 py-0.5 rounded-full text-[11px] font-medium bg-zinc-100 text-zinc-500 border border-zinc-200 flex items-center">
+                  <span id="env-status-dot" class="w-1.5 h-1.5 rounded-full bg-zinc-400 mr-1.5"></span>
+                  <span id="env-status-text">未启动</span>
+                </span>
+                <span id="box-slot-badge" class="px-2 py-0.5 rounded text-[11px] font-mono bg-zinc-100 text-zinc-600 border border-zinc-200">
+                  沙箱: <span id="box-slot-id">分配中...</span>
+                </span>
+              </div>
+              <p class="text-xs text-zinc-500 mt-1">控制台统一调度与管理，CLI 终端空间与 GUI 远程桌面均在新窗口中独立开启</p>
+            </div>
+            <div class="flex items-center gap-2 flex-wrap">
+              <!-- 1. CLI 终端按钮 (正确的标准 Terminal 图标) -->
+              <button onclick="openCliWindow()" id="btn-cli" class="px-3.5 py-2 rounded-lg text-xs font-semibold bg-zinc-900 text-white hover:bg-zinc-800 shadow-sm flex items-center gap-1.5 transition-all" title="在新标签页打开 Web 虚拟终端空间 (支持多命令行自由拖拽与分屏)">
+                <svg class="w-4 h-4 text-emerald-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                  <polyline points="4 17 10 11 4 5"></polyline>
+                  <line x1="12" y1="19" x2="20" y2="19"></line>
+                </svg>
+                <span>CLI 终端空间</span>
+              </button>
+
+              <!-- 2. GUI 桌面按钮 (正确的标准 Monitor 显示器图标) -->
+              <button onclick="openGuiWindow()" id="btn-gui" class="px-3.5 py-2 rounded-lg text-xs font-semibold bg-white border border-zinc-300 hover:bg-zinc-50 text-zinc-800 shadow-sm flex items-center gap-1.5 transition-all" title="在新标签页打开全屏图形桌面 (TigerVNC + MATE)">
+                <svg class="w-4 h-4 text-zinc-600" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                  <rect x="2" y="3" width="20" height="14" rx="2"></rect>
+                  <line x1="8" y1="21" x2="16" y2="21"></line>
+                  <line x1="12" y1="17" x2="12" y2="21"></line>
+                </svg>
+                <span>GUI 桌面</span>
+              </button>
+
+              <!-- 3. 释放沙箱按钮 (仅在运行中展示) -->
+              <button onclick="destroyEnv()" id="btn-destroy-env" class="px-3 py-2 rounded-lg text-xs font-medium shadcn-btn-danger flex items-center gap-1.5 transition-all hidden" title="彻底销毁快照并释放沙箱">
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
+                </svg>
+                <span>释放沙箱</span>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- 2. 工作台指引条 -->
+        <div class="shadcn-card p-4 bg-gradient-to-r from-zinc-50 to-white border border-zinc-200/80 flex items-center justify-between gap-4">
+          <div class="flex items-center gap-3">
+            <div class="w-8 h-8 rounded-lg bg-zinc-900 text-white flex items-center justify-center shrink-0">
+              <svg class="w-4 h-4 text-emerald-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                <rect x="3" y="3" width="18" height="18" rx="2"></rect>
+                <line x1="9" y1="3" x2="9" y2="21"></line>
+              </svg>
+            </div>
+            <div>
+              <p class="text-xs font-semibold text-zinc-900">渗透实训工作台 (双模式独立接入)</p>
+              <p class="text-[11px] text-zinc-500 mt-0.5">点击“CLI 终端空间”在新窗口开启虚拟终端空间，支持多命令行窗口自由拖拽摆放；点击“GUI 桌面”在新窗口全屏连入远程桌面。</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- 3. 靶机列表区 -->
+        <div class="space-y-4">
+          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div>
+              <h3 class="text-sm font-semibold text-zinc-900">靶机列表</h3>
+              <p class="text-xs text-zinc-500 mt-0.5">按需连接靶机目标 IP，内核路由直通互通</p>
+            </div>
+          </div>
+
+          <!-- 靶机卡片网格 -->
+          <div id="user-targets-grid" class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div class="shadcn-card p-4 flex flex-col justify-between">
+              <div>
+                <div class="flex items-start justify-between gap-2">
+                  <div>
+                    <h4 class="text-sm font-semibold text-zinc-900">DVWA 综合 Web 漏洞靶机</h4>
+                    <span class="inline-block mt-1 px-2 py-0.5 bg-zinc-100 text-zinc-600 rounded text-[11px]">Linux · Web · 本地 Docker</span>
+                  </div>
+                  <span class="px-2 py-0.5 rounded-full text-[11px] font-medium bg-emerald-50 text-emerald-700 border border-emerald-200">
+                    直连互通
+                  </span>
+                </div>
+                <p class="text-xs text-zinc-500 mt-2.5 leading-relaxed">包含 SQL 注入、XSS、文件上传与命令执行等常见 Web 漏洞环境。</p>
+              </div>
+              <div class="mt-4 pt-3 border-t border-zinc-100 flex items-center justify-between gap-2">
+                <div class="text-xs font-mono">
+                  <span class="text-zinc-500">IP:</span> <span class="font-medium text-zinc-900">172.17.0.2</span>
+                  <button onclick="copyIp('172.17.0.2')" class="ml-1.5 text-[11px] text-zinc-500 underline hover:text-zinc-900">复制</button>
+                </div>
+              </div>
+            </div>
+
+            <div class="shadcn-card p-4 flex flex-col justify-between">
+              <div>
+                <div class="flex items-start justify-between gap-2">
+                  <div>
+                    <h4 class="text-sm font-semibold text-zinc-900">Struts2 历史漏洞镜像</h4>
+                    <span class="inline-block mt-1 px-2 py-0.5 bg-zinc-100 text-zinc-600 rounded text-[11px]">Linux · RCE · 靶机专网</span>
+                  </div>
+                  <span class="px-2 py-0.5 rounded-full text-[11px] font-medium bg-zinc-100 text-zinc-500">
+                    可达靶机
+                  </span>
+                </div>
+                <p class="text-xs text-zinc-500 mt-2.5 leading-relaxed">用于复现 S2-045、S2-057 等远程代码执行漏洞的标准测试靶场。</p>
+              </div>
+              <div class="mt-4 pt-3 border-t border-zinc-100 flex items-center justify-between gap-2">
+                <div class="text-xs font-mono">
+                  <span class="text-zinc-500">IP:</span> <span class="font-medium text-zinc-900">10.10.10.25</span>
+                  <button onclick="copyIp('10.10.10.25')" class="ml-1.5 text-[11px] text-zinc-500 underline hover:text-zinc-900">复制</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ==================== 管理员视图 1：VPS 状态与监控 ==================== -->
+      <section id="view-admin-vps" class="hidden space-y-5">
+        <div class="flex items-center justify-between">
+          <div>
+            <h2 class="text-base font-semibold text-zinc-900">VPS 运行状态与环境监控</h2>
+            <p class="text-xs text-zinc-500 mt-0.5">仅管理员可见：监控主机资源负载与沙箱运行数量</p>
+          </div>
+          <div class="flex items-center gap-2">
+            <button onclick="fetchMetrics()" class="px-3 py-1.5 rounded-lg text-xs font-medium shadcn-btn-outline">
+              刷新指标
+            </button>
+          </div>
+        </div>
+
+        <!-- 状态指标卡片 -->
+        <div class="grid grid-cols-2 sm:grid-cols-4 gap-4">
+          <div class="shadcn-card p-4">
+            <div class="text-xs text-zinc-500">系统状态</div>
+            <div id="admin-vps-status" class="text-sm font-semibold text-emerald-600 mt-1">正常运行中</div>
+            <div class="text-[11px] text-zinc-400 font-mono mt-1">网桥: 10.200.0.1</div>
+          </div>
+          <div class="shadcn-card p-4">
+            <div class="text-xs text-zinc-500">CPU 负载</div>
+            <div id="admin-cpu-text" class="text-sm font-semibold text-zinc-900 mt-1">--</div>
+            <div class="w-full h-1.5 bg-zinc-100 rounded-full mt-2 overflow-hidden">
+              <div id="admin-cpu-bar" class="bg-zinc-900 h-full" style="width: 10%"></div>
+            </div>
+          </div>
+          <div class="shadcn-card p-4">
+            <div class="text-xs text-zinc-500">内存占用 (RAM)</div>
+            <div id="admin-ram-text" class="text-sm font-semibold text-zinc-900 mt-1">--</div>
+            <div class="w-full h-1.5 bg-zinc-100 rounded-full mt-2 overflow-hidden">
+              <div id="admin-ram-bar" class="bg-zinc-900 h-full" style="width: 25%"></div>
+            </div>
+          </div>
+          <div class="shadcn-card p-4">
+            <div class="text-xs text-zinc-500">磁盘空间 (btrfs)</div>
+            <div id="admin-disk-text" class="text-sm font-semibold text-zinc-900 mt-1">--</div>
+            <div id="admin-boxes-count" class="text-[11px] text-zinc-500 mt-1">运行中沙箱: --</div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ==================== 管理员视图 2：用户管理 ==================== -->
+      <section id="view-admin-users" class="hidden space-y-4">
+        <div class="flex items-center justify-between">
+          <div>
+            <h2 class="text-base font-semibold text-zinc-900">用户管理</h2>
+            <p class="text-xs text-zinc-500 mt-0.5">管理平台注册用户账号与权限设置</p>
+          </div>
+          <button onclick="openAddUserModal()" class="px-3 py-1.5 rounded-lg text-xs font-medium shadcn-btn-primary">
+            + 手动添加用户
+          </button>
+        </div>
+        <div class="shadcn-card overflow-hidden">
+          <table class="w-full text-left border-collapse text-xs">
+            <thead>
+              <tr class="border-b border-zinc-200 bg-zinc-50/70 text-[11px] text-zinc-500">
+                <th class="py-2.5 px-4">用户名</th>
+                <th class="py-2.5 px-4">角色</th>
+                <th class="py-2.5 px-4">状态</th>
+                <th class="py-2.5 px-4">创建时间</th>
+                <th class="py-2.5 px-4 text-right">操作</th>
+              </tr>
+            </thead>
+            <tbody id="admin-users-tbody" class="divide-y divide-zinc-200">
+              <!-- JS 渲染 -->
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- ==================== 管理员视图 3：全局通知 ==================== -->
+      <section id="view-admin-broadcast" class="hidden space-y-4 max-w-xl">
+        <div>
+          <h2 class="text-base font-semibold text-zinc-900">全局通知设置</h2>
+          <p class="text-xs text-zinc-500 mt-0.5">向所有登录用户顶部推送一行简短公告</p>
+        </div>
+        <form onsubmit="saveBroadcast(event)" class="shadcn-card p-5 space-y-4 text-xs">
+          <div class="flex items-center justify-between">
+            <span class="font-medium text-zinc-800">开启顶部横幅通知</span>
+            <input id="broadcast-enabled" type="checkbox" class="h-4 w-4 rounded border-zinc-300 text-zinc-900" />
+          </div>
+          <div>
+            <label class="block font-medium text-zinc-700 mb-1.5">通知内容</label>
+            <textarea id="broadcast-msg" rows="2" required class="w-full px-3 py-2 border border-zinc-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-zinc-900"></textarea>
+          </div>
+          <div class="flex justify-end">
+            <button type="submit" class="px-4 py-2 rounded-lg font-medium shadcn-btn-primary">保存并发布</button>
+          </div>
+        </form>
+      </section>
+
+    </main>
+  </div>
+
+  <!-- ==================== 通用弹窗 ==================== -->
+  <div id="modal-overlay" class="fixed inset-0 z-50 hidden bg-zinc-950/40 backdrop-blur-[1px] flex items-center justify-center p-4">
+    <div class="w-full max-w-md shadcn-card p-5 shadow-xl">
+      <div class="flex items-center justify-between mb-4">
+        <h3 id="modal-title" class="text-sm font-semibold text-zinc-900">标题</h3>
+        <button onclick="closeModal()" class="text-zinc-400 hover:text-zinc-700">✕</button>
+      </div>
+      <div id="modal-body"></div>
+    </div>
+  </div>
+
+</body>
+</html>

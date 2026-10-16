@@ -14,8 +14,8 @@ import (
 	"time"
 
 	"attackbox/internal/box"
-	"attackbox/internal/cfg"
-	"attackbox/internal/gate"
+	"attackbox/internal/config"
+	"attackbox/internal/gateway"
 )
 
 func main() {
@@ -23,7 +23,7 @@ func main() {
 	listen := flag.String("listen", "", "override listen address, e.g. :8443")
 	flag.Parse()
 
-	c, err := cfg.Load(*cfgPath)
+	c, err := config.Load(*cfgPath)
 	if err != nil {
 		log.Fatalf("config: %v", err)
 	}
@@ -31,16 +31,20 @@ func main() {
 		c.Listen = *listen
 	}
 
-	g, err := gate.New(c, box.NewManager())
-	if err != nil {
-		log.Fatalf("gate: %v", err)
+	if err := box.EnsureHostNetwork(); err != nil {
+		log.Printf("warning: init host network and firewall: %v", err)
 	}
 
-	go g.Run(context.Background())
+	gw, err := gateway.New(c, box.NewManager())
+	if err != nil {
+		log.Fatalf("gateway: %v", err)
+	}
+
+	go gw.Run(context.Background())
 
 	srv := &http.Server{
 		Addr:              c.Listen,
-		Handler:           withLogging(g.Handler()),
+		Handler:           withLogging(gw.Handler()),
 		ReadHeaderTimeout: 10 * time.Second,
 		// A WebSocket upgrade only exists on HTTP/1.1. Go enables HTTP/2
 		// automatically for TLS servers, and Cloudflare then negotiates h2
@@ -49,8 +53,8 @@ func main() {
 		TLSNextProto: map[string]func(*http.Server, *tls.Conn, http.Handler){},
 	}
 
-	log.Printf("attackboxd listening on %s (cert %s, %d boxes, %d users)",
-		c.Listen, c.Cert, len(c.Boxes), len(c.Users))
+	log.Printf("attackboxd listening on %s (cert %s, %d boxes, web %s)",
+		c.Listen, c.Cert, len(c.Boxes), c.WebDir)
 	log.Fatal(srv.ListenAndServeTLS(c.Cert, c.Key))
 }
 
