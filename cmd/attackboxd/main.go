@@ -35,7 +35,11 @@ func main() {
 		log.Printf("warning: init host network and firewall: %v", err)
 	}
 
-	gw, err := gateway.New(c, box.NewManager())
+	if err := box.EnsureBaseRootfs(c.BaseRootfs); err != nil {
+		log.Printf("warning: init base rootfs: %v", err)
+	}
+
+	gw, err := gateway.New(c, box.NewManagerWithConfig(c.BoxesDir, c.BaseRootfs))
 	if err != nil {
 		log.Fatalf("gateway: %v", err)
 	}

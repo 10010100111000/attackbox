@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"attackbox/internal/config"
@@ -16,12 +17,46 @@ import (
 
 type Manager struct {
 	Snapshots *SnapshotManager
+	boxMu     sync.Map // boxID string -> *sync.Mutex
 }
 
 func NewManager() *Manager {
+	return NewManagerWithConfig("/var/lib/attackbox/boxes", "/var/lib/attackbox/base_rootfs")
+}
+
+func NewManagerWithConfig(boxesDir, baseRootfs string) *Manager {
 	return &Manager{
-		Snapshots: NewSnapshotManager("/var/lib/attackbox/boxes"),
+		Snapshots: NewSnapshotManager(boxesDir, baseRootfs),
 	}
+}
+
+// boxLock 获取针对指定沙箱槽位的细粒度互斥锁
+func (m *Manager) boxLock(boxID string) *sync.Mutex {
+	v, _ := m.boxMu.LoadOrStore(boxID, &sync.Mutex{})
+	return v.(*sync.Mutex)
+}
+
+// findChildPID 查找 unshare 在宿主机的直接子进程 PID (即沙箱内部的 PID 1)
+func findChildPID(parentPID int) (int, error) {
+	out, err := exec.Command("pgrep", "-P", strconv.Itoa(parentPID)).Output()
+	if err == nil {
+		pids := strings.Fields(string(out))
+		if len(pids) > 0 {
+			if pid, err := strconv.Atoi(pids[0]); err == nil && pid > 0 {
+				return pid, nil
+			}
+		}
+	}
+	// 备选读取 /proc/<parentPID>/task/<parentPID>/children
+	if data, err := os.ReadFile(fmt.Sprintf("/proc/%d/task/%d/children", parentPID, parentPID)); err == nil {
+		pids := strings.Fields(string(data))
+		if len(pids) > 0 {
+			if pid, err := strconv.Atoi(pids[0]); err == nil && pid > 0 {
+				return pid, nil
+			}
+		}
+	}
+	return 0, fmt.Errorf("child of %d not found", parentPID)
 }
 
 // Status is what the system currently thinks about a box session.
@@ -34,21 +69,8 @@ type Status struct {
 func (s Status) Running() bool { return s.ActiveState == "active" }
 
 func (m *Manager) Status(ctx context.Context, b *config.Box) Status {
-	coreFile := filepath.Join(b.RunDir, "core.ready")
-	if _, err := os.Stat(coreFile); err == nil {
-		netns := "ab-" + b.ID
-		if out, err := exec.CommandContext(ctx, "ip", "netns", "list").Output(); err == nil {
-			if strings.Contains(string(out), netns) {
-				return Status{
-					ActiveState: "active",
-					SubState:    "running",
-				}
-			}
-		}
-	}
-
-	pidFile := filepath.Join(b.RunDir, "pid")
-	if data, err := os.ReadFile(pidFile); err == nil {
+	initPidFile := filepath.Join(b.RunDir, "init.pid")
+	if data, err := os.ReadFile(initPidFile); err == nil {
 		if pid, err := strconv.Atoi(strings.TrimSpace(string(data))); err == nil && pid > 0 {
 			if err := exec.CommandContext(ctx, "kill", "-0", strconv.Itoa(pid)).Run(); err == nil {
 				return Status{
@@ -63,9 +85,16 @@ func (m *Manager) Status(ctx context.Context, b *config.Box) Status {
 	return Status{ActiveState: "inactive", SubState: "dead"}
 }
 
-// Start 派生 btrfs 瞬态快照并通过 Go 原生隔离逻辑拉起核心沙箱 (毫秒级)
+// Start 从只读基准子卷派生瞬态快照并拉起全命名空间常驻 Init (线程安全)
 func (m *Manager) Start(ctx context.Context, b *config.Box) error {
-	_ = m.Kick(ctx, b)
+	mu := m.boxLock(b.ID)
+	mu.Lock()
+	defer mu.Unlock()
+	return m.startLocked(ctx, b)
+}
+
+func (m *Manager) startLocked(ctx context.Context, b *config.Box) error {
+	_ = m.kickLocked(ctx, b)
 
 	rootfs, err := m.Snapshots.Create(b.ID)
 	if err != nil {
@@ -81,8 +110,13 @@ func (m *Manager) Start(ctx context.Context, b *config.Box) error {
 
 // startCore 纯 Go 原生实现网络命名空间、veth 虚拟网卡、挂载设备树与权限初始化
 func (m *Manager) startCore(ctx context.Context, b *config.Box, rootfs string) error {
-	_ = os.MkdirAll(b.RunDir, 0777)
+	_ = os.MkdirAll(b.RunDir, 01777)
 	_ = os.Chmod(b.RunDir, 01777)
+
+	// 清理历史残留 PID 与状态文件
+	_ = os.Remove(filepath.Join(b.RunDir, "init.pid"))
+	_ = os.Remove(filepath.Join(b.RunDir, "unshare.pid"))
+	_ = os.Remove(filepath.Join(b.RunDir, "core.ready"))
 
 	netns := "ab-" + b.ID
 	vethHost := "veth-" + b.ID + "-br"
@@ -111,66 +145,123 @@ func (m *Manager) startCore(ctx context.Context, b *config.Box, rootfs string) e
 		_ = exec.CommandContext(ctx, "ip", "netns", "exec", netns, "ip", "route", "add", "default", "via", "10.200.0.1").Run()
 	}
 
-	// 3. 挂载环境与设备树准备
-	dirs := []string{
-		filepath.Join(rootfs, "run/attackbox"),
-		filepath.Join(rootfs, "proc"),
-		filepath.Join(rootfs, "sys"),
-		filepath.Join(rootfs, "dev"),
-		filepath.Join(rootfs, "dev/pts"),
-		filepath.Join(rootfs, "dev/shm"),
-		filepath.Join(rootfs, "tmp/.X11-unix"),
-		filepath.Join(rootfs, "home"),
+	// 3. 构造私有 Mount/PID Namespace 内执行的挂载与 Init 脚本
+	initScript := fmt.Sprintf(`
+# 挂载命名空间私有化，杜绝向宿主机扩散
+mount --make-rprivate /
+
+# 挂载设备树与独立虚拟文件系统
+mount --bind "%s" "%s"
+mount --make-rprivate "%s"
+mount --rbind /dev "%s/dev"
+mount --make-rprivate "%s/dev"
+mount -t devpts devpts "%s/dev/pts" -o rw,nosuid,noexec,relatime,gid=5,mode=620,ptmxmode=666
+mount -t tmpfs tmpfs "%s/dev/shm" -o rw,nosuid,nodev,mode=1777
+chmod 666 "%s/dev/ptmx" 2>/dev/null || true
+
+# 挂载属于本沙箱独立 PID namespace 的 proc 与 sys
+mount -t proc proc "%s/proc"
+mount -t sysfs sys "%s/sys"
+
+# 挂载宿主-沙箱通信套接字目录
+mkdir -p "%s/run/attackbox"
+mount --bind "%s" "%s/run/attackbox"
+
+# 挂载隔离的 tmpfs home 空间并初始化 parrot 用户
+mount -t tmpfs tmpfs "%s/home" -o rw,nosuid,nodev,mode=0755
+mkdir -p "%s/home/parrot"
+if [ -d /home/parrot ]; then
+  cp -a /home/parrot/. "%s/home/parrot/" 2>/dev/null || true
+else
+  cp -r /etc/skel/. "%s/home/parrot/" 2>/dev/null || true
+fi
+chown -R parrot:parrot "%s/home/parrot"
+chmod 0755 "%s/home/parrot"
+
+# chroot 并以容器工业标准 tini / dumb-init 启动常驻保活与僵尸收割
+exec chroot "%s" /bin/bash -c "
+  hostname attackbox-%s
+  touch /run/attackbox/core.ready
+
+  INIT_BIN=\"\"
+  for b in /usr/bin/tini /bin/tini /usr/bin/dumb-init /bin/dumb-init; do
+    if [ -x \"\$b\" ]; then
+      INIT_BIN=\"\$b\"
+      break
+    fi
+  done
+
+  if [ -n \"\$INIT_BIN\" ]; then
+    exec \"\$INIT_BIN\" -s -- sleep infinity
+  else
+    set -m
+    trap 'while wait -n 2>/dev/null; do :; done' CHLD
+    while true; do
+      sleep 86400 &
+      wait \$! 2>/dev/null || true
+    done
+  fi
+"
+`, rootfs, rootfs, rootfs, rootfs, rootfs, rootfs, rootfs, rootfs, rootfs, rootfs, rootfs, b.RunDir, rootfs, rootfs, rootfs, rootfs, rootfs, rootfs, rootfs, rootfs, b.ID)
+
+	// 4. 通过 ip netns + unshare 组合指令拉起全新全命名空间
+	cmd := exec.Command("ip", "netns", "exec", netns,
+		"unshare", "--mount", "--uts", "--ipc", "--pid", "--fork", "--kill-child",
+		"/bin/bash", "-c", initScript)
+
+	if err := cmd.Start(); err != nil {
+		return fmt.Errorf("start unshare init: %w", err)
 	}
-	for _, d := range dirs {
-		_ = os.MkdirAll(d, 0755)
+
+	// 异步自动收割退出状态，彻底杜绝宿主机僵尸进程残留
+	go func() {
+		_ = cmd.Wait()
+	}()
+
+	unsharePID := cmd.Process.Pid
+	_ = os.WriteFile(filepath.Join(b.RunDir, "unshare.pid"), []byte(strconv.Itoa(unsharePID)), 0644)
+
+	// 5. 等待 core.ready 并解析沙箱内 PID 1 在宿主机的真实 PID
+	coreReady := filepath.Join(b.RunDir, "core.ready")
+	for i := 0; i < 50; i++ {
+		if _, err := os.Stat(coreReady); err == nil {
+			if childPID, err := findChildPID(unsharePID); err == nil {
+				_ = os.WriteFile(filepath.Join(b.RunDir, "init.pid"), []byte(strconv.Itoa(childPID)), 0644)
+				return nil
+			}
+		}
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-time.After(100 * time.Millisecond):
+		}
 	}
 
-	_ = exec.CommandContext(ctx, "mount", "--bind", b.RunDir, filepath.Join(rootfs, "run/attackbox")).Run()
-	_ = exec.CommandContext(ctx, "mount", "--rbind", "/dev", filepath.Join(rootfs, "dev")).Run()
-	_ = exec.CommandContext(ctx, "mount", "--make-rprivate", filepath.Join(rootfs, "dev")).Run()
-	_ = exec.CommandContext(ctx, "mount", "-t", "devpts", "devpts", filepath.Join(rootfs, "dev/pts"),
-		"-o", "rw,nosuid,noexec,relatime,gid=5,mode=620,ptmxmode=666").Run()
-	_ = exec.CommandContext(ctx, "mount", "-t", "tmpfs", "tmpfs", filepath.Join(rootfs, "dev/shm"),
-		"-o", "rw,nosuid,nodev,mode=1777").Run()
-	_ = exec.CommandContext(ctx, "chmod", "666", filepath.Join(rootfs, "dev/ptmx")).Run()
-
-	_ = exec.CommandContext(ctx, "mount", "-t", "proc", "proc", filepath.Join(rootfs, "proc")).Run()
-	_ = exec.CommandContext(ctx, "mount", "-t", "sysfs", "sys", filepath.Join(rootfs, "sys")).Run()
-	_ = os.Chmod(filepath.Join(rootfs, "tmp"), 01777)
-	_ = os.Chmod(filepath.Join(rootfs, "tmp/.X11-unix"), 01777)
-
-	// 挂载独立 tmpfs 掩盖宿主上所有个人主目录，并仅构建沙箱渗透用户专用 /home/parrot
-	_ = exec.CommandContext(ctx, "mount", "-t", "tmpfs", "tmpfs", filepath.Join(rootfs, "home"),
-		"-o", "rw,nosuid,nodev,mode=0755").Run()
-
-	parrotHome := filepath.Join(rootfs, "home/parrot")
-	_ = os.MkdirAll(parrotHome, 0755)
-	if _, err := os.Stat("/home/parrot"); err == nil {
-		_ = exec.CommandContext(ctx, "cp", "-a", "/home/parrot/.", parrotHome+"/").Run()
-	} else {
-		_ = exec.CommandContext(ctx, "cp", "-r", "/etc/skel/.", parrotHome+"/").Run()
-	}
-	_ = exec.CommandContext(ctx, "chown", "-R", "parrot:parrot", parrotHome).Run()
-	_ = os.Chmod(parrotHome, 0755)
-
-	// 标记核心就绪
-	_ = os.WriteFile(filepath.Join(b.RunDir, "core.ready"), []byte(time.Now().Format(time.RFC3339)), 0644)
-	return nil
+	return fmt.Errorf("sandbox core failed to become ready within timeout")
 }
 
-// Ensure 保证核心沙箱处于运行状态 (CLI 依赖)
+// Ensure 保证核心沙箱处于运行状态 (线程安全，支持并发调用与双重检测)
 func (m *Manager) Ensure(ctx context.Context, b *config.Box) error {
+	mu := m.boxLock(b.ID)
+	mu.Lock()
+	defer mu.Unlock()
+
 	if m.Status(ctx, b).Running() {
 		return nil
 	}
-	return m.Start(ctx, b)
+	return m.startLocked(ctx, b)
 }
 
-// EnsureGUI 保证图形桌面服务处于运行状态 (按需懒加载)
+// EnsureGUI 保证图形桌面服务处于运行状态 (线程安全，按需懒加载)
 func (m *Manager) EnsureGUI(ctx context.Context, b *config.Box) error {
-	if err := m.Ensure(ctx, b); err != nil {
-		return err
+	mu := m.boxLock(b.ID)
+	mu.Lock()
+	defer mu.Unlock()
+
+	if !m.Status(ctx, b).Running() {
+		if err := m.startLocked(ctx, b); err != nil {
+			return err
+		}
 	}
 
 	guiSock := filepath.Join(b.RunDir, "gui.sock")
@@ -182,11 +273,20 @@ func (m *Manager) EnsureGUI(ctx context.Context, b *config.Box) error {
 	return m.startGUI(ctx, b, rootfs)
 }
 
-// startGUI 纯 Go 原生调用拉起 TigerVNC 与 MATE 桌面
+// startGUI 统一通过 nsenter 穿透全命名空间拉起 TigerVNC 与 MATE 桌面
 func (m *Manager) startGUI(ctx context.Context, b *config.Box, rootfs string) error {
 	guiSock := filepath.Join(b.RunDir, "gui.sock")
 	dispStr := fmt.Sprintf(":%d", b.Display)
-	netns := "ab-" + b.ID
+
+	initPidFile := filepath.Join(b.RunDir, "init.pid")
+	data, err := os.ReadFile(initPidFile)
+	if err != nil {
+		return fmt.Errorf("read init pid: %w", err)
+	}
+	initPID, err := strconv.Atoi(strings.TrimSpace(string(data)))
+	if err != nil || initPID <= 0 {
+		return fmt.Errorf("invalid init pid: %s", string(data))
+	}
 
 	_ = os.Remove(guiSock)
 	_ = os.Remove(filepath.Join(rootfs, fmt.Sprintf("tmp/.X11-unix/X%d", b.Display)))
@@ -212,10 +312,21 @@ su - parrot -c "
 "
 `, dispStr, b.Display, dispStr)
 
-	cmd := exec.Command("ip", "netns", "exec", netns, "/usr/sbin/chroot", rootfs, "/bin/bash", "-c", guiScript)
+	// 统一通过 nsenter 将桌面启动脚本注入至沙箱环境中
+	cmd := exec.Command("nsenter",
+		"--target", strconv.Itoa(initPID),
+		"--mount", "--uts", "--ipc", "--net", "--pid",
+		"--root", "--wd",
+		"/bin/bash", "-c", guiScript)
+
 	if err := cmd.Start(); err != nil {
 		return fmt.Errorf("start gui: %w", err)
 	}
+
+	// 异步自动收割 GUI 进程，杜绝僵尸进程
+	go func() {
+		_ = cmd.Wait()
+	}()
 
 	if cmd.Process != nil {
 		_ = os.WriteFile(filepath.Join(b.RunDir, "gui.pid"), []byte(strconv.Itoa(cmd.Process.Pid)), 0644)
@@ -250,6 +361,13 @@ func (m *Manager) DetailedStatus(ctx context.Context, b *config.Box) (coreRunnin
 
 // StopGUI 仅终止 TigerVNC 与 MATE 桌面，保持核心沙箱（CLI）继续存活
 func (m *Manager) StopGUI(ctx context.Context, b *config.Box) error {
+	mu := m.boxLock(b.ID)
+	mu.Lock()
+	defer mu.Unlock()
+	return m.stopGUILocked(ctx, b)
+}
+
+func (m *Manager) stopGUILocked(ctx context.Context, b *config.Box) error {
 	guiPidFile := filepath.Join(b.RunDir, "gui.pid")
 	if data, err := os.ReadFile(guiPidFile); err == nil {
 		if pid, err := strconv.Atoi(strings.TrimSpace(string(data))); err == nil && pid > 0 {
@@ -259,6 +377,23 @@ func (m *Manager) StopGUI(ctx context.Context, b *config.Box) error {
 		_ = os.Remove(guiPidFile)
 	}
 
+	// 仅在沙箱内部 PID Namespace 清理 TigerVNC 与 MATE 进程，绝不影响其他租户
+	initPidFile := filepath.Join(b.RunDir, "init.pid")
+	if data, err := os.ReadFile(initPidFile); err == nil {
+		if initPID, err := strconv.Atoi(strings.TrimSpace(string(data))); err == nil && initPID > 0 {
+			_ = exec.CommandContext(ctx, "nsenter",
+				"--target", strconv.Itoa(initPID),
+				"--mount", "--uts", "--ipc", "--net", "--pid",
+				"--root", "--wd",
+				"pkill", "-f", "Xtigervnc").Run()
+			_ = exec.CommandContext(ctx, "nsenter",
+				"--target", strconv.Itoa(initPID),
+				"--mount", "--uts", "--ipc", "--net", "--pid",
+				"--root", "--wd",
+				"pkill", "-f", "mate-session").Run()
+		}
+	}
+
 	_ = os.Remove(filepath.Join(b.RunDir, "gui.sock"))
 	rootfs := m.Snapshots.PathFor(b.ID)
 	_ = os.Remove(filepath.Join(rootfs, fmt.Sprintf("tmp/.X11-unix/X%d", b.Display)))
@@ -266,44 +401,59 @@ func (m *Manager) StopGUI(ctx context.Context, b *config.Box) error {
 	return nil
 }
 
-// Kick 终止沙箱全部进程、注销网络、卸载挂载并物理销毁快照
+// Kick 终止沙箱全部进程、注销网络并物理销毁快照 (内核级级联清理，线程安全)
 func (m *Manager) Kick(ctx context.Context, b *config.Box) error {
-	// 1. 终止 GUI 进程
-	_ = m.StopGUI(ctx, b)
+	mu := m.boxLock(b.ID)
+	mu.Lock()
+	defer mu.Unlock()
+	return m.kickLocked(ctx, b)
+}
 
-	// 2. 终止 pid 进程（如存在）
-	pidFile := filepath.Join(b.RunDir, "pid")
-	if data, err := os.ReadFile(pidFile); err == nil {
+func (m *Manager) kickLocked(ctx context.Context, b *config.Box) error {
+	// 1. 终止 GUI 进程
+	_ = m.stopGUILocked(ctx, b)
+
+	// 2. 核心处决：向沙箱 PID 1 (tini) 发送 SIGKILL
+	// Linux 内核规则：PID 1 死亡时，内核自动向该 PID Namespace 内的一切子孙进程广播 SIGKILL
+	initPidFile := filepath.Join(b.RunDir, "init.pid")
+	if data, err := os.ReadFile(initPidFile); err == nil {
 		if pid, err := strconv.Atoi(strings.TrimSpace(string(data))); err == nil && pid > 0 {
-			_ = exec.CommandContext(ctx, "kill", "-TERM", strconv.Itoa(pid)).Run()
 			_ = exec.CommandContext(ctx, "kill", "-9", strconv.Itoa(pid)).Run()
 		}
 	}
 
-	// 3. 杀掉沙箱渗透用户的孤儿进程
-	_ = exec.CommandContext(ctx, "pkill", "-u", "parrot").Run()
+	// 处决外层 unshare 守护进程
+	unsharePidFile := filepath.Join(b.RunDir, "unshare.pid")
+	if data, err := os.ReadFile(unsharePidFile); err == nil {
+		if pid, err := strconv.Atoi(strings.TrimSpace(string(data))); err == nil && pid > 0 {
+			_ = exec.CommandContext(ctx, "kill", "-9", strconv.Itoa(pid)).Run()
+		}
+	}
 
-	// 4. 清理网络 veth 与 netns
+	// 等待进程完全消亡 (最多等待 1 秒)
+	for i := 0; i < 10; i++ {
+		if !m.Status(ctx, b).Running() {
+			break
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+
+	// 3. 注销网络命名空间与网卡对
 	netns := "ab-" + b.ID
 	_ = exec.CommandContext(ctx, "ip", "netns", "del", netns).Run()
 	_ = exec.CommandContext(ctx, "ip", "link", "del", "veth-"+b.ID+"-br").Run()
 
-	// 5. 卸载挂载点
-	rootfs := m.Snapshots.PathFor(b.ID)
-	_ = exec.CommandContext(ctx, "umount", "-l", filepath.Join(rootfs, "run/attackbox")).Run()
-	_ = exec.CommandContext(ctx, "umount", "-l", filepath.Join(rootfs, "home")).Run()
-	_ = exec.CommandContext(ctx, "umount", "-l", filepath.Join(rootfs, "dev/pts")).Run()
-	_ = exec.CommandContext(ctx, "umount", "-l", filepath.Join(rootfs, "dev/shm")).Run()
-	_ = exec.CommandContext(ctx, "umount", "-l", filepath.Join(rootfs, "dev")).Run()
-	_ = exec.CommandContext(ctx, "umount", "-l", filepath.Join(rootfs, "proc")).Run()
-	_ = exec.CommandContext(ctx, "umount", "-l", filepath.Join(rootfs, "sys")).Run()
-
-	// 6. 物理销毁瞬态快照
+	// 4. 物理销毁快照
+	// 说明：由于沙箱内的所有进程已被内核 SIGKILL 处死，其私有 Mount Namespace 随之自动销毁，
+	// 没有任何文件或挂载占用，因此 btrfs subvolume delete 绝不会触发 target is busy 错误。
 	_ = m.Snapshots.Destroy(b.ID)
 
-	// 7. 清理运行时文件
+	// 5. 清理运行时文件
 	_ = os.Remove(filepath.Join(b.RunDir, "core.ready"))
-	_ = os.Remove(pidFile)
+	_ = os.Remove(filepath.Join(b.RunDir, "init.pid"))
+	_ = os.Remove(filepath.Join(b.RunDir, "unshare.pid"))
+	_ = os.Remove(filepath.Join(b.RunDir, "gui.sock"))
+	_ = os.Remove(filepath.Join(b.RunDir, "gui.pid"))
 
 	return nil
 }

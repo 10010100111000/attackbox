@@ -6,7 +6,11 @@ import (
 	"log"
 	"net"
 	"net/http"
+	"os"
 	"os/exec"
+	"path/filepath"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/creack/pty"
@@ -24,7 +28,7 @@ var upgrader = websocket.Upgrader{
 	CheckOrigin:     func(r *http.Request) bool { return true },
 }
 
-func keepalive(c *websocket.Conn, stop <-chan struct{}) {
+func keepalive(c *safeConn, stop <-chan struct{}) {
 	t := time.NewTicker(pingEvery)
 	defer t.Stop()
 	for {
@@ -40,9 +44,9 @@ func keepalive(c *websocket.Conn, stop <-chan struct{}) {
 // vncWS bridges a browser WebSocket to the box RFB unix socket, byte for byte.
 // 方案 A 懒加载：用户访问 GUI 时，按需拉起 TigerVNC 与 MATE 桌面
 func (g *Gateway) vncWS(w http.ResponseWriter, r *http.Request) {
-	b, s := g.boxFor(r)
+	b, s := g.currentBoxFor(r)
 	if b == nil || s == nil {
-		http.Error(w, "no box", http.StatusInternalServerError)
+		http.Error(w, "no active sandbox, please start environment from dashboard", http.StatusBadRequest)
 		return
 	}
 
@@ -55,11 +59,12 @@ func (g *Gateway) vncWS(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	c, err := upgrader.Upgrade(w, r, nil)
+	rawConn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
 		log.Printf("vncWS upgrade error: %v", err)
 		return
 	}
+	c := newSafeConn(rawConn)
 	defer c.Close()
 
 	// 严格单活跃会话：若已有活动 GUI 窗口，向其发送 4001 Preempted 并关闭
@@ -135,9 +140,9 @@ func (g *Gateway) vncWS(w http.ResponseWriter, r *http.Request) {
 // termWS bridges terminal WebSocket to a real PTY inside the sandbox.
 // 方案 A 懒加载：用户访问 CLI 时，毫秒级快速拉起沙箱 Core 并建立双向交互
 func (g *Gateway) termWS(w http.ResponseWriter, r *http.Request) {
-	b, s := g.boxFor(r)
+	b, s := g.currentBoxFor(r)
 	if b == nil || s == nil {
-		http.Error(w, "no box", http.StatusInternalServerError)
+		http.Error(w, "no active sandbox, please start environment from dashboard", http.StatusBadRequest)
 		return
 	}
 
@@ -150,10 +155,11 @@ func (g *Gateway) termWS(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	c, err := upgrader.Upgrade(w, r, nil)
+	rawConn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
 		return
 	}
+	c := newSafeConn(rawConn)
 	defer c.Close()
 
 	winID := r.URL.Query().Get("win")
@@ -187,12 +193,26 @@ func (g *Gateway) termWS(w http.ResponseWriter, r *http.Request) {
 	go keepalive(c, stop)
 	defer close(stop)
 
-	rootfs := g.boxes.Snapshots.PathFor(b.ID)
-	netns := "ab-" + b.ID
+	// 读取沙箱 Init 守护在宿主机的真实 PID
+	initPidFile := filepath.Join(b.RunDir, "init.pid")
+	data, err := os.ReadFile(initPidFile)
+	if err != nil {
+		log.Printf("termWS read %s: %v", initPidFile, err)
+		http.Error(w, "sandbox init pid not found", http.StatusInternalServerError)
+		return
+	}
+	initPID, err := strconv.Atoi(strings.TrimSpace(string(data)))
+	if err != nil || initPID <= 0 {
+		log.Printf("termWS invalid init pid: %s", string(data))
+		http.Error(w, "invalid sandbox init pid", http.StatusInternalServerError)
+		return
+	}
 
-	// 原生轻量解耦 PTY：直接拉起隔离命名空间与 chroot 下的标准登录 Shell，彻底废除 Tmux 依赖与状态栏杂质
-	cmd := exec.Command("/usr/bin/ip", "netns", "exec", netns,
-		"/usr/sbin/chroot", rootfs,
+	// 原生全命名空间注入：通过 nsenter 穿透 Mount/UTS/IPC/Net/PID 命名空间并切换根目录
+	cmd := exec.Command("/usr/bin/nsenter",
+		"--target", strconv.Itoa(initPID),
+		"--mount", "--uts", "--ipc", "--net", "--pid",
+		"--root", "--wd",
 		"/usr/bin/su", "-", "parrot")
 
 	cmd.Env = []string{
@@ -212,6 +232,9 @@ func (g *Gateway) termWS(w http.ResponseWriter, r *http.Request) {
 			_ = cmd.Process.Kill()
 		}
 		_ = f.Close()
+		if cmd.Process != nil {
+			_ = cmd.Wait() // 关键：回收子进程，杜绝宿主机 <defunct> 僵尸进程泄漏
+		}
 	}()
 
 	// PTY 数据流 -> WebSocket 输出

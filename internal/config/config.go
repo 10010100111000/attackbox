@@ -23,9 +23,11 @@ type Config struct {
 	Cert     string `json:"cert"`
 	Key      string `json:"key"`
 	WebDir   string `json:"webDir"`
-	NovncDir string `json:"novncDir"`
-	XtermDir string `json:"xtermDir"`
-	Boxes    []Box  `json:"boxes"`
+	NovncDir   string `json:"novncDir"`
+	XtermDir   string `json:"xtermDir"`
+	BaseRootfs string `json:"baseRootfs"`
+	BoxesDir   string `json:"boxesDir"`
+	Boxes      []Box  `json:"boxes"`
 }
 
 // Load reads and parses configuration from a JSON file on disk.
@@ -45,6 +47,12 @@ func Load(path string) (*Config, error) {
 func (c *Config) defaults() {
 	if c.Listen == "" {
 		c.Listen = ":443"
+	}
+	if c.BaseRootfs == "" {
+		c.BaseRootfs = "/var/lib/attackbox/base_rootfs"
+	}
+	if c.BoxesDir == "" {
+		c.BoxesDir = "/var/lib/attackbox/boxes"
 	}
 	if c.WebDir == "" {
 		if _, err := os.Stat("./web"); err == nil {

@@ -138,7 +138,7 @@ func (g *Gateway) apiMe(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	b, _ := g.boxFor(r)
+	b, _ := g.currentBoxFor(r)
 	cliRunning := false
 	guiRunning := false
 	boxID := ""
@@ -161,80 +161,104 @@ func (g *Gateway) apiMe(w http.ResponseWriter, r *http.Request) {
 // ---------- 渗透环境控制 API ----------
 
 func (g *Gateway) apiCliToggle(w http.ResponseWriter, r *http.Request) {
-	b, s := g.boxFor(r)
-	if b == nil || s == nil {
+	s := g.lookup(r)
+	if s == nil {
 		http.Error(w, "unauthorized", http.StatusUnauthorized)
 		return
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	b, _ := g.currentBoxFor(r)
+	ctx, cancel := context.WithTimeout(context.Background(), 25*time.Second)
 	defer cancel()
 
-	coreRunning, guiRunning := g.boxes.DetailedStatus(ctx, b)
-	if coreRunning {
-		if !guiRunning {
-			_ = g.boxes.Kick(ctx, b)
-			g.mu.Lock()
-			delete(g.userBoxes, s.User)
-			s.BoxID = ""
-			g.mu.Unlock()
-			writeJSON(w, map[string]any{"success": true, "cliRunning": false, "guiRunning": false})
+	if b != nil {
+		coreRunning, guiRunning := g.boxes.DetailedStatus(ctx, b)
+		if coreRunning {
+			if !guiRunning {
+				// 关闭 CLI 且无桌面时，彻底销毁沙箱并立即将槽位释放回池中
+				g.closeBoxSessions(b.ID)
+				_ = g.boxes.Kick(ctx, b)
+				g.mu.Lock()
+				delete(g.userBoxes, s.User)
+				s.BoxID = ""
+				s.BoxExpires = time.Time{}
+				g.mu.Unlock()
+				writeJSON(w, map[string]any{"success": true, "cliRunning": false, "guiRunning": false})
+				return
+			}
+			writeJSON(w, map[string]any{"success": true, "cliRunning": false, "guiRunning": guiRunning})
 			return
 		}
-		writeJSON(w, map[string]any{"success": true, "cliRunning": false, "guiRunning": guiRunning})
+	}
+
+	// 尚无槽位或未运行：按需原子申请新槽位 (绝不强行夺舍 box1)
+	allocatedBox, s, err := g.acquireBoxFor(r)
+	if err != nil || allocatedBox == nil {
+		writeJSON(w, map[string]any{"success": false, "error": "靶场沙箱槽位已满，暂无空闲资源，请稍后再试或联系管理员"})
 		return
 	}
 
-	if err := g.boxes.Ensure(ctx, b); err != nil {
+	if err := g.boxes.Ensure(ctx, allocatedBox); err != nil {
 		writeJSON(w, map[string]any{"success": false, "error": "启动 CLI 沙箱失败: " + err.Error()})
 		return
 	}
 
+	// 激活并刷新沙箱 TTL
 	g.mu.Lock()
-	g.userBoxes[s.User] = b.ID
-	s.BoxID = b.ID
+	s.BoxExpires = time.Now().Add(time.Duration(allocatedBox.TTLMinutes) * time.Minute)
 	g.mu.Unlock()
 
+	_, guiRunning := g.boxes.DetailedStatus(ctx, allocatedBox)
 	writeJSON(w, map[string]any{"success": true, "cliRunning": true, "guiRunning": guiRunning})
 }
 
 func (g *Gateway) apiGuiToggle(w http.ResponseWriter, r *http.Request) {
-	b, s := g.boxFor(r)
-	if b == nil || s == nil {
+	s := g.lookup(r)
+	if s == nil {
 		http.Error(w, "unauthorized", http.StatusUnauthorized)
 		return
 	}
 
+	b, _ := g.currentBoxFor(r)
 	ctx, cancel := context.WithTimeout(context.Background(), 25*time.Second)
 	defer cancel()
 
-	coreRunning, guiRunning := g.boxes.DetailedStatus(ctx, b)
-	if guiRunning {
-		g.guiMu.Lock()
-		if conn, ok := g.activeGUI[b.ID]; ok && conn != nil {
-			_ = conn.WriteControl(
-				websocket.CloseMessage,
-				websocket.FormatCloseMessage(websocket.CloseNormalClosure, "gui stopped"),
-				time.Now().Add(time.Second),
-			)
-			_ = conn.Close()
-			delete(g.activeGUI, b.ID)
-		}
-		g.guiMu.Unlock()
+	if b != nil {
+		coreRunning, guiRunning := g.boxes.DetailedStatus(ctx, b)
+		if guiRunning {
+			g.guiMu.Lock()
+			if conn, ok := g.activeGUI[b.ID]; ok && conn != nil {
+				_ = conn.WriteControl(
+					websocket.CloseMessage,
+					websocket.FormatCloseMessage(websocket.CloseNormalClosure, "gui stopped"),
+					time.Now().Add(time.Second),
+				)
+				_ = conn.Close()
+				delete(g.activeGUI, b.ID)
+			}
+			g.guiMu.Unlock()
 
-		_ = g.boxes.StopGUI(ctx, b)
-		writeJSON(w, map[string]any{"success": true, "cliRunning": coreRunning, "guiRunning": false})
+			_ = g.boxes.StopGUI(ctx, b)
+			writeJSON(w, map[string]any{"success": true, "cliRunning": coreRunning, "guiRunning": false})
+			return
+		}
+	}
+
+	// 尚无槽位或未运行：按需原子申请新槽位
+	allocatedBox, s, err := g.acquireBoxFor(r)
+	if err != nil || allocatedBox == nil {
+		writeJSON(w, map[string]any{"success": false, "error": "靶场沙箱槽位已满，暂无空闲资源，请稍后再试或联系管理员"})
 		return
 	}
 
-	if err := g.boxes.EnsureGUI(ctx, b); err != nil {
+	if err := g.boxes.EnsureGUI(ctx, allocatedBox); err != nil {
 		writeJSON(w, map[string]any{"success": false, "error": "启动 GUI 桌面失败: " + err.Error()})
 		return
 	}
 
+	// 激活并刷新沙箱 TTL
 	g.mu.Lock()
-	g.userBoxes[s.User] = b.ID
-	s.BoxID = b.ID
+	s.BoxExpires = time.Now().Add(time.Duration(allocatedBox.TTLMinutes) * time.Minute)
 	g.mu.Unlock()
 
 	writeJSON(w, map[string]any{"success": true, "cliRunning": true, "guiRunning": true})
@@ -271,9 +295,13 @@ func (g *Gateway) closeBoxSessions(boxID string) {
 }
 
 func (g *Gateway) apiEnvDestroy(w http.ResponseWriter, r *http.Request) {
-	b, s := g.boxFor(r)
-	if b == nil || s == nil {
+	b, s := g.currentBoxFor(r)
+	if s == nil {
 		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+	if b == nil {
+		writeJSON(w, map[string]any{"success": true, "cliRunning": false, "guiRunning": false, "envRunning": false})
 		return
 	}
 
@@ -286,27 +314,24 @@ func (g *Gateway) apiEnvDestroy(w http.ResponseWriter, r *http.Request) {
 	g.mu.Lock()
 	delete(g.userBoxes, s.User)
 	s.BoxID = ""
+	s.BoxExpires = time.Time{}
 	g.mu.Unlock()
 
 	writeJSON(w, map[string]any{"success": true, "cliRunning": false, "guiRunning": false, "envRunning": false})
 }
 
 func (g *Gateway) apiEnvStatus(w http.ResponseWriter, r *http.Request) {
-	s := g.lookup(r)
+	b, s := g.currentBoxFor(r)
 	if s == nil {
 		http.Error(w, "unauthorized", http.StatusUnauthorized)
 		return
 	}
 
-	g.mu.Lock()
-	boxID := g.userBoxes[s.User]
-	g.mu.Unlock()
-
 	running := false
-	if boxID != "" {
-		if b := g.cfg.BoxByID(boxID); b != nil {
-			running = g.boxes.Status(r.Context(), b).Running()
-		}
+	boxID := ""
+	if b != nil {
+		running = g.boxes.Status(r.Context(), b).Running()
+		boxID = b.ID
 	}
 
 	writeJSON(w, map[string]any{"running": running, "box": boxID})
@@ -375,10 +400,14 @@ func (g *Gateway) apiAdminToggleUser(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, map[string]any{"success": false, "error": "无效的请求格式"})
 		return
 	}
-	_, err := g.authStore.ToggleActive(req.Username)
+	newActive, err := g.authStore.ToggleActive(req.Username)
 	if err != nil {
 		writeJSON(w, map[string]any{"success": false, "error": err.Error()})
 		return
+	}
+	// 若用户被置为禁用 (active == false)，立即将其连根拔起踢下线并销毁环境！
+	if !newActive {
+		g.evictUser(r.Context(), req.Username)
 	}
 	writeJSON(w, map[string]any{"success": true})
 }
@@ -397,6 +426,8 @@ func (g *Gateway) apiAdminResetPass(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, map[string]any{"success": false, "error": err.Error()})
 		return
 	}
+	// 重置密码后强制让旧会话失效，要求使用新密码重新登录
+	g.evictUser(r.Context(), req.Username)
 	writeJSON(w, map[string]any{"success": true})
 }
 
@@ -413,6 +444,8 @@ func (g *Gateway) apiAdminDeleteUser(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, map[string]any{"success": false, "error": err.Error()})
 		return
 	}
+	// 用户已被物理删除，立即踢出并释放其占据的靶场资源
+	g.evictUser(r.Context(), req.Username)
 	writeJSON(w, map[string]any{"success": true})
 }
 
