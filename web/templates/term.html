@@ -19,7 +19,7 @@
         </svg>
         <span>AttackBox 虚拟终端空间</span>
       </div>
-      <span class="box-badge">parrot@{{.Box.ID}}</span>
+      <span class="box-badge">{{.Box.User}}@{{.Box.ID}}</span>
     </div>
 
     <div class="action-buttons">
@@ -53,6 +53,7 @@
 
   <script>
     window.boxSlot = "{{.Box.ID}}";
+    window.boxUser = "{{.Box.User}}";
     window.currentUser = "{{.User}}";
   </script>
   <script src="/xterm/xterm.js"></script>

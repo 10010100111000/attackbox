@@ -45,7 +45,8 @@ table inet attackbox {
         iifname "br0" oifname "docker0" accept
         iifname "br0" oifname "tun*" accept
         iifname "br0" oifname "wg*" accept
-        iifname "br0" ip daddr 1.1.1.1 udp dport 53 accept
+        iifname "br0" ip daddr { 1.1.1.1, 8.8.8.8 } udp dport 53 accept
+        iifname "br0" ip daddr { 1.1.1.1, 8.8.8.8 } tcp dport 53 accept
         iifname "br0" oifname "%s" reject
     }
     chain input {

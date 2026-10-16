@@ -41,7 +41,7 @@ graph TD
         Gateway -->|原生网络与防火墙初始化| NetFW["内核 br0 网桥与 nftables 规则"]
         Gateway -->|用户认证与 RBAC 管理| AuthStore["SQLite 认证库 (attackbox.db)"]
         Gateway -->|原生快照与容器调度| BoxMgr["Go 沙箱生命周期引擎 (internal/box)"]
-        Gateway -->|原生 PTY 字节流| PTYBridge["PTY 终端桥接 (su - parrot)"]
+        Gateway -->|原生 PTY 字节流| PTYBridge["PTY 终端桥接 (su - boxUser)"]
         Gateway -->|RFB 协议转发| VNCBridge["TigerVNC Unix Socket (:N)"]
 
         subgraph "网络边界与路由策略"

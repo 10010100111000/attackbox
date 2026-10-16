@@ -61,9 +61,9 @@ func EnsureBaseRootfs(baseRootfs string) error {
 		_ = os.RemoveAll(p)
 	}
 
-	// 清理 root 与 home 下私密数据，清理临时文件与系统日志
-	_ = exec.Command("sh", "-c", fmt.Sprintf("rm -rf %s/root/* %s/root/.* %s/home/* %s/tmp/* %s/var/tmp/* %s/var/log/* 2>/dev/null || true",
-		baseRootfs, baseRootfs, baseRootfs, baseRootfs, baseRootfs, baseRootfs)).Run()
+	// 清理 root 与 home 下私密数据，清理临时文件与系统日志，并恢复标准 root 环境配置
+	_ = exec.Command("sh", "-c", fmt.Sprintf("rm -rf %s/root/* %s/root/.* %s/home/* %s/tmp/* %s/var/tmp/* %s/var/log/* 2>/dev/null || true; cp -r /etc/skel/. %s/root/ 2>/dev/null || true",
+		baseRootfs, baseRootfs, baseRootfs, baseRootfs, baseRootfs, baseRootfs, baseRootfs)).Run()
 
 	// 确保沙箱必要目录骨架与权限
 	dirs := []struct {
@@ -73,7 +73,8 @@ func EnsureBaseRootfs(baseRootfs string) error {
 		{filepath.Join(baseRootfs, "run/attackbox"), 01777},
 		{filepath.Join(baseRootfs, "tmp"), 01777},
 		{filepath.Join(baseRootfs, "tmp/.X11-unix"), 01777},
-		{filepath.Join(baseRootfs, "home/parrot"), 0755},
+		{filepath.Join(baseRootfs, "home"), 0755},
+		{filepath.Join(baseRootfs, "root"), 0700},
 	}
 	for _, d := range dirs {
 		_ = os.MkdirAll(d.path, d.perm)

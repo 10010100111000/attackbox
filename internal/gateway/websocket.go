@@ -208,12 +208,17 @@ func (g *Gateway) termWS(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	boxUser := b.User
+	if boxUser == "" {
+		boxUser = b.ID
+	}
+
 	// 原生全命名空间注入：通过 nsenter 穿透 Mount/UTS/IPC/Net/PID 命名空间并切换根目录
 	cmd := exec.Command("/usr/bin/nsenter",
 		"--target", strconv.Itoa(initPID),
 		"--mount", "--uts", "--ipc", "--net", "--pid",
 		"--root", "--wd",
-		"/usr/bin/su", "-", "parrot")
+		"/usr/bin/su", "-", boxUser)
 
 	cmd.Env = []string{
 		"TERM=xterm-256color",
@@ -226,6 +231,10 @@ func (g *Gateway) termWS(w http.ResponseWriter, r *http.Request) {
 		log.Printf("term: pty.Start: %v", err)
 		_ = c.WriteMessage(websocket.TextMessage, []byte("cannot start terminal: "+err.Error()))
 		return
+	}
+	if cmd.Process != nil {
+		cgProcs := filepath.Join("/sys/fs/cgroup/attackbox", b.ID, "cgroup.procs")
+		_ = os.WriteFile(cgProcs, []byte(strconv.Itoa(cmd.Process.Pid)+"\n"), 0644)
 	}
 	defer func() {
 		if cmd.Process != nil {

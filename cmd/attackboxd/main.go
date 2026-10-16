@@ -39,7 +39,12 @@ func main() {
 		log.Printf("warning: init base rootfs: %v", err)
 	}
 
-	gw, err := gateway.New(c, box.NewManagerWithConfig(c.BoxesDir, c.BaseRootfs))
+	mgr := box.NewManagerWithConfig(c.BoxesDir, c.BaseRootfs)
+	for i := range c.Boxes {
+		_ = mgr.Kick(context.Background(), &c.Boxes[i])
+	}
+
+	gw, err := gateway.New(c, mgr)
 	if err != nil {
 		log.Fatalf("gateway: %v", err)
 	}

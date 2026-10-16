@@ -53,7 +53,7 @@ function createTerminalWindow() {
         <button class="dot-btn dot-min" title="折叠/最小化"></button>
         <button class="dot-btn dot-max" title="最大化/还原"></button>
       </div>
-      <div class="term-title">>_ 终端 #${num} [parrot@${slotText}]</div>
+      <div class="term-title">>_ 终端 #${num} [${window.boxUser || 'box'}@${slotText}]</div>
       <div class="term-header-right">
         <span class="badge-tag">PTY #${num}</span>
       </div>

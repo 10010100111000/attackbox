@@ -11,6 +11,7 @@ import (
 // Box defines one isolated sandbox slot.
 type Box struct {
 	ID         string `json:"id"`
+	User       string `json:"user"`
 	Display    int    `json:"display"`
 	RunDir     string `json:"runDir"`
 	GuiSocket  string `json:"guiSocket"`
@@ -76,6 +77,9 @@ func (c *Config) defaults() {
 		}
 		if b.GuiSocket == "" {
 			b.GuiSocket = b.RunDir + "/gui.sock"
+		}
+		if b.User == "" {
+			b.User = b.ID
 		}
 		if b.TTLMinutes <= 0 {
 			b.TTLMinutes = 120

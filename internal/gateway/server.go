@@ -22,12 +22,24 @@ import (
 
 var ErrNoAvailableBox = errors.New("no available sandbox slot")
 
+func logAuth(format string, v ...any) { log.Printf("[AUTH] "+format, v...) }
+func logEnv(format string, v ...any)  { log.Printf("[ENV] "+format, v...) }
+func logTerm(format string, v ...any) { log.Printf("[TERM] "+format, v...) }
+func logGUI(format string, v ...any)  { log.Printf("[GUI] "+format, v...) }
+func logSec(format string, v ...any)  { log.Printf("[SECURITY] "+format, v...) }
+
+// BoxLease 沙箱租约生命周期，与用户账号绑定，完全独立于单端 HTTP 会话
+type BoxLease struct {
+	BoxID     string
+	User      string
+	StartedAt time.Time
+	ExpiresAt time.Time
+}
+
 type session struct {
-	User       string
-	Role       string
-	BoxID      string
-	Expires    time.Time // 登录凭据 Cookie 有效期 (如 24h)
-	BoxExpires time.Time // 沙箱环境运行寿命 (根据 Box.TTLMinutes 计算)
+	User    string
+	Role    string
+	Expires time.Time // 纯用户登录凭据有效期 (如 24h)
 }
 
 type BroadcastConfig struct {
@@ -62,10 +74,10 @@ type Gateway struct {
 	boxes     *box.Manager
 	authStore *auth.Store
 
-	mu        sync.Mutex
-	sess      map[string]*session // cookieValue -> session
-	userBoxes map[string]string   // username -> boxID
-	broadcast BroadcastConfig
+	mu         sync.Mutex
+	sess       map[string]*session   // cookieValue -> session (纯认证管理)
+	userLeases map[string]*BoxLease  // username -> BoxLease (纯沙箱生命周期管理)
+	broadcast  BroadcastConfig
 
 	cliMu     sync.Mutex
 	activeCLI map[string]*safeConn // sessKey -> current active CLI connection
@@ -85,13 +97,13 @@ func New(c *config.Config, m *box.Manager) (*Gateway, error) {
 	}
 
 	return &Gateway{
-		cfg:       c,
-		boxes:     m,
-		authStore: store,
-		sess:      map[string]*session{},
-		userBoxes: map[string]string{},
-		activeCLI: map[string]*safeConn{},
-		activeGUI: map[string]*safeConn{},
+		cfg:        c,
+		boxes:      m,
+		authStore:  store,
+		sess:       map[string]*session{},
+		userLeases: map[string]*BoxLease{},
+		activeCLI:  map[string]*safeConn{},
+		activeGUI:  map[string]*safeConn{},
 		broadcast: BroadcastConfig{
 			Enabled: true,
 			Message: "欢迎使用 AttackBox 靶场工作台，实验结束后请随手关闭不再使用的环境。",
@@ -101,7 +113,7 @@ func New(c *config.Config, m *box.Manager) (*Gateway, error) {
 	}, nil
 }
 
-// Run 定时扫描会话与沙箱 TTL，采用两阶段锁设计：锁内仅做微秒级内存摘除，锁外执行慢速 Kick I/O，杜绝阻塞全站
+// Run 定时扫描会话与沙箱 TTL：两层完全解耦，锁内快速摘除，锁外异步 Kick I/O
 func (g *Gateway) Run(ctx context.Context) {
 	t := time.NewTicker(10 * time.Second)
 	defer t.Stop()
@@ -116,23 +128,23 @@ func (g *Gateway) Run(ctx context.Context) {
 
 			// 第一阶段：原子快速内存状态更新 (微秒级立即释放锁)
 			g.mu.Lock()
-			for k, s := range g.sess {
-				sessionExpired := now.After(s.Expires)
-				boxTTLExpired := !s.BoxExpires.IsZero() && now.After(s.BoxExpires)
+			// 1. 清理过期认证凭据 (纯认证，不影响沙箱运行)
+			for tok, s := range g.sess {
+				if now.After(s.Expires) {
+					logAuth("session expired: user=%s", s.User)
+					delete(g.sess, tok)
+				}
+			}
 
-				if sessionExpired || boxTTLExpired {
-					if s.BoxID != "" {
-						if b := g.cfg.BoxByID(s.BoxID); b != nil {
-							toKick = append(toKick, b)
-							toCloseBoxIDs = append(toCloseBoxIDs, s.BoxID)
-						}
-						delete(g.userBoxes, s.User)
-						s.BoxID = ""
-						s.BoxExpires = time.Time{}
+			// 2. 扫描独立沙箱租约到期情况 (多设备、单设备退出登录绝不误杀)
+			for username, lease := range g.userLeases {
+				if now.After(lease.ExpiresAt) {
+					logEnv("sandbox lease expired: user=%s box=%s expires=%s", username, lease.BoxID, lease.ExpiresAt.Format("15:04:05"))
+					if b := g.cfg.BoxByID(lease.BoxID); b != nil {
+						toKick = append(toKick, b)
+						toCloseBoxIDs = append(toCloseBoxIDs, lease.BoxID)
 					}
-					if sessionExpired {
-						delete(g.sess, k)
-					}
+					delete(g.userLeases, username)
 				}
 			}
 			g.mu.Unlock() // 立即释放全局锁，保证前台所有用户 HTTP API 绝对不卡顿
@@ -239,16 +251,17 @@ func (g *Gateway) lookup(r *http.Request) *session {
 	return s
 }
 
-// currentBoxFor 纯只读查询，绝不擅自分配槽位 (供 apiMe 等状态检测使用，彻底解决 Bug B)
+// currentBoxFor 纯只读查询用户当前沙箱租约，绝不擅自分配槽位 (供 apiMe 等状态检测使用，彻底解决 Bug B)
 func (g *Gateway) currentBoxFor(r *http.Request) (*config.Box, *session) {
 	s := g.lookup(r)
 	if s == nil {
 		return nil, nil
 	}
 	g.mu.Lock()
-	boxID := g.userBoxes[s.User]
-	if boxID == "" {
-		boxID = s.BoxID
+	lease := g.userLeases[s.User]
+	var boxID string
+	if lease != nil {
+		boxID = lease.BoxID
 	}
 	g.mu.Unlock()
 
@@ -258,7 +271,7 @@ func (g *Gateway) currentBoxFor(r *http.Request) (*config.Box, *session) {
 	return g.cfg.BoxByID(boxID), s
 }
 
-// acquireBoxFor 按需独占分配沙箱槽位 (仅在明确启动环境时调用，彻底杜绝 Bug A 夺舍与 Bug B 虚占)
+// acquireBoxFor 按需独占申请沙箱租约 (仅在明确启动/访问环境时调用，彻底杜绝 Bug A 夺舍与 Bug B 虚占)
 func (g *Gateway) acquireBoxFor(r *http.Request) (*config.Box, *session, error) {
 	s := g.lookup(r)
 	if s == nil {
@@ -266,35 +279,35 @@ func (g *Gateway) acquireBoxFor(r *http.Request) (*config.Box, *session, error) 
 	}
 
 	g.mu.Lock()
-	boxID := g.userBoxes[s.User]
-	if boxID == "" {
-		boxID = s.BoxID
-	}
-
-	if boxID != "" {
+	if lease, exists := g.userLeases[s.User]; exists && lease != nil {
 		g.mu.Unlock()
-		b := g.cfg.BoxByID(boxID)
+		b := g.cfg.BoxByID(lease.BoxID)
 		if b != nil {
 			return b, s, nil
 		}
 		g.mu.Lock()
 	}
 
-	// 查找当前真正空闲（未被用户绑定）的槽位
+	// 查找当前真正空闲（未被任何用户租用）的槽位
 	inUse := make(map[string]bool)
-	for _, bid := range g.userBoxes {
-		inUse[bid] = true
+	for _, l := range g.userLeases {
+		inUse[l.BoxID] = true
 	}
 
 	for i := range g.cfg.Boxes {
 		bid := g.cfg.Boxes[i].ID
 		if !inUse[bid] {
-			boxID = bid
-			g.userBoxes[s.User] = boxID
-			s.BoxID = boxID
-			s.BoxExpires = time.Now().Add(time.Duration(g.cfg.Boxes[i].TTLMinutes) * time.Minute)
+			b := &g.cfg.Boxes[i]
+			expires := time.Now().Add(time.Duration(b.TTLMinutes) * time.Minute)
+			g.userLeases[s.User] = &BoxLease{
+				BoxID:     bid,
+				User:      s.User,
+				StartedAt: time.Now(),
+				ExpiresAt: expires,
+			}
+			logEnv("lease acquired: user=%s box=%s ttl=%dm expires=%s", s.User, bid, b.TTLMinutes, expires.Format("15:04:05"))
 			g.mu.Unlock()
-			return &g.cfg.Boxes[i], s, nil
+			return b, s, nil
 		}
 	}
 	g.mu.Unlock()
@@ -303,7 +316,7 @@ func (g *Gateway) acquireBoxFor(r *http.Request) (*config.Box, *session, error) 
 	return nil, s, ErrNoAvailableBox
 }
 
-// evictUser 彻底注销指定用户的会话、掐断连接并立即销毁其沙箱
+// evictUser 彻底注销指定用户的所有端会话、掐断连接并立即销毁其沙箱租约
 func (g *Gateway) evictUser(ctx context.Context, username string) {
 	var boxIDToKick string
 
@@ -313,13 +326,14 @@ func (g *Gateway) evictUser(ctx context.Context, username string) {
 			delete(g.sess, tok)
 		}
 	}
-	if boxID, exists := g.userBoxes[username]; exists {
-		boxIDToKick = boxID
-		delete(g.userBoxes, username)
+	if lease, exists := g.userLeases[username]; exists {
+		boxIDToKick = lease.BoxID
+		delete(g.userLeases, username)
 	}
 	g.mu.Unlock()
 
 	if boxIDToKick != "" {
+		logEnv("evict user: user=%s box=%s", username, boxIDToKick)
 		g.closeBoxSessions(boxIDToKick)
 		if b := g.cfg.BoxByID(boxIDToKick); b != nil {
 			_ = g.boxes.Kick(ctx, b)

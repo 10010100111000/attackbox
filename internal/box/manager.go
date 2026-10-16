@@ -4,6 +4,7 @@ package box
 import (
 	"context"
 	"fmt"
+	"log"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -145,42 +146,75 @@ func (m *Manager) startCore(ctx context.Context, b *config.Box, rootfs string) e
 		_ = exec.CommandContext(ctx, "ip", "netns", "exec", netns, "ip", "route", "add", "default", "via", "10.200.0.1").Run()
 	}
 
+	boxUser := b.User
+	if boxUser == "" {
+		boxUser = b.ID
+	}
+
 	// 3. 构造私有 Mount/PID Namespace 内执行的挂载与 Init 脚本
 	initScript := fmt.Sprintf(`
+ROOTFS="%s"
+BOX_USER="%s"
+BOX_ID="%s"
+RUN_DIR="%s"
+
 # 挂载命名空间私有化，杜绝向宿主机扩散
 mount --make-rprivate /
 
 # 挂载设备树与独立虚拟文件系统
-mount --bind "%s" "%s"
-mount --make-rprivate "%s"
-mount --rbind /dev "%s/dev"
-mount --make-rprivate "%s/dev"
-mount -t devpts devpts "%s/dev/pts" -o rw,nosuid,noexec,relatime,gid=5,mode=620,ptmxmode=666
-mount -t tmpfs tmpfs "%s/dev/shm" -o rw,nosuid,nodev,mode=1777
-chmod 666 "%s/dev/ptmx" 2>/dev/null || true
+mount --bind "$ROOTFS" "$ROOTFS"
+mount --make-rprivate "$ROOTFS"
+mount --rbind /dev "$ROOTFS/dev"
+mount --make-rprivate "$ROOTFS/dev"
+mount -t devpts devpts "$ROOTFS/dev/pts" -o rw,nosuid,noexec,relatime,gid=5,mode=620,ptmxmode=666
+mount -t tmpfs tmpfs "$ROOTFS/dev/shm" -o rw,nosuid,nodev,mode=1777
+chmod 666 "$ROOTFS/dev/ptmx" 2>/dev/null || true
 
 # 挂载属于本沙箱独立 PID namespace 的 proc 与 sys
-mount -t proc proc "%s/proc"
-mount -t sysfs sys "%s/sys"
+mount -t proc proc "$ROOTFS/proc"
+mount -t sysfs sys "$ROOTFS/sys"
 
 # 挂载宿主-沙箱通信套接字目录
-mkdir -p "%s/run/attackbox"
-mount --bind "%s" "%s/run/attackbox"
+mkdir -p "$ROOTFS/run/attackbox"
+mount --bind "$RUN_DIR" "$ROOTFS/run/attackbox"
 
-# 挂载隔离的 tmpfs home 空间并初始化 parrot 用户
-mount -t tmpfs tmpfs "%s/home" -o rw,nosuid,nodev,mode=0755
-mkdir -p "%s/home/parrot"
-if [ -d /home/parrot ]; then
-  cp -a /home/parrot/. "%s/home/parrot/" 2>/dev/null || true
+# 挂载隔离的 tmpfs home 空间并初始化原生沙箱用户
+mount -t tmpfs tmpfs "$ROOTFS/home" -o rw,nosuid,nodev,mode=0755
+mkdir -p "$ROOTFS/home/$BOX_USER"
+if [ -d "/home/$BOX_USER" ]; then
+  cp -a "/home/$BOX_USER/." "$ROOTFS/home/$BOX_USER/" 2>/dev/null || true
 else
-  cp -r /etc/skel/. "%s/home/parrot/" 2>/dev/null || true
+  cp -r /etc/skel/. "$ROOTFS/home/$BOX_USER/" 2>/dev/null || true
 fi
-chown -R parrot:parrot "%s/home/parrot"
-chmod 0755 "%s/home/parrot"
+chown -R "$BOX_USER:$BOX_USER" "$ROOTFS/home/$BOX_USER"
+chmod 0755 "$ROOTFS/home/$BOX_USER"
+
+# 补全 root 运行环境 (.bashrc / 彩色提示符)
+[ -f "$ROOTFS/root/.bashrc" ] || cp -r /etc/skel/. "$ROOTFS/root/" 2>/dev/null || true
+
+# 修复 Sudo 域名解析卡顿 (注入本沙箱主机名到 /etc/hosts)
+grep -q "attackbox-$BOX_ID" "$ROOTFS/etc/hosts" 2>/dev/null || echo "127.0.0.1 attackbox-$BOX_ID $BOX_USER" >> "$ROOTFS/etc/hosts"
+
+# 修复 DNS 解析规则 (对齐 nftables 放行的公共 DNS)
+cat << 'DNS_EOF' > "$ROOTFS/etc/resolv.conf"
+nameserver 1.1.1.1
+nameserver 8.8.8.8
+DNS_EOF
+
+# 屏蔽宿主机误关机风险 (替换 reboot / poweroff / shutdown 脚本)
+for c in reboot poweroff shutdown halt; do
+  rm -f "$ROOTFS/usr/sbin/$c" "$ROOTFS/sbin/$c" 2>/dev/null || true
+  cat << 'STUB_EOF' > "$ROOTFS/usr/sbin/$c"
+#!/bin/sh
+echo "Notice: In-sandbox reboot/shutdown is disabled. Use dashboard to destroy environment." >&2
+exit 1
+STUB_EOF
+  chmod 755 "$ROOTFS/usr/sbin/$c"
+done
 
 # chroot 并以容器工业标准 tini / dumb-init 启动常驻保活与僵尸收割
-exec chroot "%s" /bin/bash -c "
-  hostname attackbox-%s
+exec chroot "$ROOTFS" /bin/bash -c "
+  hostname \"attackbox-$BOX_ID\"
   touch /run/attackbox/core.ready
 
   INIT_BIN=\"\"
@@ -202,7 +236,7 @@ exec chroot "%s" /bin/bash -c "
     done
   fi
 "
-`, rootfs, rootfs, rootfs, rootfs, rootfs, rootfs, rootfs, rootfs, rootfs, rootfs, rootfs, b.RunDir, rootfs, rootfs, rootfs, rootfs, rootfs, rootfs, rootfs, rootfs, b.ID)
+`, rootfs, boxUser, b.ID, b.RunDir)
 
 	// 4. 通过 ip netns + unshare 组合指令拉起全新全命名空间
 	cmd := exec.Command("ip", "netns", "exec", netns,
@@ -211,6 +245,21 @@ exec chroot "%s" /bin/bash -c "
 
 	if err := cmd.Start(); err != nil {
 		return fmt.Errorf("start unshare init: %w", err)
+	}
+
+	// 5. 挂载 cgroups v2 资源控制，杜绝 Fork Bomb 导致宿主机进程表耗尽
+	parentCg := "/sys/fs/cgroup/attackbox"
+	_ = os.MkdirAll(parentCg, 0755)
+	_ = os.WriteFile(filepath.Join(parentCg, "cgroup.subtree_control"), []byte("+cpu +memory +pids\n"), 0644)
+
+	cgDir := filepath.Join(parentCg, b.ID)
+	if err := os.MkdirAll(cgDir, 0755); err == nil {
+		_ = os.WriteFile(filepath.Join(cgDir, "pids.max"), []byte("512\n"), 0644)
+		_ = os.WriteFile(filepath.Join(cgDir, "memory.max"), []byte("4G\n"), 0644)
+		if cmd.Process != nil {
+			_ = os.WriteFile(filepath.Join(cgDir, "cgroup.procs"), []byte(strconv.Itoa(cmd.Process.Pid)+"\n"), 0644)
+		}
+		log.Printf("[SECURITY] cgroups v2 applied: box=%s cg=%s pids.max=512 memory.max=4G", b.ID, cgDir)
 	}
 
 	// 异步自动收割退出状态，彻底杜绝宿主机僵尸进程残留
@@ -227,6 +276,7 @@ exec chroot "%s" /bin/bash -c "
 		if _, err := os.Stat(coreReady); err == nil {
 			if childPID, err := findChildPID(unsharePID); err == nil {
 				_ = os.WriteFile(filepath.Join(b.RunDir, "init.pid"), []byte(strconv.Itoa(childPID)), 0644)
+				_ = os.WriteFile(filepath.Join(cgDir, "cgroup.procs"), []byte(strconv.Itoa(childPID)+"\n"), 0644)
 				return nil
 			}
 		}
@@ -292,6 +342,11 @@ func (m *Manager) startGUI(ctx context.Context, b *config.Box, rootfs string) er
 	_ = os.Remove(filepath.Join(rootfs, fmt.Sprintf("tmp/.X11-unix/X%d", b.Display)))
 	_ = os.Remove(filepath.Join(rootfs, fmt.Sprintf("tmp/.X%d-lock", b.Display)))
 
+	boxUser := b.User
+	if boxUser == "" {
+		boxUser = b.ID
+	}
+
 	guiScript := fmt.Sprintf(`
 /usr/bin/Xtigervnc "%s" -rfbunixpath /run/attackbox/gui.sock -rfbunixmode 0666 \
   -SecurityTypes None -AlwaysShared -geometry 1280x800 -depth 24 &
@@ -302,7 +357,7 @@ for i in $(seq 1 40); do
   sleep 0.1
 done
 
-su - parrot -c "
+su - %s -c "
   export DISPLAY=%s
   export XDG_CURRENT_DESKTOP=MATE
   export XDG_SESSION_TYPE=x11
@@ -310,7 +365,7 @@ su - parrot -c "
   gsettings set org.mate.interface enable-animations false 2>/dev/null || true
   exec dbus-run-session /usr/bin/mate-session
 "
-`, dispStr, b.Display, dispStr)
+`, dispStr, b.Display, boxUser, dispStr)
 
 	// 统一通过 nsenter 将桌面启动脚本注入至沙箱环境中
 	cmd := exec.Command("nsenter",
@@ -330,6 +385,7 @@ su - parrot -c "
 
 	if cmd.Process != nil {
 		_ = os.WriteFile(filepath.Join(b.RunDir, "gui.pid"), []byte(strconv.Itoa(cmd.Process.Pid)), 0644)
+		_ = os.WriteFile(filepath.Join("/sys/fs/cgroup/attackbox", b.ID, "cgroup.procs"), []byte(strconv.Itoa(cmd.Process.Pid)+"\n"), 0644)
 	}
 
 	// 轮询等待 gui.sock 真正创建就绪
@@ -448,7 +504,10 @@ func (m *Manager) kickLocked(ctx context.Context, b *config.Box) error {
 	// 没有任何文件或挂载占用，因此 btrfs subvolume delete 绝不会触发 target is busy 错误。
 	_ = m.Snapshots.Destroy(b.ID)
 
-	// 5. 清理运行时文件
+	// 5. 清理 cgroups 资源控制组
+	_ = os.Remove(fmt.Sprintf("/sys/fs/cgroup/attackbox/%s", b.ID))
+
+	// 6. 清理运行时文件
 	_ = os.Remove(filepath.Join(b.RunDir, "core.ready"))
 	_ = os.Remove(filepath.Join(b.RunDir, "init.pid"))
 	_ = os.Remove(filepath.Join(b.RunDir, "unshare.pid"))
