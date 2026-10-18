@@ -32,8 +32,9 @@ type Config struct {
 	MaxSlots    int    `json:"maxSlots"`
 	BaseDisplay int    `json:"baseDisplay"`
 	SandboxUser string `json:"sandboxUser"`
-	TTLMinutes  int    `json:"ttlMinutes"`
-	TrustProxy  bool   `json:"trustProxy"`
+	TTLMinutes         int    `json:"ttlMinutes"`
+	IdleTimeoutMinutes int    `json:"idleTimeoutMinutes"`
+	TrustProxy         bool   `json:"trustProxy"`
 	Boxes       []Box  `json:"boxes"`
 }
 
@@ -92,6 +93,9 @@ func (c *Config) defaults() {
 	if c.TTLMinutes <= 0 {
 		c.TTLMinutes = 120
 	}
+	if c.IdleTimeoutMinutes <= 0 {
+		c.IdleTimeoutMinutes = 10
+	}
 
 	// 动态由 MaxSlots 派生所有沙箱槽位 (兼容静态 Boxes 配置)
 	if len(c.Boxes) == 0 {
@@ -130,6 +134,26 @@ func (c *Config) defaults() {
 				b.TTLMinutes = c.TTLMinutes
 			}
 		}
+		c.EnsureSlots(c.MaxSlots)
+	}
+}
+
+// EnsureSlots dynamically expands the Boxes slice if the requested slots exceed current length.
+func (c *Config) EnsureSlots(slots int) {
+	if slots <= len(c.Boxes) {
+		return
+	}
+	for i := len(c.Boxes); i < slots; i++ {
+		idx := i + 1
+		c.Boxes = append(c.Boxes, Box{
+			ID:         fmt.Sprintf("box%d", idx),
+			User:       c.SandboxUser,
+			Display:    c.BaseDisplay + idx,
+			RunDir:     fmt.Sprintf("/run/attackbox/box%d", idx),
+			GuiSocket:  fmt.Sprintf("/run/attackbox/box%d/gui.sock", idx),
+			TTLMinutes: c.TTLMinutes,
+			Index:      idx,
+		})
 	}
 }
 

@@ -33,7 +33,7 @@ func main() {
 	}
 
 	if err := box.EnsureHostNetwork(); err != nil {
-		log.Printf("warning: init host network and firewall: %v", err)
+		log.Fatalf("fatal: init host network and firewall (fail-closed): %v", err)
 	}
 
 	if err := box.EnsureBaseRootfs(c.BaseRootfs); err != nil {
@@ -47,8 +47,8 @@ func main() {
 		log.Fatalf("gateway: %v", err)
 	}
 
-	// 启动对账：从 SQLite 恢复活跃沙箱租约，仅清理死掉的沙箱或无租约残留，重启绝不踢下线
-	gw.Reconcile(context.Background())
+	// 启动自愈：物理清退所有可能残留的历史容器与运行时文件，保证全新的健康基线
+	gw.CleanBoot(context.Background())
 
 	go gw.Run(context.Background())
 

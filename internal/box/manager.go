@@ -12,6 +12,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"syscall"
 	"time"
 
 	"attackbox/internal/config"
@@ -90,7 +91,7 @@ func (m *Manager) Status(ctx context.Context, b *config.Box) Status {
 	initPidFile := filepath.Join(b.RunDir, "init.pid")
 	if data, err := os.ReadFile(initPidFile); err == nil {
 		if pid, err := strconv.Atoi(strings.TrimSpace(string(data))); err == nil && pid > 0 {
-			if err := exec.CommandContext(ctx, "kill", "-0", strconv.Itoa(pid)).Run(); err == nil {
+			if err := syscall.Kill(pid, 0); err == nil {
 				return Status{
 					ActiveState: "active",
 					SubState:    "running",
@@ -193,17 +194,21 @@ mount --make-rprivate /
 mount --bind "$ROOTFS" "$ROOTFS"
 mount --make-rprivate "$ROOTFS"
 
-# 挂载受控的独立虚拟设备树（杜绝物理块设备 /dev/vda* 暴露）
+# 挂载受控的独立虚拟设备树（符合 OCI 容器标准，独立 devpts 实例）
 mount -t tmpfs tmpfs "$ROOTFS/dev" -o rw,nosuid,mode=0755
-for d in null zero full random urandom tty ptmx; do
+for d in null zero full random urandom tty; do
   touch "$ROOTFS/dev/$d"
   mount --bind "/dev/$d" "$ROOTFS/dev/$d"
 done
 mkdir -p "$ROOTFS/dev/pts" "$ROOTFS/dev/shm" "$ROOTFS/dev/net"
-mount -t devpts devpts "$ROOTFS/dev/pts" -o rw,nosuid,noexec,relatime,gid=5,mode=620,ptmxmode=666
+mount -t devpts devpts "$ROOTFS/dev/pts" -o rw,nosuid,noexec,relatime,gid=5,mode=620,ptmxmode=0666,newinstance
+ln -sf pts/ptmx "$ROOTFS/dev/ptmx"
+ln -sf /proc/self/fd "$ROOTFS/dev/fd"
+ln -sf /proc/self/fd/0 "$ROOTFS/dev/stdin"
+ln -sf /proc/self/fd/1 "$ROOTFS/dev/stdout"
+ln -sf /proc/self/fd/2 "$ROOTFS/dev/stderr"
 mount -t tmpfs tmpfs "$ROOTFS/dev/shm" -o rw,nosuid,nodev,mode=1777
 [ -e /dev/net/tun ] && touch "$ROOTFS/dev/net/tun" && mount --bind /dev/net/tun "$ROOTFS/dev/net/tun" 2>/dev/null || true
-chmod 666 "$ROOTFS/dev/ptmx" 2>/dev/null || true
 
 # 挂载属于本沙箱独立 PID namespace 的 proc 与只读 sysfs
 mount -t proc proc "$ROOTFS/proc"
@@ -216,19 +221,12 @@ mount -t tmpfs tmpfs "$ROOTFS/proc/sysrq-trigger" -o ro 2>/dev/null || true
 mkdir -p "$ROOTFS/run/attackbox"
 mount --bind "$RUN_DIR" "$ROOTFS/run/attackbox"
 
-# 挂载隔离的 tmpfs home 空间并初始化原生沙箱用户
-mount -t tmpfs tmpfs "$ROOTFS/home" -o rw,nosuid,nodev,mode=0755
+# 确保原生沙箱用户家目录存在并保留基础镜像中的配置
 mkdir -p "$ROOTFS/home/$BOX_USER"
-if [ -d "/home/$BOX_USER" ]; then
-  cp -a "/home/$BOX_USER/." "$ROOTFS/home/$BOX_USER/" 2>/dev/null || true
-else
-  cp -r /etc/skel/. "$ROOTFS/home/$BOX_USER/" 2>/dev/null || true
-fi
-chown -R "$BOX_USER:$BOX_USER" "$ROOTFS/home/$BOX_USER"
-chmod 0755 "$ROOTFS/home/$BOX_USER"
+[ -f "$ROOTFS/home/$BOX_USER/.bashrc" ] || cp -r "$ROOTFS/etc/skel/." "$ROOTFS/home/$BOX_USER/" 2>/dev/null || true
 
 # 补全 root 运行环境 (.bashrc / 彩色提示符)
-[ -f "$ROOTFS/root/.bashrc" ] || cp -r /etc/skel/. "$ROOTFS/root/" 2>/dev/null || true
+[ -f "$ROOTFS/root/.bashrc" ] || cp -r "$ROOTFS/etc/skel/." "$ROOTFS/root/" 2>/dev/null || true
 
 # 修复 Sudo 域名解析卡顿 (注入本沙箱主机名到 /etc/hosts)
 grep -q "attackbox-$BOX_ID" "$ROOTFS/etc/hosts" 2>/dev/null || echo "127.0.0.1 attackbox-$BOX_ID $BOX_USER" >> "$ROOTFS/etc/hosts"
@@ -253,6 +251,8 @@ done
 # chroot 并以容器工业标准 tini / dumb-init 启动常驻保活与僵尸收割
 exec chroot "$ROOTFS" /bin/bash -c "
   hostname \"attackbox-$BOX_ID\"
+  id -u \"$BOX_USER\" >/dev/null 2>&1 && chown -R \"$BOX_USER:\" \"/home/$BOX_USER\" 2>/dev/null || true
+  chmod 0755 \"/home/$BOX_USER\" 2>/dev/null || true
   touch /run/attackbox/core.ready
 
   INIT_BIN=\"\"
@@ -383,28 +383,41 @@ func (m *Manager) startGUI(ctx context.Context, b *config.Box, rootfs string) er
 
 	boxUser := b.User
 	if boxUser == "" {
-		boxUser = b.ID
+		boxUser = "box"
 	}
 
 	guiScript := fmt.Sprintf(`
-/usr/bin/Xtigervnc "%s" -rfbunixpath /run/attackbox/gui.sock -rfbunixmode 0666 \
-  -SecurityTypes None -AlwaysShared -geometry 1280x800 -depth 24 &
+BOX_USER="%s"
+DISP="%s"
+DISP_NUM=%d
+
+mkdir -p /tmp/.ICE-unix /tmp/.X11-unix "/tmp/runtime-$BOX_USER"
+chmod 1777 /tmp/.ICE-unix /tmp/.X11-unix
+chmod 0700 "/tmp/runtime-$BOX_USER"
+chown "$BOX_USER:$BOX_USER" "/tmp/runtime-$BOX_USER" 2>/dev/null || true
+chown -R "$BOX_USER:" "/home/$BOX_USER" 2>/dev/null || true
+chmod 0755 "/home/$BOX_USER" 2>/dev/null || true
+rm -f "/home/$BOX_USER/.ICEauthority" "/home/$BOX_USER/.Xauthority" /tmp/.ICE-unix/* 2>/dev/null || true
+
+/usr/bin/Xtigervnc "$DISP" -rfbunixpath /run/attackbox/gui.sock -rfbunixmode 0666 \
+  -SecurityTypes None -AlwaysShared -UseBlacklist=0 -geometry 1280x800 -depth 24 &
 XVNC_PID=$!
 
 for i in $(seq 1 40); do
-  [ -S /tmp/.X11-unix/X%d ] && [ -S /run/attackbox/gui.sock ] && break
+  [ -S "/tmp/.X11-unix/X$DISP_NUM" ] && [ -S /run/attackbox/gui.sock ] && break
   sleep 0.1
 done
 
-su - %s -c "
-  export DISPLAY=%s
+su - "$BOX_USER" -c "
+  export DISPLAY=\"$DISP\"
+  export XDG_RUNTIME_DIR=\"/tmp/runtime-$BOX_USER\"
   export XDG_CURRENT_DESKTOP=MATE
   export XDG_SESSION_TYPE=x11
   gsettings set org.mate.Marco.general compositing-manager false 2>/dev/null || true
   gsettings set org.mate.interface enable-animations false 2>/dev/null || true
   exec dbus-run-session /usr/bin/mate-session
 "
-`, dispStr, b.Display, boxUser, dispStr)
+`, boxUser, dispStr, b.Display)
 
 	// 统一通过 nsenter 将桌面启动脚本注入至沙箱环境中
 	cmd := exec.Command("nsenter",
@@ -447,7 +460,20 @@ func (m *Manager) DetailedStatus(ctx context.Context, b *config.Box) (coreRunnin
 	coreRunning = m.Status(ctx, b).Running()
 	if coreRunning {
 		guiSock := filepath.Join(b.RunDir, "gui.sock")
-		if checkGUISocket(guiSock, true) {
+		guiPidFile := filepath.Join(b.RunDir, "gui.pid")
+		if data, err := os.ReadFile(guiPidFile); err == nil {
+			if pid, err := strconv.Atoi(strings.TrimSpace(string(data))); err == nil && pid > 0 {
+				if proc, err := os.FindProcess(pid); err == nil {
+					if err := proc.Signal(syscall.Signal(0)); err == nil {
+						// 仅在进程与套接字文件同时存在时判定存活，避免高频轮询打挂 VNC Socket
+						if _, err := os.Stat(guiSock); err == nil {
+							guiRunning = true
+						}
+					}
+				}
+			}
+		}
+		if !guiRunning && checkGUISocket(guiSock, true) {
 			guiRunning = true
 		}
 	}
@@ -466,8 +492,8 @@ func (m *Manager) stopGUILocked(ctx context.Context, b *config.Box) error {
 	guiPidFile := filepath.Join(b.RunDir, "gui.pid")
 	if data, err := os.ReadFile(guiPidFile); err == nil {
 		if pid, err := strconv.Atoi(strings.TrimSpace(string(data))); err == nil && pid > 0 {
-			_ = exec.CommandContext(ctx, "kill", "-TERM", strconv.Itoa(pid)).Run()
-			_ = exec.CommandContext(ctx, "kill", "-9", strconv.Itoa(pid)).Run()
+			_ = syscall.Kill(pid, syscall.SIGTERM)
+			_ = syscall.Kill(pid, syscall.SIGKILL)
 		}
 		_ = os.Remove(guiPidFile)
 	}
@@ -513,7 +539,7 @@ func (m *Manager) kickLocked(ctx context.Context, b *config.Box) error {
 	initPidFile := filepath.Join(b.RunDir, "init.pid")
 	if data, err := os.ReadFile(initPidFile); err == nil {
 		if pid, err := strconv.Atoi(strings.TrimSpace(string(data))); err == nil && pid > 0 {
-			_ = exec.CommandContext(ctx, "kill", "-9", strconv.Itoa(pid)).Run()
+			_ = syscall.Kill(pid, syscall.SIGKILL)
 		}
 	}
 
@@ -521,7 +547,7 @@ func (m *Manager) kickLocked(ctx context.Context, b *config.Box) error {
 	unsharePidFile := filepath.Join(b.RunDir, "unshare.pid")
 	if data, err := os.ReadFile(unsharePidFile); err == nil {
 		if pid, err := strconv.Atoi(strings.TrimSpace(string(data))); err == nil && pid > 0 {
-			_ = exec.CommandContext(ctx, "kill", "-9", strconv.Itoa(pid)).Run()
+			_ = syscall.Kill(pid, syscall.SIGKILL)
 		}
 	}
 
@@ -550,12 +576,14 @@ func (m *Manager) kickLocked(ctx context.Context, b *config.Box) error {
 
 	// 5. 清理 cgroups 资源控制组
 	cgDir := fmt.Sprintf("/sys/fs/cgroup/attackbox/%s", b.ID)
-	_ = os.WriteFile(filepath.Join(cgDir, "cgroup.kill"), []byte("1\n"), 0644)
-	for retry := 0; retry < 20; retry++ {
-		if err := os.Remove(cgDir); err == nil {
-			break
+	if _, err := os.Stat(cgDir); err == nil {
+		_ = os.WriteFile(filepath.Join(cgDir, "cgroup.kill"), []byte("1\n"), 0644)
+		for retry := 0; retry < 20; retry++ {
+			if err := os.Remove(cgDir); err == nil || os.IsNotExist(err) {
+				break
+			}
+			time.Sleep(50 * time.Millisecond)
 		}
-		time.Sleep(50 * time.Millisecond)
 	}
 
 	// 6. 清理运行时文件
@@ -567,3 +595,18 @@ func (m *Manager) kickLocked(ctx context.Context, b *config.Box) error {
 
 	return nil
 }
+
+// CleanAll 启动时纯净自愈：物理清退所有可能残留的历史沙箱、命名空间与快照，保证系统在全新的健康基线运行
+func (m *Manager) CleanAll(ctx context.Context, boxes []config.Box) {
+	for i := range boxes {
+		_ = m.Kick(ctx, &boxes[i])
+	}
+	// 深度清理 /run/attackbox 下的残留临时文件
+	entries, err := os.ReadDir("/run/attackbox")
+	if err == nil {
+		for _, entry := range entries {
+			_ = os.RemoveAll(filepath.Join("/run/attackbox", entry.Name()))
+		}
+	}
+}
+

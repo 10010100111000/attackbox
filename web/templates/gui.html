@@ -4,6 +4,10 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>AttackBox 远程桌面 - {{.Box.ID}}</title>
+  <link rel="icon" type="image/x-icon" href="/favicon.ico">
+  <link rel="icon" type="image/png" href="/logo.png">
+  <link rel="apple-touch-icon" href="/logo.png">
+  <script src="/static/winbox.bundle.min.js"></script>
   <style>
     *, *::before, *::after { box-sizing: border-box; }
     html, body {
@@ -27,64 +31,70 @@
       outline: none;
     }
 
-    /* 顶部极简浮动工具条 (鼠标滑过或聚焦时完全显现) */
+    /* 底部极简可全屏自由拖放工具条 (Draggable Dock) */
     #toolbar {
       position: fixed;
-      top: 10px;
-      right: 16px;
+      bottom: 20px;
+      right: 20px;
       z-index: 100;
       display: flex;
       align-items: center;
-      gap: 8px;
-      padding: 4px 8px;
-      background: rgba(18, 18, 21, 0.85);
-      border: 1px solid rgba(39, 39, 42, 0.7);
-      backdrop-filter: blur(8px);
-      border-radius: 8px;
-      opacity: 0.35;
-      transition: opacity 0.2s ease, transform 0.2s ease;
+      gap: 6px;
+      padding: 4px 6px;
+      background: rgba(18, 18, 21, 0.88);
+      border: 1px solid rgba(39, 39, 42, 0.75);
+      backdrop-filter: blur(14px);
+      border-radius: 9999px;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+      opacity: 0.85;
+      transition: opacity 0.2s ease, border-color 0.2s ease;
       user-select: none;
+      touch-action: none;
+      cursor: grab;
     }
     #toolbar:hover, #toolbar:focus-within {
       opacity: 1;
+      border-color: rgba(63, 63, 70, 0.9);
     }
-
-    .toolbar-brand {
+    #toolbar.dragging {
+      cursor: grabbing;
+      opacity: 1;
+      transition: none;
+    }
+    .dock-drag-handle {
       display: flex;
       align-items: center;
-      gap: 6px;
-      font-size: 11px;
-      font-weight: 600;
-      color: #f4f4f5;
-      padding-right: 6px;
-      border-right: 1px solid #27272a;
+      justify-content: center;
+      padding: 2px 3px;
+      color: #71717a;
+      cursor: grab;
     }
-
-    .toolbar-badge {
-      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-      font-size: 10px;
-      padding: 1px 6px;
-      background: #27272a;
-      color: #a1a1aa;
-      border-radius: 4px;
+    #toolbar.dragging .dock-drag-handle {
+      cursor: grabbing;
     }
 
     .tool-btn {
       display: inline-flex;
       align-items: center;
-      gap: 4px;
-      padding: 4px 8px;
+      gap: 5px;
+      padding: 4px 10px;
       font-size: 11px;
       font-weight: 500;
       color: #d4d4d8;
       background: #18181b;
       border: 1px solid #27272a;
-      border-radius: 6px;
+      border-radius: 9999px;
       cursor: pointer;
-      transition: background-color 0.15s ease, color 0.15s ease;
+      transition: background-color 0.15s ease, color 0.15s ease, border-color 0.15s ease;
     }
     .tool-btn:hover {
       background: #27272a;
+      color: #ffffff;
+      border-color: #3f3f46;
+    }
+    .tool-btn.active {
+      background: #27272a;
+      border-color: #52525b;
       color: #ffffff;
     }
 
@@ -113,7 +123,7 @@
       width: 12px;
       height: 12px;
       border: 2px solid rgba(228, 228, 231, 0.2);
-      border-top-color: #10b981;
+      border-top-color: #ffffff;
       border-radius: 50%;
       animation: spin 0.8s linear infinite;
     }
@@ -149,25 +159,331 @@
       transition: background-color 0.15s ease;
     }
     .pill-btn:hover { background: #f4f4f5; }
+
+    /* 无感剪贴板悬浮反馈 Toast */
+    #clip-toast {
+      position: fixed;
+      bottom: 65px;
+      right: 20px;
+      z-index: 150;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 12px;
+      border-radius: 8px;
+      background: rgba(24, 24, 27, 0.95);
+      border: 1px solid rgba(63, 63, 70, 0.8);
+      color: #f4f4f5;
+      font-size: 11px;
+      font-weight: 500;
+      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5);
+      opacity: 0;
+      transform: translateY(10px);
+      transition: opacity 0.2s ease, transform 0.2s ease;
+      pointer-events: none;
+    }
+    #clip-toast.show {
+      opacity: 1;
+      transform: translateY(0);
+    }
+
+    /* ---------- WinBox 主题美化 ---------- */
+    .winbox.dark {
+      background: #18181b !important;
+      border: 1px solid #3f3f46 !important;
+      border-radius: 10px !important;
+      box-shadow: 0 18px 48px rgba(0, 0, 0, 0.65) !important;
+      overflow: hidden !important;
+    }
+    .winbox.dark .wb-header {
+      background: #18181b !important;
+      border-bottom: 1px solid #27272a !important;
+      height: 34px !important;
+      line-height: 34px !important;
+    }
+    .winbox.dark .wb-title {
+      font-size: 12px !important;
+      font-weight: 600 !important;
+      color: #f4f4f5 !important;
+    }
+    .winbox.dark .wb-body {
+      top: 34px !important;
+      background: #09090b !important;
+      color: #e4e4e7 !important;
+      overflow: hidden !important;
+    }
+
+    /* ---------- 记事本核心 UI 布局 ---------- */
+    .np-container {
+      display: flex;
+      flex-direction: column;
+      height: 100%;
+      background: #09090b;
+      font-size: 12px;
+      user-select: none;
+    }
+    .np-header {
+      padding: 10px 12px;
+      border-bottom: 1px solid #27272a;
+      background: #121215;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .np-input-row {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .np-input {
+      flex: 1;
+      background: #09090b;
+      border: 1px solid #27272a;
+      border-radius: 6px;
+      color: #f4f4f5;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      font-size: 12px;
+      padding: 6px 10px;
+      outline: none;
+      transition: border-color 0.15s ease;
+    }
+    .np-input:focus {
+      border-color: #52525b;
+    }
+    .np-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 6px 10px;
+      font-size: 11px;
+      font-weight: 500;
+      border-radius: 6px;
+      cursor: pointer;
+      white-space: nowrap;
+      transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+    }
+    .np-btn-primary {
+      background: #ffffff;
+      color: #09090b;
+      border: 1px solid #ffffff;
+    }
+    .np-btn-primary:hover {
+      background: #e4e4e7;
+    }
+    .np-btn-secondary {
+      background: #18181b;
+      color: #d4d4d8;
+      border: 1px solid #27272a;
+    }
+    .np-btn-secondary:hover {
+      background: #27272a;
+      color: #ffffff;
+      border-color: #3f3f46;
+    }
+
+    /* 批量导入区域 (折叠) */
+    .np-batch-panel {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      padding-top: 4px;
+    }
+    .np-batch-panel.hidden {
+      display: none;
+    }
+    .np-batch-textarea {
+      width: 100%;
+      height: 90px;
+      background: #09090b;
+      border: 1px solid #27272a;
+      border-radius: 6px;
+      color: #e4e4e7;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      font-size: 11px;
+      line-height: 1.4;
+      padding: 6px 8px;
+      resize: vertical;
+      outline: none;
+    }
+    .np-batch-textarea:focus {
+      border-color: #52525b;
+    }
+    .np-batch-actions {
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      gap: 6px;
+    }
+
+    /* 文本行列表区域 (清爽列表行，彻底杜绝 button 套 button) */
+    .np-list {
+      flex: 1;
+      overflow-y: auto;
+      padding: 0;
+      display: flex;
+      flex-direction: column;
+    }
+    .np-list::-webkit-scrollbar {
+      width: 4px;
+    }
+    .np-list::-webkit-scrollbar-thumb {
+      background: #27272a;
+      border-radius: 4px;
+    }
+
+    .np-empty-state {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: 100%;
+      color: #71717a;
+      font-size: 12px;
+      gap: 6px;
+      padding: 20px 0;
+    }
+
+    /* 单条行 */
+    .np-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 12px;
+      background: transparent;
+      border: none;
+      border-bottom: 1px solid rgba(39, 39, 42, 0.45);
+      border-radius: 0;
+      cursor: pointer;
+      transition: background-color 0.15s ease;
+    }
+    .np-row:hover {
+      background: rgba(39, 39, 42, 0.35);
+    }
+    .np-row.copied {
+      background: rgba(255, 255, 255, 0.08) !important;
+    }
+    .np-row-num {
+      font-family: ui-monospace, monospace;
+      font-size: 11px;
+      color: #71717a;
+      min-width: 18px;
+      user-select: none;
+    }
+    .np-row-content {
+      flex: 1;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      font-size: 12px;
+      color: #e4e4e7;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      user-select: text;
+    }
+    .np-row-actions {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      opacity: 0;
+      transition: opacity 0.15s ease;
+    }
+    .np-row:hover .np-row-actions {
+      opacity: 1;
+    }
+    .np-action-btn {
+      padding: 4px;
+      border-radius: 4px;
+      background: transparent;
+      border: none;
+      color: #a1a1aa;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.15s ease;
+    }
+    .np-action-btn:hover {
+      background: rgba(63, 63, 70, 0.6);
+      color: #ffffff;
+    }
+    .np-btn-del:hover {
+      color: #f87171 !important;
+      background: rgba(127, 29, 29, 0.4) !important;
+    }
+
+    /* 底部辅助栏 */
+    .np-footer {
+      padding: 6px 12px;
+      border-top: 1px solid #27272a;
+      background: #121215;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      color: #71717a;
+      font-size: 11px;
+    }
   </style>
 </head>
 <body>
-  <!-- 顶部浮动快捷条 -->
-  <div id="toolbar">
-    <div class="toolbar-brand">
-      <span>TigerVNC + MATE</span>
-      <span class="toolbar-badge">{{.User}}@{{.Box.ID}}</span>
+  <!-- 顶部极简可自由拖放快捷条 (仅保留记事本唤醒键) -->
+  <div id="toolbar" title="按住手柄可自由拖动位置，点击打开快捷记事本">
+    <div class="dock-drag-handle" title="拖动手柄">
+      <svg width="7" height="11" viewBox="0 0 8 12" fill="currentColor">
+        <circle cx="2" cy="2" r="1.2"></circle>
+        <circle cx="6" cy="2" r="1.2"></circle>
+        <circle cx="2" cy="6" r="1.2"></circle>
+        <circle cx="6" cy="6" r="1.2"></circle>
+        <circle cx="2" cy="10" r="1.2"></circle>
+        <circle cx="6" cy="10" r="1.2"></circle>
+      </svg>
     </div>
-    <button class="tool-btn" id="btn-cad" title="向桌面发送 Ctrl+Alt+Del 快捷键组合">Ctrl+Alt+Del</button>
-    <button class="tool-btn" id="btn-fs" title="切换全屏显示">全屏</button>
-    <button class="tool-btn" id="btn-reload" title="重新连入桌面">重连</button>
+    <button class="tool-btn" id="btn-toggle-notes" title="打开/关闭快捷记事本">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"></path>
+        <rect x="8" y="2" width="8" height="4" rx="1" ry="1"></rect>
+        <path d="M9 12h6"></path>
+        <path d="M9 16h4"></path>
+      </svg>
+      <span>记事本</span>
+    </button>
   </div>
 
-  <!-- 状态指示器 -->
+  <!-- 挂载 WinBox 的记事本模板内容 (由 WinBox 原生挂载并支持自由拖拽与 8 向缩放) -->
+  <div id="notepad-app" style="display: none; height: 100%;">
+    <div class="np-container">
+      <div class="np-header">
+        <div class="np-input-row">
+          <input type="text" id="np-input" class="np-input" placeholder="输入常用命令、Payload 或文本行，按 Enter 添加..." />
+          <button id="np-btn-add" class="np-btn np-btn-primary">添加行</button>
+          <button id="np-btn-toggle-batch" class="np-btn np-btn-secondary" title="展开多行批量粘贴">批量</button>
+        </div>
+        <div id="np-batch-panel" class="np-batch-panel hidden">
+          <textarea id="np-batch-textarea" class="np-batch-textarea" placeholder="在此粘贴多行文本，每行将自动拆解为一条可点击复制的独立卡片..."></textarea>
+          <div class="np-batch-actions">
+            <button id="np-btn-batch-confirm" class="np-btn np-btn-primary">确认拆分导入</button>
+            <button id="np-btn-batch-cancel" class="np-btn np-btn-secondary">收起</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="np-list" id="np-list">
+        <!-- 动态渲染一列一列的行卡片 -->
+      </div>
+
+      <div class="np-footer">
+        <span>💡 单击任意行即可直接复制到剪贴板</span>
+        <button id="np-btn-clear-all" class="np-action-btn">清空列表</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 状态指示浮胶囊 -->
   <div id="status-pill">
     <div class="spinner" id="status-spinner"></div>
     <span id="status-text">正在连接图形远程桌面...</span>
   </div>
+
+  <!-- 无感剪贴板悬浮反馈 Toast -->
+  <div id="clip-toast">📋 剪贴板已同步</div>
 
   <!-- Canvas 挂载视口 -->
   <div id="screen"></div>
@@ -179,28 +495,366 @@
     const pillText = document.getElementById('status-text');
     const spinner = document.getElementById('status-spinner');
     const screen = document.getElementById('screen');
+    const clipToast = document.getElementById('clip-toast');
+    const btnToggleNotes = document.getElementById('btn-toggle-notes');
 
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
     const wsUrl = `${protocol}//${window.location.host}/vnc/ws`;
 
     let rfb = null;
-    let retryCount = 0;
-    let reconnectTimer = null;
+    let toastTimer = null;
+    let lastSentClipboard = '';
 
-    function connect() {
-      if (reconnectTimer) {
-        clearTimeout(reconnectTimer);
-        reconnectTimer = null;
+    // 轻量反馈提示
+    function showToast(msg) {
+      if (toastTimer) clearTimeout(toastTimer);
+      clipToast.textContent = msg;
+      clipToast.classList.add('show');
+      toastTimer = setTimeout(() => {
+        clipToast.classList.remove('show');
+      }, 1800);
+    }
+
+    // ---------- 记事本状态管理与 WinBox 实例 ----------
+    const STORAGE_KEY = 'attackbox_snippets_rows';
+    let snippets = [];
+
+    // 初始化默认示例
+    function initDefaultSnippets() {
+      try {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        if (raw) {
+          snippets = JSON.parse(raw);
+        } else {
+          snippets = [
+            'id; whoami; hostname',
+            'ip addr show eth0',
+            'uname -a'
+          ];
+          saveSnippets();
+        }
+      } catch (e) {
+        snippets = ['id; whoami; hostname'];
       }
+    }
+
+    function saveSnippets() {
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(snippets));
+      } catch (e) {}
+    }
+
+    function renderSnippets() {
+      const listEl = document.getElementById('np-list');
+      if (!listEl) return;
+
+      if (!snippets || snippets.length === 0) {
+        listEl.innerHTML = `
+          <div class="np-empty-state">
+            <span>暂无文本行</span>
+            <span style="font-size: 11px; opacity: 0.7;">可在上方单行添加或批量导入</span>
+          </div>`;
+        return;
+      }
+
+      listEl.innerHTML = '';
+      snippets.forEach((text, idx) => {
+        const row = document.createElement('div');
+        row.className = 'np-row';
+        row.title = '点击直接复制到本地与远程剪贴板';
+
+        const numSpan = document.createElement('span');
+        numSpan.className = 'np-row-num';
+        numSpan.textContent = idx + 1;
+
+        const contentSpan = document.createElement('span');
+        contentSpan.className = 'np-row-content';
+        contentSpan.textContent = text;
+
+        const actionsDiv = document.createElement('div');
+        actionsDiv.className = 'np-row-actions';
+
+        // 复制按钮
+        const copyBtn = document.createElement('button');
+        copyBtn.className = 'np-action-btn';
+        copyBtn.title = '复制到剪贴板';
+        copyBtn.innerHTML = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>';
+
+        // 键入屏幕按钮 (模拟键盘标准输入)
+        const typeBtn = document.createElement('button');
+        typeBtn.className = 'np-action-btn';
+        typeBtn.title = '模拟键入到沙箱当前焦点窗口';
+        typeBtn.innerHTML = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg>';
+
+        // 删除按钮
+        const delBtn = document.createElement('button');
+        delBtn.className = 'np-action-btn np-btn-del';
+        delBtn.title = '删除此行';
+        delBtn.innerHTML = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>';
+
+        actionsDiv.appendChild(copyBtn);
+        actionsDiv.appendChild(typeBtn);
+        actionsDiv.appendChild(delBtn);
+
+        row.appendChild(numSpan);
+        row.appendChild(contentSpan);
+        row.appendChild(actionsDiv);
+
+        // 点击行或点击复制按钮：一键复制到双端剪贴板
+        async function handleCopy(e) {
+          e.stopPropagation();
+          await copySnippet(text);
+          row.classList.add('copied');
+          setTimeout(() => {
+            row.classList.remove('copied');
+          }, 1000);
+        }
+
+        row.onclick = handleCopy;
+        copyBtn.onclick = handleCopy;
+
+        typeBtn.onclick = async (e) => {
+          e.stopPropagation();
+          await typeSnippet(text);
+        };
+
+        delBtn.onclick = (e) => {
+          e.stopPropagation();
+          snippets.splice(idx, 1);
+          saveSnippets();
+          renderSnippets();
+        };
+
+        listEl.appendChild(row);
+      });
+    }
+
+    // 核心复制动作：同时同步至本地宿主剪贴板和沙箱远程剪贴板
+    async function copySnippet(text) {
+      if (!text) return;
+      try {
+        await navigator.clipboard.writeText(text);
+      } catch (e) {}
+
+      if (rfb) {
+        try {
+          rfb.clipboardPasteFrom(text);
+        } catch (e) {}
+      }
+      showToast('已复制并同步至远程剪贴板');
+    }
+
+    // 模拟真实按键输入到沙箱标准输入
+    async function typeSnippet(text) {
+      if (!text || !rfb) return;
+      showToast('正在键入屏幕...');
+      rfb.focus();
+
+      for (let i = 0; i < text.length; i++) {
+        const ch = text[i];
+        if (ch === '\r') continue;
+        let keysym = ch.charCodeAt(0);
+        if (ch === '\n') keysym = 0xFF0D; // Return
+        else if (ch === '\t') keysym = 0xFF09; // Tab
+        else if (ch === '\b') keysym = 0xFF08; // Backspace
+
+        rfb.sendKey(keysym, null, true);
+        rfb.sendKey(keysym, null, false);
+
+        if (i % 6 === 0) {
+          await new Promise(r => setTimeout(r, 6));
+        }
+      }
+      showToast('键入完成');
+    }
+
+    // 记事本操作事件绑定
+    function setupNotepadEvents() {
+      const inputEl = document.getElementById('np-input');
+      const addBtn = document.getElementById('np-btn-add');
+      const toggleBatchBtn = document.getElementById('np-btn-toggle-batch');
+      const batchPanel = document.getElementById('np-batch-panel');
+      const batchTextarea = document.getElementById('np-batch-textarea');
+      const batchConfirmBtn = document.getElementById('np-btn-batch-confirm');
+      const batchCancelBtn = document.getElementById('np-btn-batch-cancel');
+      const clearAllBtn = document.getElementById('np-btn-clear-all');
+
+      function addSingle() {
+        const val = inputEl.value.trim();
+        if (!val) return;
+        snippets.unshift(val);
+        inputEl.value = '';
+        saveSnippets();
+        renderSnippets();
+      }
+
+      addBtn.onclick = addSingle;
+      inputEl.onkeydown = (e) => {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          addSingle();
+        }
+      };
+
+      toggleBatchBtn.onclick = () => {
+        batchPanel.classList.toggle('hidden');
+        if (!batchPanel.classList.contains('hidden')) {
+          batchTextarea.focus();
+        }
+      };
+
+      batchCancelBtn.onclick = () => {
+        batchPanel.classList.add('hidden');
+      };
+
+      batchConfirmBtn.onclick = () => {
+        const lines = batchTextarea.value.split('\n')
+          .map(l => l.trim())
+          .filter(l => l.length > 0);
+        if (lines.length > 0) {
+          snippets.unshift(...lines);
+          batchTextarea.value = '';
+          batchPanel.classList.add('hidden');
+          saveSnippets();
+          renderSnippets();
+          showToast(`已批量导入 ${lines.length} 行卡片`);
+        }
+      };
+
+      clearAllBtn.onclick = () => {
+        if (snippets.length === 0) return;
+        if (confirm('确认清空所有文本行？')) {
+          snippets = [];
+          saveSnippets();
+          renderSnippets();
+          showToast('已清空');
+        }
+      };
+    }
+
+    // ---------- WinBox 窗口初始化与显隐控制 ----------
+    let notesWinBox = null;
+
+    function toggleWinBox() {
+      if (notesWinBox) {
+        if (notesWinBox.min) {
+          notesWinBox.minimize(false);
+        } else {
+          notesWinBox.close();
+          notesWinBox = null;
+        }
+        return;
+      }
+
+      const mountEl = document.getElementById('notepad-app');
+      mountEl.style.display = 'block';
+
+      notesWinBox = new WinBox({
+        title: "快捷记事本",
+        class: ["dark", "no-full"],
+        width: "440px",
+        height: "380px",
+        minwidth: 300,
+        minheight: 200,
+        x: "right",
+        y: "bottom",
+        bottom: 65,
+        right: 20,
+        mount: mountEl,
+        onclose: () => {
+          notesWinBox = null;
+          btnToggleNotes.classList.remove('active');
+        }
+      });
+
+      btnToggleNotes.classList.add('active');
+      renderSnippets();
+    }
+
+    // 全屏自由拖拽浮动 Dock 胶囊实现 (坐标记忆与点击防误触)
+    const toolbarEl = document.getElementById('toolbar');
+    let isBarDragging = false;
+    let barStartX = 0, barStartY = 0;
+    let barInitLeft = 0, barInitTop = 0;
+    let barHasMoved = false;
+
+    try {
+      const savedPos = localStorage.getItem('attackbox_gui_dock_pos_v2');
+      if (savedPos) {
+        const { left, top } = JSON.parse(savedPos);
+        const maxL = window.innerWidth - (toolbarEl.offsetWidth || 100);
+        const maxT = window.innerHeight - (toolbarEl.offsetHeight || 36);
+        toolbarEl.style.left = Math.max(8, Math.min(left, maxL - 8)) + 'px';
+        toolbarEl.style.top = Math.max(8, Math.min(top, maxT - 8)) + 'px';
+        toolbarEl.style.right = 'auto';
+        toolbarEl.style.bottom = 'auto';
+      }
+    } catch (e) {}
+
+    toolbarEl.addEventListener('pointerdown', (e) => {
+      if (e.button !== 0) return;
+      isBarDragging = true;
+      barHasMoved = false;
+      barStartX = e.clientX;
+      barStartY = e.clientY;
+      const rect = toolbarEl.getBoundingClientRect();
+      barInitLeft = rect.left;
+      barInitTop = rect.top;
+      toolbarEl.setPointerCapture(e.pointerId);
+      toolbarEl.classList.add('dragging');
+    });
+
+    toolbarEl.addEventListener('pointermove', (e) => {
+      if (!isBarDragging) return;
+      const dx = e.clientX - barStartX;
+      const dy = e.clientY - barStartY;
+      if (Math.abs(dx) > 3 || Math.abs(dy) > 3) {
+        barHasMoved = true;
+      }
+      const maxL = window.innerWidth - toolbarEl.offsetWidth;
+      const maxT = window.innerHeight - toolbarEl.offsetHeight;
+      const nLeft = Math.max(8, Math.min(barInitLeft + dx, maxL - 8));
+      const nTop = Math.max(8, Math.min(barInitTop + dy, maxT - 8));
+      toolbarEl.style.left = nLeft + 'px';
+      toolbarEl.style.top = nTop + 'px';
+      toolbarEl.style.right = 'auto';
+      toolbarEl.style.bottom = 'auto';
+    });
+
+    function finishBarDrag(e) {
+      if (!isBarDragging) return;
+      isBarDragging = false;
+      try { toolbarEl.releasePointerCapture(e.pointerId); } catch (_) {}
+      toolbarEl.classList.remove('dragging');
+      if (barHasMoved) {
+        const rect = toolbarEl.getBoundingClientRect();
+        try {
+          localStorage.setItem('attackbox_gui_dock_pos_v2', JSON.stringify({ left: rect.left, top: rect.top }));
+        } catch (_) {}
+      }
+    }
+
+    toolbarEl.addEventListener('pointerup', finishBarDrag);
+    toolbarEl.addEventListener('pointercancel', finishBarDrag);
+
+    btnToggleNotes.onclick = (e) => {
+      if (barHasMoved) return; // 拖拽释放防误触
+      toggleWinBox();
+    };
+
+    // ---------- VNC 核心连接与无感双向剪贴板同步 ----------
+
+    async function initConnection() {
+      pill.className = '';
+      pill.style.display = 'flex';
+      spinner.style.display = 'block';
+      pillText.textContent = '正在连接图形远程桌面...';
+
       if (rfb) {
         try { rfb.disconnect(); } catch (e) {}
         rfb = null;
       }
-
-      pill.className = '';
-      pill.style.display = 'flex';
-      spinner.style.display = 'block';
-      pillText.textContent = retryCount > 0 ? `正在尝试重新连接 (${retryCount})...` : '正在连接图形远程桌面...';
+      screen.innerHTML = '';
 
       try {
         rfb = new RFB(screen, wsUrl, {
@@ -214,7 +868,6 @@
         rfb.qualityLevel = 6;
 
         rfb.addEventListener('connect', () => {
-          retryCount = 0;
           pill.classList.add('connected');
           setTimeout(() => {
             if (pill.classList.contains('connected')) {
@@ -224,33 +877,35 @@
           rfb.focus();
         });
 
+        // 1. 无感双向剪贴板 (沙箱远程 -> 本地宿主)：远程复制文本时，静默注入本地剪贴板
+        rfb.addEventListener('clipboard', (e) => {
+          if (e.detail && e.detail.text) {
+            const remoteText = e.detail.text;
+            lastSentClipboard = remoteText;
+            navigator.clipboard.writeText(remoteText).then(() => {
+              showToast('远程复制已同步至本地');
+            }).catch(() => {});
+          }
+        });
+
         rfb.addEventListener('disconnect', (e) => {
           pill.style.display = 'flex';
           pill.classList.remove('connected');
           spinner.style.display = 'none';
 
-          const wsCode = rfb._sock && rfb._sock._websocket ? rfb._sock._websocket.code : 0;
+          const wsCode = rfb && rfb._sock && rfb._sock._websocket ? rfb._sock._websocket.code : 0;
           if (wsCode === 4001) {
             pill.className = 'warning';
             pillText.innerHTML = '桌面已在其他窗口接入，本窗口已挂起 <button class="pill-btn" id="btn-reclaim-vnc">切回此窗口</button>';
             const reclaimBtn = document.getElementById('btn-reclaim-vnc');
-            if (reclaimBtn) reclaimBtn.onclick = () => connect();
+            if (reclaimBtn) reclaimBtn.onclick = () => initConnection();
             return;
           }
 
           pill.classList.add('error');
-          const isClean = e.detail && e.detail.clean;
-          pillText.innerHTML = isClean
-            ? '远程桌面已断开 <button class="pill-btn" id="btn-retry-vnc">重新连接</button>'
-            : '连接中断，将在 2 秒后尝试重连... <button class="pill-btn" id="btn-retry-vnc">立即重连</button>';
-
+          pillText.innerHTML = '远程桌面连接中断，可按 F5 刷新页面重试 <button class="pill-btn" id="btn-retry-vnc">重新连入</button>';
           const retryBtn = document.getElementById('btn-retry-vnc');
-          if (retryBtn) retryBtn.onclick = () => connect();
-
-          if (!isClean) {
-            retryCount++;
-            reconnectTimer = setTimeout(connect, 2000);
-          }
+          if (retryBtn) retryBtn.onclick = () => initConnection();
         });
 
         rfb.addEventListener('securityfailure', () => {
@@ -258,36 +913,50 @@
           pill.classList.remove('connected');
           spinner.style.display = 'none';
           pill.classList.add('error');
-          pillText.textContent = '远程桌面鉴权失败，请重新登录';
+          pillText.innerHTML = '远程桌面连接鉴权失败 <button class="pill-btn" id="btn-retry-sec">重试</button>';
+          const retryBtn = document.getElementById('btn-retry-sec');
+          if (retryBtn) retryBtn.onclick = () => initConnection();
         });
 
       } catch (err) {
         pill.style.display = 'flex';
         pill.classList.add('error');
         spinner.style.display = 'none';
-        pillText.textContent = '初始化失败: ' + err.message;
+        pillText.innerHTML = `初始化失败: ${err.message} <button class="pill-btn" id="btn-retry-init">刷新重试</button>`;
+        const retryBtn = document.getElementById('btn-retry-init');
+        if (retryBtn) retryBtn.onclick = () => window.location.reload();
       }
     }
 
-    document.getElementById('btn-cad').onclick = () => {
-      if (rfb) rfb.sendCtrlAltDel();
-    };
-    document.getElementById('btn-fs').onclick = () => {
-      if (!document.fullscreenElement) {
-        document.documentElement.requestFullscreen().catch(() => {});
-      } else {
-        document.exitFullscreen().catch(() => {});
+    // 2. 无感双向剪贴板 (本地宿主 -> 沙箱远程)：当用户在画布按下 Ctrl+V 或窗口切回聚焦时自动拉取同步
+    window.addEventListener('paste', (e) => {
+      if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+      const text = (e.clipboardData || window.clipboardData).getData('text');
+      if (text && rfb) {
+        lastSentClipboard = text;
+        rfb.clipboardPasteFrom(text);
+        showToast('本地剪贴板已推送到远程');
       }
-    };
-    document.getElementById('btn-reload').onclick = () => {
-      retryCount = 0;
-      connect();
-    };
+    });
+
+    window.addEventListener('focus', async () => {
+      try {
+        const text = await navigator.clipboard.readText();
+        if (text && rfb && text !== lastSentClipboard) {
+          lastSentClipboard = text;
+          rfb.clipboardPasteFrom(text);
+        }
+      } catch (e) {}
+    });
+
+    // 启动初始化
+    initDefaultSnippets();
+    setupNotepadEvents();
 
     if (document.readyState === 'loading') {
-      window.addEventListener('DOMContentLoaded', connect);
+      window.addEventListener('DOMContentLoaded', initConnection);
     } else {
-      connect();
+      initConnection();
     }
   </script>
 </body>

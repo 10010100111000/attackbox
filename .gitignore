@@ -12,5 +12,23 @@ bin/
 *.db-journal
 *.sqlite
 
+# Certificates & Keys
+certs/
+*.pem
+*.key
+*.crt
+
 # Deployment scripts & temp
 deploy_remote.sh
+deploy_stage*.sh
+test_*.js
+verify_*.js
+scratch_*.cjs
+/*_snap.png
+/*_shot*.png
+!web/static/*.png
+
+# Frontend
+frontend/node_modules/
+frontend/dist/
+

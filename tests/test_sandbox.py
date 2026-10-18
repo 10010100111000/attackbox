@@ -127,13 +127,19 @@ hosts_content = run_in_sandbox('cat /etc/hosts')
 print(f'Container /etc/hosts:\n{hosts_content}')
 assert '127.0.0.1 attackbox-box1 box' in hosts_content
 
-# 测试 sudo 执行耗时与警告
+# 测试 sudo 执行耗时与警告，以及 PTY 真实分配验证 (杜绝 unable to allocate pty)
 t_start = time.time()
-sudo_test = run_in_sandbox('sudo -u box -s -- sudo true 2>&1')
+sudo_test = run_in_sandbox('su - box -c "sudo whoami" 2>&1')
 t_elapsed = time.time() - t_start
 print(f'Container sudo test output: "{sudo_test}", elapsed: {t_elapsed:.3f}s')
 assert 'unable to resolve host' not in sudo_test
+assert 'unable to allocate pty' not in sudo_test
+assert 'root' in sudo_test, f'Expected root from sudo whoami, got: {sudo_test}'
 assert t_elapsed < 1.0, f'Sudo took too long ({t_elapsed}s), possible DNS hang'
+
+ptmx_check = run_in_sandbox('ls -l /dev/ptmx 2>&1')
+print(f'Container /dev/ptmx link: {ptmx_check}')
+assert 'pts/ptmx' in ptmx_check, f'/dev/ptmx is not linked to pts/ptmx: {ptmx_check}'
 
 print('\n=== Test 8: DNS 配置与 nftables 放行验证 ===')
 resolv_content = run_in_sandbox('cat /etc/resolv.conf')
@@ -205,7 +211,7 @@ print(f'veth short name vh1 on host: {vh_check}')
 assert 'vh1' in vh_check
 
 # 验证 SQLite 租约表持久化
-db_leases = subprocess.getoutput('sqlite3 /var/lib/attackbox/attackbox.db "SELECT username, box_id FROM box_leases"')
+db_leases = subprocess.getoutput('sudo sqlite3 /var/lib/attackbox/attackbox.db "SELECT username, box_id FROM box_leases"')
 print(f'Active leases in SQLite: {db_leases}')
 assert 'laji|box1' in db_leases
 
@@ -217,6 +223,16 @@ assert gui_on.get('guiRunning') is True
 gui_sock = subprocess.getoutput('ls -l /run/attackbox/box1/gui.sock 2>/dev/null')
 print(f'GUI socket: {gui_sock}')
 assert 'gui.sock' in gui_sock
+
+time.sleep(1.5)
+mate_proc = run_in_sandbox('pgrep -a mate-session 2>&1')
+print(f'MATE session processes: {mate_proc}')
+assert 'mate-session' in mate_proc, 'MATE session is not running in sandbox'
+
+# 检查是否出现 Could not update ICEauthority 报错
+journal_errs = subprocess.getoutput('sudo journalctl -u attackboxd.service -n 50 --no-pager')
+assert 'Could not update ICEauthority file' not in journal_errs, f'ICEauthority error detected: {journal_errs}'
+print('Verified: GUI running, MATE active, zero ICEauthority error (PASS)')
 
 # 关闭 GUI
 gui_off = dev2('POST', '/api/env/gui/toggle')
@@ -272,12 +288,12 @@ print(f'Subvolumes after destroy (expect empty): {subvols_check if subvols_check
 assert 'var/lib/attackbox/boxes/box1/rootfs' not in subvols_check
 
 # 验证 SQLite 租约清除
-db_leases_after = subprocess.getoutput('sqlite3 /var/lib/attackbox/attackbox.db "SELECT * FROM box_leases WHERE username = \'laji\'"')
+db_leases_after = subprocess.getoutput('sudo sqlite3 /var/lib/attackbox/attackbox.db "SELECT * FROM box_leases WHERE username = \'laji\'"')
 print(f'SQLite lease after destroy (expect empty): {db_leases_after}')
 assert not db_leases_after
 
 print('\n=== Test 13: 结构化审计日志验证 ===')
-journal_logs = subprocess.getoutput('sudo journalctl -u attackboxd.service -n 60 --no-pager')
+journal_logs = subprocess.getoutput('sudo journalctl -u attackboxd.service -n 200 --no-pager')
 print('Recent journal logs:')
 for line in journal_logs.splitlines()[-25:]:
     print('  ', line)
@@ -361,6 +377,11 @@ assert m_stale.get('guiRunning') is False, 'Stale socket falsely reported guiRun
 sock_still_exists = subprocess.getoutput(f'ls /run/attackbox/{box_id}/gui.sock 2>/dev/null')
 assert not sock_still_exists, 'Stale socket was not cleaned up!'
 print('Stale socket successfully detected and purged (PASS)')
+
+# 6. 空闲超时自动释放配置 (方案 A)
+m_idle = admin_sess('GET', '/api/me')
+assert m_idle.get('idleTimeoutMinutes') == 10, f"Expected idleTimeoutMinutes=10, got {m_idle.get('idleTimeoutMinutes')}"
+print('Idle timeout configuration verified (10m) (PASS)')
 
 # 清理测试环境
 admin_sess('POST', '/api/env/destroy')

@@ -123,6 +123,8 @@ func (g *Gateway) vncWS(w http.ResponseWriter, r *http.Request) {
 			if mt != websocket.BinaryMessage && mt != websocket.TextMessage {
 				continue
 			}
+			// 方案 A: 捕获 VNC 客户端鼠标/键盘交互事件，刷新活跃时间
+			g.touchBoxActivity(b.ID)
 			if _, err := conn.Write(msg); err != nil {
 				return
 			}
@@ -222,7 +224,7 @@ func (g *Gateway) termWS(w http.ResponseWriter, r *http.Request) {
 
 	boxUser := b.User
 	if boxUser == "" {
-		boxUser = b.ID
+		boxUser = "box"
 	}
 
 	// 原生全命名空间注入：通过 nsenter 穿透 Mount/UTS/IPC/Net/PID 命名空间并切换根目录
@@ -281,6 +283,8 @@ func (g *Gateway) termWS(w http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			return
 		}
+		// 方案 A: 捕获终端键盘按键、命令与窗口调整事件，刷新活跃时间
+		g.touchBoxActivity(b.ID)
 		if mt == websocket.TextMessage {
 			var sz struct {
 				Cols uint16 `json:"cols"`

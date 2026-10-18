@@ -7,6 +7,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"math"
 	"net/http"
 	"os"
@@ -17,6 +18,7 @@ import (
 	"time"
 
 	"attackbox/internal/auth"
+	"attackbox/internal/config"
 
 	"github.com/gorilla/websocket"
 )
@@ -31,6 +33,12 @@ type authReq struct {
 }
 
 func (g *Gateway) apiLogin(w http.ResponseWriter, r *http.Request) {
+	clientIP := g.getClientIP(r)
+	if !g.limiter.allow(clientIP) {
+		http.Error(w, `{"success":false,"error":"尝试登录次数过多，请稍后再试"}`, http.StatusTooManyRequests)
+		return
+	}
+
 	var req authReq
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeJSON(w, map[string]any{"success": false, "error": "无效的请求格式"})
@@ -38,17 +46,27 @@ func (g *Gateway) apiLogin(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if !validUsername.MatchString(req.Username) {
+		g.limiter.recordFailure(clientIP)
+		g.recordAudit("LOGIN_FAILED", req.Username, "auth", clientIP, "用户名格式不合法")
 		writeJSON(w, map[string]any{"success": false, "error": "用户名或密码错误"})
 		return
 	}
 
 	u, err := g.authStore.Authenticate(req.Username, req.Password)
 	if err != nil {
-		logAuth("login failed: user=%s ip=%s reason=%v", req.Username, r.RemoteAddr, err)
+		g.limiter.recordFailure(clientIP)
+		logAuth("login failed: user=%s ip=%s reason=%v", req.Username, clientIP, err)
+		g.recordAudit("LOGIN_FAILED", req.Username, "auth", clientIP, fmt.Sprintf("登录失败: %v", err))
 		writeJSON(w, map[string]any{"success": false, "error": "用户名或密码错误"})
 		return
 	}
-	logAuth("login success: user=%s role=%s ip=%s", u.Username, u.Role, r.RemoteAddr)
+	g.limiter.reset(clientIP)
+	logAuth("login success: user=%s role=%s ip=%s", u.Username, u.Role, clientIP)
+
+	// 若管理员成功登录，自动使用密码解封安全内存保管库 (Unseal Vault)
+	if u.Role == "admin" {
+		globalVault.unseal(req.Password)
+	}
 
 	tok := randHex(32)
 	expires := time.Now().Add(24 * time.Hour)
@@ -66,6 +84,7 @@ func (g *Gateway) apiLogin(w http.ResponseWriter, r *http.Request) {
 		Value:    tok,
 		Path:     "/",
 		HttpOnly: true,
+		Secure:   true,
 		SameSite: http.SameSiteLaxMode,
 		Expires:  expires,
 	})
@@ -79,8 +98,24 @@ func (g *Gateway) apiLogin(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+type userRegisterReq struct {
+	Username      string `json:"username"`
+	Password      string `json:"password"`
+	Email         string `json:"email"`
+	Code          string `json:"code"`
+	AffCode       string `json:"affCode"`
+	AffCodeSnake  string `json:"aff_code"`
+}
+
 func (g *Gateway) apiRegister(w http.ResponseWriter, r *http.Request) {
-	var req authReq
+	clientIP := g.getClientIP(r)
+	allowRegStr := g.authStore.GetSetting("allow_register", "true")
+	if allowRegStr == "false" {
+		writeJSON(w, map[string]any{"success": false, "error": "管理员已关闭自主注册功能"})
+		return
+	}
+
+	var req userRegisterReq
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeJSON(w, map[string]any{"success": false, "error": "无效的请求格式"})
 		return
@@ -91,17 +126,52 @@ func (g *Gateway) apiRegister(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	u, err := g.authStore.Register(req.Username, req.Password)
+	targetEmail := strings.ToLower(strings.TrimSpace(req.Email))
+	if !isValidWhitelistEmail(targetEmail) {
+		writeJSON(w, map[string]any{
+			"success": false,
+			"error":   "邮箱不支持，仅支持 QQ 邮箱 (@qq.com, @foxmail.com)、谷歌邮箱 (@gmail.com) 或 Outlook 邮箱",
+		})
+		return
+	}
+
+	// 检查邮箱是否已被占用
+	if existing, _ := g.authStore.GetUserByEmail(targetEmail); existing != nil {
+		writeJSON(w, map[string]any{"success": false, "error": "该邮箱已被其他账号绑定，请直接登录"})
+		return
+	}
+
+	// 检查 AFF 邀请码 (可选，兼容 affCode 与 aff_code)
+	invitedByCode := strings.TrimSpace(req.AffCode)
+	if invitedByCode == "" {
+		invitedByCode = strings.TrimSpace(req.AffCodeSnake)
+	}
+	if invitedByCode != "" {
+		inviter, _ := g.authStore.GetUserByAffCode(invitedByCode)
+		if inviter == nil {
+			writeJSON(w, map[string]any{"success": false, "error": "所填写的邀请码无效或不存在"})
+			return
+		}
+	}
+
+	// 核验邮箱验证码
+	if !emailSecMgr.verifyCode(targetEmail, req.Code) {
+		writeJSON(w, map[string]any{"success": false, "error": "邮箱验证码无效或已过期，请重新获取"})
+		return
+	}
+
+	u, err := g.authStore.CreateUserWithEmailAndAFF(req.Username, req.Password, "user", targetEmail, invitedByCode)
 	if err != nil {
-		logAuth("register failed: user=%s ip=%s reason=%v", req.Username, r.RemoteAddr, err)
+		logAuth("register failed: user=%s ip=%s reason=%v", req.Username, clientIP, err)
 		if errors.Is(err, auth.ErrUserExists) {
 			writeJSON(w, map[string]any{"success": false, "error": "该用户名已被注册"})
 		} else {
-			writeJSON(w, map[string]any{"success": false, "error": "注册失败，请检查输入格式"})
+			writeJSON(w, map[string]any{"success": false, "error": "注册失败: " + err.Error()})
 		}
 		return
 	}
-	logAuth("register success: user=%s role=%s ip=%s", u.Username, u.Role, r.RemoteAddr)
+	logAuth("register success: user=%s role=%s email=%s aff=%s ip=%s", u.Username, u.Role, u.Email, u.AffCode, clientIP)
+	g.recordAudit("USER_REGISTER", u.Username, u.Username, clientIP, fmt.Sprintf("自主注册成功: email=%s invited_by=%s", u.Email, u.InvitedBy))
 
 	tok := randHex(32)
 	expires := time.Now().Add(24 * time.Hour)
@@ -119,6 +189,7 @@ func (g *Gateway) apiRegister(w http.ResponseWriter, r *http.Request) {
 		Value:    tok,
 		Path:     "/",
 		HttpOnly: true,
+		Secure:   true,
 		SameSite: http.SameSiteLaxMode,
 		Expires:  expires,
 	})
@@ -128,6 +199,8 @@ func (g *Gateway) apiRegister(w http.ResponseWriter, r *http.Request) {
 		"user": map[string]any{
 			"username": u.Username,
 			"role":     u.Role,
+			"email":    u.Email,
+			"affCode":  u.AffCode,
 		},
 	})
 }
@@ -149,6 +222,7 @@ func (g *Gateway) apiLogout(w http.ResponseWriter, r *http.Request) {
 		Path:     "/",
 		MaxAge:   -1,
 		HttpOnly: true,
+		Secure:   true,
 	})
 	writeJSON(w, map[string]any{"success": true})
 }
@@ -169,34 +243,46 @@ func (g *Gateway) apiMe(w http.ResponseWriter, r *http.Request) {
 	envRunning := false
 	guiRunning := false
 	boxID := ""
-	var ttlMinutes int
 	var expiresInSeconds int64
 
 	if b != nil {
 		envRunning, guiRunning = g.boxes.DetailedStatus(r.Context(), b)
 		boxID = b.ID
-		ttlMinutes = b.TTLMinutes
+	}
 
-		g.mu.Lock()
-		if lease, ok := g.userLeases[s.User]; ok && lease != nil {
-			rem := time.Until(lease.ExpiresAt).Seconds()
-			if rem > 0 {
-				expiresInSeconds = int64(rem)
-			}
+	g.mu.Lock()
+	ttlMinutes := g.cfg.TTLMinutes
+	if ttlMinutes <= 0 && b != nil {
+		ttlMinutes = b.TTLMinutes
+	}
+	idleTimeout := g.cfg.IdleTimeoutMinutes
+	broadcast := g.broadcast
+
+	if lease, ok := g.userLeases[s.User]; ok && lease != nil {
+		rem := time.Until(lease.ExpiresAt).Seconds()
+		if rem > 0 {
+			expiresInSeconds = int64(rem)
 		}
-		g.mu.Unlock()
+	}
+	g.mu.Unlock()
+
+	userMap := map[string]any{"username": s.User, "role": s.Role}
+	if u, err := g.authStore.GetUser(s.User); err == nil && u != nil {
+		userMap["email"] = u.Email
+		userMap["affCode"] = u.AffCode
 	}
 
 	writeJSON(w, map[string]any{
-		"loggedIn":   true,
-		"user":       map[string]any{"username": s.User, "role": s.Role},
-		"boxId":      boxID,
-		"cliRunning": envRunning, // 保持向后兼容前端 dash.js
-		"guiRunning": guiRunning,
-		"envRunning": envRunning,
-		"ttlMinutes": ttlMinutes,
-		"expiresIn":  expiresInSeconds,
-		"broadcast":  g.broadcast,
+		"loggedIn":           true,
+		"user":               userMap,
+		"boxId":              boxID,
+		"cliRunning":         envRunning, // 保持向后兼容前端 dash.js
+		"guiRunning":         guiRunning,
+		"envRunning":         envRunning,
+		"ttlMinutes":         ttlMinutes,
+		"idleTimeoutMinutes": idleTimeout,
+		"expiresIn":          expiresInSeconds,
+		"broadcast":          broadcast,
 	})
 }
 
@@ -225,6 +311,7 @@ func (g *Gateway) apiCliToggle(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	g.touchBoxActivity(allocatedBox.ID)
 	_, guiRunning := g.boxes.DetailedStatus(ctx, allocatedBox)
 	writeJSON(w, map[string]any{"success": true, "envRunning": true, "cliRunning": true, "guiRunning": guiRunning})
 }
@@ -275,6 +362,7 @@ func (g *Gateway) apiGuiToggle(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	g.touchBoxActivity(allocatedBox.ID)
 	writeJSON(w, map[string]any{"success": true, "envRunning": true, "cliRunning": true, "guiRunning": true})
 }
 
@@ -328,8 +416,8 @@ func (g *Gateway) apiEnvDestroy(w http.ResponseWriter, r *http.Request) {
 
 	g.mu.Lock()
 	delete(g.userLeases, s.User)
+	delete(g.boxActivity, b.ID)
 	g.mu.Unlock()
-	_ = g.authStore.DeleteBoxLease(s.User)
 
 	writeJSON(w, map[string]any{"success": true, "cliRunning": false, "guiRunning": false, "envRunning": false})
 }
@@ -381,9 +469,14 @@ func (g *Gateway) apiAdminMetrics(w http.ResponseWriter, r *http.Request) {
 	memUsed, memTotal := getMemUsageGB()
 	diskUsed, diskTotal := getDiskUsageGB("/var/lib/attackbox")
 
+	g.mu.Lock()
+	boxesSnapshot := make([]config.Box, len(g.cfg.Boxes))
+	copy(boxesSnapshot, g.cfg.Boxes)
+	g.mu.Unlock()
+
 	runningCount := 0
-	for i := range g.cfg.Boxes {
-		if g.boxes.Status(r.Context(), &g.cfg.Boxes[i]).Running() {
+	for i := range boxesSnapshot {
+		if g.boxes.Status(r.Context(), &boxesSnapshot[i]).Running() {
 			runningCount++
 		}
 	}
@@ -410,6 +503,13 @@ func (g *Gateway) apiAdminListUsers(w http.ResponseWriter, r *http.Request) {
 }
 
 func (g *Gateway) apiAdminCreateUser(w http.ResponseWriter, r *http.Request) {
+	s := g.lookup(r)
+	adminUser := "admin"
+	if s != nil {
+		adminUser = s.User
+	}
+	clientIP := g.getClientIP(r)
+
 	var req struct {
 		Username string `json:"username"`
 		Password string `json:"password"`
@@ -436,10 +536,18 @@ func (g *Gateway) apiAdminCreateUser(w http.ResponseWriter, r *http.Request) {
 		}
 		return
 	}
+	g.recordAudit("USER_CREATED", adminUser, req.Username, clientIP, fmt.Sprintf("管理员创建账号 (角色: %s)", req.Role))
 	writeJSON(w, map[string]any{"success": true})
 }
 
 func (g *Gateway) apiAdminToggleUser(w http.ResponseWriter, r *http.Request) {
+	s := g.lookup(r)
+	adminUser := "admin"
+	if s != nil {
+		adminUser = s.User
+	}
+	clientIP := g.getClientIP(r)
+
 	var req struct {
 		Username string `json:"username"`
 	}
@@ -455,7 +563,6 @@ func (g *Gateway) apiAdminToggleUser(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// 杜绝自锁与失去最后一个活跃管理员
-	s := g.lookup(r)
 	if s != nil && s.User == req.Username && targetUser.Active {
 		writeJSON(w, map[string]any{"success": false, "error": "禁止操作：无法禁用当前正在登录的管理员账号"})
 		return
@@ -476,13 +583,23 @@ func (g *Gateway) apiAdminToggleUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	// 若用户被置为禁用 (active == false)，立即将其连根拔起踢下线并销毁环境！
+	actionStr := "启用用户"
 	if !newActive {
+		actionStr = "禁用用户 (已级联终止沙箱与会话)"
 		g.evictUser(r.Context(), req.Username)
 	}
+	g.recordAudit("USER_TOGGLE", adminUser, req.Username, clientIP, actionStr)
 	writeJSON(w, map[string]any{"success": true})
 }
 
 func (g *Gateway) apiAdminResetPass(w http.ResponseWriter, r *http.Request) {
+	s := g.lookup(r)
+	adminUser := "admin"
+	if s != nil {
+		adminUser = s.User
+	}
+	clientIP := g.getClientIP(r)
+
 	var req struct {
 		Username string `json:"username"`
 		Password string `json:"password"`
@@ -507,10 +624,18 @@ func (g *Gateway) apiAdminResetPass(w http.ResponseWriter, r *http.Request) {
 	}
 	// 重置密码后强制让旧会话失效，要求使用新密码重新登录
 	g.evictUser(r.Context(), req.Username)
+	g.recordAudit("PASSWORD_RESET", adminUser, req.Username, clientIP, "管理员重置密码")
 	writeJSON(w, map[string]any{"success": true})
 }
 
 func (g *Gateway) apiAdminDeleteUser(w http.ResponseWriter, r *http.Request) {
+	s := g.lookup(r)
+	adminUser := "admin"
+	if s != nil {
+		adminUser = s.User
+	}
+	clientIP := g.getClientIP(r)
+
 	var req struct {
 		Username string `json:"username"`
 	}
@@ -519,7 +644,6 @@ func (g *Gateway) apiAdminDeleteUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	s := g.lookup(r)
 	if s != nil && s.User == req.Username {
 		writeJSON(w, map[string]any{"success": false, "error": "禁止操作：无法删除当前正在登录的管理员账号"})
 		return
@@ -548,10 +672,18 @@ func (g *Gateway) apiAdminDeleteUser(w http.ResponseWriter, r *http.Request) {
 	}
 	// 用户已被物理删除，立即踢出并释放其占据的靶场资源
 	g.evictUser(r.Context(), req.Username)
+	g.recordAudit("USER_DELETED", adminUser, req.Username, clientIP, "管理员删除用户")
 	writeJSON(w, map[string]any{"success": true})
 }
 
 func (g *Gateway) apiAdminBroadcast(w http.ResponseWriter, r *http.Request) {
+	s := g.lookup(r)
+	adminUser := "admin"
+	if s != nil {
+		adminUser = s.User
+	}
+	clientIP := g.getClientIP(r)
+
 	var req BroadcastConfig
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeJSON(w, map[string]any{"success": false, "error": "无效请求"})
@@ -560,6 +692,227 @@ func (g *Gateway) apiAdminBroadcast(w http.ResponseWriter, r *http.Request) {
 	g.mu.Lock()
 	g.broadcast = req
 	g.mu.Unlock()
+
+	_ = g.authStore.SetSetting("broadcast_enabled", strconv.FormatBool(req.Enabled))
+	_ = g.authStore.SetSetting("broadcast_message", req.Message)
+	g.recordAudit("BROADCAST_CHANGED", adminUser, "system", clientIP, fmt.Sprintf("管理员修改全员广播 (启用: %v)", req.Enabled))
+
+	writeJSON(w, map[string]any{"success": true})
+}
+
+// adminSandboxItem 管理员沙箱监控视图
+type adminSandboxItem struct {
+	BoxID           string    `json:"box_id"`
+	User            string    `json:"user"`
+	StartedAt       time.Time `json:"started_at"`
+	ExpiresAt       time.Time `json:"expires_at"`
+	TTLRemainingSec int64     `json:"ttl_remaining_sec"`
+	Running         bool      `json:"running"`
+	MainPID         int       `json:"main_pid"`
+}
+
+type sandboxSnapshot struct {
+	box       *config.Box
+	boxID     string
+	user      string
+	startedAt time.Time
+	expiresAt time.Time
+}
+
+func (g *Gateway) apiAdminListSandboxes(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	// 锁内仅做轻量级数据快照，微秒级释放全局锁，彻底杜绝 Status 阻塞全局鉴权 lookup
+	g.mu.Lock()
+	snaps := make([]sandboxSnapshot, 0, len(g.userLeases))
+	for username, lease := range g.userLeases {
+		snaps = append(snaps, sandboxSnapshot{
+			box:       g.cfg.BoxByID(lease.BoxID),
+			boxID:     lease.BoxID,
+			user:      username,
+			startedAt: lease.StartedAt,
+			expiresAt: lease.ExpiresAt,
+		})
+	}
+	g.mu.Unlock()
+
+	// 锁外执行外部系统调用与状态检测
+	list := make([]adminSandboxItem, 0, len(snaps))
+	for _, item := range snaps {
+		running := false
+		mainPID := 0
+		if item.box != nil {
+			st := g.boxes.Status(ctx, item.box)
+			running = st.Running()
+			mainPID = st.MainPID
+		}
+		rem := int64(time.Until(item.expiresAt).Seconds())
+		if rem < 0 {
+			rem = 0
+		}
+		list = append(list, adminSandboxItem{
+			BoxID:           item.boxID,
+			User:            item.user,
+			StartedAt:       item.startedAt,
+			ExpiresAt:       item.expiresAt,
+			TTLRemainingSec: rem,
+			Running:         running,
+			MainPID:         mainPID,
+		})
+	}
+	writeJSON(w, list)
+}
+
+func (g *Gateway) apiAdminReleaseSandbox(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		User  string `json:"user"`
+		BoxID string `json:"box_id"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeJSON(w, map[string]any{"success": false, "error": "无效请求"})
+		return
+	}
+
+	s := g.lookup(r)
+	adminUser := "admin"
+	if s != nil {
+		adminUser = s.User
+	}
+	clientIP := g.getClientIP(r)
+
+	g.mu.Lock()
+	var targetUser string
+	var targetBoxID string
+	var boxToKick *config.Box
+
+	if req.User != "" {
+		if lease, ok := g.userLeases[req.User]; ok {
+			targetUser = req.User
+			targetBoxID = lease.BoxID
+			boxToKick = g.cfg.BoxByID(lease.BoxID)
+			delete(g.userLeases, req.User)
+			delete(g.boxActivity, lease.BoxID)
+		}
+	} else if req.BoxID != "" {
+		for u, lease := range g.userLeases {
+			if lease.BoxID == req.BoxID {
+				targetUser = u
+				targetBoxID = req.BoxID
+				boxToKick = g.cfg.BoxByID(req.BoxID)
+				delete(g.userLeases, u)
+				delete(g.boxActivity, req.BoxID)
+				break
+			}
+		}
+	}
+	g.mu.Unlock()
+
+	if targetUser == "" && targetBoxID == "" {
+		writeJSON(w, map[string]any{"success": false, "error": "未找到运行中的沙箱或租约"})
+		return
+	}
+
+	if targetBoxID != "" {
+		g.closeBoxSessions(targetBoxID)
+	}
+	if boxToKick != nil {
+		_ = g.boxes.Kick(r.Context(), boxToKick)
+	}
+
+	g.recordAudit("SANDBOX_FORCE_RELEASED", adminUser, targetUser, clientIP, fmt.Sprintf("强制释放沙箱 box=%s 回收资源", targetBoxID))
+	writeJSON(w, map[string]any{"success": true})
+}
+
+func (g *Gateway) apiAdminListAudit(w http.ResponseWriter, r *http.Request) {
+	q := r.URL.Query()
+	limit := 50
+	offset := 0
+	if l, err := strconv.Atoi(q.Get("limit")); err == nil && l > 0 {
+		limit = l
+	}
+	if o, err := strconv.Atoi(q.Get("offset")); err == nil && o >= 0 {
+		offset = o
+	}
+	eventType := q.Get("event_type")
+	search := q.Get("search")
+
+	logs, total, err := g.authStore.ListAuditLogs(limit, offset, eventType, search)
+	if err != nil {
+		writeJSON(w, map[string]any{"success": false, "error": err.Error()})
+		return
+	}
+	if logs == nil {
+		logs = []auth.AuditLog{}
+	}
+
+	writeJSON(w, map[string]any{
+		"success": true,
+		"total":   total,
+		"items":   logs,
+	})
+}
+
+func (g *Gateway) apiAdminGetSettings(w http.ResponseWriter, r *http.Request) {
+	allowRegStr := g.authStore.GetSetting("allow_register", "true")
+	allowReg := (allowRegStr != "false")
+
+	g.mu.Lock()
+	maxSlots := g.cfg.MaxSlots
+	ttlMinutes := g.cfg.TTLMinutes
+	idleTimeout := g.cfg.IdleTimeoutMinutes
+	g.mu.Unlock()
+
+	writeJSON(w, map[string]any{
+		"maxSlots":           maxSlots,
+		"ttlMinutes":         ttlMinutes,
+		"idleTimeoutMinutes": idleTimeout,
+		"allowRegister":      allowReg,
+	})
+}
+
+func (g *Gateway) apiAdminUpdateSettings(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		MaxSlots           *int  `json:"maxSlots"`
+		TTLMinutes         *int  `json:"ttlMinutes"`
+		IdleTimeoutMinutes *int  `json:"idleTimeoutMinutes"`
+		AllowRegister      *bool `json:"allowRegister"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeJSON(w, map[string]any{"success": false, "error": "无效请求"})
+		return
+	}
+
+	s := g.lookup(r)
+	adminUser := "admin"
+	if s != nil {
+		adminUser = s.User
+	}
+	clientIP := g.getClientIP(r)
+
+	g.mu.Lock()
+	if req.MaxSlots != nil && *req.MaxSlots > 0 && *req.MaxSlots <= 100 {
+		g.cfg.MaxSlots = *req.MaxSlots
+		g.cfg.EnsureSlots(*req.MaxSlots)
+		_ = g.authStore.SetSetting("max_slots", strconv.Itoa(*req.MaxSlots))
+	}
+	if req.TTLMinutes != nil && *req.TTLMinutes > 0 && *req.TTLMinutes <= 1440 {
+		g.cfg.TTLMinutes = *req.TTLMinutes
+		_ = g.authStore.SetSetting("ttl_minutes", strconv.Itoa(*req.TTLMinutes))
+	}
+	if req.IdleTimeoutMinutes != nil && *req.IdleTimeoutMinutes > 0 && *req.IdleTimeoutMinutes <= 120 {
+		g.cfg.IdleTimeoutMinutes = *req.IdleTimeoutMinutes
+		_ = g.authStore.SetSetting("idle_timeout_minutes", strconv.Itoa(*req.IdleTimeoutMinutes))
+	}
+	if req.AllowRegister != nil {
+		val := "true"
+		if !*req.AllowRegister {
+			val = "false"
+		}
+		_ = g.authStore.SetSetting("allow_register", val)
+	}
+	g.mu.Unlock()
+
+	g.recordAudit("CONFIG_CHANGED", adminUser, "system", clientIP, "更新系统全局配置 (TTL/Slots/Register)")
 	writeJSON(w, map[string]any{"success": true})
 }
 
@@ -640,4 +993,64 @@ func getDiskUsageGB(path string) (float64, float64) {
 	totalGB := math.Round(total/(1024*1024*1024)*10) / 10
 	usedGB := math.Round(used/(1024*1024*1024)*10) / 10
 	return usedGB, totalGB
+}
+
+func (g *Gateway) apiUserChangePassword(w http.ResponseWriter, r *http.Request) {
+	s := g.lookup(r)
+	if s == nil {
+		writeJSON(w, map[string]any{"success": false, "error": "未授权访问"})
+		return
+	}
+	clientIP := g.getClientIP(r)
+
+	var req struct {
+		OldPassword string `json:"oldPassword"`
+		NewPassword string `json:"newPassword"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeJSON(w, map[string]any{"success": false, "error": "无效的请求格式"})
+		return
+	}
+
+	if len(req.NewPassword) < 6 {
+		writeJSON(w, map[string]any{"success": false, "error": "新密码长度至少6位"})
+		return
+	}
+
+	// 校验旧密码
+	_, err := g.authStore.Authenticate(s.User, req.OldPassword)
+	if err != nil {
+		writeJSON(w, map[string]any{"success": false, "error": "当前旧密码不正确"})
+		return
+	}
+
+	// 更新为新密码
+	if err := g.authStore.UpdatePassword(s.User, req.NewPassword); err != nil {
+		logSec("user change password error: %v", err)
+		writeJSON(w, map[string]any{"success": false, "error": "更新密码失败"})
+		return
+	}
+
+	// 改密后级联注销全部会话并回收环境，要求重新登录
+	g.evictUser(r.Context(), s.User)
+	g.recordAudit("PASSWORD_RESET", s.User, s.User, clientIP, "用户自主修改密码 (已级联注销全部会话)")
+
+	// 清除 Cookie
+	http.SetCookie(w, &http.Cookie{
+		Name:     "ab",
+		Value:    "",
+		Path:     "/",
+		MaxAge:   -1,
+		HttpOnly: true,
+		Secure:   true,
+	})
+
+	writeJSON(w, map[string]any{"success": true})
+}
+
+func (g *Gateway) apiPublicConfig(w http.ResponseWriter, r *http.Request) {
+	allowRegStr := g.authStore.GetSetting("allow_register", "true")
+	writeJSON(w, map[string]any{
+		"allowRegister": allowRegStr != "false",
+	})
 }

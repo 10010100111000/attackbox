@@ -7,5 +7,6 @@
   "maxSlots": 20,
   "sandboxUser": "box",
   "ttlMinutes": 120,
+  "idleTimeoutMinutes": 10,
   "trustProxy": false
 }
