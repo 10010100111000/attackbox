@@ -145,11 +145,19 @@ func TestMessagePackUnpack(t *testing.T) {
 	req := &CreateBoxReq{
 		SandboxID: "sbx_test_01",
 		UserID:    888,
-		Quotas: BoxResourceQuota{
-			CPUWeight:   100,
-			MemoryMaxMB: 2048,
-			PIDsMax:     512,
-			DiskLimitMB: 10240,
+		SlotIndex: 1,
+		Policy: SandboxPolicy{
+			Resources: BoxResourceQuota{
+				CPUWeight:   100,
+				MemoryMaxMB: 2048,
+				PIDsMax:     512,
+			},
+			Storage: BoxStoragePolicy{
+				TmpfsTmpSize: "512M",
+			},
+			Network: BoxNetworkPolicy{
+				EgressMode: "restricted",
+			},
 		},
 		Target: TargetSpec{
 			Enabled: true,
@@ -174,7 +182,7 @@ func TestMessagePackUnpack(t *testing.T) {
 	}
 
 	if unpacked.SandboxID != req.SandboxID || unpacked.UserID != req.UserID ||
-		unpacked.Quotas.MemoryMaxMB != 2048 || unpacked.Target.Image != req.Target.Image {
+		unpacked.Policy.Resources.MemoryMaxMB != 2048 || unpacked.Target.Image != req.Target.Image {
 		t.Errorf("unpacked mismatch: got %+v, want %+v", unpacked, req)
 	}
 }
