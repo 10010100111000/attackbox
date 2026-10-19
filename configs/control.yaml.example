@@ -1,0 +1,41 @@
+# AttackBox Control Hub 配置文件模板
+# 默认路径: /etc/attackbox/control.yaml (权限 0600)
+
+server:
+  listen_addr: "127.0.0.1:8080" # 若由 Nginx 反代，监听本地端口；独立运行时可直接监听 ":443"
+  cors_allowed_origins:
+    - "http://127.0.0.1"
+    - "http://localhost"
+    - "http://localhost:5173"
+
+database:
+  path: "/var/lib/attackbox/attackbox.db" # 自动开启 WAL 模式
+
+cluster:
+  cluster_secret: "CHANGEME_HIGH_ENTROPY_CLUSTER_SECRET_MIN_32_CHARS" # Worker 接入集群预共享密钥
+  heartbeat_timeout_sec: 10 # 连续未收到心跳超时断开时间 (秒)
+  reconcile_on_connect: true # 断线重连时是否对齐并清理孤儿沙箱
+
+auth:
+  ed25519_private_key: "" # 64 字节 Ed25519 私钥 (Hex 或 Base64 编码，若为空则启动时自动生成并留存)
+  jwt_expire_hours: 24   # 客户端 JWT 默认有效期 (小时)
+  ticket_ttl_sec: 60     # 数据通道 Ticket 有效期 (秒)
+
+templates:
+  dir: "/etc/attackbox/templates" # 靶标 YAML 模板目录
+
+# 第三方服务凭证 (静态隔离存储，绝不存入 SQLite)
+services:
+  resend:
+    api_key: ""
+    from_email: "noreply@example.com"
+  turnstile:
+    site_key: ""
+    secret_key: ""
+  oauth:
+    github:
+      client_id: ""
+      client_secret: ""
+    microsoft:
+      client_id: ""
+      client_secret: ""

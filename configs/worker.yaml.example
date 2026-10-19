@@ -1,0 +1,48 @@
+# AttackBox Sacrificial Worker 算力节点配置文件模板
+# 默认路径: /etc/attackbox/worker.yaml (权限 0600)
+
+node:
+  node_id: "worker-node-1" # 节点全局唯一标识
+  cluster_secret: "CHANGEME_HIGH_ENTROPY_CLUSTER_SECRET_MIN_32_CHARS" # 必须与 Control 一致
+  control_url: "ws://127.0.0.1:8080/api/agent/connect" # Control 反向长连接 WSS 地址
+  heartbeat_interval_sec: 3 # 遥测心跳上报周期 (秒)
+
+data_server:
+  listen_addr: ":8443" # 外部直连数据信道端口 (经 Cloudflare 或直连)
+  tls_enabled: false   # 开发调试可设为 false，生产开启 TLS (若前置 CF 边缘，配置 CF Origin 证书)
+  tls_cert: ""
+  tls_key: ""
+  ed25519_public_key: "" # 32 字节 Ed25519 验签公钥 (Hex 或 Base64 编码，需匹配 Control 私钥)
+
+runtime:
+  base_rootfs: "/var/lib/attackbox/base_rootfs" # 只读金盘根文件系统目录
+  instances_dir: "/var/lib/attackbox/instances" # 动态沙箱挂载工作目录
+  cgroup_root: "/sys/fs/cgroup/attackbox"       # Cgroups v2 树根路径
+  
+  # 容器资源限额 (全部可调，设为 0 表示不限制；支持针对特定靶场/VIP租户热覆盖)
+  limits:
+    pids_max: 512                      # 最大进程数 (防 Fork 炸弹)
+    memory_max_mb: 2048                # 物理内存上限 (MB)
+    memory_swap_max_mb: 0              # Swap 内存上限 (MB，0 为禁止使用 Swap 防宿主颠簸)
+    cpu_weight: 100                    # CPU 调度权重 (1-10000)
+    io_write_bytes_sec: 20971520       # 磁盘写带宽上限 (字节/秒，20971520=20MB/s；0 为不限速)
+    io_write_iops: 500                 # 磁盘写 IOPS 上限 (0 为不限制)
+
+  # 内存临时挂载设置 (吸收高频写，不占物理磁盘)
+  tmpfs:
+    tmp_size: "512M"                   # 沙箱内部 /tmp 内存上限
+    run_size: "256M"                   # 沙箱内部 /run 内存上限
+
+  # 宿主机全局物理磁盘防爆水位熔断
+  disk_guard:
+    enabled: true                      # 是否启用全局磁盘水位熔断保护
+    check_interval_sec: 3              # 磁盘水位探针检测周期 (秒)
+    min_free_space_mb: 5120            # 熔断阈值 (MB，宿主机剩余磁盘低于 5GB 自动切断拒接)
+    warn_free_space_mb: 10240          # 预警阈值 (MB，低于 10GB 上报警告心跳)
+
+network:
+  bridge_name: "br0"
+  bridge_ip: "10.200.0.1/16"
+  target_bridge: "docker0"
+  wan_interface: "eth0"
+  egress_allowed_ports: [53, 80, 443] # WAN 白名单出口端口

@@ -32,3 +32,4 @@ scratch_*.cjs
 frontend/node_modules/
 frontend/dist/
 
+backup
