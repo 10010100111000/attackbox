@@ -1,0 +1,37 @@
+server:
+  listen_addr: "127.0.0.1:18080"
+  cors_allowed_origins:
+    - "*"
+
+database:
+  path: "/var/lib/attackbox/attackbox.db"
+
+cluster:
+  cluster_secret: "attackbox_cluster_secret_change_me_in_prod!"
+  heartbeat_timeout_sec: 15
+  rpc_timeout_sec: 30
+
+auth:
+  ed25519_private_key: ""
+  jwt_expire_hours: 24
+  ticket_ttl_sec: 60
+
+sandbox:
+  resources:
+    memory_max_mb: 2048
+    memory_swap_max_mb: 0
+    pids_max: 512
+    cpu_weight: 100
+    io_write_bytes_sec: 20971520 # 20MB/s
+    io_write_iops: 500
+  storage:
+    tmp_size: "512M"
+    run_size: "256M"
+  network:
+    subnet_cidr: "10.200.0.0/16"
+    gateway_ip: "10.200.0.1"
+    default_egress_mode: "restricted"
+    allowed_egress_ports:
+      - 53
+      - 80
+      - 443

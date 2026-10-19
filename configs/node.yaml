@@ -1,0 +1,19 @@
+node:
+  node_id: "node-primary"
+  cluster_secret: "attackbox_cluster_secret_change_me_in_prod!"
+  control_url: "ws://127.0.0.1:18080/api/agent/connect"
+  heartbeat_interval_sec: 3
+
+gateway:
+  listen_addr: "0.0.0.0:8443"
+  tls_enabled: false
+
+runtime:
+  base_rootfs: "/var/lib/attackbox/base_rootfs"
+  instances_dir: "/var/lib/attackbox/instances"
+  cgroup_root: "/sys/fs/cgroup/attackbox"
+  disk_guard:
+    enabled: true
+    check_interval_sec: 3
+    min_free_space_mb: 5120
+    warn_free_space_mb: 10240
