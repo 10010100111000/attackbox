@@ -84,6 +84,24 @@ PTY 使用宿主可信进入程序，在进入沙箱前锁定执行线程、删�
 - 生产必须配置独立集群身份、持久化签名密钥和可信 TLS/public_data_url；示例账号、密码、密钥不得作为生产凭据。
 - 本轮控制协议增加了启动身份、资源版本和创建期限，Control 与 Worker 应使用同版本部署。
 
+## 代码导航
+
+保留 `control/`、`node/`、`node/runtime/` 和 `protocol/` 的包边界，文件按接口或操作命名。同包内共享同一份管理器和记录，拆文件不增加状态副本。
+
+| 阅读目标 | 入口文件 |
+| --- | --- |
+| 加载 Control / Worker 配置 | `control/load_config.go`、`node/load_config.go` |
+| 查看 HTTP 路由与中间件 | `control/http_server.go`、`control/http_middleware.go` |
+| 查看注册、登录与用户接口 | `control/api_auth.go` |
+| 查看沙箱 HTTP 接口 | `control/api_sandbox.go` |
+| 跟踪创建、停止与心跳收敛 | `control/schedule_sandbox.go`、`control/terminate_sandbox.go`、`control/sync_worker_state.go` |
+| 查看节点状态、接入和 RPC | `control/node_cluster_manager.go`、`control/handle_worker_connection.go`、`control/node_cluster_rpc.go` |
+| 查看 Worker 反向连接、命令处理 | `node/connect_control.go`、`node/handle_control_commands.go` |
+| 查看终端接入、PTY 与连接抢占 | `node/container_gateway_server.go`、`node/open_terminal.go`、`node/manage_terminal_sessions.go` |
+| 查看实例记录与只读快照 | `node/runtime/manage_sandboxes.go` |
+| 查看创建、销毁、超时与重启清理 | `node/runtime/create_sandbox.go`、`destroy_sandbox.go`、`reap_sandboxes.go`、`clean_residual_sandboxes.go` |
+| 查看金盘构建与脱敏 | `node/runtime/build_golden_image.go`、`node/runtime/sanitize_golden_image.go` |
+
 ## 验证
 
 ```sh

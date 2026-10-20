@@ -1,12 +1,11 @@
 package control
 
 import (
-	"context"
+	"attackbox/protocol"
 	"crypto/ed25519"
-	"crypto/subtle"
 	"encoding/hex"
 	"errors"
-	"fmt"
+	"github.com/gorilla/websocket"
 	"log"
 	"net"
 	"net/http"
@@ -15,10 +14,6 @@ import (
 	"strings"
 	"sync"
 	"time"
-
-	"github.com/gorilla/websocket"
-
-	"attackbox/protocol"
 )
 
 var (
@@ -119,23 +114,13 @@ func (w *WorkerNode) Generation() string {
 	defer w.stateMu.RUnlock()
 	return w.BootID
 }
+
 func (w *WorkerNode) IsReady() bool { w.stateMu.RLock(); defer w.stateMu.RUnlock(); return w.Ready }
 
 func (w *WorkerNode) GetSchedulingSnapshot() (state protocol.NodeState, lastHB time.Time, activeSandboxes int, dataPort int) {
 	w.stateMu.RLock()
 	defer w.stateMu.RUnlock()
 	return w.State, w.LastHeartbeat, w.ActiveSandboxes, w.DataPort
-}
-
-func (w *WorkerNode) Send(msg *protocol.Message) error {
-	data, err := protocol.PackMessage(msg)
-	if err != nil {
-		return err
-	}
-	w.connMu.Lock()
-	defer w.connMu.Unlock()
-	_ = w.conn.SetWriteDeadline(time.Now().Add(5 * time.Second))
-	return w.conn.WriteMessage(websocket.TextMessage, data)
 }
 
 // NodeClusterManager manages active worker WebSocket connections and coordinates RPC dispatching.
@@ -245,75 +230,6 @@ func (h *NodeClusterManager) SetPublicKey(pubKey ed25519.PublicKey) {
 	h.pubKeyHex = hex.EncodeToString(pubKey)
 }
 
-// HandleAgentConnect handles reverse WebSocket connection handshakes from Worker agents.
-func (h *NodeClusterManager) HandleAgentConnect(w http.ResponseWriter, r *http.Request) {
-	// 1. Authenticate cluster_secret in constant time to prevent Timing Attacks
-	authHeader := r.Header.Get("Authorization")
-	secret := strings.TrimPrefix(authHeader, "Bearer ")
-	if secret == "" {
-		secret = r.URL.Query().Get("secret")
-	}
-
-	if subtle.ConstantTimeCompare([]byte(secret), []byte(h.clusterSecret)) != 1 {
-		http.Error(w, "invalid cluster secret", http.StatusUnauthorized)
-		return
-	}
-
-	nodeID := r.Header.Get("X-Node-ID")
-	if nodeID == "" {
-		nodeID = r.URL.Query().Get("node_id")
-	}
-	if nodeID == "" {
-		http.Error(w, "missing node ID", http.StatusBadRequest)
-		return
-	}
-
-	// Extract remote IP
-	remoteIP, _, _ := net.SplitHostPort(r.RemoteAddr)
-	if fwd := r.Header.Get("X-Forwarded-For"); fwd != "" {
-		remoteIP = strings.Split(fwd, ",")[0]
-	}
-
-	conn, err := h.upgrader.Upgrade(w, r, nil)
-	if err != nil {
-		log.Printf("[CLUSTER] WebSocket upgrade failed: %v", err)
-		return
-	}
-	conn.SetReadLimit(protocol.MaxWebSocketMessageSize)
-
-	node := &WorkerNode{
-		NodeID:        nodeID,
-		RemoteIP:      remoteIP,
-		DataPort:      8443,
-		State:         protocol.NodeStateOnline,
-		LastHeartbeat: time.Now(),
-		conn:          conn,
-		pendingRPC:    make(map[string]chan *protocol.Message),
-	}
-
-	h.registerWorker(node)
-	defer h.unregisterWorker(node)
-	defer conn.Close()
-
-	log.Printf("[CLUSTER] Node %s connected from %s", nodeID, remoteIP)
-
-	// Inbound message loop
-	for {
-		_, raw, err := conn.ReadMessage()
-		if err != nil {
-			log.Printf("[CLUSTER] Node %s disconnected: %v", nodeID, err)
-			break
-		}
-
-		var msg protocol.Message
-		if err := protocol.UnpackMessage(raw, &msg); err != nil {
-			continue
-		}
-
-		h.handleWorkerMessage(node, &msg)
-	}
-}
-
 func (h *NodeClusterManager) registerWorker(w *WorkerNode) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
@@ -337,105 +253,6 @@ func (h *NodeClusterManager) unregisterWorker(w *WorkerNode) {
 	if current, exists := h.workers[w.NodeID]; exists && current == w {
 		delete(h.workers, w.NodeID)
 		log.Printf("[CLUSTER] Node %s unregistered (session terminated)", w.NodeID)
-	}
-}
-
-func (h *NodeClusterManager) handleWorkerMessage(node *WorkerNode, msg *protocol.Message) {
-	h.mu.RLock()
-	current := h.workers[node.NodeID] == node
-	h.mu.RUnlock()
-	if !current {
-		return
-	}
-
-	// Check if this message is a response to a pending RPC
-	node.pendingMu.Lock()
-	ch, isResponse := node.pendingRPC[msg.ID]
-	if isResponse {
-		delete(node.pendingRPC, msg.ID)
-		node.pendingMu.Unlock()
-		select {
-		case ch <- msg:
-		default:
-		}
-		return
-	}
-	node.pendingMu.Unlock()
-
-	// Handle spontaneous worker messages (Register, Heartbeat)
-	switch msg.Type {
-	case protocol.MsgTypeRegister:
-		var reg protocol.RegisterReq
-		if err := msg.UnpackPayload(&reg); err == nil {
-			if reg.BootID == "" {
-				_ = node.conn.Close()
-				return
-			}
-			h.mu.Lock()
-			if h.workers[node.NodeID] != node {
-				h.mu.Unlock()
-				return
-			}
-			previous := h.clocks[node.NodeID]
-			node.UpdateRegister(reg)
-			node.stateMu.Lock()
-			if previous.BootID == reg.BootID {
-				node.LastSeq = previous.Seq
-				node.InventoryRevision = previous.Revision
-			}
-			node.stateMu.Unlock()
-			h.mu.Unlock()
-			// Send RegisterAck with distributed Control Hub Ed25519 public key
-			h.mu.RLock()
-			pk := h.pubKeyHex
-			h.mu.RUnlock()
-			ack, _ := protocol.NewMessage(protocol.MsgTypeRegisterAck, protocol.RegisterResp{
-				Success:   true,
-				NodeID:    node.NodeID,
-				PublicKey: pk,
-			})
-			_ = node.Send(ack)
-			log.Printf("[CLUSTER] Registered Node %s (CPUs: %d, DataPort: %d)", node.NodeID, reg.Capabilities.CPUCores, reg.DataPort)
-		}
-
-	case protocol.MsgTypeHeartbeat:
-		var hb protocol.HeartbeatReq
-		if err := msg.UnpackPayload(&hb); err == nil {
-			accepted := node.UpdateHeartbeat(hb)
-			if !accepted {
-				return
-			}
-
-			h.mu.Lock()
-			if h.workers[node.NodeID] != node {
-				h.mu.Unlock()
-				return
-			}
-			h.clocks[node.NodeID] = inventoryClock{BootID: hb.BootID, Seq: hb.Seq, Revision: hb.InventoryRevision}
-			hbHandler := h.onHeartbeat
-			h.mu.Unlock()
-			if hbHandler != nil {
-				hbHandler(node.NodeID, hb)
-			}
-			ack, _ := protocol.NewMessage(protocol.MsgTypeHeartbeatAck, protocol.HeartbeatResp{Success: true})
-			_ = node.Send(ack)
-		}
-
-	case protocol.MsgTypeCreateBoxResp:
-		// P1-9: Late response from a CreateBox that timed out or was canceled on Control Hub.
-		// If Worker succeeded in creating the box after Control abandoned it, issue immediate reverse kill!
-		var resp protocol.CreateBoxResp
-		if err := msg.UnpackPayload(&resp); err == nil && resp.Success && resp.SandboxID != "" {
-			log.Printf("[CLUSTER] Received late/orphaned CreateBoxResp for %s from worker %s. Issuing reverse destroy!", resp.SandboxID, node.NodeID)
-			go func(workerID, sID string) {
-				ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
-				defer cancel()
-				_ = h.DestroyBox(ctx, workerID, protocol.DestroyBoxReq{
-					SandboxID: sID,
-					Reason:    "late_create_response_rollback",
-				})
-			}(node.NodeID, resp.SandboxID)
-		}
 	}
 }
 
@@ -488,134 +305,6 @@ func (h *NodeClusterManager) GetWorkerEndpoint(nodeID string) (remoteIP string, 
 	return w.RemoteIP, dataPort, true
 }
 
-// CreateBox dispatches a CreateBox RPC with fine-grained policy to the target worker.
-func (h *NodeClusterManager) CreateBox(ctx context.Context, nodeID string, req protocol.CreateBoxReq) (*protocol.CreateBoxResp, error) {
-	h.mu.RLock()
-	node, exists := h.workers[nodeID]
-	h.mu.RUnlock()
-	if !exists {
-		return nil, ErrWorkerNotFound
-	}
-	if !node.IsReady() || req.BootID != node.Generation() {
-		return nil, ErrWorkerNotFound
-	}
-
-	msg, err := protocol.NewMessage(protocol.MsgTypeCreateBox, req)
-	if err != nil {
-		return nil, err
-	}
-
-	respChan := make(chan *protocol.Message, 1)
-	node.pendingMu.Lock()
-	node.pendingRPC[msg.ID] = respChan
-	node.pendingMu.Unlock()
-
-	if err := node.Send(msg); err != nil {
-		node.pendingMu.Lock()
-		delete(node.pendingRPC, msg.ID)
-		node.pendingMu.Unlock()
-		return nil, err
-	}
-
-	h.mu.RLock()
-	rpcTimeout := time.Duration(h.rpcTimeoutSec) * time.Second
-	h.mu.RUnlock()
-	if rpcTimeout <= 0 {
-		rpcTimeout = 30 * time.Second
-	}
-
-	select {
-	case <-ctx.Done():
-		node.pendingMu.Lock()
-		delete(node.pendingRPC, msg.ID)
-		node.pendingMu.Unlock()
-		return nil, ctx.Err()
-	case <-time.After(rpcTimeout):
-		node.pendingMu.Lock()
-		delete(node.pendingRPC, msg.ID)
-		node.pendingMu.Unlock()
-		return nil, ErrRPCTimeout
-	case respMsg := <-respChan:
-		var resp protocol.CreateBoxResp
-		if err := respMsg.UnpackPayload(&resp); err != nil {
-			return nil, fmt.Errorf("unpack response: %w", err)
-		}
-		if !resp.Success {
-			return &resp, errors.New(resp.Error)
-		}
-		if resp.SandboxID != req.SandboxID || resp.BootID != node.Generation() || resp.InventoryRevision == 0 || resp.ExpiresAt <= 0 {
-			return nil, errors.New("invalid worker create acknowledgement")
-		}
-		return &resp, nil
-	}
-}
-
-// DestroyBox dispatches a DestroyBox RPC to the worker and waits for confirmation.
-func (h *NodeClusterManager) DestroyBox(ctx context.Context, nodeID string, req protocol.DestroyBoxReq) error {
-	h.mu.RLock()
-	node, exists := h.workers[nodeID]
-	h.mu.RUnlock()
-	if !exists {
-		// P1-7: Return ErrWorkerNotFound when worker is not in pool.
-		// Never return nil on missing worker, which falsely signals destruction success.
-		return ErrWorkerNotFound
-	}
-	req.BootID = node.Generation()
-
-	msg, err := protocol.NewMessage(protocol.MsgTypeDestroyBox, req)
-	if err != nil {
-		return err
-	}
-
-	respChan := make(chan *protocol.Message, 1)
-	node.pendingMu.Lock()
-	node.pendingRPC[msg.ID] = respChan
-	node.pendingMu.Unlock()
-
-	if err := node.Send(msg); err != nil {
-		node.pendingMu.Lock()
-		delete(node.pendingRPC, msg.ID)
-		node.pendingMu.Unlock()
-		return err
-	}
-
-	// P1-7: Avoid zero-value integer truncation pitfall (e.g. rpc_timeout_sec: 1 -> /2 -> 0s -> time.After(0))
-	h.mu.RLock()
-	destroyTimeout := time.Duration(h.rpcTimeoutSec) * time.Second
-	h.mu.RUnlock()
-	if destroyTimeout <= 0 {
-		destroyTimeout = 15 * time.Second
-	}
-	if destroyTimeout < 1*time.Second {
-		destroyTimeout = 1 * time.Second
-	}
-
-	select {
-	case <-ctx.Done():
-		node.pendingMu.Lock()
-		delete(node.pendingRPC, msg.ID)
-		node.pendingMu.Unlock()
-		return ctx.Err()
-	case <-time.After(destroyTimeout):
-		node.pendingMu.Lock()
-		delete(node.pendingRPC, msg.ID)
-		node.pendingMu.Unlock()
-		return ErrRPCTimeout
-	case respMsg := <-respChan:
-		var resp protocol.DestroyBoxResp
-		if err := respMsg.UnpackPayload(&resp); err != nil {
-			return fmt.Errorf("unpack destroy response: %w", err)
-		}
-		if !resp.Success {
-			return errors.New(resp.Error)
-		}
-		if resp.SandboxID != req.SandboxID || resp.BootID != req.BootID {
-			return errors.New("invalid worker cleanup acknowledgement")
-		}
-		return nil
-	}
-}
-
 func (h *NodeClusterManager) SetInventoryReady(nodeID, bootID string, seq uint64, ready bool) {
 	h.mu.RLock()
 	defer h.mu.RUnlock()
@@ -639,6 +328,7 @@ func (h *NodeClusterManager) IsCurrentInventory(nodeID string, hb protocol.Heart
 	defer w.stateMu.RUnlock()
 	return w.BootID == hb.BootID && w.Telemetry.Seq == hb.Seq
 }
+
 func (h *NodeClusterManager) WorkerBootID(nodeID string) string {
 	h.mu.RLock()
 	defer h.mu.RUnlock()
