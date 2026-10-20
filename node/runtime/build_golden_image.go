@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"time"
 )
 
 // GoldenImageBuilder manages automated snapshotting and deep sanitization of the golden base rootfs.
@@ -23,41 +24,70 @@ func NewGoldenImageBuilder(targetDir string) *GoldenImageBuilder {
 	}
 }
 
-// EnsureGoldenImage validates that the golden base exists and is locked read-only.
-// If it does not exist, it executes the full derive-sanitize-lock pipeline from host '/'.
+// EnsureGoldenImage validates that the golden base exists, is complete, and is locked read-only.
+// If it does not exist or is incomplete/unlocked, it executes the full derive-sanitize-lock pipeline from host '/'
+// using an isolated temporary subvolume with atomic promotion.
 func (b *GoldenImageBuilder) EnsureGoldenImage() error {
-	if _, err := os.Stat(b.targetDir); err == nil {
-		// Image already exists; ensure read-only property is enforced
-		_ = b.lockImageReadOnly()
+	if b.isGoldenImageHealthy(b.targetDir) {
 		return nil
+	}
+
+	// If directory exists but failed health checks, clean it up
+	if _, err := os.Stat(b.targetDir); err == nil {
+		fmt.Printf("[WARN] Existing golden image at %s is corrupted, incomplete, or not read-only. Rebuilding...\n", b.targetDir)
+		_ = b.cleanupSubvolume(b.targetDir)
 	}
 
 	if err := os.MkdirAll(filepath.Dir(b.targetDir), 0755); err != nil {
 		return fmt.Errorf("create golden image parent dir: %w", err)
 	}
 
-	// 1. Take snapshot of host root '/'
-	if err := b.SnapshotHostRoot(); err != nil {
-		return fmt.Errorf("snapshot host root: %w", err)
+	tmpTarget := fmt.Sprintf("%s.building.%d", b.targetDir, time.Now().UnixNano())
+
+	// 1. Take snapshot of host root '/' into isolated temporary subvolume
+	cmd := exec.Command("btrfs", "subvolume", "snapshot", "/", tmpTarget)
+	if out, err := cmd.CombinedOutput(); err != nil {
+		return fmt.Errorf("btrfs snapshot / to %s failed: %s (%w)", tmpTarget, strings.TrimSpace(string(out)), err)
 	}
 
 	// 2. Unlock as writable temporarily for in-place sanitization
-	if err := b.unlockImageWritable(); err != nil {
-		_ = b.cleanupFailedImage()
-		return fmt.Errorf("unlock golden image: %w", err)
+	if err := setSubvolumeReadOnly(tmpTarget, false); err != nil {
+		_ = b.cleanupSubvolume(tmpTarget)
+		return fmt.Errorf("unlock building golden image: %w", err)
 	}
 
-	// 3. Deep sanitize rootfs (shadow, passwd, ssh, logs, sudoers, default user)
-	if err := b.SanitizeRootfs(); err != nil {
-		_ = b.cleanupFailedImage()
+	// 3. Deep sanitize rootfs (configs, secrets, credentials, users, shadow, passwd, logs)
+	if err := b.SanitizeRootfs(tmpTarget); err != nil {
+		_ = b.cleanupSubvolume(tmpTarget)
 		return fmt.Errorf("sanitize golden image: %w", err)
 	}
 
-	// 4. Lock image as physical read-only for tamper resistance
-	if err := b.lockImageReadOnly(); err != nil {
-		fmt.Printf("[WARN] Failed to lock golden image read-only: %v\n", err)
+	// 4. Write completion marker
+	markerPath := filepath.Join(tmpTarget, "etc/.attackbox_golden_ready")
+	if err := os.WriteFile(markerPath, []byte(time.Now().Format(time.RFC3339)), 0444); err != nil {
+		_ = b.cleanupSubvolume(tmpTarget)
+		return fmt.Errorf("write completion marker: %w", err)
 	}
 
+	// 5. Lock image as physical read-only for tamper resistance
+	if err := setSubvolumeReadOnly(tmpTarget, true); err != nil {
+		_ = b.cleanupSubvolume(tmpTarget)
+		return fmt.Errorf("lock golden image read-only: %w", err)
+	}
+
+	// 6. Verify read-only and integrity before atomic promotion
+	if !b.isGoldenImageHealthy(tmpTarget) {
+		_ = b.cleanupSubvolume(tmpTarget)
+		return fmt.Errorf("golden image health verification failed after build")
+	}
+
+	// 7. Atomic promotion via rename
+	if err := os.Rename(tmpTarget, b.targetDir); err != nil {
+		_ = b.cleanupSubvolume(tmpTarget)
+		return fmt.Errorf("atomic promote golden image to %s: %w", b.targetDir, err)
+	}
+
+	fmt.Printf("[INFO] Successfully built and atomically locked golden rootfs at %s\n", b.targetDir)
 	return nil
 }
 
@@ -70,42 +100,46 @@ func (b *GoldenImageBuilder) SnapshotHostRoot() error {
 	return nil
 }
 
-// SanitizeRootfs executes all data scrubbing steps on the target rootfs.
-func (b *GoldenImageBuilder) SanitizeRootfs() error {
-	validUsers, err := b.sanitizePasswdFile()
+// SanitizeRootfs executes all data scrubbing steps on the specified target rootfs directory.
+func (b *GoldenImageBuilder) SanitizeRootfs(rootDir string) error {
+	if rootDir == "" {
+		rootDir = b.targetDir
+	}
+
+	validUsers, err := b.sanitizePasswdFile(rootDir)
 	if err != nil {
 		return fmt.Errorf("sanitize passwd: %w", err)
 	}
 
-	if err := b.sanitizeShadowFile(validUsers); err != nil {
+	if err := b.sanitizeShadowFile(rootDir, validUsers); err != nil {
 		return fmt.Errorf("sanitize shadow: %w", err)
 	}
 
-	if err := b.configureGroupFile(); err != nil {
+	if err := b.configureGroupFile(rootDir); err != nil {
 		return fmt.Errorf("configure groups: %w", err)
 	}
 
-	if err := b.configureSudoersRule(); err != nil {
+	if err := b.configureSudoersRule(rootDir); err != nil {
 		return fmt.Errorf("configure sudoers: %w", err)
 	}
 
-	if err := b.purgeHostCredentials(); err != nil {
+	if err := b.purgeHostCredentials(rootDir); err != nil {
 		return fmt.Errorf("purge credentials: %w", err)
 	}
 
-	if err := b.purgeHistoryAndLogs(); err != nil {
+	if err := b.purgeHistoryAndLogs(rootDir); err != nil {
 		return fmt.Errorf("purge history and logs: %w", err)
 	}
 
-	b.ensureEssentialDirectories()
+	b.ensureEssentialDirectories(rootDir)
 
 	return nil
 }
 
 // sanitizePasswdFile removes host administrative users and ensures 'box' exists.
 // Returns the set of valid usernames retained in the passwd file.
-func (b *GoldenImageBuilder) sanitizePasswdFile() (map[string]bool, error) {
-	passwdPath := filepath.Join(b.targetDir, "etc/passwd")
+func (b *GoldenImageBuilder) sanitizePasswdFile(rootDir string) (map[string]bool, error) {
+	passwdPath := filepath.Join(rootDir, "etc/passwd")
 	f, err := os.Open(passwdPath)
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -165,8 +199,8 @@ func (b *GoldenImageBuilder) sanitizePasswdFile() (map[string]bool, error) {
 }
 
 // sanitizeShadowFile zeroes out all password hashes to '!' and strips removed host users.
-func (b *GoldenImageBuilder) sanitizeShadowFile(validUsers map[string]bool) error {
-	shadowPath := filepath.Join(b.targetDir, "etc/shadow")
+func (b *GoldenImageBuilder) sanitizeShadowFile(rootDir string, validUsers map[string]bool) error {
+	shadowPath := filepath.Join(rootDir, "etc/shadow")
 	f, err := os.Open(shadowPath)
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -218,8 +252,8 @@ func (b *GoldenImageBuilder) sanitizeShadowFile(validUsers map[string]bool) erro
 }
 
 // configureGroupFile aligns sudo and box groups for non-root privileges.
-func (b *GoldenImageBuilder) configureGroupFile() error {
-	groupPath := filepath.Join(b.targetDir, "etc/group")
+func (b *GoldenImageBuilder) configureGroupFile(rootDir string) error {
+	groupPath := filepath.Join(rootDir, "etc/group")
 	f, err := os.Open(groupPath)
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -257,8 +291,8 @@ func (b *GoldenImageBuilder) configureGroupFile() error {
 }
 
 // configureSudoersRule drops passwordless sudo permission for 'box' into /etc/sudoers.d/.
-func (b *GoldenImageBuilder) configureSudoersRule() error {
-	sudoersDir := filepath.Join(b.targetDir, "etc/sudoers.d")
+func (b *GoldenImageBuilder) configureSudoersRule(rootDir string) error {
+	sudoersDir := filepath.Join(rootDir, "etc/sudoers.d")
 	if err := os.MkdirAll(sudoersDir, 0755); err != nil {
 		return err
 	}
@@ -269,14 +303,53 @@ func (b *GoldenImageBuilder) configureSudoersRule() error {
 	return os.WriteFile(ruleFile, []byte(ruleContent), 0440)
 }
 
-// purgeHostCredentials wipes host ssh host keys, user keys, and VPN credentials.
-func (b *GoldenImageBuilder) purgeHostCredentials() error {
+// purgeHostCredentials wipes host configs, TLS private keys, SSH keys, VPN, cloud tokens, and cluster secrets.
+func (b *GoldenImageBuilder) purgeHostCredentials(rootDir string) error {
+	// 1. Explicit removal of AttackBox cluster secrets and data dirs
+	attackboxDirs := []string{
+		filepath.Join(rootDir, "etc/attackbox"),
+		filepath.Join(rootDir, "var/lib/attackbox"),
+		filepath.Join(rootDir, "etc/ssl/private"),
+		filepath.Join(rootDir, "etc/tls"),
+		filepath.Join(rootDir, "root/.ssh"),
+		filepath.Join(rootDir, "root/.aws"),
+		filepath.Join(rootDir, "root/.azure"),
+		filepath.Join(rootDir, "root/.config/gcloud"),
+		filepath.Join(rootDir, "root/.kube"),
+		filepath.Join(rootDir, "root/.docker"),
+		filepath.Join(rootDir, "var/run/secrets"),
+	}
+	for _, d := range attackboxDirs {
+		_ = os.RemoveAll(d)
+	}
+
+	// 2. Comprehensive pattern eradication for certificates, systemd units, tokens
 	purgePatterns := []string{
-		filepath.Join(b.targetDir, "etc/ssh/ssh_host_*"),
-		filepath.Join(b.targetDir, "root/.ssh/*"),
-		filepath.Join(b.targetDir, "home/*/.ssh/*"),
-		filepath.Join(b.targetDir, "etc/wireguard/*"),
-		filepath.Join(b.targetDir, "etc/openvpn/*"),
+		filepath.Join(rootDir, "etc/ssh/ssh_host_*"),
+		filepath.Join(rootDir, "root/.ssh/*"),
+		filepath.Join(rootDir, "home/*/.ssh"),
+		filepath.Join(rootDir, "home/*/.ssh/*"),
+		filepath.Join(rootDir, "home/*/.aws"),
+		filepath.Join(rootDir, "home/*/.azure"),
+		filepath.Join(rootDir, "home/*/.config/gcloud"),
+		filepath.Join(rootDir, "home/*/.kube"),
+		filepath.Join(rootDir, "home/*/.docker"),
+		filepath.Join(rootDir, "home/*/.netrc"),
+		filepath.Join(rootDir, "root/.netrc"),
+		filepath.Join(rootDir, "etc/wireguard/*"),
+		filepath.Join(rootDir, "etc/openvpn/*"),
+		filepath.Join(rootDir, "etc/ipsec*"),
+		filepath.Join(rootDir, "etc/strongswan*"),
+		filepath.Join(rootDir, "etc/ssl/certs/*node*"),
+		filepath.Join(rootDir, "etc/ssl/certs/*cluster*"),
+		filepath.Join(rootDir, "etc/systemd/system/attackbox*"),
+		filepath.Join(rootDir, "etc/default/attackbox*"),
+		filepath.Join(rootDir, "etc/shadow-"),
+		filepath.Join(rootDir, "etc/gshadow-"),
+		filepath.Join(rootDir, "etc/passwd-"),
+		filepath.Join(rootDir, "etc/group-"),
+		filepath.Join(rootDir, "etc/subuid-"),
+		filepath.Join(rootDir, "etc/subgid-"),
 	}
 
 	for _, pattern := range purgePatterns {
@@ -291,14 +364,14 @@ func (b *GoldenImageBuilder) purgeHostCredentials() error {
 }
 
 // purgeHistoryAndLogs clears bash history files and logs.
-func (b *GoldenImageBuilder) purgeHistoryAndLogs() error {
+func (b *GoldenImageBuilder) purgeHistoryAndLogs(rootDir string) error {
 	purgePatterns := []string{
-		filepath.Join(b.targetDir, "root/.bash_history"),
-		filepath.Join(b.targetDir, "home/*/.bash_history"),
-		filepath.Join(b.targetDir, "var/log/*"),
-		filepath.Join(b.targetDir, "tmp/*"),
-		filepath.Join(b.targetDir, "var/tmp/*"),
-		filepath.Join(b.targetDir, "var/run/*"),
+		filepath.Join(rootDir, "root/.bash_history"),
+		filepath.Join(rootDir, "home/*/.bash_history"),
+		filepath.Join(rootDir, "var/log/*"),
+		filepath.Join(rootDir, "tmp/*"),
+		filepath.Join(rootDir, "var/tmp/*"),
+		filepath.Join(rootDir, "var/run/*"),
 	}
 
 	for _, pattern := range purgePatterns {
@@ -313,43 +386,69 @@ func (b *GoldenImageBuilder) purgeHistoryAndLogs() error {
 }
 
 // ensureEssentialDirectories guarantees minimal Linux root structure and correct permissions.
-func (b *GoldenImageBuilder) ensureEssentialDirectories() {
+func (b *GoldenImageBuilder) ensureEssentialDirectories(rootDir string) {
 	dirs := []string{"proc", "sys", "dev", "tmp", "run", "etc", "home/box"}
 	for _, d := range dirs {
-		p := filepath.Join(b.targetDir, d)
+		p := filepath.Join(rootDir, d)
 		_ = os.MkdirAll(p, 0755)
 	}
-	_ = os.Chmod(filepath.Join(b.targetDir, "tmp"), 01777)
+	_ = os.Chmod(filepath.Join(rootDir, "tmp"), 01777)
 
 	// Set /home/box ownership to UID 1001, GID 1013
-	homeBox := filepath.Join(b.targetDir, "home/box")
+	homeBox := filepath.Join(rootDir, "home/box")
 	_ = os.Chown(homeBox, 1001, 1013)
 }
 
+func (b *GoldenImageBuilder) isGoldenImageHealthy(subvolPath string) bool {
+	if _, err := os.Stat(subvolPath); err != nil {
+		return false
+	}
 
+	// 1. Verify read-only property is strictly true
+	cmd := exec.Command("btrfs", "property", "get", subvolPath, "ro")
+	out, err := cmd.CombinedOutput()
+	if err != nil || !strings.Contains(string(out), "ro=true") {
+		return false
+	}
 
-func (b *GoldenImageBuilder) unlockImageWritable() error {
-	cmd := exec.Command("btrfs", "property", "set", b.targetDir, "ro", "false")
+	// 2. Verify completion marker exists
+	markerPath := filepath.Join(subvolPath, "etc/.attackbox_golden_ready")
+	if _, err := os.Stat(markerPath); err != nil {
+		return false
+	}
+
+	return true
+}
+
+func setSubvolumeReadOnly(subvolPath string, ro bool) error {
+	roVal := "false"
+	if ro {
+		roVal = "true"
+	}
+	cmd := exec.Command("btrfs", "property", "set", subvolPath, "ro", roVal)
 	out, err := cmd.CombinedOutput()
 	if err != nil {
-		return fmt.Errorf("btrfs set ro false: %s (%w)", strings.TrimSpace(string(out)), err)
+		return fmt.Errorf("btrfs set ro %s: %s (%w)", roVal, strings.TrimSpace(string(out)), err)
 	}
 	return nil
+}
+
+func (b *GoldenImageBuilder) cleanupSubvolume(subvolPath string) error {
+	cmd := exec.Command("btrfs", "subvolume", "delete", subvolPath)
+	_ = cmd.Run()
+	return os.RemoveAll(subvolPath)
+}
+
+func (b *GoldenImageBuilder) unlockImageWritable() error {
+	return setSubvolumeReadOnly(b.targetDir, false)
 }
 
 func (b *GoldenImageBuilder) lockImageReadOnly() error {
-	cmd := exec.Command("btrfs", "property", "set", b.targetDir, "ro", "true")
-	out, err := cmd.CombinedOutput()
-	if err != nil {
-		return fmt.Errorf("btrfs set ro true: %s (%w)", strings.TrimSpace(string(out)), err)
-	}
-	return nil
+	return setSubvolumeReadOnly(b.targetDir, true)
 }
 
 func (b *GoldenImageBuilder) cleanupFailedImage() error {
-	cmd := exec.Command("btrfs", "subvolume", "delete", b.targetDir)
-	_ = cmd.Run()
-	return os.RemoveAll(b.targetDir)
+	return b.cleanupSubvolume(b.targetDir)
 }
 
 func copyFile(src, dst string, perm os.FileMode) error {

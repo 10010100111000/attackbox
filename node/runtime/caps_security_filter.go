@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"runtime"
 	"strconv"
 	"strings"
 	"syscall"
@@ -170,13 +171,74 @@ func VerifyDangerousCapsDropped(pid int) error {
 	return nil
 }
 
+// VerifyCurrentThreadCapsDropped checks /proc/thread-self/status to ensure dangerous capabilities
+// are strictly stripped from the OS thread that is about to execute nsenter/exec.
+func VerifyCurrentThreadCapsDropped() error {
+	statusPath := "/proc/thread-self/status"
+	f, err := os.Open(statusPath)
+	if err != nil {
+		statusPath = "/proc/self/status"
+		f, err = os.Open(statusPath)
+		if err != nil {
+			return fmt.Errorf("open %s: %w", statusPath, err)
+		}
+	}
+	defer f.Close()
+
+	scanner := bufio.NewScanner(f)
+	var capPrm, capEff, capBnd uint64
+	for scanner.Scan() {
+		line := scanner.Text()
+		if strings.HasPrefix(line, "CapPrm:") {
+			fields := strings.Fields(line)
+			if len(fields) >= 2 {
+				capPrm, _ = strconv.ParseUint(fields[1], 16, 64)
+			}
+		} else if strings.HasPrefix(line, "CapEff:") {
+			fields := strings.Fields(line)
+			if len(fields) >= 2 {
+				capEff, _ = strconv.ParseUint(fields[1], 16, 64)
+			}
+		} else if strings.HasPrefix(line, "CapBnd:") {
+			fields := strings.Fields(line)
+			if len(fields) >= 2 {
+				capBnd, _ = strconv.ParseUint(fields[1], 16, 64)
+			}
+		}
+	}
+
+	for _, bit := range []int{CapSysModule, CapSysRawIO, CapSysBoot, CapMknod} {
+		mask := uint64(1) << bit
+		if (capEff & mask) != 0 {
+			return fmt.Errorf("thread CapEff still retains dangerous capability %d (0x%x)", bit, capEff)
+		}
+		if (capPrm & mask) != 0 {
+			return fmt.Errorf("thread CapPrm still retains dangerous capability %d (0x%x)", bit, capPrm)
+		}
+		if (capBnd & mask) != 0 {
+			return fmt.Errorf("thread CapBnd still retains dangerous capability %d (0x%x)", bit, capBnd)
+		}
+	}
+
+	return nil
+}
+
 // ExecEnterTarget executes on the host as host root. It permanently strips dangerous capabilities
 // (CAP_SYS_BOOT, CAP_SYS_RAWIO, CAP_SYS_MODULE, CAP_MKNOD) from Effective, Permitted, and Bounding sets,
 // then invokes nsenter on the host to attach to targetPID's namespaces and switch to user 'box'.
 func ExecEnterTarget(targetPID int, targetArgs []string) error {
+	// 0. Strictly lock goroutine to the current OS thread until syscall.Exec
+	// This prevents Go M:N runtime scheduler drift between capability drop and exec in CGO environments.
+	runtime.LockOSThread()
+
 	// 1. Permanently drop dangerous capabilities from Capability Bounding Set and effective/permitted sets
 	if err := DropDangerousCapabilitiesAllThreads(); err != nil {
 		return fmt.Errorf("failed to drop capabilities on host: %w", err)
+	}
+
+	// 2. Fail-Closed: Verify that the current OS thread has genuinely had all dangerous caps stripped
+	if err := VerifyCurrentThreadCapsDropped(); err != nil {
+		return fmt.Errorf("capability strip verification failed on execution thread: %w", err)
 	}
 
 	// 2. Locate nsenter on host

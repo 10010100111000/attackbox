@@ -38,7 +38,6 @@ func EnsureHostNetwork(cfg NetworkConfig) error {
 		gatewayIP = "10.200.0.1"
 	}
 	bridgeCIDR := gatewayIP + "/16"
-	targetBridge := "docker0"
 
 	// 1. Enable IPv4 kernel forwarding
 	_ = os.WriteFile("/proc/sys/net/ipv4/ip_forward", []byte("1\n"), 0644)
@@ -67,19 +66,31 @@ func EnsureHostNetwork(cfg NetworkConfig) error {
 	}
 	portList := strings.Join(portStrs, ", ")
 
-	// 5. Construct nftables fail-closed isolation rules
+	// 5. Construct nftables fail-closed isolation rules:
+	// - input chain: Blocks sandboxes from accessing host control/SSH ports (allows only DNS and ping to gateway)
+	// - forward chain: Enforces strict inter-sandbox isolation and whitelisted internet egress
+	// - postrouting chain: Masquerades authorized egress to the external network
 	nftRules := fmt.Sprintf(`
 table inet attackbox {
+    chain input {
+        type filter hook input priority 0; policy accept;
+        ct state established,related accept
+
+        # Allow container to query host gateway DNS (53) and ping (icmp echo-request)
+        iifname "%s" udp dport 53 accept
+        iifname "%s" tcp dport 53 accept
+        iifname "%s" icmp type echo-request accept
+
+        # Reject all other inbound traffic from sandboxes to host control plane / services
+        iifname "%s" drop
+    }
+
     chain forward {
         type filter hook forward priority 0; policy drop;
         ct state established,related accept
 
         # Inter-sandbox isolation: reject any traffic between sandboxes
         iifname "%s" oifname "%s" drop
-
-        # Bidirectional containment: Sandbox <-> Target Bridge
-        iifname "%s" oifname "%s" accept
-        iifname "%s" oifname "%s" accept
 
         # Controlled Internet Egress: Allow sandbox to reach WAN only on whitelisted ports
         iifname "%s" oifname "%s" tcp dport { %s } accept
@@ -92,7 +103,7 @@ table inet attackbox {
         iifname "%s" oifname "%s" masquerade
     }
 }
-`, bridge, bridge, bridge, targetBridge, targetBridge, bridge, bridge, wanIF, portList, bridge, wanIF, bridge, wanIF)
+`, bridge, bridge, bridge, bridge, bridge, bridge, bridge, wanIF, portList, bridge, wanIF, bridge, wanIF)
 
 	cmd := exec.Command("nft", "-f", "-")
 	cmd.Stdin = bytes.NewReader([]byte(nftRules))
@@ -103,9 +114,34 @@ table inet attackbox {
 	return nil
 }
 
+// VethNameForSandbox generates deterministic, instance-bound veth device names <= 15 chars (Linux IFNAMSIZ).
+// Format: vh<slot>_<id8> (e.g. vh1_40f5569d, vh250_40f5569d).
+// This guarantees that even if a slot is reused, teardown of an earlier sandbox cannot delete
+// a newer sandbox's veth interface.
+func VethNameForSandbox(slotIndex int, sandboxID string) (vethHost, vethGuest string) {
+	cleanID := strings.TrimPrefix(sandboxID, "sbx_")
+	cleanID = strings.ReplaceAll(cleanID, "-", "")
+	if len(cleanID) > 8 {
+		cleanID = cleanID[:8]
+	} else if len(cleanID) == 0 {
+		cleanID = "00000000"
+	}
+
+	vethHost = fmt.Sprintf("vh%d_%s", slotIndex, cleanID)
+	vethGuest = fmt.Sprintf("vb%d_%s", slotIndex, cleanID)
+
+	if len(vethHost) > 15 {
+		vethHost = vethHost[:15]
+	}
+	if len(vethGuest) > 15 {
+		vethGuest = vethGuest[:15]
+	}
+	return vethHost, vethGuest
+}
+
 // SetupSandboxNetwork provisions an isolated veth pair, attaches to the bridge with port isolation,
 // and moves the guest interface into the sandbox's network namespace.
-func SetupSandboxNetwork(ctx context.Context, bridge string, slotIndex int, targetNetns string) (*SandboxNetwork, error) {
+func SetupSandboxNetwork(ctx context.Context, bridge string, slotIndex int, sandboxID string, targetNetns string) (*SandboxNetwork, error) {
 	if bridge == "" {
 		bridge = "br-attackbox"
 	}
@@ -120,11 +156,12 @@ func SetupSandboxNetwork(ctx context.Context, bridge string, slotIndex int, targ
 		return nil, fmt.Errorf("safety violation: targetNetns %s points to host root netns (%s), refusing to modify host routing", targetNetns, hostNetns)
 	}
 
-	vethHost := fmt.Sprintf("vh%d", slotIndex)
-	vethGuest := fmt.Sprintf("vb%d", slotIndex)
-	boxIP := fmt.Sprintf("10.200.0.%d/16", 10+slotIndex)
+	vethHost, vethGuest := VethNameForSandbox(slotIndex, sandboxID)
+	subnetOctet := (slotIndex - 1) / 240
+	hostOctet := 10 + ((slotIndex - 1) % 240)
+	boxIP := fmt.Sprintf("10.200.%d.%d/16", subnetOctet, hostOctet)
 
-	// Clean up any stale interfaces from previous crashes
+	// Clean up any stale interfaces for this specific instance
 	_ = exec.CommandContext(ctx, "ip", "link", "del", vethHost).Run()
 
 	// 1. Create veth pair (host peer and guest peer)
@@ -169,10 +206,13 @@ func SetupSandboxNetwork(ctx context.Context, bridge string, slotIndex int, targ
 }
 
 // TeardownSandboxNetwork deletes the host veth peer, automatically cleaning up the kernel veth pair.
-func TeardownSandboxNetwork(ctx context.Context, slotIndex int) error {
-	vethHost := fmt.Sprintf("vh%d", slotIndex)
-	cmd := exec.CommandContext(ctx, "ip", "link", "del", vethHost)
-	_ = cmd.Run()
+func TeardownSandboxNetwork(ctx context.Context, slotIndex int, sandboxID string) error {
+	vethHost, _ := VethNameForSandbox(slotIndex, sandboxID)
+	_ = exec.CommandContext(ctx, "ip", "link", "del", vethHost).Run()
+
+	// Clean legacy vh<slot> interface if present
+	legacyHost := fmt.Sprintf("vh%d", slotIndex)
+	_ = exec.CommandContext(ctx, "ip", "link", "del", legacyHost).Run()
 	return nil
 }
 

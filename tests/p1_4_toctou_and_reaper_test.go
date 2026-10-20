@@ -4,6 +4,9 @@ package tests
 
 import (
 	"bytes"
+	"context"
+	"crypto/ed25519"
+	"crypto/rand"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -257,6 +260,17 @@ func TestP1_4_Reaper_TTLAndIdleReclamation(t *testing.T) {
 				var req protocol.DestroyBoxReq
 				_ = json.Unmarshal(msg.Payload, &req)
 				destroyReasonChan <- req.Reason
+
+				// Worker confirms destruction completion before Control releases slot
+				respPayload, _ := json.Marshal(protocol.DestroyBoxResp{
+					SandboxID: req.SandboxID,
+					Success:   true,
+				})
+				_ = workerConn.WriteJSON(protocol.Message{
+					ID:      msg.ID,
+					Type:    protocol.MsgTypeDestroyBoxResp,
+					Payload: respPayload,
+				})
 			}
 		}
 	}()
@@ -330,4 +344,89 @@ func TestP1_4_Reaper_TTLAndIdleReclamation(t *testing.T) {
 	if newSlot != startResp.SlotIndex {
 		t.Logf("Slot reuse: allocated slot %d (originally slot %d)", newSlot, startResp.SlotIndex)
 	}
+}
+
+// TestP1_A_DestroyBoxFailureRetainsSlotAndSession verifies the P1-A security guarantee:
+// When Worker destruction fails, times out, or node is unreachable:
+// 1. Control MUST NOT delete session from memory (marks as cleanup_failed).
+// 2. Control MUST NOT release IP slot (retained to prevent IP/veth collision on reuse).
+// 3. New sandboxes cannot usurp the slot until worker successfully confirms cleanup.
+func TestP1_A_DestroyBoxFailureRetainsSlotAndSession(t *testing.T) {
+	pub, priv, err := ed25519.GenerateKey(rand.Reader)
+	if err != nil {
+		t.Fatalf("generate key: %v", err)
+	}
+
+	dbPath := filepath.Join(t.TempDir(), "p1_a_test.db")
+	db, err := control.NewDatabaseStore(dbPath)
+	if err != nil {
+		t.Fatalf("new db: %v", err)
+	}
+
+	slots := control.NewSlotAllocator(250)
+	sessions := control.NewSessionManager()
+	clusterMgr := control.NewNodeClusterManager("secret")
+	clusterMgr.SetPublicKey(pub)
+
+	cfg := &control.ControlConfig{}
+	cfg.SanitizeAndApplyDefaults()
+
+	ctrlHandler := control.NewControlHTTPServer(cfg, db, priv, pub, clusterMgr, slots, sessions)
+	ctrlSrv, ok := ctrlHandler.(*control.ControlHTTPServer)
+	if !ok {
+		t.Fatalf("handler type assertion to *control.ControlHTTPServer failed")
+	}
+
+	// 模拟已存在活跃沙箱，但其所在的 worker 处于断网/离线状态
+	sbxID := "sbx_p1_a_offline"
+	slotIndex, err := slots.Allocate(sbxID)
+	if err != nil {
+		t.Fatalf("allocate slot: %v", err)
+	}
+
+	sess := &control.ActiveSession{
+		SandboxID:    sbxID,
+		UserID:       2002,
+		WorkerNodeID: "worker-unreachable",
+		SlotIndex:    slotIndex,
+		SandboxIP:    "10.200.0.10",
+		State:        control.SessionStateRunning,
+		StartedAt:    time.Now(),
+		LastActiveAt: time.Now(),
+		ExpiresAt:    time.Now().Add(time.Hour),
+	}
+	sessions.Add(sess)
+
+	// 调用 TerminateSandbox，预期因 worker-unreachable 不存在而失败
+	_, termErr := ctrlSrv.TerminateSandbox(context.Background(), sbxID, "user_stop")
+	if termErr == nil {
+		t.Fatalf("expected TerminateSandbox to return error for unreachable worker, got nil")
+	}
+
+	// 验证 1: Session 必须依然存在于 SessionManager 中，且状态为 cleanup_failed
+	retained, exists := sessions.Get(sbxID)
+	if !exists {
+		t.Fatalf("[FATAL P1-A] Session was prematurely deleted from memory despite worker destroy failure!")
+	}
+	if retained.State != control.SessionStateCleanupFailed {
+		t.Errorf("expected session state cleanup_failed, got %s", retained.State)
+	}
+
+	// 验证 2: 槽位必须依然被该沙箱锁定，未被释放
+	heldSlot, held := slots.GetSlot(sbxID)
+	if !held || heldSlot != slotIndex {
+		t.Fatalf("[FATAL P1-A] Slot was released prematurely! Expected slot %d to remain assigned to %s, got held=%v, slot=%d", slotIndex, sbxID, held, heldSlot)
+	}
+
+	// 验证 3: 新沙箱分配时，绝不能分配到失败沙箱持有的槽位
+	challengerID := "sbx_challenger_p1_a"
+	challengerSlot, err := slots.Allocate(challengerID)
+	if err != nil {
+		t.Fatalf("allocate slot for challenger: %v", err)
+	}
+	if challengerSlot == slotIndex {
+		t.Fatalf("[FATAL P1-A] Slot conflict! Challenger got slot %d which is still locked by failed sandbox %s", challengerSlot, sbxID)
+	}
+
+	t.Logf("[PASS] P1-A verified: Session retained in state %s and slot %d locked upon destroy failure (challenger got separate slot %d)", retained.State, slotIndex, challengerSlot)
 }

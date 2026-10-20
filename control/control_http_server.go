@@ -2,6 +2,7 @@ package control
 
 import (
 	"bufio"
+	"bytes"
 	"context"
 	"crypto/ed25519"
 	"crypto/rand"
@@ -57,10 +58,6 @@ type ControlConfig struct {
 		TTLSeconds        int                       `yaml:"ttl_seconds"`
 		IdleSeconds       int                       `yaml:"idle_seconds"`
 		ReaperIntervalSec int                       `yaml:"reaper_interval_sec"`
-		Network           struct {
-			SubnetCIDR string `yaml:"subnet_cidr"`
-			GatewayIP  string `yaml:"gateway_ip"`
-		} `yaml:"network"`
 	} `yaml:"sandbox"`
 }
 
@@ -131,12 +128,6 @@ func (cfg *ControlConfig) SanitizeAndApplyDefaults() {
 	if cfg.Sandbox.ReaperIntervalSec <= 0 {
 		cfg.Sandbox.ReaperIntervalSec = 30 // 30 seconds scanning period
 	}
-	if cfg.Sandbox.Network.SubnetCIDR == "" {
-		cfg.Sandbox.Network.SubnetCIDR = protocol.DefaultSubnetCIDR
-	}
-	if cfg.Sandbox.Network.GatewayIP == "" {
-		cfg.Sandbox.Network.GatewayIP = protocol.DefaultGatewayIP
-	}
 }
 
 // LoadControlConfig reads YAML configuration or falls back to production defaults.
@@ -152,7 +143,9 @@ func LoadControlConfig(path string) (*ControlConfig, error) {
 		return nil, fmt.Errorf("read control config %s: %w", path, err)
 	}
 
-	if err := yaml.Unmarshal(data, cfg); err != nil {
+	decoder := yaml.NewDecoder(bytes.NewReader(data))
+	decoder.KnownFields(true)
+	if err := decoder.Decode(cfg); err != nil {
 		return nil, fmt.Errorf("unmarshal config yaml: %w", err)
 	}
 	cfg.SanitizeAndApplyDefaults()
@@ -319,12 +312,58 @@ func (a *SlotAllocator) Release(sandboxID string) int {
 	return slot
 }
 
+func (a *SlotAllocator) GetSlot(sandboxID string) (int, bool) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	slot, exists := a.idToSlot[sandboxID]
+	return slot, exists
+}
+
+// Occupy explicitly marks a specific slot as occupied by sandboxID (used for state reconciliation).
+func (a *SlotAllocator) Occupy(sandboxID string, slot int) error {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+
+	if curSlot, exists := a.idToSlot[sandboxID]; exists {
+		if curSlot == slot {
+			return nil
+		}
+		return fmt.Errorf("sandbox %s already occupies slot %d", sandboxID, curSlot)
+	}
+
+	if occupyingID, exists := a.slotToID[slot]; exists {
+		return fmt.Errorf("slot %d already occupied by %s", slot, occupyingID)
+	}
+
+	for i, s := range a.freeList {
+		if s == slot {
+			a.freeList = append(a.freeList[:i], a.freeList[i+1:]...)
+			break
+		}
+	}
+
+	a.slotToID[slot] = sandboxID
+	a.idToSlot[sandboxID] = slot
+	return nil
+}
+
+type SessionState string
+
+const (
+	SessionStateCreating      SessionState = "creating"
+	SessionStateRunning       SessionState = "running"
+	SessionStateTerminating   SessionState = "terminating"
+	SessionStateCleanupFailed SessionState = "cleanup_failed"
+	SessionStateTerminated    SessionState = "terminated"
+)
+
 type ActiveSession struct {
 	SandboxID    string                 `json:"sandbox_id"`
 	UserID       int64                  `json:"user_id"`
 	WorkerNodeID string                 `json:"worker_node_id"`
 	SlotIndex    int                    `json:"slot_index"`
 	SandboxIP    string                 `json:"sandbox_ip"`
+	State        SessionState           `json:"state"`
 	StartedAt    time.Time              `json:"started_at"`
 	LastActiveAt time.Time              `json:"last_active_at"`
 	ExpiresAt    time.Time              `json:"expires_at"`
@@ -347,15 +386,13 @@ func NewSessionManager() *SessionManager {
 }
 
 // TryReserve atomically checks if a user already has an active sandbox or a creation in-flight.
-// If available, it reserves the user slot and returns a release func (to rollback on failure) and true.
-// If the user already has an active sandbox or another creation is in-flight, it returns (nil, false).
 func (sm *SessionManager) TryReserve(userID int64) (release func(), ok bool) {
 	sm.mu.Lock()
 	defer sm.mu.Unlock()
 
 	// 1. Check if user already has an active sandbox
 	if sbxID, exists := sm.byUser[userID]; exists {
-		if _, active := sm.sessions[sbxID]; active {
+		if sess, active := sm.sessions[sbxID]; active && sess.State != SessionStateTerminated {
 			return nil, false
 		}
 		delete(sm.byUser, userID)
@@ -384,54 +421,74 @@ func (sm *SessionManager) Add(s *ActiveSession) {
 	sm.mu.Lock()
 	defer sm.mu.Unlock()
 	delete(sm.reserving, s.UserID)
-	sm.sessions[s.SandboxID] = s
+	cp := *s
+	sm.sessions[s.SandboxID] = &cp
 	sm.byUser[s.UserID] = s.SandboxID
 }
 
-func (sm *SessionManager) Touch(sandboxID string) {
+func (sm *SessionManager) SetState(sandboxID string, state SessionState) {
 	sm.mu.Lock()
 	defer sm.mu.Unlock()
 	if s, ok := sm.sessions[sandboxID]; ok {
-		s.LastActiveAt = time.Now()
+		s.State = state
 	}
 }
 
-func (sm *SessionManager) Get(sandboxID string) (*ActiveSession, bool) {
+func (sm *SessionManager) Touch(sandboxID string, t time.Time) {
+	sm.mu.Lock()
+	defer sm.mu.Unlock()
+	if s, ok := sm.sessions[sandboxID]; ok {
+		s.LastActiveAt = t
+	}
+}
+
+// Get returns a defensive value copy to eliminate pointer read-write data races.
+func (sm *SessionManager) Get(sandboxID string) (ActiveSession, bool) {
 	sm.mu.RLock()
 	defer sm.mu.RUnlock()
 	s, ok := sm.sessions[sandboxID]
-	return s, ok
+	if !ok {
+		return ActiveSession{}, false
+	}
+	return *s, true
 }
 
-func (sm *SessionManager) GetByUser(userID int64) (*ActiveSession, bool) {
+// GetByUser returns a defensive value copy to eliminate pointer read-write data races.
+func (sm *SessionManager) GetByUser(userID int64) (ActiveSession, bool) {
 	sm.mu.RLock()
 	defer sm.mu.RUnlock()
 	sbxID, ok := sm.byUser[userID]
 	if !ok {
-		return nil, false
+		return ActiveSession{}, false
 	}
 	s, ok := sm.sessions[sbxID]
-	return s, ok
+	if !ok {
+		return ActiveSession{}, false
+	}
+	return *s, true
 }
 
-func (sm *SessionManager) Remove(sandboxID string) *ActiveSession {
+func (sm *SessionManager) Remove(sandboxID string) (ActiveSession, bool) {
 	sm.mu.Lock()
 	defer sm.mu.Unlock()
 	s, ok := sm.sessions[sandboxID]
 	if ok {
+		cp := *s
 		delete(sm.sessions, sandboxID)
 		delete(sm.byUser, s.UserID)
 		delete(sm.reserving, s.UserID)
+		return cp, true
 	}
-	return s
+	return ActiveSession{}, false
 }
 
-func (sm *SessionManager) ListAll() []*ActiveSession {
+// ListAll returns a snapshot slice of session value copies.
+func (sm *SessionManager) ListAll() []ActiveSession {
 	sm.mu.RLock()
 	defer sm.mu.RUnlock()
-	res := make([]*ActiveSession, 0, len(sm.sessions))
+	res := make([]ActiveSession, 0, len(sm.sessions))
 	for _, s := range sm.sessions {
-		res = append(res, s)
+		res = append(res, *s)
 	}
 	return res
 }
@@ -508,6 +565,15 @@ type ControlHTTPServer struct {
 	slots      *SlotAllocator
 	sessions   *SessionManager
 	tokenCache *TokenVersionCache
+	handler    http.Handler
+}
+
+func (s *ControlHTTPServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	if s.handler != nil {
+		s.handler.ServeHTTP(w, r)
+	} else {
+		http.NotFound(w, r)
+	}
 }
 
 type StartSandboxReq struct{}
@@ -583,6 +649,62 @@ func NewControlHTTPServer(
 		tokenCache: NewTokenVersionCache(),
 	}
 
+	if db != nil {
+		db.SetTokenVersionInvalidatedHook(s.tokenCache.Invalidate)
+	}
+
+	if clusterMgr != nil {
+		clusterMgr.SetReconcileHandler(func(workerID string, sandboxes []protocol.SandboxReconcileInfo) protocol.ReconcileResp {
+			var resp protocol.ReconcileResp
+			resp.Success = true
+			resp.Adopted = make([]string, 0)
+			resp.Evicted = make([]string, 0)
+
+			for _, sbx := range sandboxes {
+				sess, exists := s.sessions.Get(sbx.SandboxID)
+				if !exists {
+					// P1-E: Control has no in-memory record (e.g. after Control restart/crash).
+					// Adopt the running sandbox back into control inventory.
+					if sbx.SlotIndex > 0 {
+						_ = s.slots.Occupy(sbx.SandboxID, sbx.SlotIndex)
+					}
+					startedAt := time.Now()
+					if sbx.StartedAt > 0 {
+						startedAt = time.Unix(sbx.StartedAt, 0)
+					}
+					ttlSec := s.cfg.Sandbox.TTLSeconds
+					if ttlSec <= 0 {
+						ttlSec = 7200
+					}
+					adoptedSess := &ActiveSession{
+						SandboxID:    sbx.SandboxID,
+						UserID:       sbx.UserID,
+						WorkerNodeID: workerID,
+						SlotIndex:    sbx.SlotIndex,
+						SandboxIP:    sbx.SandboxIP,
+						StartedAt:    startedAt,
+						LastActiveAt: time.Now(),
+						ExpiresAt:    startedAt.Add(time.Duration(ttlSec) * time.Second),
+						State:        SessionStateRunning,
+					}
+					s.sessions.Add(adoptedSess)
+					resp.Adopted = append(resp.Adopted, sbx.SandboxID)
+					log.Printf("[RECONCILE] Adopted existing sandbox %s (slot %d, user %d) from worker %s",
+						sbx.SandboxID, sbx.SlotIndex, sbx.UserID, workerID)
+				} else if sess.State == SessionStateCleanupFailed || sess.State == SessionStateTerminated {
+					// Control previously marked this sandbox for eviction or cleanup failed.
+					resp.Evicted = append(resp.Evicted, sbx.SandboxID)
+					log.Printf("[RECONCILE] Evicting orphaned sandbox %s from worker %s (state: %s)",
+						sbx.SandboxID, workerID, sess.State)
+				} else {
+					// Session exists and is healthy in Control
+					resp.Adopted = append(resp.Adopted, sbx.SandboxID)
+				}
+			}
+			return resp
+		})
+	}
+
 	// Bootstrap admin user if specified in config
 	if cfg.Auth.InitialAdminUsername != "" && cfg.Auth.InitialAdminPassword != "" && db != nil {
 		adminHash, err := HashPassword(cfg.Auth.InitialAdminPassword)
@@ -623,7 +745,8 @@ func NewControlHTTPServer(
 	handler = s.requestIDMiddleware(handler)
 	handler = s.recoveryMiddleware(handler)
 
-	return handler
+	s.handler = handler
+	return s
 }
 
 func (s *ControlHTTPServer) authMiddleware(next http.Handler) http.Handler {
@@ -947,8 +1070,8 @@ func (s *ControlHTTPServer) handleStartSandbox(w http.ResponseWriter, r *http.Re
 		return
 	}
 
-	// 1. Re-use existing sandbox if active
-	if existing, running := s.sessions.GetByUser(uid); running {
+	// 1. Re-use existing sandbox if active and healthy
+	if existing, running := s.sessions.GetByUser(uid); running && existing.State == SessionStateRunning {
 		freshTicket, err := s.issueTicket(uid, existing.SandboxID)
 		if err != nil {
 			writeError(w, http.StatusInternalServerError, "failed to issue session ticket for active sandbox: "+err.Error())
@@ -1017,16 +1140,19 @@ func (s *ControlHTTPServer) handleStartSandbox(w http.ResponseWriter, r *http.Re
 
 	resp, err := s.clusterMgr.CreateBox(r.Context(), worker.NodeID, createReq)
 	if err != nil {
-		s.slots.Release(sandboxID)
 		log.Printf("[CONTROL] Worker CreateBox failed or timed out: %v. Initiating compensating destroy for %s on %s", err, sandboxID, worker.NodeID)
-		// P1-9: Compensating destroy with independent context to clean up any slow or orphaned worker creation
+		// Compensating destroy with independent context; slot is released ONLY after worker confirms cleanup
 		go func(wID, sID string) {
 			cleanupCtx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 			defer cancel()
-			_ = s.clusterMgr.DestroyBox(cleanupCtx, wID, protocol.DestroyBoxReq{
+			if destroyErr := s.clusterMgr.DestroyBox(cleanupCtx, wID, protocol.DestroyBoxReq{
 				SandboxID: sID,
 				Reason:    "compensating_create_failure",
-			})
+			}); destroyErr == nil {
+				s.slots.Release(sID)
+			} else {
+				log.Printf("[CONTROL] Compensating destroy failed for %s on %s: %v, retaining slot lock", sID, wID, destroyErr)
+			}
 		}(worker.NodeID, sandboxID)
 
 		writeError(w, http.StatusInternalServerError, "worker failed to create sandbox: "+err.Error())
@@ -1035,14 +1161,17 @@ func (s *ControlHTTPServer) handleStartSandbox(w http.ResponseWriter, r *http.Re
 
 	ticket, err := s.issueTicket(uid, sandboxID)
 	if err != nil {
-		s.slots.Release(sandboxID)
 		go func(wID, sID string) {
 			cleanupCtx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 			defer cancel()
-			_ = s.clusterMgr.DestroyBox(cleanupCtx, wID, protocol.DestroyBoxReq{
+			if destroyErr := s.clusterMgr.DestroyBox(cleanupCtx, wID, protocol.DestroyBoxReq{
 				SandboxID: sID,
 				Reason:    "ticket_failed",
-			})
+			}); destroyErr == nil {
+				s.slots.Release(sID)
+			} else {
+				log.Printf("[CONTROL] Ticket failure destroy failed for %s on %s: %v, retaining slot lock", sID, wID, destroyErr)
+			}
 		}(worker.NodeID, sandboxID)
 		writeError(w, http.StatusInternalServerError, "failed to issue session ticket")
 		return
@@ -1057,6 +1186,7 @@ func (s *ControlHTTPServer) handleStartSandbox(w http.ResponseWriter, r *http.Re
 		WorkerNodeID: worker.NodeID,
 		SlotIndex:    slotIndex,
 		SandboxIP:    resp.SandboxIP,
+		State:        SessionStateRunning,
 		StartedAt:    now,
 		LastActiveAt: now,
 		ExpiresAt:    expiresAt,
@@ -1071,10 +1201,15 @@ func (s *ControlHTTPServer) handleStartSandbox(w http.ResponseWriter, r *http.Re
 		workerHost = strings.Split(r.Host, ":")[0]
 	}
 
+	workerURL, ok := s.clusterMgr.GetWorkerDataURL(worker.NodeID, workerHost)
+	if !ok || workerURL == "" {
+		workerURL = fmt.Sprintf("ws://%s:%d/ws/cli", workerHost, worker.DataPort)
+	}
+
 	writeJSON(w, http.StatusCreated, StartSandboxResp{
 		SandboxID: sandboxID,
 		WorkerID:  worker.NodeID,
-		WorkerURL: fmt.Sprintf("ws://%s:%d/ws/cli", workerHost, worker.DataPort),
+		WorkerURL: workerURL,
 		Ticket:    ticket,
 		ExpiresIn: s.cfg.Auth.TicketTTLSec,
 		SandboxIP: resp.SandboxIP,
@@ -1087,28 +1222,41 @@ func (s *ControlHTTPServer) handleStartSandbox(w http.ResponseWriter, r *http.Re
 
 // TerminateSandbox terminates a sandbox session, rolls back cluster resources,
 // releases IP slots, and records an audit log. Shared identically by user Stop and background Reaper.
-func (s *ControlHTTPServer) TerminateSandbox(ctx context.Context, sandboxID string, reason string) (*ActiveSession, error) {
-	session := s.sessions.Remove(sandboxID)
-	if session == nil {
-		return nil, errors.New("sandbox not found or already terminated")
+// State machine: Running -> Terminating -> Terminated (Success) or CleanupFailed (Retained for retry).
+func (s *ControlHTTPServer) TerminateSandbox(ctx context.Context, sandboxID string, reason string) (ActiveSession, error) {
+	session, exists := s.sessions.Get(sandboxID)
+	if !exists || session.State == SessionStateTerminated || session.State == SessionStateTerminating {
+		return ActiveSession{}, errors.New("sandbox not found or already terminating/terminated")
 	}
 
-	// 1. Release IP slot
-	s.slots.Release(session.SandboxID)
+	// 1. Mark state as Terminating without releasing slot yet
+	s.sessions.SetState(sandboxID, SessionStateTerminating)
 
 	// 2. Dispatch reverse DestroyBox to worker node
 	destroyCtx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
-	_ = s.clusterMgr.DestroyBox(destroyCtx, session.WorkerNodeID, protocol.DestroyBoxReq{
+	err := s.clusterMgr.DestroyBox(destroyCtx, session.WorkerNodeID, protocol.DestroyBoxReq{
 		SandboxID: session.SandboxID,
 		Reason:    reason,
 	})
 
-	// 3. Record audit log
+	if err != nil {
+		// Retain session and slot to prevent reused IP conflict or orphaned resources
+		s.sessions.SetState(sandboxID, SessionStateCleanupFailed)
+		log.Printf("[ERROR] Worker %s failed to destroy sandbox %s: %v (marked as cleanup_failed)", session.WorkerNodeID, sandboxID, err)
+		return session, fmt.Errorf("worker cleanup failed: %w", err)
+	}
+
+	// 3. Worker confirmed destruction: mark Terminated, release slot, and remove from active list
+	s.sessions.SetState(sandboxID, SessionStateTerminated)
+	s.slots.Release(session.SandboxID)
+	removedSession, _ := s.sessions.Remove(session.SandboxID)
+
+	// 4. Record audit log
 	durationSec := int64(time.Since(session.StartedAt).Seconds())
 	_ = s.db.AddAuditLog(&session.UserID, "sandbox_terminate", "", fmt.Sprintf("box=%s, reason=%s, duration=%ds", session.SandboxID, reason, durationSec))
 
-	return session, nil
+	return removedSession, nil
 }
 
 func (s *ControlHTTPServer) handleStopSandbox(w http.ResponseWriter, r *http.Request) {
@@ -1184,6 +1332,12 @@ func (s *ControlHTTPServer) ReapExpiredSessions() {
 	now := time.Now()
 	sessions := s.sessions.ListAll()
 	for _, sess := range sessions {
+		// 0. Retry pending or failed cleanup sessions
+		if sess.State == SessionStateCleanupFailed || sess.State == SessionStateTerminating {
+			log.Printf("[REAPER] Retrying cleanup for sandbox %s (State: %s)...", sess.SandboxID, sess.State)
+			_, _ = s.TerminateSandbox(context.Background(), sess.SandboxID, "retry_cleanup")
+			continue
+		}
 		// 1. Hard TTL expiration check
 		if !sess.ExpiresAt.IsZero() && now.After(sess.ExpiresAt) {
 			log.Printf("[REAPER] Sandbox %s (User %d) reached hard TTL (%v). Reaping...", sess.SandboxID, sess.UserID, sess.ExpiresAt)
@@ -1212,13 +1366,12 @@ func (s *ControlHTTPServer) handleActiveSandbox(w http.ResponseWriter, r *http.R
 	}
 
 	session, running := s.sessions.GetByUser(uid)
-	if !running {
+	if !running || session.State == SessionStateTerminated || session.State == SessionStateTerminating {
 		writeJSON(w, http.StatusOK, map[string]interface{}{"active": false})
 		return
 	}
 
-	// Refresh activity timestamp on user polling
-	s.sessions.Touch(session.SandboxID)
+	// Strictly read-only: Do NOT touch activity timestamp on polling
 
 	ticket, _ := s.issueTicket(uid, session.SandboxID)
 	workerIP, workerPort, exists := s.clusterMgr.GetWorkerEndpoint(session.WorkerNodeID)
@@ -1227,14 +1380,20 @@ func (s *ControlHTTPServer) handleActiveSandbox(w http.ResponseWriter, r *http.R
 		workerPort = 8443
 	}
 
+	workerURL, ok := s.clusterMgr.GetWorkerDataURL(session.WorkerNodeID, workerIP)
+	if !ok || workerURL == "" {
+		workerURL = fmt.Sprintf("ws://%s:%d/ws/cli", workerIP, workerPort)
+	}
+
 	writeJSON(w, http.StatusOK, map[string]interface{}{
 		"active":     true,
 		"sandbox_id": session.SandboxID,
 		"worker_id":  session.WorkerNodeID,
-		"worker_url": fmt.Sprintf("ws://%s:%d/ws/cli", workerIP, workerPort),
+		"worker_url": workerURL,
 		"ticket":     ticket,
 		"expires_in": s.cfg.Auth.TicketTTLSec,
 		"sandbox_ip": session.SandboxIP,
+		"state":      session.State,
 		"started_at": session.StartedAt,
 		"expires_at": session.ExpiresAt,
 		"policy":     session.Policy,

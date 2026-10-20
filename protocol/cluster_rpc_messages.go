@@ -5,6 +5,8 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+
+	"gopkg.in/yaml.v3"
 )
 
 // 核心消息类型枚举
@@ -17,8 +19,6 @@ const (
 	MsgTypeCreateBoxResp   = "create_box_resp"
 	MsgTypeDestroyBox      = "destroy_box"
 	MsgTypeDestroyBoxResp  = "destroy_box_resp"
-	MsgTypePolicyUpdate    = "policy_update"
-	MsgTypePolicyUpdateAck = "policy_update_ack"
 	MsgTypeReconcile       = "reconcile"
 	MsgTypeReconcileResp   = "reconcile_resp"
 )
@@ -82,10 +82,12 @@ type NodeCapabilities struct {
 
 // RegisterReq 节点向控制端主动注册请求
 type RegisterReq struct {
-	NodeID       string           `json:"node_id"`
-	Version      string           `json:"version"`
-	DataPort     int              `json:"data_port"`    // 数据通道监听端口 (默认 8443)
-	Capabilities NodeCapabilities `json:"capabilities"` // 硬件与运行时能力
+	NodeID           string           `json:"node_id"`
+	Version          string           `json:"version"`
+	DataPort         int              `json:"data_port"`                   // 数据通道监听端口 (默认 8443)
+	PublicDataURL    string           `json:"public_data_url,omitempty"`    // 节点对外数据服务基准 URL (如 wss://...)
+	Capabilities     NodeCapabilities `json:"capabilities"`                // 硬件与运行时能力
+	ActiveSandboxIDs []string         `json:"active_sandbox_ids,omitempty"`// 本地活跃沙箱 ID 清单 (用于对账)
 }
 
 // RegisterResp 控制端注册响应
@@ -96,14 +98,48 @@ type RegisterResp struct {
 	PublicKey string `json:"public_key,omitempty"` // Hex-encoded Ed25519 Public Key
 }
 
+// NodeState 节点全生命周期状态机
+type NodeState string
+
+const (
+	NodeStateOnline    NodeState = "Online"    // 正常心跳在线，处于调度池
+	NodeStateDraining  NodeState = "Draining"  // 节点处于维护排空期，仅运行存量，不接受新分配
+	NodeStateOffline   NodeState = "Offline"   // 心跳超时断线，自动剔除出调度队列
+	NodeStateResetting NodeState = "Resetting" // 正在执行底层云快照回滚重建
+)
+
+// SandboxReconcileInfo 节点向控制端上报的单个沙箱对账完整元数据
+type SandboxReconcileInfo struct {
+	SandboxID    string `json:"sandbox_id"`
+	UserID       int64  `json:"user_id"`
+	SlotIndex    int    `json:"slot_index"`
+	SandboxIP    string `json:"sandbox_ip"`
+	StartedAt    int64  `json:"started_at"`     // Unix timestamp (秒)
+	LastActiveAt int64  `json:"last_active_at"` // Unix timestamp (秒)
+}
+
+// ReconcileReq 节点向控制端上报全量活跃沙箱元数据进行状态对齐
+type ReconcileReq struct {
+	NodeID    string                 `json:"node_id"`
+	Sandboxes []SandboxReconcileInfo `json:"sandboxes"`
+}
+
+// ReconcileResp 控制端对账响应，包含收编与逐出指令
+type ReconcileResp struct {
+	Success bool     `json:"success"`
+	Adopted []string `json:"adopted"` // 被控制端重新收编接管的沙箱 ID
+	Evicted []string `json:"evicted"` // 控制端已废弃并指示节点清理的沙箱 ID
+}
+
 // HeartbeatReq 节点周期心跳真实遥测 (每 3 秒)
 type HeartbeatReq struct {
-	NodeID          string  `json:"node_id"`
-	Timestamp       int64   `json:"timestamp"`
-	LoadAvg         float64 `json:"load_avg"`          // 宿主机 1分钟平均负载 (真实读取 /proc/loadavg)
-	MemAvailableMB  int64   `json:"mem_available_mb"`  // 真实可用物理内存 MB (真实读取 /proc/meminfo)
-	DiskFreeGB      int64   `json:"disk_free_gb"`      // 真实磁盘剩余 GB
-	ActiveSandboxes int     `json:"active_sandboxes"`  // 真实活跃沙箱运行数
+	NodeID           string   `json:"node_id"`
+	Timestamp        int64    `json:"timestamp"`
+	LoadAvg          float64  `json:"load_avg"`                     // 宿主机 1分钟平均负载 (真实读取 /proc/loadavg)
+	MemAvailableMB   int64    `json:"mem_available_mb"`             // 真实可用物理内存 MB (真实读取 /proc/meminfo)
+	DiskFreeGB       int64    `json:"disk_free_gb"`                 // 真实磁盘剩余 GB
+	ActiveSandboxes  int      `json:"active_sandboxes"`             // 真实活跃沙箱运行数
+	ActiveSandboxIDs []string `json:"active_sandbox_ids,omitempty"`// 本地活跃沙箱 ID 清单 (用于对账)
 }
 
 // HeartbeatResp 控制端心跳响应
@@ -113,18 +149,37 @@ type HeartbeatResp struct {
 
 // BoxResourceQuota 精细化物理资源配额 (Cgroups v2)
 type BoxResourceQuota struct {
-	CPUWeight       uint64 `json:"cpu_weight"`         // Cgroups v2 cpu.weight (默认 100)
-	MemoryMaxMB     int64  `json:"memory_max_mb"`      // 物理内存硬限额 (MB)
-	MemorySwapMaxMB int64  `json:"memory_swap_max_mb"` // Swap 内存 (MB, 0 为完全禁用)
-	PIDsMax         int64  `json:"pids_max"`           // 最大并发进程数 (默认 256)
-	IOWriteBytesSec int64  `json:"io_write_bytes_sec"` // 磁盘写入带宽限制 (字节/秒)
-	IOWriteIOPS     int64  `json:"io_write_iops"`      // 磁盘写入 IOPS 限制
+	CPUWeight       uint64 `json:"cpu_weight" yaml:"cpu_weight"`                 // Cgroups v2 cpu.weight (默认 100)
+	MemoryMaxMB     int64  `json:"memory_max_mb" yaml:"memory_max_mb"`          // 物理内存硬限额 (MB)
+	MemorySwapMaxMB int64  `json:"memory_swap_max_mb" yaml:"memory_swap_max_mb"` // Swap 内存 (MB, 0 为完全禁用)
+	PIDsMax         int64  `json:"pids_max" yaml:"pids_max"`                   // 最大并发进程数 (默认 256)
+	IOWriteBytesSec int64  `json:"io_write_bytes_sec" yaml:"io_write_bytes_sec"` // 磁盘写入带宽限制 (字节/秒)
+	IOWriteIOPS     int64  `json:"io_write_iops" yaml:"io_write_iops"`          // 磁盘写入 IOPS 限制
 }
 
 // BoxStoragePolicy 精细化存储与挂载策略
 type BoxStoragePolicy struct {
-	TmpfsTmpSize string `json:"tmpfs_tmp_size"` // /tmp 内存盘大小 (如 "512M")
-	TmpfsRunSize string `json:"tmpfs_run_size"` // /run 内存盘大小 (如 "256M")
+	TmpfsTmpSize string `json:"tmpfs_tmp_size" yaml:"tmpfs_tmp_size"` // /tmp 内存盘大小 (如 "512M")
+	TmpfsRunSize string `json:"tmpfs_run_size" yaml:"tmpfs_run_size"` // /run 内存盘大小 (如 "256M")
+}
+
+// UnmarshalYAML supports both tmpfs_tmp_size/tmp_size and tmpfs_run_size/run_size keys from YAML.
+func (s *BoxStoragePolicy) UnmarshalYAML(value *yaml.Node) error {
+	var m map[string]string
+	if err := value.Decode(&m); err != nil {
+		return err
+	}
+	if v, ok := m["tmpfs_tmp_size"]; ok {
+		s.TmpfsTmpSize = v
+	} else if v, ok := m["tmp_size"]; ok {
+		s.TmpfsTmpSize = v
+	}
+	if v, ok := m["tmpfs_run_size"]; ok {
+		s.TmpfsRunSize = v
+	} else if v, ok := m["run_size"]; ok {
+		s.TmpfsRunSize = v
+	}
+	return nil
 }
 
 // BoxSecurityPolicy 精细化沙箱安全策略 (只保留内核真正消费的策略)

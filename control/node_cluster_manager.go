@@ -32,7 +32,9 @@ type WorkerNode struct {
 	RemoteIP        string
 
 	stateMu         sync.RWMutex
+	State           protocol.NodeState
 	DataPort        int
+	PublicDataURL   string
 	Capabilities    protocol.NodeCapabilities
 	Telemetry       protocol.HeartbeatReq
 	ActiveSandboxes int
@@ -44,13 +46,46 @@ type WorkerNode struct {
 	pendingRPC      map[string]chan *protocol.Message
 }
 
+func (w *WorkerNode) SetState(s protocol.NodeState) {
+	w.stateMu.Lock()
+	defer w.stateMu.Unlock()
+	w.State = s
+}
+
+func (w *WorkerNode) GetState() protocol.NodeState {
+	w.stateMu.RLock()
+	defer w.stateMu.RUnlock()
+	return w.State
+}
+
 func (w *WorkerNode) UpdateRegister(reg protocol.RegisterReq) {
 	w.stateMu.Lock()
 	defer w.stateMu.Unlock()
+	w.State = protocol.NodeStateOnline
 	w.Capabilities = reg.Capabilities
 	if reg.DataPort > 0 {
 		w.DataPort = reg.DataPort
 	}
+	if reg.PublicDataURL != "" {
+		w.PublicDataURL = reg.PublicDataURL
+	}
+}
+
+func (w *WorkerNode) GetDataURL(fallbackHost string) string {
+	w.stateMu.RLock()
+	defer w.stateMu.RUnlock()
+	if w.PublicDataURL != "" {
+		return strings.TrimSuffix(w.PublicDataURL, "/") + "/ws/cli"
+	}
+	host := w.RemoteIP
+	if host == "" || host == "127.0.0.1" {
+		host = fallbackHost
+	}
+	port := w.DataPort
+	if port <= 0 {
+		port = 8443
+	}
+	return fmt.Sprintf("ws://%s:%d/ws/cli", host, port)
 }
 
 func (w *WorkerNode) UpdateHeartbeat(hb protocol.HeartbeatReq) {
@@ -59,12 +94,16 @@ func (w *WorkerNode) UpdateHeartbeat(hb protocol.HeartbeatReq) {
 	w.LastHeartbeat = time.Now()
 	w.Telemetry = hb
 	w.ActiveSandboxes = hb.ActiveSandboxes
+	// If node was marked offline due to missed heartbeats, restore to Online
+	if w.State == protocol.NodeStateOffline || w.State == "" {
+		w.State = protocol.NodeStateOnline
+	}
 }
 
-func (w *WorkerNode) GetSchedulingSnapshot() (lastHB time.Time, activeSandboxes int, dataPort int) {
+func (w *WorkerNode) GetSchedulingSnapshot() (state protocol.NodeState, lastHB time.Time, activeSandboxes int, dataPort int) {
 	w.stateMu.RLock()
 	defer w.stateMu.RUnlock()
-	return w.LastHeartbeat, w.ActiveSandboxes, w.DataPort
+	return w.State, w.LastHeartbeat, w.ActiveSandboxes, w.DataPort
 }
 
 func (w *WorkerNode) Send(msg *protocol.Message) error {
@@ -83,9 +122,50 @@ type NodeClusterManager struct {
 	pubKeyHex           string
 	heartbeatTimeoutSec int
 	rpcTimeoutSec       int
+	reconcileHandler    func(workerID string, sandboxes []protocol.SandboxReconcileInfo) protocol.ReconcileResp
 	mu                  sync.RWMutex
 	workers             map[string]*WorkerNode
 	upgrader            websocket.Upgrader
+}
+
+// SetReconcileHandler registers a handler triggered when a worker reports state reconciliation.
+func (h *NodeClusterManager) SetReconcileHandler(fn func(workerID string, sandboxes []protocol.SandboxReconcileInfo) protocol.ReconcileResp) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	h.reconcileHandler = fn
+}
+
+// SetNodeState transitions a worker node's lifecycle state (Online, Draining, Offline, Resetting).
+func (h *NodeClusterManager) SetNodeState(nodeID string, state protocol.NodeState) error {
+	h.mu.RLock()
+	w, exists := h.workers[nodeID]
+	h.mu.RUnlock()
+	if !exists {
+		return ErrWorkerNotFound
+	}
+	w.SetState(state)
+	return nil
+}
+
+// GetNodeState returns a worker node's current lifecycle state.
+func (h *NodeClusterManager) GetNodeState(nodeID string) (protocol.NodeState, error) {
+	h.mu.RLock()
+	w, exists := h.workers[nodeID]
+	h.mu.RUnlock()
+	if !exists {
+		return protocol.NodeStateOffline, ErrWorkerNotFound
+	}
+	return w.GetState(), nil
+}
+
+func (h *NodeClusterManager) GetWorkerDataURL(nodeID, fallbackHost string) (string, bool) {
+	h.mu.RLock()
+	node, exists := h.workers[nodeID]
+	h.mu.RUnlock()
+	if !exists {
+		return "", false
+	}
+	return node.GetDataURL(fallbackHost), true
 }
 
 // NewNodeClusterManager creates a cluster manager.
@@ -172,6 +252,7 @@ func (h *NodeClusterManager) HandleAgentConnect(w http.ResponseWriter, r *http.R
 		NodeID:        nodeID,
 		RemoteIP:      remoteIP,
 		DataPort:      8443,
+		State:         protocol.NodeStateOnline,
 		LastHeartbeat: time.Now(),
 		conn:          conn,
 		pendingRPC:    make(map[string]chan *protocol.Message),
@@ -265,6 +346,23 @@ func (h *NodeClusterManager) handleWorkerMessage(node *WorkerNode, msg *protocol
 			_ = node.Send(ack)
 		}
 
+	case protocol.MsgTypeReconcile:
+		var req protocol.ReconcileReq
+		if err := msg.UnpackPayload(&req); err == nil {
+			h.mu.RLock()
+			handler := h.reconcileHandler
+			h.mu.RUnlock()
+			var resp protocol.ReconcileResp
+			if handler != nil {
+				resp = handler(node.NodeID, req.Sandboxes)
+			} else {
+				resp = protocol.ReconcileResp{Success: true}
+			}
+			respMsg, _ := protocol.NewMessage(protocol.MsgTypeReconcileResp, resp)
+			respMsg.ID = msg.ID
+			_ = node.Send(respMsg)
+		}
+
 	case protocol.MsgTypeCreateBoxResp:
 		// P1-9: Late response from a CreateBox that timed out or was canceled on Control Hub.
 		// If Worker succeeded in creating the box after Control abandoned it, issue immediate reverse kill!
@@ -297,12 +395,16 @@ func (h *NodeClusterManager) SelectBestWorker() (*WorkerNode, error) {
 	now := time.Now()
 
 	for _, w := range h.workers {
-		lastHB, activeBoxes, _ := w.GetSchedulingSnapshot()
+		state, lastHB, activeBoxes, _ := w.GetSchedulingSnapshot()
 		hbTimeout := 15 * time.Second
 		if h.heartbeatTimeoutSec > 0 {
 			hbTimeout = time.Duration(h.heartbeatTimeoutSec) * time.Second
 		}
 		if now.Sub(lastHB) > hbTimeout {
+			w.SetState(protocol.NodeStateOffline)
+			continue
+		}
+		if state != protocol.NodeStateOnline {
 			continue
 		}
 		if activeBoxes < minLoad {
@@ -325,7 +427,7 @@ func (h *NodeClusterManager) GetWorkerEndpoint(nodeID string) (remoteIP string, 
 	if !ok {
 		return "", 0, false
 	}
-	_, _, dataPort = w.GetSchedulingSnapshot()
+	_, _, _, dataPort = w.GetSchedulingSnapshot()
 	return w.RemoteIP, dataPort, true
 }
 

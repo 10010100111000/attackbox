@@ -15,6 +15,9 @@ auth:
   ed25519_private_key: ""
   jwt_expire_hours: 24
   ticket_ttl_sec: 60
+  initial_admin_username: "admin"
+  initial_admin_password: "AdminSecurePassword123!"
+  initial_admin_email: "admin@attackbox.local"
 
 sandbox:
   resources:
@@ -25,13 +28,8 @@ sandbox:
     io_write_bytes_sec: 20971520 # 20MB/s
     io_write_iops: 500
   storage:
-    tmp_size: "512M"
-    run_size: "256M"
-  network:
-    subnet_cidr: "10.200.0.0/16"
-    gateway_ip: "10.200.0.1"
-    default_egress_mode: "restricted"
-    allowed_egress_ports:
-      - 53
-      - 80
-      - 443
+    tmpfs_tmp_size: "512M"
+    tmpfs_run_size: "256M"
+  ttl_seconds: 7200
+  idle_seconds: 1800
+  reaper_interval_sec: 30

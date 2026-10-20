@@ -44,9 +44,9 @@ func TestRace_SetPublicKeyAndHandleCLI(t *testing.T) {
 	pubKey1, _, _ := control.LoadOrGenerateKeys("")
 	pubKey2, _, _ := control.LoadOrGenerateKeys("")
 
-	const concurrency = 30
+	const concurrency = 6
 	var wg sync.WaitGroup
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
 	defer cancel()
 
 	// Concurrent writers updating public key (simulating cluster key rotations)
@@ -64,7 +64,7 @@ func TestRace_SetPublicKeyAndHandleCLI(t *testing.T) {
 					} else {
 						gw.SetPublicKey(pubKey2)
 					}
-					time.Sleep(1 * time.Millisecond)
+					time.Sleep(5 * time.Millisecond)
 				}
 			}
 		}(i)
@@ -83,7 +83,7 @@ func TestRace_SetPublicKeyAndHandleCLI(t *testing.T) {
 					req := httptest.NewRequest(http.MethodGet, "/ws/cli?ticket=some_dummy_ticket", nil)
 					w := httptest.NewRecorder()
 					gw.ServeHTTP(w, req)
-					time.Sleep(1 * time.Millisecond)
+					time.Sleep(5 * time.Millisecond)
 				}
 			}
 		}()

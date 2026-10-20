@@ -30,7 +30,12 @@ type User struct {
 
 // DatabaseStore encapsulates SQLite operations.
 type DatabaseStore struct {
-	db *sql.DB
+	db                        *sql.DB
+	onTokenVersionInvalidated func(userID int64)
+}
+
+func (s *DatabaseStore) SetTokenVersionInvalidatedHook(fn func(userID int64)) {
+	s.onTokenVersionInvalidated = fn
 }
 
 // NewDatabaseStore initializes the SQLite database with WAL mode and runs DDL migrations.
@@ -164,9 +169,12 @@ func scanUser(row *sql.Row) (*User, error) {
 	return &u, nil
 }
 
-// IncrementTokenVersion revokes all existing JWTs for a user.
+// IncrementTokenVersion revokes all existing JWTs for a user and immediately invalidates in-memory cache.
 func (s *DatabaseStore) IncrementTokenVersion(userID int64) error {
 	_, err := s.db.Exec(`UPDATE users SET token_version = token_version + 1 WHERE id = ?`, userID)
+	if err == nil && s.onTokenVersionInvalidated != nil {
+		s.onTokenVersionInvalidated(userID)
+	}
 	return err
 }
 

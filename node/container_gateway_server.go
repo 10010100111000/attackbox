@@ -27,11 +27,13 @@ import (
 
 // GatewayConfig represents external interactive gateway listener parameters.
 type GatewayConfig struct {
-	ListenAddr       string `yaml:"listen_addr"`
-	TLSEnabled       bool   `yaml:"tls_enabled"`
-	TLSCert          string `yaml:"tls_cert"`
-	TLSKey           string `yaml:"tls_key"`
-	Ed25519PublicKey string `yaml:"ed25519_public_key"`
+	ListenAddr       string   `yaml:"listen_addr"`
+	TLSEnabled       bool     `yaml:"tls_enabled"`
+	TLSCert          string   `yaml:"tls_cert"`
+	TLSKey           string   `yaml:"tls_key"`
+	Ed25519PublicKey string   `yaml:"ed25519_public_key"`
+	AllowedOrigins   []string `yaml:"allowed_origins"`
+	PublicDataURL    string   `yaml:"public_data_url"`
 }
 
 // -------------------------------------------------------------
@@ -168,13 +170,41 @@ func NewSafeConn(conn *websocket.Conn) *SafeConn {
 	return &SafeConn{Conn: conn}
 }
 
-func (c *SafeConn) WriteMessage(messageType int, data []byte) error {
+func (c *SafeConn) Close() (err error) {
+	if c == nil || c.Conn == nil {
+		return nil
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = fmt.Errorf("safe_conn close panic: %v", r)
+		}
+	}()
+	return c.Conn.Close()
+}
+
+func (c *SafeConn) WriteMessage(messageType int, data []byte) (err error) {
+	if c == nil || c.Conn == nil {
+		return nil
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = fmt.Errorf("safe_conn write panic: %v", r)
+		}
+	}()
 	c.writeMu.Lock()
 	defer c.writeMu.Unlock()
 	return c.Conn.WriteMessage(messageType, data)
 }
 
-func (c *SafeConn) WriteControl(messageType int, data []byte, deadline time.Time) error {
+func (c *SafeConn) WriteControl(messageType int, data []byte, deadline time.Time) (err error) {
+	if c == nil || c.Conn == nil {
+		return nil
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = fmt.Errorf("safe_conn write_control panic: %v", r)
+		}
+	}()
 	c.writeMu.Lock()
 	defer c.writeMu.Unlock()
 	return c.Conn.WriteControl(messageType, data, deadline)
@@ -192,18 +222,25 @@ func NewGatewaySessionManager() *GatewaySessionManager {
 }
 
 func (sm *GatewaySessionManager) RegisterCLI(key string, conn *SafeConn) {
+	var oldConn *SafeConn
 	sm.mu.Lock()
-	defer sm.mu.Unlock()
-
-	if oldConn, exists := sm.cliSessions[key]; exists {
-		_ = oldConn.WriteControl(
-			websocket.CloseMessage,
-			websocket.FormatCloseMessage(4001, "preempted by new connection"),
-			time.Now().Add(time.Second),
-		)
-		_ = oldConn.Close()
+	if old, exists := sm.cliSessions[key]; exists {
+		oldConn = old
 	}
 	sm.cliSessions[key] = conn
+	sm.mu.Unlock()
+
+	// Perform preemptive closure outside global mutex lock to prevent slow WebSocket network stalls
+	if oldConn != nil && oldConn.Conn != nil {
+		go func() {
+			_ = oldConn.WriteControl(
+				websocket.CloseMessage,
+				websocket.FormatCloseMessage(4001, "preempted by new connection"),
+				time.Now().Add(time.Second),
+			)
+			_ = oldConn.Close()
+		}()
+	}
 }
 
 func (sm *GatewaySessionManager) UnregisterCLI(key string, conn *SafeConn) {
@@ -247,11 +284,27 @@ func NewContainerGatewayServer(cfg GatewayConfig, rtMgr *runtime.RuntimeManager)
 				if origin == "" {
 					return true
 				}
+				if len(cfg.AllowedOrigins) == 0 {
+					return true
+				}
+				for _, allowed := range cfg.AllowedOrigins {
+					if allowed == "*" {
+						return true
+					}
+				}
 				u, err := url.Parse(origin)
 				if err != nil {
 					return false
 				}
-				return strings.EqualFold(u.Host, r.Host)
+				if strings.EqualFold(u.Host, r.Host) {
+					return true
+				}
+				for _, allowed := range cfg.AllowedOrigins {
+					if strings.EqualFold(u.Host, allowed) || strings.EqualFold(origin, allowed) {
+						return true
+					}
+				}
+				return false
 			},
 		},
 	}
@@ -407,6 +460,8 @@ func (s *ContainerGatewayServer) handleCLI(w http.ResponseWriter, r *http.Reques
 			if err != nil {
 				break
 			}
+			// Refresh real activity timestamp on genuine terminal input / keystroke
+			s.rtMgr.TouchSandbox(claims.Sbx)
 			if mt == websocket.TextMessage {
 				var sz struct {
 					Cols uint16 `json:"cols"`

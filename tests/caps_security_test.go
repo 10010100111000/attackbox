@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -100,12 +101,17 @@ func TestSecurityContainment_CapabilitiesAndNoNewPrivs(t *testing.T) {
 	defer client.Stop()
 
 	// Wait for node registration
-	for i := 0; i < 20; i++ {
+	registered := false
+	for i := 0; i < 50; i++ {
 		w, err := clusterMgr.SelectBestWorker()
 		if err == nil && w != nil {
+			registered = true
 			break
 		}
-		time.Sleep(100 * time.Millisecond)
+		time.Sleep(200 * time.Millisecond)
+	}
+	if !registered {
+		t.Fatalf("worker node did not register within 10s")
 	}
 
 	// Register user
@@ -114,12 +120,17 @@ func TestSecurityContainment_CapabilitiesAndNoNewPrivs(t *testing.T) {
 		"password": "Password123!",
 		"email":    "auditor@attackbox.local",
 	})
-	resp, _ := http.Post("http://127.0.0.1:18082/api/auth/register", "application/json", bytes.NewReader(regBody))
+	resp, err := http.Post("http://127.0.0.1:18082/api/auth/register", "application/json", bytes.NewReader(regBody))
+	if err != nil {
+		t.Fatalf("register request failed: %v", err)
+	}
+	defer resp.Body.Close()
 	var authResp struct {
 		Token string `json:"token"`
 	}
-	_ = json.NewDecoder(resp.Body).Decode(&authResp)
-	resp.Body.Close()
+	if err := json.NewDecoder(resp.Body).Decode(&authResp); err != nil || authResp.Token == "" {
+		t.Fatalf("register failed or empty token: %v", err)
+	}
 
 	// Launch sandbox
 	startReqBody, _ := json.Marshal(control.StartSandboxReq{})
@@ -142,6 +153,21 @@ func TestSecurityContainment_CapabilitiesAndNoNewPrivs(t *testing.T) {
 	sbxState, ok := rtMgr.GetSandbox(boxResp.SandboxID)
 	if !ok {
 		t.Fatalf("sandbox %s not found in rtMgr", boxResp.SandboxID)
+	}
+
+	// Ensure test helper binary exists inside sandbox rootfs
+	rebootHelperPath := filepath.Join(nodeCfg.Runtime.InstancesDir, boxResp.SandboxID, "rootfs/usr/bin/test_reboot")
+	if _, err := os.Stat(rebootHelperPath); err != nil {
+		if _, hostErr := os.Stat("/usr/bin/test_reboot"); hostErr == nil {
+			content, _ := os.ReadFile("/usr/bin/test_reboot")
+			_ = os.WriteFile(rebootHelperPath, content, 0755)
+		} else {
+			buildCmd := exec.Command("go", "build", "-o", rebootHelperPath, "./helpers/test_reboot")
+			if out, err := buildCmd.CombinedOutput(); err != nil {
+				t.Logf("build reboot helper inside rootfs: %v, out: %s", err, string(out))
+			}
+			_ = os.Chmod(rebootHelperPath, 0755)
+		}
 	}
 
 	// -------------------------------------------------------------

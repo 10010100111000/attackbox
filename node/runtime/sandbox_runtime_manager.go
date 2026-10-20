@@ -69,7 +69,7 @@ type ResourceLimits struct {
 	RootDeviceNumber string
 }
 
-func LimitsFromPolicy(q protocol.BoxResourceQuota) ResourceLimits {
+func LimitsFromPolicy(q protocol.BoxResourceQuota, rootDeviceNumber ...string) ResourceLimits {
 	memMB := q.MemoryMaxMB
 	if memMB <= 0 {
 		memMB = protocol.DefaultMemLimitMB // Fail-closed: default to 2048MB, never leave unbound
@@ -101,25 +101,19 @@ func LimitsFromPolicy(q protocol.BoxResourceQuota) ResourceLimits {
 		iops = protocol.DefaultIOWriteIOPS
 	}
 
-	return ResourceLimits{
-		PIDsMax:         pidsMax,
-		MemoryMaxBytes:  memBytes,
-		SwapMaxBytes:    swapBytes,
-		CPUWeight:       cpuWeight,
-		IOWriteBytesSec: ioBytes,
-		IOWriteIOPS:      iops,
+	var rootDev string
+	if len(rootDeviceNumber) > 0 {
+		rootDev = rootDeviceNumber[0]
 	}
-}
 
-func LimitsFromConfig(c RuntimeLimitsConfig) ResourceLimits {
 	return ResourceLimits{
-		PIDsMax:          c.PIDsMax,
-		MemoryMaxBytes:   c.MemoryMaxMB * 1024 * 1024,
-		SwapMaxBytes:     c.MemorySwapMaxMB * 1024 * 1024,
-		CPUWeight:        c.CPUWeight,
-		IOWriteBytesSec:  c.IOWriteBytesSec,
-		IOWriteIOPS:      c.IOWriteIOPS,
-		RootDeviceNumber: c.RootDeviceNumber,
+		PIDsMax:          pidsMax,
+		MemoryMaxBytes:   memBytes,
+		SwapMaxBytes:     swapBytes,
+		CPUWeight:        cpuWeight,
+		IOWriteBytesSec:  ioBytes,
+		IOWriteIOPS:      iops,
+		RootDeviceNumber: rootDev,
 	}
 }
 
@@ -129,13 +123,14 @@ type SandboxConfig struct {
 }
 
 type SandboxState struct {
-	ID         string
-	PID        int
-	RootfsPath string
-	CgroupPath string
-	Policy     protocol.SandboxPolicy
-	StartedAt  time.Time
-	CreatedAt  time.Time
+	ID           string
+	PID          int
+	RootfsPath   string
+	CgroupPath   string
+	Policy       protocol.SandboxPolicy
+	StartedAt    time.Time
+	LastActiveAt time.Time
+	CreatedAt    time.Time
 }
 
 // -------------------------------------------------------------
@@ -143,22 +138,33 @@ type SandboxState struct {
 // -------------------------------------------------------------
 
 type RuntimeManager struct {
-	cfg       RuntimeConfig
-	btrfs     *BtrfsDriver
-	cgroups   *CgroupManager
-	diskGuard *DiskGuard
-	mu        sync.RWMutex
-	sandboxes map[string]*SandboxState
-	commands  map[string]*exec.Cmd
+	cfg              RuntimeConfig
+	btrfs            *BtrfsDriver
+	cgroups          *CgroupManager
+	diskGuard        *DiskGuard
+	rootDeviceNumber string
+	mu               sync.RWMutex
+	sandboxes        map[string]*SandboxState
+	commands         map[string]*exec.Cmd
 }
 
 func NewRuntimeManager(cfg RuntimeConfig) *RuntimeManager {
+	rootDev := cfg.Limits.RootDeviceNumber
+	if rootDev == "" {
+		instDir := cfg.InstancesDir
+		if instDir == "" {
+			instDir = "/var/lib/attackbox/instances"
+		}
+		rootDev = DetectDeviceNumber(instDir)
+	}
+
 	mgr := &RuntimeManager{
-		cfg:       cfg,
-		btrfs:     NewBtrfsDriver(cfg.BaseRootfs, cfg.InstancesDir),
-		cgroups:   NewCgroupManager(cfg.CgroupRoot),
-		sandboxes: make(map[string]*SandboxState),
-		commands:  make(map[string]*exec.Cmd),
+		cfg:              cfg,
+		btrfs:            NewBtrfsDriver(cfg.BaseRootfs, cfg.InstancesDir),
+		cgroups:          NewCgroupManager(cfg.CgroupRoot),
+		rootDeviceNumber: rootDev,
+		sandboxes:        make(map[string]*SandboxState),
+		commands:         make(map[string]*exec.Cmd),
 	}
 
 	mgr.diskGuard = NewDiskGuard(cfg.DiskGuard, "/", func(freeMB int64) {
@@ -168,12 +174,171 @@ func NewRuntimeManager(cfg RuntimeConfig) *RuntimeManager {
 	return mgr
 }
 
+// DetectDeviceNumber detects the underlying physical block device major:minor (whole disk) for a given directory.
+// For filesystems like Btrfs where mountinfo reports anonymous virtual device (0:X), it extracts the real
+// backing device path (e.g. /dev/vda1) and traverses sysfs to find the whole disk device number (e.g. 254:0).
+func DetectDeviceNumber(path string) string {
+	f, err := os.Open("/proc/self/mountinfo")
+	if err != nil {
+		return ""
+	}
+	defer f.Close()
+
+	absPath, err := filepath.Abs(path)
+	if err != nil {
+		absPath = path
+	}
+
+	scanner := bufio.NewScanner(f)
+	var bestMountPoint string
+	var bestDevSource string
+	var fallbackDevNum string
+
+	for scanner.Scan() {
+		line := scanner.Text()
+		parts := strings.Fields(line)
+		if len(parts) >= 5 {
+			devNum := parts[2]
+			mountPoint := parts[4]
+
+			if strings.HasPrefix(absPath, mountPoint) && len(mountPoint) > len(bestMountPoint) {
+				bestMountPoint = mountPoint
+				fallbackDevNum = devNum
+
+				// Find optional fields separator "-"
+				for i := 6; i < len(parts); i++ {
+					if parts[i] == "-" && i+2 < len(parts) {
+						bestDevSource = parts[i+2]
+						break
+					}
+				}
+			}
+		}
+	}
+
+	if strings.HasPrefix(bestDevSource, "/dev/") {
+		devName := filepath.Base(bestDevSource)
+		sysBlockPath := filepath.Join("/sys/class/block", devName)
+		realPath, err := filepath.EvalSymlinks(sysBlockPath)
+		if err == nil {
+			// Check if it's a partition (partitions have a "partition" sysfs attribute file)
+			partitionFile := filepath.Join(realPath, "partition")
+			if _, err := os.Stat(partitionFile); err == nil {
+				// It's a partition; the parent directory is the whole disk device
+				parentDevFile := filepath.Join(filepath.Dir(realPath), "dev")
+				if data, err := os.ReadFile(parentDevFile); err == nil {
+					val := strings.TrimSpace(string(data))
+					if val != "" {
+						return val
+					}
+				}
+			}
+
+			// Whole disk direct dev
+			devFile := filepath.Join(realPath, "dev")
+			if data, err := os.ReadFile(devFile); err == nil {
+				val := strings.TrimSpace(string(data))
+				if val != "" {
+					return val
+				}
+			}
+		}
+	}
+
+	// Fallback to non-zero mountinfo major device if sysfs not available
+	if fallbackDevNum != "" && !strings.HasPrefix(fallbackDevNum, "0:") {
+		return fallbackDevNum
+	}
+	return ""
+}
+
 func (m *RuntimeManager) Start(ctx context.Context) error {
 	m.diskGuard.Start(ctx)
 	if err := m.btrfs.EnsureBaseRootfs(); err != nil {
 		return fmt.Errorf("verify golden base image: %w", err)
 	}
+	m.RecoverAndReconcileLocalSandboxes()
+	m.StartLocalReaper(ctx)
 	return nil
+}
+
+func (m *RuntimeManager) ListSandboxIDs() []string {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	res := make([]string, 0, len(m.sandboxes))
+	for id := range m.sandboxes {
+		res = append(res, id)
+	}
+	return res
+}
+
+// RecoverAndReconcileLocalSandboxes scans instances dir on startup to adopt existing sandbox resources.
+func (m *RuntimeManager) RecoverAndReconcileLocalSandboxes() {
+	instDir := m.cfg.InstancesDir
+	if instDir == "" {
+		instDir = "/var/lib/attackbox/instances"
+	}
+	entries, err := os.ReadDir(instDir)
+	if err != nil {
+		return
+	}
+
+	for _, entry := range entries {
+		if !entry.IsDir() {
+			continue
+		}
+		sbxID := entry.Name()
+		rootfsPath := filepath.Join(instDir, sbxID, "rootfs")
+		cgPath := filepath.Join(m.cfg.CgroupRoot, sbxID)
+
+		info, _ := entry.Info()
+		started := time.Now()
+		if info != nil {
+			started = info.ModTime()
+		}
+
+		m.mu.Lock()
+		m.sandboxes[sbxID] = &SandboxState{
+			ID:           sbxID,
+			PID:          0,
+			RootfsPath:   rootfsPath,
+			CgroupPath:   cgPath,
+			StartedAt:    started,
+			LastActiveAt: started,
+			CreatedAt:    started,
+		}
+		m.mu.Unlock()
+		log.Printf("[RECOVERY] Adopted local sandbox %s on worker startup", sbxID)
+	}
+}
+
+// StartLocalReaper runs a fail-closed hard TTL reaper on Worker (2 hours max lifetime).
+func (m *RuntimeManager) StartLocalReaper(ctx context.Context) {
+	ticker := time.NewTicker(30 * time.Second)
+	go func() {
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				now := time.Now()
+				m.mu.RLock()
+				var toReap []string
+				for id, sbx := range m.sandboxes {
+					if now.Sub(sbx.StartedAt) > 2*time.Hour {
+						toReap = append(toReap, id)
+					}
+				}
+				m.mu.RUnlock()
+
+				for _, id := range toReap {
+					log.Printf("[LOCAL-REAPER] Sandbox %s exceeded 2h hard TTL ceiling on worker, force destroying...", id)
+					_ = m.DestroySandbox(context.Background(), id)
+				}
+			}
+		}
+	}()
 }
 
 func (m *RuntimeManager) Stop() {
@@ -203,7 +368,7 @@ func (m *RuntimeManager) CreateSandbox(ctx context.Context, scfg SandboxConfig) 
 	}
 	m.mu.Unlock()
 
-	limits := LimitsFromPolicy(scfg.Policy.Resources)
+	limits := LimitsFromPolicy(scfg.Policy.Resources, m.rootDeviceNumber)
 	cgFile, cgPath, err := m.cgroups.Create(scfg.ID, limits)
 	if err != nil {
 		return nil, fmt.Errorf("create cgroup: %w", err)
@@ -285,14 +450,16 @@ func (m *RuntimeManager) CreateSandbox(ctx context.Context, scfg SandboxConfig) 
 		}
 	}
 
+	now := time.Now()
 	state := &SandboxState{
-		ID:         scfg.ID,
-		PID:        cmd.Process.Pid,
-		RootfsPath: rootfsPath,
-		CgroupPath: cgPath,
-		Policy:     scfg.Policy,
-		StartedAt:  time.Now(),
-		CreatedAt:  time.Now(),
+		ID:           scfg.ID,
+		PID:          cmd.Process.Pid,
+		RootfsPath:   rootfsPath,
+		CgroupPath:   cgPath,
+		Policy:       scfg.Policy,
+		StartedAt:    now,
+		LastActiveAt: now,
+		CreatedAt:    now,
 	}
 
 	m.mu.Lock()
@@ -301,6 +468,14 @@ func (m *RuntimeManager) CreateSandbox(ctx context.Context, scfg SandboxConfig) 
 	m.mu.Unlock()
 
 	return state, nil
+}
+
+func (m *RuntimeManager) TouchSandbox(id string) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if s, ok := m.sandboxes[id]; ok {
+		s.LastActiveAt = time.Now()
+	}
 }
 
 func (m *RuntimeManager) DestroySandbox(ctx context.Context, sandboxID string) error {

@@ -12,8 +12,24 @@ runtime:
   base_rootfs: "/var/lib/attackbox/base_rootfs"
   instances_dir: "/var/lib/attackbox/instances"
   cgroup_root: "/sys/fs/cgroup/attackbox"
+  limits:
+    pids_max: 256
+    memory_max_mb: 1024
+    memory_swap_max_mb: 0
+    cpu_weight: 100
+    io_write_bytes_sec: 20971520
+    io_write_iops: 1000
   disk_guard:
     enabled: true
     check_interval_sec: 3
     min_free_space_mb: 5120
     warn_free_space_mb: 10240
+  tmpfs:
+    tmp_size: "512M"
+    run_size: "256M"
+
+network:
+  bridge_name: "br-attackbox"
+  gateway_ip: "10.200.0.1"
+  subnet_cidr: "10.200.0.0/16"
+  egress_interface: "eth0"
