@@ -72,7 +72,8 @@ func TestBtrfsAndCgroupSandboxLifecycle(t *testing.T) {
 		t.Fatalf("CreateSandbox failed: %v", err)
 	}
 	elapsed := time.Since(start)
-	t.Logf("Sandbox created in %v, PID: %d, Rootfs: %s", elapsed, sbx.PID, sbx.RootfsPath)
+	rootfsPath := mgr.RootfsPath(testID)
+	t.Logf("Sandbox created in %v, PID: %d, Rootfs: %s", elapsed, sbx.PID, rootfsPath)
 
 	// 2. Validate PID is running
 	if sbx.PID <= 0 {
@@ -99,7 +100,7 @@ func TestBtrfsAndCgroupSandboxLifecycle(t *testing.T) {
 	}
 
 	// 5. Verify btrfs rootfs exists
-	if _, err := os.Stat(sbx.RootfsPath); err != nil {
+	if _, err := os.Stat(rootfsPath); err != nil {
 		t.Fatalf("rootfs directory does not exist: %v", err)
 	}
 
@@ -118,7 +119,7 @@ func TestBtrfsAndCgroupSandboxLifecycle(t *testing.T) {
 	}
 
 	// 8. Verify rootfs directory is removed
-	if _, err := os.Stat(sbx.RootfsPath); !os.IsNotExist(err) {
-		t.Fatalf("expected rootfs dir %s to be deleted, but still exists", sbx.RootfsPath)
+	if _, err := os.Stat(rootfsPath); !os.IsNotExist(err) {
+		t.Fatalf("expected rootfs dir %s to be deleted, but still exists", rootfsPath)
 	}
 }

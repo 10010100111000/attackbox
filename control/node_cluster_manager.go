@@ -30,6 +30,8 @@ var (
 type WorkerNode struct {
 	NodeID          string
 	RemoteIP        string
+	BootID          string
+	LastSeq         uint64
 
 	stateMu         sync.RWMutex
 	State           protocol.NodeState
@@ -63,6 +65,9 @@ func (w *WorkerNode) UpdateRegister(reg protocol.RegisterReq) {
 	defer w.stateMu.Unlock()
 	w.State = protocol.NodeStateOnline
 	w.Capabilities = reg.Capabilities
+	if reg.BootID != "" {
+		w.BootID = reg.BootID
+	}
 	if reg.DataPort > 0 {
 		w.DataPort = reg.DataPort
 	}
@@ -88,9 +93,18 @@ func (w *WorkerNode) GetDataURL(fallbackHost string) string {
 	return fmt.Sprintf("ws://%s:%d/ws/cli", host, port)
 }
 
-func (w *WorkerNode) UpdateHeartbeat(hb protocol.HeartbeatReq) {
+func (w *WorkerNode) UpdateHeartbeat(hb protocol.HeartbeatReq) (rebooted bool) {
 	w.stateMu.Lock()
 	defer w.stateMu.Unlock()
+	if hb.BootID != "" && w.BootID != "" && hb.BootID != w.BootID {
+		rebooted = true
+	}
+	if hb.BootID != "" {
+		w.BootID = hb.BootID
+	}
+	if hb.Seq > 0 {
+		w.LastSeq = hb.Seq
+	}
 	w.LastHeartbeat = time.Now()
 	w.Telemetry = hb
 	w.ActiveSandboxes = hb.ActiveSandboxes
@@ -98,6 +112,7 @@ func (w *WorkerNode) UpdateHeartbeat(hb protocol.HeartbeatReq) {
 	if w.State == protocol.NodeStateOffline || w.State == "" {
 		w.State = protocol.NodeStateOnline
 	}
+	return rebooted
 }
 
 func (w *WorkerNode) GetSchedulingSnapshot() (state protocol.NodeState, lastHB time.Time, activeSandboxes int, dataPort int) {
@@ -123,12 +138,20 @@ type NodeClusterManager struct {
 	heartbeatTimeoutSec int
 	rpcTimeoutSec       int
 	reconcileHandler    func(workerID string, sandboxes []protocol.SandboxReconcileInfo) protocol.ReconcileResp
+	onHeartbeat         func(workerID string, hb protocol.HeartbeatReq, rebooted bool)
 	mu                  sync.RWMutex
 	workers             map[string]*WorkerNode
 	upgrader            websocket.Upgrader
 }
 
-// SetReconcileHandler registers a handler triggered when a worker reports state reconciliation.
+// SetHeartbeatHandler registers a callback invoked whenever a worker reports a heartbeat.
+func (h *NodeClusterManager) SetHeartbeatHandler(fn func(workerID string, hb protocol.HeartbeatReq, rebooted bool)) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	h.onHeartbeat = fn
+}
+
+// SetReconcileHandler registers a handler triggered when a worker reports state reconciliation (deprecated).
 func (h *NodeClusterManager) SetReconcileHandler(fn func(workerID string, sandboxes []protocol.SandboxReconcileInfo) protocol.ReconcileResp) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
@@ -340,10 +363,17 @@ func (h *NodeClusterManager) handleWorkerMessage(node *WorkerNode, msg *protocol
 	case protocol.MsgTypeHeartbeat:
 		var hb protocol.HeartbeatReq
 		if err := msg.UnpackPayload(&hb); err == nil {
-			node.UpdateHeartbeat(hb)
+			rebooted := node.UpdateHeartbeat(hb)
 			// Send HeartbeatAck
 			ack, _ := protocol.NewMessage(protocol.MsgTypeHeartbeatAck, protocol.HeartbeatResp{Success: true})
 			_ = node.Send(ack)
+
+			h.mu.RLock()
+			hbHandler := h.onHeartbeat
+			h.mu.RUnlock()
+			if hbHandler != nil {
+				hbHandler(node.NodeID, hb, rebooted)
+			}
 		}
 
 	case protocol.MsgTypeReconcile:

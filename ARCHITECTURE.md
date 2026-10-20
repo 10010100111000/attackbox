@@ -30,29 +30,34 @@ AttackBox 是一套专为渗透测试人员、安全研究与技术教学打造�
   * 4.2 沙箱二层端口隔离 (Bridge Port Isolation 防 ARP 欺骗与横向嗅探)
   * 4.3 WAN 出口白名单与控制面防回环规则
   * 4.4 批处理网络配置与 Fork 风暴消除
-  * 4.5 SlotAllocator O(1) Free List 高性能槽位调度
+  * 4.5 SlotAllocator 槽位安全分配与防重调度
 * **第 5 章：Control 凭据认证、状态模型与安全追溯**
   * 5.1 数据持久化定位与 WAL 并发连接池 (16 并发读)
-  * 5.2 基于 Ed25519 的客户端无状态 JWT 鉴权与 TokenVersion 内存高速缓存
+  * 5.2 基于 Ed25519 的客户端无状态 JWT 鉴权与 TokenVersion 实时注销
   * 5.3 认证防时序侧信道、错误脱敏与 Admin 自动引导
   * 5.4 攻防沙箱安全责任追溯机制
 * **第 6 章：分布式控制调度、数据流接入与会话生命周期**
   * 6.1 集中调度与管理员权威策略控制 (废除用户自定义策略 / 零配置 Fail-Closed)
   * 6.2 Ed25519 跨机能力凭证 (Ticket) 与 Worker 零 DB 离线验签
   * 6.3 交互会话并发控制与状态保活 (CLI/GUI 统一单活跃抢占机制)
-  * 6.4 防 TOCTOU 并发双击预占与后台 Reaper 自动回收 (TTL & Idle)
+  * 6.4 防 TOCTOU 并发双击预占与单路径终止
   * 6.5 真实系统内核遥测采样 (/proc/meminfo 与 /proc/loadavg)
 * **第 7 章：节点全生命周期管理、网络重连与传输层防护**
   * 7.1 节点生命周期状态机 (Online, Draining, Offline, Resetting)
-  * 7.2 节点重连实例指针判等 (防旧连接退出误注销新节点)
+  * 7.2 节点重连连接解耦 (防旧连接退出误注销新连接)
   * 7.3 并发数据竞争防护 (ContainerGatewayServer 读写锁治理)
   * 7.4 传输层 DoS 拦截 (MaxHTTPPayloadSize 与 MaxWebSocketMessageSize)
   * 7.5 HTTP 生产级观测性、链路追踪与 Panic 恢复中间件
-  * 7.6 无状态双向对账机制 (State Reconciliation - 存量沙箱 Adopt 与孤儿 Evict)
-  * 7.7 单沙箱独立邮箱与全局锁解耦 (容量 64 锁外非阻塞投递杜绝级联超时)
+  * 7.6 节点心跳同步与会话自动清理
+  * 7.7 单沙箱独立邮箱与串行顺序保障 (容量 4 满列即拒杜绝丢包挂起)
 * **第 8 章：系统配置与凭据隔离**
   * 8.1 静态配置文件规范
   * 8.2 核心机密单向隔离与无状态 Worker
+* **第 9 章：实例权威状态模型与生命周期规范**
+  * 9.1 单一权威记录原则 (Worker 独占维护与只读快照)
+  * 9.2 纯事件驱动资源回收 (零定时器 / 心跳差异与重启清算)
+  * 9.3 统一销毁与幂等收敛 (单下线管线与错误保留)
+  * 9.4 无状态运行与秒级启动 (零磁盘扫描)
 
 ---
 
@@ -64,10 +69,10 @@ AttackBox 是一套专为渗透测试人员、安全研究与技术教学打造�
                                │  (独立物理机 / 云 VPS, 端口:443)  │
                                │                                │
                                │ • 独占全局持久化 SQLite (WAL)   │
-                               │ • TokenVersion 内存高速缓存     │
+                               │ • SQLite WAL 级极速用户鉴权     │
                                │ • 静态金库: API Key / 签名私钥  │
                                │ • 集中算力调度与管理员策略下发   │
-                               │ • 30s Reaper 会话生命周期回收   │
+                               │ • 事件驱动会话与槽位生命周期管理│
                                └───────────────┬────────────────┘
                                                ▲
                             跨公网 WSS 反向控制信道 (带保活与心跳)
@@ -105,7 +110,7 @@ AttackBox 是一套专为渗透测试人员、安全研究与技术教学打造�
     1. 独占 SQLite 数据库，全生命周期托管核心用户认证、令牌版本控制与操作审计日志。
     2. 维持全集群 Worker 反向连接池，统筹全局算力负载均衡与实例调度。
     3. 维护 `SessionManager` 与内存槽位分配器，执行原子预占防并发双击。
-    4. 运行后台 Reaper，周期性扫描并回收硬超时（TTL）与长时间空闲（Idle）会话。
+    4. 纯事件驱动维护全局槽位池与单用户并发锁，根据心跳差异与节点断线即时释放资源。
     5. 集中保管 Ed25519 签名私钥，分发跨机验签公钥与临时 Ticket。
 * **Worker 客户端 (Worker Agent / Node)**:
   * **角色定位**: 分布式无状态牺牲品执行器（Stateless Managed Executor）。
@@ -114,6 +119,7 @@ AttackBox 是一套专为渗透测试人员、安全研究与技术教学打造�
     2. 负责 PTY 伪终端主从对管理、TigerVNC 桌面按需拉起及本地 Unix Domain Socket 数据流桥接。
     3. 本地持有从 Control 同步的 Ed25519 公钥，进行纯内存极速离线验签，核销 JTI 防重放。
     4. 动态采集真实宿主机 `/proc/meminfo` 与 `/proc/loadavg` 指标并按期向控制中心上报。
+    5. 独占负责沙箱硬超时（TTL）与闲置超时（Idle）的权威判定与本地清理销毁。
 
 ### 1.2 牺牲品节点安全哲学 (Sacrificial Node Philosophy)
 将算力节点定位为“牺牲品（Sacrificial Node）”是本架构的核心安全基石：
@@ -264,11 +270,10 @@ Worker 节点内部构建单一私有虚拟网桥：
 ### 4.4 批处理网络配置与 Fork 风暴消除
 沙箱内部网络配置（网卡重命名为 `eth0`、分配 IP、启动网卡、启用 Loopback 及配置默认网关）由单次原子 Shell 脚本批处理调用完成，将外部进程派生次数从原本的 10 余次收敛至极简，消除频繁 fork 对内核调度造成的冲击。
 
-### 4.5 SlotAllocator O(1) Free List 高性能槽位调度
-在 Control 节点中，网络槽位分配器采用常数时间算法：
-* **数据结构**: `freeList []int` + `slotToID map[int]string` + `idToSlot map[string]int`。
-* **分配**: O(1) 从 `freeList` 头部弹出最小可用槽位，优先复用低位 IP。
-* **释放**: O(1) 反查映射表完成注销，并将槽位按序插回 `freeList`。
+### 4.5 SlotAllocator 槽位安全分配与防重调度
+在 Control 节点中，网络槽位分配器优先保障数据一致性与零泄漏：
+* **单一事实来源**: 采用双向映射表（`slotToID map[int]string` 与 `idToSlot map[string]int`），彻底废除切片自由列表，杜绝多重数据结构状态不同步风险。
+* **分配与释放**: 顺序检索 1~250 槽位分配首个空闲序号（纳秒级完成），释放时双向抹除，从机制上杜绝槽位泄漏与重复分配。
 
 ---
 
@@ -281,9 +286,9 @@ sqlite3://attackbox.db?_journal_mode=WAL&_busy_timeout=5000
 ```
 连接池配置放宽至 `SetMaxOpenConns(16)` 与 `SetMaxIdleConns(8)`，允许多个只读请求并发穿透，彻底消除单连接瓶颈。
 
-### 5.2 基于 Ed25519 的客户端无状态 JWT 鉴权与 TokenVersion 内存高速缓存
+### 5.2 基于 Ed25519 的客户端无状态 JWT 鉴权与 TokenVersion 实时注销
 * **JWT 签名**: 采用 Ed25519 纯内存签名，有效载荷包含 `sub`、`username`、`role`、`ver`、`exp`。
-* **TokenVersion 高速缓存**: 引入基于 `sync.RWMutex` 的 `TokenVersionCache`（10s TTL）。高频鉴权请求直接命中内存校验，实测 50 并发请求在 29.7ms 内完成（单次验证延迟约 200µs），系统吞吐可达数千 QPS。
+* **实时版本校验**: 鉴权中间件直接比对 SQLite 用户主键记录中的 `TokenVersion` 与用户状态（微秒级 WAL 索引查询），密码变更或管理员注销时瞬时全局生效，杜绝缓存击穿与双端失效竞态。
 
 ### 5.3 认证防时序侧信道、错误脱敏与 Admin 自动引导
 1. **时序侧信道消除**: 用户登录验证时，无论用户名是否存在，均无条件执行一次耗时恒定（~83ms）的 Dummy Bcrypt 比较运算，抹平用户名枚举攻击面。
@@ -311,14 +316,9 @@ sqlite3://attackbox.db?_journal_mode=WAL&_busy_timeout=5000
 * **单活跃抢占机制**: 针对同一沙箱的 PTY 或 VNC 连接，Worker 维护单活跃会话表。若新连接接入，主动向旧连接发送 `4001 Preempted` 控制帧优雅关闭旧通道，确保单终端输入的时序一致性。
 * **真实击键活跃保活 (`TouchSandbox`)**: 废除轮询查询接口（如 `/api/sandbox/active`）无差别刷新活跃时间的做法（防止监控轮询导致沙箱永不超时）。系统仅在用户向 PTY 终端实际输入击键字符流时触发 `TouchSandbox`，真实反映租户活跃状态。
 
-### 6.4 防 TOCTOU 并发双击预占、后台 Reaper 与孤儿自愈对账 (P1 级加固)
+### 6.4 防 TOCTOU 并发双击预占与单路径终止
 * **原子预占 (`TryReserve`)**: `SessionManager` 在收到创建请求时立即实施基于用户 ID 的内存原子锁，快速并发双击请求首发返回 `201 Created`，次发精准返回 `409 Conflict`，杜绝旧沙箱失控漂移。
-* **后台自动 Reaper**: 控制端运行 30s 周期性扫描协程，自动清理硬超时（TTL）及长时间未活动的空闲（Idle）沙箱。
-* **单路径终止流水线**: 手动停止与后台回收统一流经 `TerminateSandbox`，保证流程无分叉。
-* **Worker 启动恢复与全局对账自愈**:
-  - **本地实例接管**: Worker 启动时主动遍历 `/var/lib/attackbox/instances` 目录，恢复本地沙箱运行时结构，防止因 Worker 重启导致本地运行中的沙箱彻底脱管；
-  - **反向对账清理**: Worker 建立 WebSocket 连接注册及发送心跳时，将本地 `ActiveSandboxIDs` 清单上报给 Control Hub；Control 对比全局活跃会话，发现 Control 中已被删除或超时的孤儿沙箱时，自动派发 `reconcile_orphan_cleanup` 销毁指令；
-  - **本地 2 小时兜底硬 TTL**: Worker 运行时独立维护本地 2 小时硬超时清理器，在 Control 控制中心发生灾难性网络分区或停机时，Worker 也能自主回收过期沙箱，防止算力资源永久耗尽。
+* **单路径终止流水线**: 用户主动停止与销毁请求统一流经单一下线管线，保证流程无分叉与状态自洽。
 
 ### 6.5 真实系统内核遥测采样
 Worker 节点通过读取 `/proc/meminfo`（`MemTotal` 与 `MemAvailable`）和 `/proc/loadavg` 获取微秒级真实的物理系统指标，向 Control 心跳上报诚实数据，彻底废除一切伪造标记与硬编码数值。
@@ -334,14 +334,8 @@ Worker 节点通过读取 `/proc/meminfo`（`MemTotal` 与 `MemAvailable`）和 
 * `Resetting`: 节点正在执行底层云快照回滚重建，严禁接收任何新建请求。
 * **状态机流转与查询**: 集群管理器提供线程安全的 `SetNodeState` 与 `GetNodeState` 接口，在 `GetSchedulingSnapshot` 单次读锁内原子获取节点状态、最新心跳与负载，消除多重锁竞争开销。
 
-### 7.2 节点重连实例指针判等
-`node_cluster_manager.go` 中的 `unregisterWorker` 严格采用实例指针判等：
-```go
-if h.workers[w.NodeID] == w {
-    delete(h.workers, w.NodeID)
-}
-```
-当节点快速断线重连建立新连接时，旧连接退出触发的清理逻辑绝不会误删已登记的新连接，保障调度器始终持有有效路由。
+### 7.2 节点重连连接解耦
+节点注销采用连接实例指针严格判等：当节点发生快速重连时，旧连接退出触发的断开动作绝不误注销已建立的新连接。
 
 ### 7.3 并发数据竞争防护与 WebSocket 抢占优化
 * **网关公钥读写锁**: 在 [`node/container_gateway_server.go`](file:///F:/deepseek/attackbox/node/container_gateway_server.go) 中，网关持有的 Ed25519 公钥通过 `keyMu sync.RWMutex` 进行读写保护，`SetPublicKey` 上写锁，客户端交互端上读锁，经受 `go test -race` 高并发压测保证零报警。
@@ -357,23 +351,16 @@ if h.workers[w.NodeID] == w {
 * **全局 Panic 恢复**: `recoveryMiddleware` 拦截意外 panic，打印堆栈并输出标准 500 JSON 错误。
 * **统一日志格式**: 废除分散的 `fmt.Printf`，全量统一为标准库 `log.Printf`。
 
-### 7.6 无状态双向对账机制 (State Reconciliation - Adopt & Evict / P1-E 级加固)
-针对控制中心（Control Hub）重启、崩溃恢复后内存会话（`sessions`）与槽位（`slots`）清零导致的存量沙箱脱管与孤儿化漏洞，系统确立了**无状态双向对账协议**：
-1. **Worker 主动上报存量快照**:
-   Worker 节点反向连接成功且收到 `RegisterAck` 后，立即扫描本地活跃沙箱实例并附带网络插槽索引（`SlotIndex`）、归属用户（`UserID`）、沙箱 IP（`SandboxIP`）及启动时间戳，封装为 `protocol.MsgTypeReconcile` 上报 Control。
-2. **Control 端的 Adopt (收编) 机制**:
-   当 Control 处理 Reconcile 请求时，比对内存会话表：
-   * 若 Control 内存中无此记录（典型为 Control 重启）：立即调用 `s.slots.Occupy(sbxID, slot)` 精准占位恢复槽位（防止新创建实例拿到相同 slot 产生网卡冲突），依据上报元数据重建 `ActiveSession`（状态置为 `running`，恢复 `StartedAt` 与 `ExpiresAt`），并将 ID 加入 `Adopted` 响应清单；
-   * 重建后沙箱立即恢复受管状态，重新纳入后台 Reaper 周期性超时回收（TTL & Idle），且用户可通过 `/api/sandbox/stop` 正常停止沙箱。
-3. **Control 端的 Evict (逐出) 机制**:
-   若该沙箱在 Control 侧记录的状态为 `cleanup_failed` 或 `terminated`（表明该沙箱本应被销毁但在历史上执行异常），Control 将该 ID 写入 `Evicted` 响应清单，指示节点清理。
-4. **Worker 端的真实资源回收闭环**:
-   Worker 接收到 `MsgTypeReconcileResp` 后，针对 `Evicted` 列表中的每个沙箱，立即驱动本地真实清理流水线（拆除 veth 网卡与防火墙规则、终止容器进程、卸载文件系统、销毁 Cgroup 与 Btrfs 子卷快照），随后注销本地状态，形成端到端闭环。
+### 7.6 节点心跳同步与会话自动清理
+* **心跳上报**: Worker 周期性向 Control 上报节点启动标识与实际运行中的沙箱快照清单（包含真实终端交互时间戳）。
+* **重启清算**: Control 检测到 Worker 启动标识发生变更时，判定节点已发生重启，立即注销该节点原先登记的所有沙箱会话并释放槽位。
+* **缺失释放**: Control 以 Worker 心跳清单为准进行单向核对：未出现在清单中的沙箱判定为已终止，即时释放 IP 槽位并解除租户并发占用；在清单中的沙箱则同步最新活跃时间。
 
-### 7.7 单沙箱独立邮箱与全局锁解耦 (P1-D 级加固)
-Worker 客户端接收控制消息时，针对每个沙箱维护独立的 FIFO 处理邮箱（`sandboxMailbox`，容量 64）：
-* **全局锁极简持有**: 在 `c.mailboxesMu` 保护下仅完成检索或创建对应沙箱邮箱对象的动作，随后**立即释放全局锁**；
-* **锁外非阻塞投递**: 在全局锁外执行通道非阻塞投递（`select { case mb.ch <- msg: default: log... }`）；即使某个故障沙箱内部因内核卡死或 I/O 阻塞导致其邮箱满塞（达到 64 条上限），当前投递协程在微秒级内直接走 default 分支降级并输出告警，绝不持有锁阻塞，彻底保障了控制通道对其它健康沙箱操作的零停摆。
+### 7.7 单沙箱独立邮箱与串行顺序保障
+Worker 针对每个沙箱维护独立的 FIFO 处理邮箱，确保单实例命令严格按序执行：
+* **顺序执行保证**: 同一沙箱的创建与销毁指令严格串行化执行，杜绝并发竞争与状态穿插。
+* **满队列明确拒绝**: 当单沙箱操作队列满（容量 4）时，立即发回明确拒绝响应，杜绝静默丢弃导致控制端超时挂起。
+* **生命周期自然终结**: 销毁命令执行完毕且无后续指令时，处理协程安全退出并清理映射，消除空闲超时竞态。
 
 ---
 
@@ -382,7 +369,7 @@ Worker 客户端接收控制消息时，针对每个沙箱维护独立的 FIFO �
 ### 8.1 静态配置文件规范与 YAML 强类型解析 (P1/P2 级加固)
 * **配置文件职权分离与彻底解耦**:
   * **Control 配置文件 (`configs/control.yaml`)**:
-    * 集中管理：Web 监听端口、CORS 白名单、SQLite 路径、集群密钥 `cluster_secret`、签名私钥、超时与 TTL 参数（`ttl_seconds`、`idle_seconds`、`reaper_interval_sec`）、超级管理员引导凭据（`initial_admin_*`）及全局沙箱权威配额（`resources`、`storage`）；
+    * 集中管理：Web 监听端口、CORS 白名单、SQLite 路径、集群密钥 `cluster_secret`、签名私钥、超时与生命周期参数（`ttl_seconds`、`idle_seconds`）、超级管理员引导凭据（`initial_admin_*`）及全局沙箱权威配额（`resources`、`storage`）；
     * **彻底剔除无用网络配置**: 移除历史残留的 `sandbox.network`（网桥与子网由 Worker 本地管理），Control 纯粹按 Slot 整数进行资源追踪与会话维护；
   * **Worker 配置文件 (`configs/node.yaml`)**:
     * 包含：节点身份标识（`node_id`）、集群通信密钥、Control 反向连接地址、数据服务端口（`:8443`）、本地 Btrfs/Cgroup/DiskGuard 路径与本地网桥网络配置（`network: bridge_name, gateway_ip, subnet_cidr, egress_interface`）；
@@ -393,3 +380,27 @@ Worker 客户端接收控制消息时，针对每个沙箱维护独立的 FIFO �
 ### 8.2 核心机密单向隔离与无状态 Worker
 * **私钥留底，公钥下发**: Control 独占持有签名私钥，Worker 仅持有公钥用于离线验签。Worker 即使遭到逆向或内存 Dump，也绝无法伪造合法的系统访问 Ticket。
 * **Worker 物理零机密、零数据库**: Worker 本地无持久化数据库，受害面严格锁死在该牺牲品节点内部，保障中心控制资产绝对安全。
+
+---
+
+## 第 9 章：实例权威状态模型与生命周期规范
+
+### 9.1 单一权威记录原则 (Worker 独占维护与只读快照)
+* **权责划分**: Worker 维护实例运行的唯一权威状态（包含运行进程、网络分配、生命周期时间戳与清理状态）；Control 仅维护面向用户的调度与归属信息，下达创建与停止指令。
+* **生命周期独占判定**: Worker 独占负责实例硬超时（TTL）与闲置超时（Idle）的权威判断与销毁执行。Worker 能够感知底层伪终端的真实输入流，断开 Control 连接后亦能自主回收，杜绝双端各自计时导致的误杀与竞态冲突。
+* **只读快照消费**: 外部通信通道与数据网关仅能读取 Worker 实例的只读数据快照，严禁跨组件交叉读写或多头维护状态。
+* **真实击键活跃**: 终端实际交互直接原地刷新 Worker 权威活跃时间戳，杜绝任何外部轮询查询伪造活跃。
+
+### 9.2 纯事件驱动资源回收 (零定时器 / 心跳差异与重启清算)
+Control 端彻底剔除周期性定时扫描器（零定时器），完全基于 Worker 真实心跳事件驱动全局资源的收敛与回收：
+* **心跳差异回收**: 以 Worker 周期心跳上报的存活实例清单为准进行单向核对，未在清单中的实例即时从会话表移除并归还 IP 槽位。
+* **节点重启清算**: 节点启动标识（BootID）发生变更表明算力节点已重启，Control 立即清空旧会话并归还槽位。
+* **排他性硬资源解冻**: 及时解除单用户单实例排他锁（防止用户被幽灵实例卡死），并及时归还全局有限的 IP 槽位池（防止槽位耗尽导致拒绝服务）。
+
+### 9.3 统一销毁与幂等收敛 (单下线管线与错误保留)
+* **单路径销毁**: 用户主动停止、Worker 超时自动回收及创建失败回滚，统一流经单一下线管线，串行安全释放进程、网络、挂载与隔离资源。
+* **幂等收敛**: 目标为销毁的请求，若实例在内存中已不存在直接认定成功；清理完全成功后移出内存，清理若遇异常则保留错误标记供排查与重试。
+
+### 9.4 无状态运行与秒级启动 (零磁盘扫描)
+* **天然隔离**: 沙箱使用高熵唯一标识，目录与网卡按规则动态派生，实例之间互不冲突。
+* **零扫描就绪**: Worker 定位为可牺牲算力，启动时不扫描磁盘、不尝试复活旧实例，内存开局秒级就绪；正常生命周期由守护进程退出钩子托管。

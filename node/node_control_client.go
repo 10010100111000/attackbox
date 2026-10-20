@@ -5,8 +5,8 @@ import (
 	"bytes"
 	"context"
 	"crypto/ed25519"
+	"crypto/rand"
 	"encoding/hex"
-	"errors"
 	"fmt"
 	"log"
 	"net"
@@ -17,6 +17,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/gorilla/websocket"
@@ -109,11 +110,7 @@ func LoadNodeConfig(path string) (*NodeConfig, error) {
 // -------------------------------------------------------------
 
 type sandboxMailbox struct {
-	mu       sync.Mutex
-	ch       chan *protocol.Message
-	cancel   context.CancelFunc
-	canceled bool
-	stopped  bool
+	ch chan *protocol.Message
 }
 
 type NodeControlClient struct {
@@ -121,9 +118,8 @@ type NodeControlClient struct {
 	rtMgr       *rt.RuntimeManager
 	conn        *websocket.Conn
 	connMu      sync.Mutex
-	slotsMu     sync.Mutex
-	slots       map[string]int
-	sbxMeta     map[string]protocol.SandboxReconcileInfo
+	bootID      string
+	seq         uint64
 	stopCh      chan struct{}
 	wg          sync.WaitGroup
 	onKeySync   func(pubKey ed25519.PublicKey)
@@ -132,11 +128,13 @@ type NodeControlClient struct {
 }
 
 func NewNodeControlClient(cfg *NodeConfig, rtMgr *rt.RuntimeManager, onKeySync func(pubKey ed25519.PublicKey)) *NodeControlClient {
+	b := make([]byte, 8)
+	_, _ = rand.Read(b)
+	bootID := hex.EncodeToString(b)
 	return &NodeControlClient{
 		cfg:       cfg,
 		rtMgr:     rtMgr,
-		slots:     make(map[string]int),
-		sbxMeta:   make(map[string]protocol.SandboxReconcileInfo),
+		bootID:    bootID,
 		stopCh:    make(chan struct{}),
 		onKeySync: onKeySync,
 		mailboxes: make(map[string]*sandboxMailbox),
@@ -267,6 +265,7 @@ func (c *NodeControlClient) runSession(ctx context.Context) error {
 	// 1. Send Registration frame
 	regPayload := protocol.RegisterReq{
 		NodeID:           c.cfg.Node.NodeID,
+		BootID:           c.bootID,
 		Version:          "2.0",
 		DataPort:         dataPort,
 		PublicDataURL:    c.cfg.Gateway.PublicDataURL,
@@ -340,15 +339,23 @@ func (c *NodeControlClient) heartbeatLoop(ctx context.Context) {
 			return
 		case <-ticker.C:
 			_, availableMemMB := readSystemMemoryMB()
-			activeIDs := c.rtMgr.ListSandboxIDs()
+			var summaries []protocol.SandboxSummary
+			var activeIDs []string
+			if c.rtMgr != nil {
+				summaries = c.rtMgr.ListSummaries()
+				activeIDs = c.rtMgr.ListSandboxIDs()
+			}
 			hbPayload := protocol.HeartbeatReq{
 				NodeID:           c.cfg.Node.NodeID,
+				BootID:           c.bootID,
+				Seq:              atomic.AddUint64(&c.seq, 1),
 				Timestamp:        time.Now().Unix(),
 				LoadAvg:          readSystemLoadAvg(),
 				MemAvailableMB:   availableMemMB,
 				DiskFreeGB:       c.rtMgr.DiskGuard().GetCurrentFreeMB() / 1024,
 				ActiveSandboxes:  len(activeIDs),
 				ActiveSandboxIDs: activeIDs,
+				Sandboxes:        summaries,
 			}
 			hbMsg, err := protocol.NewMessage(protocol.MsgTypeHeartbeat, hbPayload)
 			if err == nil {
@@ -375,18 +382,8 @@ func (c *NodeControlClient) dispatchMessage(msg *protocol.Message) {
 				}
 			}
 		}
-		// P1-E: Trigger state reconciliation upon successful registration
-		go func() {
-			if err := c.sendReconcile(); err != nil {
-				log.Printf("[CLUSTER] Reconcile on registration failed: %v", err)
-			}
-		}()
-
 	case protocol.MsgTypeHeartbeatAck:
 		// Heartbeat acknowledged
-
-	case protocol.MsgTypeReconcileResp:
-		c.handleReconcileResp(msg)
 
 	case protocol.MsgTypeCreateBox, protocol.MsgTypeDestroyBox:
 		var hdr struct {
@@ -394,35 +391,27 @@ func (c *NodeControlClient) dispatchMessage(msg *protocol.Message) {
 		}
 		if err := msg.UnpackPayload(&hdr); err != nil || hdr.SandboxID == "" {
 			log.Printf("[CLUSTER] Failed to unpack sandbox_id from %s: %v", msg.Type, err)
+			c.sendErrorResponse(msg, "missing or invalid sandbox_id")
 			return
 		}
 
 		c.mailboxesMu.Lock()
 		mb, exists := c.mailboxes[hdr.SandboxID]
-		if !exists || mb.stopped {
+		if !exists {
 			mb = &sandboxMailbox{
-				ch: make(chan *protocol.Message, 64),
+				ch: make(chan *protocol.Message, 4),
 			}
 			c.mailboxes[hdr.SandboxID] = mb
 			go c.runSandboxMailbox(hdr.SandboxID, mb)
 		}
-		c.mailboxesMu.Unlock()
 
-		// P1-9 & P1-10: If DestroyBox arrives, mark canceled immediately to preempt queued or in-flight creation
-		if msg.Type == protocol.MsgTypeDestroyBox {
-			mb.mu.Lock()
-			mb.canceled = true
-			if mb.cancel != nil {
-				mb.cancel()
-			}
-			mb.mu.Unlock()
-		}
-
-		// P1-D: Strictly FIFO enqueue per sandbox, delivered outside global mutex to prevent blocking control channel
 		select {
 		case mb.ch <- msg:
+			c.mailboxesMu.Unlock()
 		default:
-			log.Printf("[ERROR] Mailbox for sandbox %s overflowed (capacity 64), dropping message %s", hdr.SandboxID, msg.Type)
+			c.mailboxesMu.Unlock()
+			log.Printf("[ERROR] Mailbox for sandbox %s full (capacity 4), rejecting %s", hdr.SandboxID, msg.Type)
+			c.sendErrorResponse(msg, "sandbox operation queue is full")
 		}
 
 	default:
@@ -441,74 +430,70 @@ func (c *NodeControlClient) runSandboxMailbox(sandboxID string, mb *sandboxMailb
 			}
 			switch msg.Type {
 			case protocol.MsgTypeCreateBox:
-				c.handleCreateBox(msg, mb)
+				c.handleCreateBox(msg)
 			case protocol.MsgTypeDestroyBox:
 				c.handleDestroyBox(msg)
 				c.mailboxesMu.Lock()
-				mb.mu.Lock()
 				if len(mb.ch) == 0 {
-					mb.stopped = true
 					delete(c.mailboxes, sandboxID)
-					mb.mu.Unlock()
 					c.mailboxesMu.Unlock()
 					return
 				}
-				mb.mu.Unlock()
 				c.mailboxesMu.Unlock()
 			}
-		case <-time.After(5 * time.Minute):
-			c.mailboxesMu.Lock()
-			mb.mu.Lock()
-			if len(mb.ch) == 0 {
-				mb.stopped = true
-				delete(c.mailboxes, sandboxID)
-				mb.mu.Unlock()
-				c.mailboxesMu.Unlock()
-				return
-			}
-			mb.mu.Unlock()
-			c.mailboxesMu.Unlock()
 		}
 	}
 }
 
-func (c *NodeControlClient) handleCreateBox(msg *protocol.Message, mb *sandboxMailbox) {
+func (c *NodeControlClient) sendErrorResponse(msg *protocol.Message, errMsg string) {
+	var respMsg *protocol.Message
+	switch msg.Type {
+	case protocol.MsgTypeCreateBox:
+		var req protocol.CreateBoxReq
+		_ = msg.UnpackPayload(&req)
+		respMsg, _ = protocol.NewMessage(protocol.MsgTypeCreateBoxResp, protocol.CreateBoxResp{
+			SandboxID: req.SandboxID,
+			Success:   false,
+			Error:     errMsg,
+		})
+	case protocol.MsgTypeDestroyBox:
+		var req protocol.DestroyBoxReq
+		_ = msg.UnpackPayload(&req)
+		respMsg, _ = protocol.NewMessage(protocol.MsgTypeDestroyBoxResp, protocol.DestroyBoxResp{
+			SandboxID: req.SandboxID,
+			Success:   false,
+			Error:     errMsg,
+		})
+	default:
+		return
+	}
+	if respMsg != nil {
+		respMsg.ID = msg.ID
+		_ = c.sendMessage(respMsg)
+	}
+}
+
+func (c *NodeControlClient) handleCreateBox(msg *protocol.Message) {
 	var req protocol.CreateBoxReq
 	if err := msg.UnpackPayload(&req); err != nil {
 		log.Printf("[CLUSTER] Unpack CreateBoxReq failed: %v", err)
+		c.sendErrorResponse(msg, fmt.Sprintf("unpack request: %v", err))
 		return
 	}
 
 	log.Printf("[CLUSTER] Received CreateBox for %s (User %d, Slot %d)", req.SandboxID, req.UserID, req.SlotIndex)
 
-	// P1-10: Check if a DestroyBox arrived before this CreateBox was dequeued
-	mb.mu.Lock()
-	if mb.canceled {
-		mb.mu.Unlock()
-		log.Printf("[CLUSTER] CreateBox for %s aborted: superseding DestroyBox already enqueued", req.SandboxID)
-		respPayload := protocol.CreateBoxResp{
+	if c.rtMgr == nil {
+		log.Printf("[CLUSTER] Mock/nil rtMgr: skipping actual sandbox creation for %s", req.SandboxID)
+		respMsg, _ := protocol.NewMessage(protocol.MsgTypeCreateBoxResp, protocol.CreateBoxResp{
 			SandboxID: req.SandboxID,
-			Success:   false,
-			Error:     "creation canceled by superseding destroy request",
-		}
-		respMsg, err := protocol.NewMessage(protocol.MsgTypeCreateBoxResp, respPayload)
-		if err == nil {
-			respMsg.ID = msg.ID
-			_ = c.sendMessage(respMsg)
-		}
+			Success:   true,
+			SandboxIP: fmt.Sprintf("10.99.0.%d", req.SlotIndex),
+		})
+		respMsg.ID = msg.ID
+		_ = c.sendMessage(respMsg)
 		return
 	}
-
-	createCtx, cancel := context.WithCancel(context.Background())
-	mb.cancel = cancel
-	mb.mu.Unlock()
-
-	defer func() {
-		cancel()
-		mb.mu.Lock()
-		mb.cancel = nil
-		mb.mu.Unlock()
-	}()
 
 	// Fallback to node config defaults if unspecified
 	if req.Policy.Storage.TmpfsTmpSize == "" && c.cfg.Runtime.Tmpfs.TmpSize != "" {
@@ -518,78 +503,30 @@ func (c *NodeControlClient) handleCreateBox(msg *protocol.Message, mb *sandboxMa
 		req.Policy.Storage.TmpfsRunSize = c.cfg.Runtime.Tmpfs.RunSize
 	}
 
-	// 1. Single JSON Pass-Through directly to RuntimeManager
-	if c.rtMgr == nil {
-		log.Printf("[CLUSTER] Mock/nil rtMgr: skipping actual sandbox creation for %s", req.SandboxID)
-		return
-	}
-	sbx, err := c.rtMgr.CreateSandbox(createCtx, rt.SandboxConfig{
-		ID:     req.SandboxID,
-		Policy: req.Policy,
+	ctx, cancel := context.WithTimeout(context.Background(), 25*time.Second)
+	defer cancel()
+
+	sbx, err := c.rtMgr.CreateSandbox(ctx, rt.SandboxConfig{
+		ID:        req.SandboxID,
+		UserID:    req.UserID,
+		SlotIndex: req.SlotIndex,
+		Policy:    req.Policy,
 	})
 
 	respPayload := protocol.CreateBoxResp{
 		SandboxID: req.SandboxID,
+		Success:   err == nil,
 	}
-
 	if err != nil {
-		log.Printf("[CLUSTER] CreateSandbox %s failed: %v", req.SandboxID, err)
-		respPayload.Success = false
 		respPayload.Error = err.Error()
+		log.Printf("[CLUSTER] CreateSandbox %s failed: %v", req.SandboxID, err)
 	} else {
-		select {
-		case <-createCtx.Done():
-			log.Printf("[CLUSTER] CreateBox %s canceled right after creation, rolling back", req.SandboxID)
-			_ = c.rtMgr.DestroySandbox(context.Background(), req.SandboxID)
-			respPayload.Success = false
-			respPayload.Error = createCtx.Err().Error()
-		default:
-			// 2. Setup isolated network if slot index is valid
-			slotIdx := req.SlotIndex
-			if slotIdx <= 0 {
-				slotIdx = 1
-			}
-			netns := fmt.Sprintf("/proc/%d/ns/net", sbx.PID)
-			sbxNet, netErr := SetupSandboxNetwork(createCtx, c.cfg.Network.BridgeName, slotIdx, req.SandboxID, netns)
-			if netErr != nil {
-				log.Printf("[CLUSTER] SetupSandboxNetwork %s failed: %v", req.SandboxID, netErr)
-				_ = c.rtMgr.DestroySandbox(context.Background(), req.SandboxID)
-				respPayload.Success = false
-				respPayload.Error = netErr.Error()
-			} else {
-				select {
-				case <-createCtx.Done():
-					log.Printf("[CLUSTER] CreateBox %s canceled after network setup, rolling back", req.SandboxID)
-					_ = TeardownSandboxNetwork(context.Background(), slotIdx, req.SandboxID)
-					_ = c.rtMgr.DestroySandbox(context.Background(), req.SandboxID)
-					respPayload.Success = false
-					respPayload.Error = createCtx.Err().Error()
-				default:
-					c.slotsMu.Lock()
-					c.slots[req.SandboxID] = slotIdx
-					if c.sbxMeta == nil {
-						c.sbxMeta = make(map[string]protocol.SandboxReconcileInfo)
-					}
-					c.sbxMeta[req.SandboxID] = protocol.SandboxReconcileInfo{
-						SandboxID:    req.SandboxID,
-						SlotIndex:    slotIdx,
-						UserID:       req.UserID,
-						SandboxIP:    sbxNet.IP,
-						StartedAt:    time.Now().Unix(),
-						LastActiveAt: time.Now().Unix(),
-					}
-					c.slotsMu.Unlock()
-
-					respPayload.Success = true
-					respPayload.SandboxIP = sbxNet.IP
-					log.Printf("[CLUSTER] Sandbox %s created successfully! (IP: %s, Slot: %d)", req.SandboxID, sbxNet.IP, slotIdx)
-				}
-			}
-		}
+		respPayload.SandboxIP = sbx.IP
+		log.Printf("[CLUSTER] Sandbox %s created successfully! (IP: %s, Slot: %d)", req.SandboxID, sbx.IP, sbx.SlotIndex)
 	}
 
-	respMsg, err := protocol.NewMessage(protocol.MsgTypeCreateBoxResp, respPayload)
-	if err == nil {
+	respMsg, packErr := protocol.NewMessage(protocol.MsgTypeCreateBoxResp, respPayload)
+	if packErr == nil {
 		respMsg.ID = msg.ID
 		_ = c.sendMessage(respMsg)
 	}
@@ -599,136 +536,35 @@ func (c *NodeControlClient) handleDestroyBox(msg *protocol.Message) {
 	var req protocol.DestroyBoxReq
 	if err := msg.UnpackPayload(&req); err != nil {
 		log.Printf("[CLUSTER] Unpack DestroyBoxReq failed: %v", err)
+		c.sendErrorResponse(msg, fmt.Sprintf("unpack request: %v", err))
 		return
 	}
 
 	log.Printf("[CLUSTER] Received DestroyBox for %s (Reason: %s)", req.SandboxID, req.Reason)
 
-	c.slotsMu.Lock()
-	slotIdx := c.slots[req.SandboxID]
-	c.slotsMu.Unlock()
-
-	var errs []string
-
-	// 1. Teardown sandbox veth & firewall rules
-	if slotIdx > 0 {
-		if netErr := TeardownSandboxNetwork(context.Background(), slotIdx, req.SandboxID); netErr != nil {
-			log.Printf("[CLUSTER] Warning: Teardown network for %s (slot %d) failed: %v", req.SandboxID, slotIdx, netErr)
-			errs = append(errs, fmt.Sprintf("net teardown: %v", netErr))
-		}
-	}
-
-	// 2. Destroy sandbox runtime (processes, cgroups, mounts, btrfs)
-	destroyCtx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
-	if c.rtMgr != nil {
-		if rtErr := c.rtMgr.DestroySandbox(destroyCtx, req.SandboxID); rtErr != nil {
-			log.Printf("[CLUSTER] Error: DestroySandbox for %s failed: %v", req.SandboxID, rtErr)
-			errs = append(errs, fmt.Sprintf("runtime destroy: %v", rtErr))
-		}
-	}
 
-	// 3. P1-8 Fix: Only remove slot mapping from state if destruction succeeded without errors.
-	// If it failed, retain state so that retry requests can still locate slotIdx and retry teardown!
-	var finalErr error
-	if len(errs) > 0 {
-		finalErr = errors.New(strings.Join(errs, "; "))
-	} else {
-		c.slotsMu.Lock()
-		delete(c.slots, req.SandboxID)
-		if c.sbxMeta != nil {
-			delete(c.sbxMeta, req.SandboxID)
-		}
-		c.slotsMu.Unlock()
+	var err error
+	if c.rtMgr != nil {
+		err = c.rtMgr.DestroySandbox(ctx, req.SandboxID)
 	}
 
 	respPayload := protocol.DestroyBoxResp{
 		SandboxID: req.SandboxID,
-		Success:   finalErr == nil,
+		Success:   err == nil,
 	}
-	if finalErr != nil {
-		respPayload.Error = finalErr.Error()
+	if err != nil {
+		respPayload.Error = err.Error()
+		log.Printf("[CLUSTER] DestroySandbox %s failed: %v", req.SandboxID, err)
+	} else {
+		log.Printf("[CLUSTER] DestroySandbox %s succeeded", req.SandboxID)
 	}
 
-	respMsg, err := protocol.NewMessage(protocol.MsgTypeDestroyBoxResp, respPayload)
-	if err == nil {
+	respMsg, packErr := protocol.NewMessage(protocol.MsgTypeDestroyBoxResp, respPayload)
+	if packErr == nil {
 		respMsg.ID = msg.ID
 		_ = c.sendMessage(respMsg)
-	}
-}
-
-// SendReconcile initiates a bidirectional state reconciliation with the Control Hub.
-func (c *NodeControlClient) SendReconcile() error {
-	return c.sendReconcile()
-}
-
-func (c *NodeControlClient) sendReconcile() error {
-	if c.rtMgr == nil {
-		return nil
-	}
-	activeSandboxes := c.rtMgr.ListSandboxes()
-	c.slotsMu.Lock()
-	reconcileList := make([]protocol.SandboxReconcileInfo, 0, len(activeSandboxes))
-	for _, sbx := range activeSandboxes {
-		if meta, ok := c.sbxMeta[sbx.ID]; ok {
-			reconcileList = append(reconcileList, meta)
-		} else {
-			slotIdx := c.slots[sbx.ID]
-			ip := ""
-			if slotIdx > 0 {
-				ip = fmt.Sprintf("10.200.0.%d", 10+slotIdx)
-			}
-			reconcileList = append(reconcileList, protocol.SandboxReconcileInfo{
-				SandboxID:    sbx.ID,
-				SlotIndex:    slotIdx,
-				SandboxIP:    ip,
-				StartedAt:    sbx.StartedAt.Unix(),
-				LastActiveAt: sbx.LastActiveAt.Unix(),
-			})
-		}
-	}
-	c.slotsMu.Unlock()
-
-	req := protocol.ReconcileReq{
-		NodeID:    c.cfg.Node.NodeID,
-		Sandboxes: reconcileList,
-	}
-	msg, err := protocol.NewMessage(protocol.MsgTypeReconcile, req)
-	if err != nil {
-		return err
-	}
-	return c.sendMessage(msg)
-}
-
-func (c *NodeControlClient) handleReconcileResp(msg *protocol.Message) {
-	var resp protocol.ReconcileResp
-	if err := msg.UnpackPayload(&resp); err != nil {
-		log.Printf("[CLUSTER] Failed to unpack ReconcileResp: %v", err)
-		return
-	}
-	log.Printf("[CLUSTER] Reconcile completed: Adopted %d, Evicted %d", len(resp.Adopted), len(resp.Evicted))
-
-	for _, sbxID := range resp.Evicted {
-		log.Printf("[CLUSTER] Evicting orphaned sandbox %s as commanded by Control Hub", sbxID)
-		c.slotsMu.Lock()
-		slotIdx := c.slots[sbxID]
-		c.slotsMu.Unlock()
-
-		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
-		if slotIdx > 0 {
-			_ = TeardownSandboxNetwork(ctx, slotIdx, sbxID)
-		}
-		if c.rtMgr != nil {
-			_ = c.rtMgr.DestroySandbox(ctx, sbxID)
-		}
-		cancel()
-
-		c.slotsMu.Lock()
-		delete(c.slots, sbxID)
-		if c.sbxMeta != nil {
-			delete(c.sbxMeta, sbxID)
-		}
-		c.slotsMu.Unlock()
 	}
 }
 

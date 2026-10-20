@@ -73,6 +73,18 @@ func main() {
 
 	// 2. Initialize Container Runtime Manager
 	rtMgr := runtime.NewRuntimeManager(cfg.Runtime)
+	rtMgr.SetNetworkLifecycle(
+		func(ctx context.Context, slotIndex int, id, netns string) (string, error) {
+			net, err := node.SetupSandboxNetwork(ctx, cfg.Network.BridgeName, slotIndex, id, netns)
+			if err != nil {
+				return "", err
+			}
+			return net.IP, nil
+		},
+		func(ctx context.Context, slotIndex int, id string) error {
+			return node.TeardownSandboxNetwork(ctx, slotIndex, id)
+		},
+	)
 	if err := rtMgr.Start(ctx); err != nil {
 		fmt.Fprintf(os.Stderr, "[FATAL] Failed to start runtime manager: %v\n", err)
 		os.Exit(1)

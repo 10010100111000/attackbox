@@ -8,7 +8,7 @@ import (
 	"path/filepath"
 	"time"
 
-	_ "github.com/mattn/go-sqlite3"
+	"github.com/mattn/go-sqlite3"
 )
 
 var (
@@ -30,12 +30,7 @@ type User struct {
 
 // DatabaseStore encapsulates SQLite operations.
 type DatabaseStore struct {
-	db                        *sql.DB
-	onTokenVersionInvalidated func(userID int64)
-}
-
-func (s *DatabaseStore) SetTokenVersionInvalidatedHook(fn func(userID int64)) {
-	s.onTokenVersionInvalidated = fn
+	db *sql.DB
 }
 
 // NewDatabaseStore initializes the SQLite database with WAL mode and runs DDL migrations.
@@ -102,23 +97,26 @@ func (s *DatabaseStore) migrate() error {
 // CreateUser registers a new user. If role is empty, the first user in the database is automatically
 // assigned 'admin' for system bootstrapping.
 func (s *DatabaseStore) CreateUser(username, passwordHash, email string, role string) (*User, error) {
+	var (
+		res sql.Result
+		err error
+	)
 	if role == "" {
-		var count int
-		_ = s.db.QueryRow(`SELECT COUNT(1) FROM users`).Scan(&count)
-		if count == 0 {
-			role = "admin"
-		} else {
-			role = "user"
-		}
+		// A single atomic INSERT decides the bootstrap admin: the first committed row wins.
+		// This eliminates the count-then-insert TOCTOU race where two concurrent first
+		// registrations could both be promoted to admin.
+		res, err = s.db.Exec(`
+			INSERT INTO users (username, password_hash, email, role)
+			VALUES (?, ?, ?, CASE WHEN (SELECT COUNT(1) FROM users) = 0 THEN 'admin' ELSE 'user' END)
+		`, username, passwordHash, email)
+	} else {
+		res, err = s.db.Exec(`
+			INSERT INTO users (username, password_hash, email, role)
+			VALUES (?, ?, ?, ?)
+		`, username, passwordHash, email, role)
 	}
-
-	query := `
-	INSERT INTO users (username, password_hash, email, role)
-	VALUES (?, ?, ?, ?)
-	`
-	res, err := s.db.Exec(query, username, passwordHash, email, role)
 	if err != nil {
-		return nil, fmt.Errorf("%w: %v", ErrUserAlreadyExists, err)
+		return nil, classifyInsertError(err)
 	}
 
 	id, err := res.LastInsertId()
@@ -131,14 +129,24 @@ func (s *DatabaseStore) CreateUser(username, passwordHash, email string, role st
 
 // EnsureAdminUser bootstraps an initial administrator account if no admin currently exists.
 func (s *DatabaseStore) EnsureAdminUser(username, passwordHash, email string) error {
-	var count int
-	_ = s.db.QueryRow(`SELECT COUNT(1) FROM users WHERE role = 'admin'`).Scan(&count)
-	if count > 0 {
-		return nil // Admin already present
-	}
-
-	_, err := s.db.Exec(`INSERT INTO users (username, password_hash, email, role) VALUES (?, ?, ?, 'admin')`, username, passwordHash, email)
+	// Atomic conditional insert: the "no admin exists" check and the insert happen in one
+	// SQLite statement, so two concurrent Control boots cannot both create an admin.
+	_, err := s.db.Exec(`
+		INSERT INTO users (username, password_hash, email, role)
+		SELECT ?, ?, ?, 'admin'
+		WHERE NOT EXISTS (SELECT 1 FROM users WHERE role = 'admin')
+	`, username, passwordHash, email)
 	return err
+}
+
+// classifyInsertError maps SQLite constraint violations to ErrUserAlreadyExists while
+// letting genuine storage failures surface as internal errors instead of bogus 409s.
+func classifyInsertError(err error) error {
+	var sqliteErr sqlite3.Error
+	if errors.As(err, &sqliteErr) && sqliteErr.Code == sqlite3.ErrConstraint {
+		return fmt.Errorf("%w: %v", ErrUserAlreadyExists, err)
+	}
+	return fmt.Errorf("insert user: %w", err)
 }
 
 // GetUserByUsername retrieves a user by their username.
@@ -169,12 +177,9 @@ func scanUser(row *sql.Row) (*User, error) {
 	return &u, nil
 }
 
-// IncrementTokenVersion revokes all existing JWTs for a user and immediately invalidates in-memory cache.
+// IncrementTokenVersion revokes all existing JWTs for a user by bumping their token version.
 func (s *DatabaseStore) IncrementTokenVersion(userID int64) error {
 	_, err := s.db.Exec(`UPDATE users SET token_version = token_version + 1 WHERE id = ?`, userID)
-	if err == nil && s.onTokenVersionInvalidated != nil {
-		s.onTokenVersionInvalidated(userID)
-	}
 	return err
 }
 

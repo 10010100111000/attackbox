@@ -83,11 +83,12 @@ type NodeCapabilities struct {
 // RegisterReq 节点向控制端主动注册请求
 type RegisterReq struct {
 	NodeID           string           `json:"node_id"`
+	BootID           string           `json:"boot_id,omitempty"`           // 节点启动唯一标识
 	Version          string           `json:"version"`
 	DataPort         int              `json:"data_port"`                   // 数据通道监听端口 (默认 8443)
 	PublicDataURL    string           `json:"public_data_url,omitempty"`    // 节点对外数据服务基准 URL (如 wss://...)
 	Capabilities     NodeCapabilities `json:"capabilities"`                // 硬件与运行时能力
-	ActiveSandboxIDs []string         `json:"active_sandbox_ids,omitempty"`// 本地活跃沙箱 ID 清单 (用于对账)
+	ActiveSandboxIDs []string         `json:"active_sandbox_ids,omitempty"`// 本地活跃沙箱 ID 清单
 }
 
 // RegisterResp 控制端注册响应
@@ -131,15 +132,24 @@ type ReconcileResp struct {
 	Evicted []string `json:"evicted"` // 控制端已废弃并指示节点清理的沙箱 ID
 }
 
+// SandboxSummary 节点心跳中上报的极简沙箱概要
+type SandboxSummary struct {
+	ID           string `json:"id"`
+	LastActiveAt int64  `json:"last_active_at"` // Unix timestamp (秒)
+}
+
 // HeartbeatReq 节点周期心跳真实遥测 (每 3 秒)
 type HeartbeatReq struct {
-	NodeID           string   `json:"node_id"`
-	Timestamp        int64    `json:"timestamp"`
-	LoadAvg          float64  `json:"load_avg"`                     // 宿主机 1分钟平均负载 (真实读取 /proc/loadavg)
-	MemAvailableMB   int64    `json:"mem_available_mb"`             // 真实可用物理内存 MB (真实读取 /proc/meminfo)
-	DiskFreeGB       int64    `json:"disk_free_gb"`                 // 真实磁盘剩余 GB
-	ActiveSandboxes  int      `json:"active_sandboxes"`             // 真实活跃沙箱运行数
-	ActiveSandboxIDs []string `json:"active_sandbox_ids,omitempty"`// 本地活跃沙箱 ID 清单 (用于对账)
+	NodeID           string           `json:"node_id"`
+	BootID           string           `json:"boot_id,omitempty"`           // 节点启动唯一标识
+	Seq              uint64           `json:"seq,omitempty"`               // 节点递增序列号
+	Timestamp        int64            `json:"timestamp"`
+	LoadAvg          float64          `json:"load_avg"`                     // 宿主机 1分钟平均负载 (真实读取 /proc/loadavg)
+	MemAvailableMB   int64            `json:"mem_available_mb"`             // 真实可用物理内存 MB (真实读取 /proc/meminfo)
+	DiskFreeGB       int64            `json:"disk_free_gb"`                 // 真实磁盘剩余 GB
+	ActiveSandboxes  int              `json:"active_sandboxes"`             // 真实活跃沙箱运行数
+	ActiveSandboxIDs []string         `json:"active_sandbox_ids,omitempty"`// 本地活跃沙箱 ID 清单
+	Sandboxes        []SandboxSummary `json:"sandboxes,omitempty"`          // 极简快照清单
 }
 
 // HeartbeatResp 控制端心跳响应

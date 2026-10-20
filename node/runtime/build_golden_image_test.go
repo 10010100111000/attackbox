@@ -59,7 +59,7 @@ users:x:100:
 	_ = os.WriteFile(filepath.Join(rootSSHDir, "id_rsa"), []byte("FAKE_ROOT_KEY"), 0600)
 
 	// Execute Sanitization Pipeline
-	if err := builder.SanitizeRootfs(); err != nil {
+	if err := builder.SanitizeRootfs(tempDir); err != nil {
 		t.Fatalf("SanitizeRootfs failed: %v", err)
 	}
 

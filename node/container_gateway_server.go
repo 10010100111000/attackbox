@@ -428,7 +428,8 @@ func (s *ContainerGatewayServer) handleCLI(w http.ResponseWriter, r *http.Reques
 	go s.keepalive(conn, stopKeepalive)
 	defer close(stopKeepalive)
 
-	ptySess, err := StartPTY(sbx.PID, sbx.CgroupPath, 35, 110)
+	cgPath := s.rtMgr.CgroupPath(claims.Sbx)
+	ptySess, err := StartPTY(sbx.PID, cgPath, 35, 110)
 	if err != nil {
 		log.Printf("[DATA] Failed to start PTY for %s: %v", claims.Sbx, err)
 		_ = conn.WriteMessage(websocket.TextMessage, []byte("cannot spawn terminal: "+err.Error()))
