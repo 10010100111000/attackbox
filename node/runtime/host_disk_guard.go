@@ -2,7 +2,7 @@ package runtime
 
 import (
 	"context"
-	"fmt"
+	"log"
 	"sync"
 	"sync/atomic"
 	"syscall"
@@ -125,7 +125,7 @@ func (g *DiskGuard) checkWatermark() {
 	// Warning threshold breached
 	if freeMB <= g.cfg.WarnFreeSpaceMB {
 		if !g.warned.Swap(true) {
-			fmt.Printf("[WARN] Host filesystem low disk space warning: %d MB remaining.\n", freeMB)
+			log.Printf("[WARN] Host filesystem low disk space warning: %d MB remaining.", freeMB)
 		}
 	} else {
 		g.warned.Store(false)
@@ -134,6 +134,6 @@ func (g *DiskGuard) checkWatermark() {
 	// Recovery check
 	if g.tripped.Load() && freeMB > g.cfg.MinFreeSpaceMB+1024 {
 		g.tripped.Store(false)
-		fmt.Printf("[INFO] Host disk circuit breaker reset. Free space restored to %d MB.\n", freeMB)
+		log.Printf("[INFO] Host disk circuit breaker reset. Free space restored to %d MB.", freeMB)
 	}
 }

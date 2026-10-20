@@ -4,15 +4,13 @@ import "time"
 
 // Network & Gateway Defaults
 const (
-	DefaultDataPort         = 8443
-	DefaultControlPort      = 18080
-	DefaultGatewayPort      = 18443
-	DefaultMaxSlots         = 250
-	DefaultBridgeName       = "br-attackbox"
-	DefaultGatewayIP        = "10.200.0.1"
-	DefaultSubnetCIDR       = "10.200.0.0/16"
-	DefaultTargetBridge     = "docker0"
-	DefaultTargetBridgeCIDR = "172.17.0.0/16"
+	DefaultDataPort    = 8443
+	DefaultControlPort = 18080
+	DefaultGatewayPort = 18443
+	DefaultMaxSlots    = 250
+	DefaultBridgeName  = "br-attackbox"
+	DefaultGatewayIP   = "10.200.0.1"
+	DefaultSubnetCIDR  = "10.200.0.0/16"
 )
 
 // Timeout & Interval Defaults

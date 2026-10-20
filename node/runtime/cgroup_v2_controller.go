@@ -2,17 +2,23 @@ package runtime
 
 import (
 	"bufio"
+	"bytes"
 	"fmt"
 	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
+
+	"attackbox/protocol"
 )
 
 // CgroupManager manages Cgroups v2 directories, limits, and nuclear teardown.
 type CgroupManager struct {
 	CgroupRoot string
+	parentOnce sync.Once
+	parentErr  error
 }
 
 // NewCgroupManager creates a Cgroups v2 controller.
@@ -23,19 +29,22 @@ func NewCgroupManager(root string) *CgroupManager {
 	return &CgroupManager{CgroupRoot: root}
 }
 
-// EnsureParentHierarchy prepares the base cgroup and activates controller delegation.
+// EnsureParentHierarchy prepares the base cgroup and activates controller delegation once.
 func (c *CgroupManager) EnsureParentHierarchy() error {
-	if err := os.MkdirAll(c.CgroupRoot, 0755); err != nil {
-		return fmt.Errorf("mkdir cgroup root %s: %w", c.CgroupRoot, err)
-	}
+	c.parentOnce.Do(func() {
+		if err := os.MkdirAll(c.CgroupRoot, 0755); err != nil {
+			c.parentErr = fmt.Errorf("mkdir cgroup root %s: %w", c.CgroupRoot, err)
+			return
+		}
 
-	rootSubtree := "/sys/fs/cgroup/cgroup.subtree_control"
-	_ = os.WriteFile(rootSubtree, []byte("+cpu +memory +pids +io\n"), 0644)
+		rootSubtree := "/sys/fs/cgroup/cgroup.subtree_control"
+		_ = os.WriteFile(rootSubtree, []byte("+cpu +memory +pids +io\n"), 0644)
 
-	localSubtree := filepath.Join(c.CgroupRoot, "cgroup.subtree_control")
-	_ = os.WriteFile(localSubtree, []byte("+cpu +memory +pids +io\n"), 0644)
+		localSubtree := filepath.Join(c.CgroupRoot, "cgroup.subtree_control")
+		_ = os.WriteFile(localSubtree, []byte("+cpu +memory +pids +io\n"), 0644)
+	})
 
-	return nil
+	return c.parentErr
 }
 
 // Create provisions the instance cgroup directory, writes limit parameters, and opens cgroup.procs fd.
@@ -54,10 +63,12 @@ func (c *CgroupManager) Create(sandboxID string, limits ResourceLimits) (*os.Fil
 		_ = os.WriteFile(filepath.Join(cgPath, "pids.max"), []byte(strconv.FormatInt(limits.PIDsMax, 10)+"\n"), 0644)
 	}
 
-	// 2. Memory limits
-	if limits.MemoryMaxBytes > 0 {
-		_ = os.WriteFile(filepath.Join(cgPath, "memory.max"), []byte(strconv.FormatInt(limits.MemoryMaxBytes, 10)+"\n"), 0644)
+	// 2. Memory limits (Strict Fail-Closed: Never leave unbound)
+	memBytes := limits.MemoryMaxBytes
+	if memBytes <= 0 {
+		memBytes = int64(protocol.DefaultMemLimitMB) * 1024 * 1024
 	}
+	_ = os.WriteFile(filepath.Join(cgPath, "memory.max"), []byte(strconv.FormatInt(memBytes, 10)+"\n"), 0644)
 	if limits.SwapMaxBytes >= 0 {
 		_ = os.WriteFile(filepath.Join(cgPath, "memory.swap.max"), []byte(strconv.FormatInt(limits.SwapMaxBytes, 10)+"\n"), 0644)
 	}
@@ -107,30 +118,50 @@ func (c *CgroupManager) Destroy(sandboxID string) error {
 		_ = c.killPIDsInProcs(cgPath)
 	}
 
-	// 3. Wait for processes to exit (up to 3 seconds)
-	procsPath := filepath.Join(cgPath, "cgroup.procs")
+	// 3. Wait for processes to exit (up to 3 seconds) with exponential backoff
 	deadline := time.Now().Add(3 * time.Second)
+	backoff := 2 * time.Millisecond
 	for time.Now().Before(deadline) {
-		pids, err := readPIDs(procsPath)
-		if err != nil || len(pids) == 0 {
+		if isCgroupEmpty(cgPath) {
 			break
 		}
-		time.Sleep(50 * time.Millisecond)
+		time.Sleep(backoff)
+		if backoff < 50*time.Millisecond {
+			backoff *= 2
+		}
 	}
 
 	// 4. Unfreeze so processes can finish dying
 	_ = os.WriteFile(freezePath, []byte("0\n"), 0644)
 
-	// 5. Remove cgroup directory (retries for kernel release)
-	for i := 0; i < 10; i++ {
+	// 5. Remove cgroup directory (retries for kernel release with exponential backoff)
+	backoff = 2 * time.Millisecond
+	for i := 0; i < 15; i++ {
 		err := os.Remove(cgPath)
 		if err == nil || os.IsNotExist(err) {
 			return nil
 		}
-		time.Sleep(50 * time.Millisecond)
+		time.Sleep(backoff)
+		if backoff < 50*time.Millisecond {
+			backoff *= 2
+		}
 	}
 
 	return os.Remove(cgPath)
+}
+
+func isCgroupEmpty(cgPath string) bool {
+	eventsPath := filepath.Join(cgPath, "cgroup.events")
+	if data, err := os.ReadFile(eventsPath); err == nil {
+		if strings.Contains(string(data), "populated 0") {
+			return true
+		}
+	}
+	procsPath := filepath.Join(cgPath, "cgroup.procs")
+	if data, err := os.ReadFile(procsPath); err == nil {
+		return len(bytes.TrimSpace(data)) == 0
+	}
+	return true
 }
 
 func (c *CgroupManager) killPIDsInProcs(cgPath string) error {

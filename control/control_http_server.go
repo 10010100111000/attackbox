@@ -1,6 +1,7 @@
 package control
 
 import (
+	"bufio"
 	"context"
 	"crypto/ed25519"
 	"crypto/rand"
@@ -10,10 +11,13 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"net"
 	"net/http"
 	"os"
+	"runtime/debug"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"golang.org/x/crypto/bcrypt"
@@ -40,47 +44,105 @@ type ControlConfig struct {
 		RPCTimeoutSec       int    `yaml:"rpc_timeout_sec"`
 	} `yaml:"cluster"`
 	Auth struct {
-		Ed25519PrivateKey string `yaml:"ed25519_private_key"`
-		JWTExpireHours    int    `yaml:"jwt_expire_hours"`
-		TicketTTLSec      int    `yaml:"ticket_ttl_sec"`
+		Ed25519PrivateKey    string `yaml:"ed25519_private_key"`
+		JWTExpireHours       int    `yaml:"jwt_expire_hours"`
+		TicketTTLSec         int    `yaml:"ticket_ttl_sec"`
+		InitialAdminUsername string `yaml:"initial_admin_username"`
+		InitialAdminPassword string `yaml:"initial_admin_password"`
+		InitialAdminEmail    string `yaml:"initial_admin_email"`
 	} `yaml:"auth"`
 	Sandbox struct {
-		Resources protocol.BoxResourceQuota `yaml:"resources"`
-		Storage   protocol.BoxStoragePolicy `yaml:"storage"`
-		Network   struct {
-			SubnetCIDR         string   `yaml:"subnet_cidr"`
-			GatewayIP          string   `yaml:"gateway_ip"`
-			DefaultEgressMode  string   `yaml:"default_egress_mode"`
-			AllowedEgressPorts []int    `yaml:"allowed_egress_ports"`
+		Resources         protocol.BoxResourceQuota `yaml:"resources"`
+		Storage           protocol.BoxStoragePolicy `yaml:"storage"`
+		TTLSeconds        int                       `yaml:"ttl_seconds"`
+		IdleSeconds       int                       `yaml:"idle_seconds"`
+		ReaperIntervalSec int                       `yaml:"reaper_interval_sec"`
+		Network           struct {
+			SubnetCIDR string `yaml:"subnet_cidr"`
+			GatewayIP  string `yaml:"gateway_ip"`
 		} `yaml:"network"`
 	} `yaml:"sandbox"`
+}
+
+// SanitizeAndApplyDefaults enforces fail-closed production baselines on any ControlConfig.
+func (cfg *ControlConfig) SanitizeAndApplyDefaults() {
+	if cfg.Server.ListenAddr == "" {
+		cfg.Server.ListenAddr = "127.0.0.1:18080"
+	}
+	if len(cfg.Server.CORSAllowedOrigins) == 0 {
+		cfg.Server.CORSAllowedOrigins = []string{"*"}
+	}
+	if cfg.Database.Path == "" {
+		cfg.Database.Path = "/var/lib/attackbox/attackbox.db"
+	}
+	if cfg.Cluster.ClusterSecret == "" {
+		cfg.Cluster.ClusterSecret = "attackbox_cluster_secret_change_me_in_prod!"
+	}
+	if cfg.Cluster.HeartbeatTimeoutSec <= 0 {
+		cfg.Cluster.HeartbeatTimeoutSec = 15
+	}
+	if cfg.Cluster.RPCTimeoutSec <= 0 {
+		cfg.Cluster.RPCTimeoutSec = 30
+	}
+	if cfg.Auth.JWTExpireHours <= 0 {
+		cfg.Auth.JWTExpireHours = 24
+	}
+	if cfg.Auth.TicketTTLSec <= 0 {
+		cfg.Auth.TicketTTLSec = 60
+	}
+	if cfg.Auth.InitialAdminUsername == "" {
+		cfg.Auth.InitialAdminUsername = "admin"
+	}
+	if cfg.Auth.InitialAdminPassword == "" {
+		cfg.Auth.InitialAdminPassword = "AdminSecurePassword123!"
+	}
+	if cfg.Auth.InitialAdminEmail == "" {
+		cfg.Auth.InitialAdminEmail = "admin@attackbox.local"
+	}
+
+	// Fail-closed baseline resource enforcement
+	if cfg.Sandbox.Resources.CPUWeight == 0 {
+		cfg.Sandbox.Resources.CPUWeight = protocol.DefaultCPUWeight
+	}
+	if cfg.Sandbox.Resources.MemoryMaxMB <= 0 {
+		cfg.Sandbox.Resources.MemoryMaxMB = protocol.DefaultMemLimitMB
+	}
+	if cfg.Sandbox.Resources.PIDsMax <= 0 {
+		cfg.Sandbox.Resources.PIDsMax = protocol.DefaultPIDsLimit
+	}
+	if cfg.Sandbox.Resources.IOWriteBytesSec <= 0 {
+		cfg.Sandbox.Resources.IOWriteBytesSec = protocol.DefaultIOWriteBytesSec
+	}
+	if cfg.Sandbox.Resources.IOWriteIOPS <= 0 {
+		cfg.Sandbox.Resources.IOWriteIOPS = protocol.DefaultIOWriteIOPS
+	}
+	if cfg.Sandbox.Storage.TmpfsTmpSize == "" {
+		cfg.Sandbox.Storage.TmpfsTmpSize = protocol.DefaultTmpfsTmpSize
+	}
+	if cfg.Sandbox.Storage.TmpfsRunSize == "" {
+		cfg.Sandbox.Storage.TmpfsRunSize = protocol.DefaultTmpfsRunSize
+	}
+	if cfg.Sandbox.TTLSeconds <= 0 {
+		cfg.Sandbox.TTLSeconds = 7200 // 2 hours hard lifetime ceiling
+	}
+	if cfg.Sandbox.IdleSeconds <= 0 {
+		cfg.Sandbox.IdleSeconds = 1800 // 30 minutes inactivity timeout
+	}
+	if cfg.Sandbox.ReaperIntervalSec <= 0 {
+		cfg.Sandbox.ReaperIntervalSec = 30 // 30 seconds scanning period
+	}
+	if cfg.Sandbox.Network.SubnetCIDR == "" {
+		cfg.Sandbox.Network.SubnetCIDR = protocol.DefaultSubnetCIDR
+	}
+	if cfg.Sandbox.Network.GatewayIP == "" {
+		cfg.Sandbox.Network.GatewayIP = protocol.DefaultGatewayIP
+	}
 }
 
 // LoadControlConfig reads YAML configuration or falls back to production defaults.
 func LoadControlConfig(path string) (*ControlConfig, error) {
 	cfg := &ControlConfig{}
-	cfg.Server.ListenAddr = "127.0.0.1:18080"
-	cfg.Server.CORSAllowedOrigins = []string{"*"}
-	cfg.Database.Path = "/var/lib/attackbox/attackbox.db"
-	cfg.Cluster.ClusterSecret = "attackbox_cluster_secret_change_me_in_prod!"
-	cfg.Cluster.HeartbeatTimeoutSec = 15
-	cfg.Cluster.RPCTimeoutSec = 30
-	cfg.Auth.JWTExpireHours = 24
-	cfg.Auth.TicketTTLSec = 60
-
-	// Sandbox unified defaults
-	cfg.Sandbox.Resources.CPUWeight = 100
-	cfg.Sandbox.Resources.MemoryMaxMB = 2048
-	cfg.Sandbox.Resources.MemorySwapMaxMB = 0
-	cfg.Sandbox.Resources.PIDsMax = 512
-	cfg.Sandbox.Resources.IOWriteBytesSec = 20971520
-	cfg.Sandbox.Resources.IOWriteIOPS = 500
-	cfg.Sandbox.Storage.TmpfsTmpSize = "512M"
-	cfg.Sandbox.Storage.TmpfsRunSize = "256M"
-	cfg.Sandbox.Network.SubnetCIDR = "10.200.0.0/16"
-	cfg.Sandbox.Network.GatewayIP = "10.200.0.1"
-	cfg.Sandbox.Network.DefaultEgressMode = "restricted"
-	cfg.Sandbox.Network.AllowedEgressPorts = []int{53, 80, 443}
+	cfg.SanitizeAndApplyDefaults()
 
 	data, err := os.ReadFile(path)
 	if err != nil {
@@ -93,6 +155,7 @@ func LoadControlConfig(path string) (*ControlConfig, error) {
 	if err := yaml.Unmarshal(data, cfg); err != nil {
 		return nil, fmt.Errorf("unmarshal config yaml: %w", err)
 	}
+	cfg.SanitizeAndApplyDefaults()
 	return cfg, nil
 }
 
@@ -177,12 +240,6 @@ func LoadOrGenerateKeys(hexPrivKey string) (ed25519.PublicKey, ed25519.PrivateKe
 	return pub, priv, err
 }
 
-func GenerateInviteCode(username string) string {
-	b := make([]byte, 4)
-	_, _ = rand.Read(b)
-	return strings.ToUpper(hex.EncodeToString(b))
-}
-
 // -------------------------------------------------------------
 // 3. Slot & Session Allocation (Cluster Resource Tracking)
 // -------------------------------------------------------------
@@ -192,16 +249,24 @@ var ErrNoAvailableSlots = errors.New("no available sandbox IP slots (range 1-250
 type SlotAllocator struct {
 	mu       sync.Mutex
 	maxSlots int
-	slots    map[int]string
+	freeList []int
+	slotToID map[int]string
+	idToSlot map[string]int
 }
 
 func NewSlotAllocator(maxSlots int) *SlotAllocator {
 	if maxSlots <= 0 || maxSlots > 250 {
 		maxSlots = 250
 	}
+	freeList := make([]int, maxSlots)
+	for i := 0; i < maxSlots; i++ {
+		freeList[i] = i + 1
+	}
 	return &SlotAllocator{
 		maxSlots: maxSlots,
-		slots:    make(map[int]string),
+		freeList: freeList,
+		slotToID: make(map[int]string, maxSlots),
+		idToSlot: make(map[string]int, maxSlots),
 	}
 }
 
@@ -209,58 +274,126 @@ func (a *SlotAllocator) Allocate(sandboxID string) (int, error) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 
-	for i := 1; i <= a.maxSlots; i++ {
-		if _, exists := a.slots[i]; !exists {
-			a.slots[i] = sandboxID
-			return i, nil
-		}
+	if slot, exists := a.idToSlot[sandboxID]; exists {
+		return slot, nil
 	}
-	return 0, fmt.Errorf("%w: %d slots in use", ErrNoAvailableSlots, len(a.slots))
+
+	if len(a.freeList) == 0 {
+		return 0, fmt.Errorf("%w: %d slots in use", ErrNoAvailableSlots, len(a.slotToID))
+	}
+
+	// O(1) Pop from head of freeList (preserves lowest available slot assignment)
+	slot := a.freeList[0]
+	a.freeList = a.freeList[1:]
+
+	a.slotToID[slot] = sandboxID
+	a.idToSlot[sandboxID] = slot
+	return slot, nil
 }
 
 func (a *SlotAllocator) Release(sandboxID string) int {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 
-	for slot, id := range a.slots {
-		if id == sandboxID {
-			delete(a.slots, slot)
-			return slot
+	slot, exists := a.idToSlot[sandboxID]
+	if !exists {
+		return 0
+	}
+
+	delete(a.idToSlot, sandboxID)
+	delete(a.slotToID, slot)
+
+	// O(1..k) Insert back into freeList in sorted order to reuse lower IP slots first
+	inserted := false
+	for idx, s := range a.freeList {
+		if slot < s {
+			a.freeList = append(a.freeList[:idx], append([]int{slot}, a.freeList[idx:]...)...)
+			inserted = true
+			break
 		}
 	}
-	return 0
+	if !inserted {
+		a.freeList = append(a.freeList, slot)
+	}
+
+	return slot
 }
 
 type ActiveSession struct {
-	SandboxID         string                 `json:"sandbox_id"`
-	UserID            int64                  `json:"user_id"`
-	WorkerNodeID      string                 `json:"worker_node_id"`
-	SlotIndex         int                    `json:"slot_index"`
-	SandboxIP         string                 `json:"sandbox_ip"`
-	TargetIP          string                 `json:"target_ip"`
-	LabID             string                 `json:"lab_id"`
+	SandboxID    string                 `json:"sandbox_id"`
+	UserID       int64                  `json:"user_id"`
+	WorkerNodeID string                 `json:"worker_node_id"`
+	SlotIndex    int                    `json:"slot_index"`
+	SandboxIP    string                 `json:"sandbox_ip"`
 	StartedAt    time.Time              `json:"started_at"`
+	LastActiveAt time.Time              `json:"last_active_at"`
+	ExpiresAt    time.Time              `json:"expires_at"`
 	Policy       protocol.SandboxPolicy `json:"policy"`
 }
 
 type SessionManager struct {
-	mu       sync.RWMutex
-	sessions map[string]*ActiveSession
-	byUser   map[int64]string
+	mu        sync.RWMutex
+	sessions  map[string]*ActiveSession
+	byUser    map[int64]string
+	reserving map[int64]time.Time // in-flight sandbox creation tracking to eliminate TOCTOU race
 }
 
 func NewSessionManager() *SessionManager {
 	return &SessionManager{
-		sessions: make(map[string]*ActiveSession),
-		byUser:   make(map[int64]string),
+		sessions:  make(map[string]*ActiveSession),
+		byUser:    make(map[int64]string),
+		reserving: make(map[int64]time.Time),
 	}
+}
+
+// TryReserve atomically checks if a user already has an active sandbox or a creation in-flight.
+// If available, it reserves the user slot and returns a release func (to rollback on failure) and true.
+// If the user already has an active sandbox or another creation is in-flight, it returns (nil, false).
+func (sm *SessionManager) TryReserve(userID int64) (release func(), ok bool) {
+	sm.mu.Lock()
+	defer sm.mu.Unlock()
+
+	// 1. Check if user already has an active sandbox
+	if sbxID, exists := sm.byUser[userID]; exists {
+		if _, active := sm.sessions[sbxID]; active {
+			return nil, false
+		}
+		delete(sm.byUser, userID)
+	}
+
+	// 2. Check if creation is already in-flight (TOCTOU protection against rapid double-clicks)
+	if reservedAt, busy := sm.reserving[userID]; busy {
+		// Clean up orphaned reservation after 60 seconds
+		if time.Since(reservedAt) < 60*time.Second {
+			return nil, false
+		}
+	}
+
+	sm.reserving[userID] = time.Now()
+
+	releaseFunc := func() {
+		sm.mu.Lock()
+		defer sm.mu.Unlock()
+		delete(sm.reserving, userID)
+	}
+
+	return releaseFunc, true
 }
 
 func (sm *SessionManager) Add(s *ActiveSession) {
 	sm.mu.Lock()
 	defer sm.mu.Unlock()
+	delete(sm.reserving, s.UserID)
 	sm.sessions[s.SandboxID] = s
 	sm.byUser[s.UserID] = s.SandboxID
+}
+
+func (sm *SessionManager) Touch(sandboxID string) {
+	sm.mu.Lock()
+	defer sm.mu.Unlock()
+	if s, ok := sm.sessions[sandboxID]; ok {
+		s.LastActiveAt = time.Now()
+	}
 }
 
 func (sm *SessionManager) Get(sandboxID string) (*ActiveSession, bool) {
@@ -288,6 +421,7 @@ func (sm *SessionManager) Remove(sandboxID string) *ActiveSession {
 	if ok {
 		delete(sm.sessions, sandboxID)
 		delete(sm.byUser, s.UserID)
+		delete(sm.reserving, s.UserID)
 	}
 	return s
 }
@@ -309,9 +443,10 @@ func (sm *SessionManager) ListAll() []*ActiveSession {
 type contextKey string
 
 const (
-	contextKeyUserID   contextKey = "user_id"
-	contextKeyUsername contextKey = "username"
-	contextKeyRole     contextKey = "role"
+	contextKeyUserID    contextKey = "user_id"
+	contextKeyUsername  contextKey = "username"
+	contextKeyRole      contextKey = "role"
+	contextKeyRequestID contextKey = "request_id"
 )
 
 func UserFromContext(ctx context.Context) (int64, string, string, bool) {
@@ -319,6 +454,49 @@ func UserFromContext(ctx context.Context) (int64, string, string, bool) {
 	user, ok2 := ctx.Value(contextKeyUsername).(string)
 	role, ok3 := ctx.Value(contextKeyRole).(string)
 	return uid, user, role, ok1 && ok2 && ok3
+}
+
+type tokenCacheEntry struct {
+	tokenVersion int
+	status       int
+	expiresAt    time.Time
+}
+
+type TokenVersionCache struct {
+	mu      sync.RWMutex
+	entries map[int64]tokenCacheEntry
+}
+
+func NewTokenVersionCache() *TokenVersionCache {
+	return &TokenVersionCache{
+		entries: make(map[int64]tokenCacheEntry),
+	}
+}
+
+func (c *TokenVersionCache) Get(userID int64) (int, int, bool) {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	entry, exists := c.entries[userID]
+	if !exists || time.Now().After(entry.expiresAt) {
+		return 0, 0, false
+	}
+	return entry.tokenVersion, entry.status, true
+}
+
+func (c *TokenVersionCache) Set(userID int64, tokenVersion, status int, ttl time.Duration) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.entries[userID] = tokenCacheEntry{
+		tokenVersion: tokenVersion,
+		status:       status,
+		expiresAt:    time.Now().Add(ttl),
+	}
+}
+
+func (c *TokenVersionCache) Invalidate(userID int64) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	delete(c.entries, userID)
 }
 
 type ControlHTTPServer struct {
@@ -329,12 +507,10 @@ type ControlHTTPServer struct {
 	clusterMgr *NodeClusterManager
 	slots      *SlotAllocator
 	sessions   *SessionManager
+	tokenCache *TokenVersionCache
 }
 
-type StartSandboxReq struct {
-	LabID        string                  `json:"lab_id"`
-	CustomPolicy *protocol.SandboxPolicy `json:"custom_policy,omitempty"`
-}
+type StartSandboxReq struct{}
 
 type StartSandboxResp struct {
 	SandboxID string                 `json:"sandbox_id"`
@@ -343,8 +519,8 @@ type StartSandboxResp struct {
 	Ticket    string                 `json:"ticket"`
 	ExpiresIn int                    `json:"expires_in"`
 	SandboxIP string                 `json:"sandbox_ip"`
-	TargetIP  string                 `json:"target_ip"`
 	SlotIndex int                    `json:"slot_index"`
+	ExpiresAt time.Time              `json:"expires_at"`
 	Policy    protocol.SandboxPolicy `json:"policy"`
 }
 
@@ -359,10 +535,9 @@ type StopSandboxResp struct {
 }
 
 type RegisterReq struct {
-	Username   string `json:"username"`
-	Password   string `json:"password"`
-	Email      string `json:"email"`
-	InviteCode string `json:"invite_code"`
+	Username string `json:"username"`
+	Password string `json:"password"`
+	Email    string `json:"email"`
 }
 
 type LoginReq struct {
@@ -385,6 +560,11 @@ func NewControlHTTPServer(
 	slots *SlotAllocator,
 	sessions *SessionManager,
 ) http.Handler {
+	if cfg == nil {
+		cfg = &ControlConfig{}
+	}
+	cfg.SanitizeAndApplyDefaults()
+
 	if slots == nil {
 		slots = NewSlotAllocator(250)
 	}
@@ -400,7 +580,19 @@ func NewControlHTTPServer(
 		clusterMgr: clusterMgr,
 		slots:      slots,
 		sessions:   sessions,
+		tokenCache: NewTokenVersionCache(),
 	}
+
+	// Bootstrap admin user if specified in config
+	if cfg.Auth.InitialAdminUsername != "" && cfg.Auth.InitialAdminPassword != "" && db != nil {
+		adminHash, err := HashPassword(cfg.Auth.InitialAdminPassword)
+		if err == nil {
+			_ = db.EnsureAdminUser(cfg.Auth.InitialAdminUsername, adminHash, cfg.Auth.InitialAdminEmail)
+		}
+	}
+
+	// Launch background reaper to reclaim expired (TTL) and idle sandboxes
+	s.StartSessionReaper(context.Background(), time.Duration(cfg.Sandbox.ReaperIntervalSec)*time.Second)
 
 	mux := http.NewServeMux()
 
@@ -424,9 +616,12 @@ func NewControlHTTPServer(
 	mux.Handle("/api/sandbox/stop", authMw(http.HandlerFunc(s.handleStopSandbox)))
 	mux.Handle("/api/sandbox/active", authMw(http.HandlerFunc(s.handleActiveSandbox)))
 
-	// Wrap in global middlewares (Logging, CORS)
-	handler := s.loggingMiddleware(mux)
+	// Wrap in global middlewares (Recovery -> RequestID -> Logging -> CORS -> BodyLimit)
+	handler := s.bodyLimitMiddleware(mux)
 	handler = s.corsMiddleware(s.cfg.Server.CORSAllowedOrigins)(handler)
+	handler = s.loggingMiddleware(handler)
+	handler = s.requestIDMiddleware(handler)
+	handler = s.recoveryMiddleware(handler)
 
 	return handler
 }
@@ -447,8 +642,18 @@ func (s *ControlHTTPServer) authMiddleware(next http.Handler) http.Handler {
 		}
 
 		if s.db != nil {
-			u, err := s.db.GetUserByID(claims.Sub)
-			if err != nil || u.Status != 1 || u.TokenVersion != claims.TokenVersion {
+			tokenVer, status, hit := s.tokenCache.Get(claims.Sub)
+			if !hit {
+				u, err := s.db.GetUserByID(claims.Sub)
+				if err != nil {
+					writeError(w, http.StatusUnauthorized, "session revoked or account inactive")
+					return
+				}
+				tokenVer = u.TokenVersion
+				status = u.Status
+				s.tokenCache.Set(claims.Sub, tokenVer, status, 10*time.Second)
+			}
+			if status != 1 || tokenVer != claims.TokenVersion {
 				writeError(w, http.StatusUnauthorized, "session revoked or account inactive")
 				return
 			}
@@ -478,7 +683,7 @@ func (s *ControlHTTPServer) corsMiddleware(allowedOrigins []string) func(http.Ha
 					w.Header().Set("Access-Control-Allow-Origin", "*")
 				}
 				w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
-				w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Requested-With")
+				w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Requested-With, X-Request-ID")
 				w.Header().Set("Access-Control-Allow-Credentials", "true")
 			}
 
@@ -492,15 +697,108 @@ func (s *ControlHTTPServer) corsMiddleware(allowedOrigins []string) func(http.Ha
 	}
 }
 
-func (s *ControlHTTPServer) loggingMiddleware(next http.Handler) http.Handler {
+type statusResponseWriter struct {
+	http.ResponseWriter
+	statusCode int
+	written    int64
+}
+
+func newStatusResponseWriter(w http.ResponseWriter) *statusResponseWriter {
+	return &statusResponseWriter{
+		ResponseWriter: w,
+		statusCode:     http.StatusOK,
+	}
+}
+
+func (rw *statusResponseWriter) WriteHeader(code int) {
+	rw.statusCode = code
+	rw.ResponseWriter.WriteHeader(code)
+}
+
+func (rw *statusResponseWriter) Write(b []byte) (int, error) {
+	n, err := rw.ResponseWriter.Write(b)
+	rw.written += int64(n)
+	return n, err
+}
+
+func (rw *statusResponseWriter) Hijack() (net.Conn, *bufio.ReadWriter, error) {
+	if hj, ok := rw.ResponseWriter.(http.Hijacker); ok {
+		return hj.Hijack()
+	}
+	return nil, nil, fmt.Errorf("underlying ResponseWriter does not implement http.Hijacker")
+}
+
+func (rw *statusResponseWriter) Flush() {
+	if fl, ok := rw.ResponseWriter.(http.Flusher); ok {
+		fl.Flush()
+	}
+}
+
+var reqIDCounter uint64
+
+func generateRequestID() string {
+	id := atomic.AddUint64(&reqIDCounter, 1)
+	return fmt.Sprintf("req-%08x-%04x", time.Now().Unix(), id&0xffff)
+}
+
+func (s *ControlHTTPServer) requestIDMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		start := time.Now()
-		next.ServeHTTP(w, r)
-		if !strings.HasPrefix(r.URL.Path, "/api/agent/connect") {
-			log.Printf("[HTTP] %s %s (%v)", r.Method, r.URL.Path, time.Since(start))
+		reqID := r.Header.Get("X-Request-ID")
+		if reqID == "" {
+			reqID = generateRequestID()
 		}
+		w.Header().Set("X-Request-ID", reqID)
+		ctx := context.WithValue(r.Context(), contextKeyRequestID, reqID)
+		next.ServeHTTP(w, r.WithContext(ctx))
 	})
 }
+
+func (s *ControlHTTPServer) recoveryMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		defer func() {
+			if rec := recover(); rec != nil {
+				reqID, _ := r.Context().Value(contextKeyRequestID).(string)
+				if reqID == "" {
+					reqID = "unknown"
+				}
+				stack := debug.Stack()
+				log.Printf("[PANIC] [%s] %s %s: %v\n%s", reqID, r.Method, r.URL.Path, rec, string(stack))
+				writeError(w, http.StatusInternalServerError, "internal server error")
+			}
+		}()
+		next.ServeHTTP(w, r)
+	})
+}
+
+func (s *ControlHTTPServer) loggingMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.HasPrefix(r.URL.Path, "/api/agent/connect") {
+			next.ServeHTTP(w, r)
+			return
+		}
+		start := time.Now()
+		srw := newStatusResponseWriter(w)
+		next.ServeHTTP(srw, r)
+		reqID, _ := r.Context().Value(contextKeyRequestID).(string)
+		if reqID == "" {
+			reqID = "none"
+		}
+		log.Printf("[HTTP] [%s] %d %s %s (%v)", reqID, srw.statusCode, r.Method, r.URL.Path, time.Since(start))
+	})
+}
+
+// bodyLimitMiddleware enforces protocol.MaxHTTPPayloadSize (1MB) on incoming HTTP request bodies.
+func (s *ControlHTTPServer) bodyLimitMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Body != nil && !strings.HasPrefix(r.URL.Path, "/api/agent/connect") {
+			r.Body = http.MaxBytesReader(w, r.Body, protocol.MaxHTTPPayloadSize)
+		}
+		next.ServeHTTP(w, r)
+	})
+}
+
+// Precomputed valid bcrypt hash for constant-time comparison against non-existent users
+const dummyBcryptHash = "$2a$10$wT5Y1eS6Fqm9g4O/rQhGceJzR0d8z1bS3h1J6D8W2Y1bS3h1J6D8W"
 
 func (s *ControlHTTPServer) handleRegister(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
@@ -510,6 +808,11 @@ func (s *ControlHTTPServer) handleRegister(w http.ResponseWriter, r *http.Reques
 
 	var req RegisterReq
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		var maxBytesErr *http.MaxBytesError
+		if errors.As(err, &maxBytesErr) {
+			writeError(w, http.StatusRequestEntityTooLarge, "request body exceeds maximum allowed size (1MB)")
+			return
+		}
 		writeError(w, http.StatusBadRequest, "invalid request body")
 		return
 	}
@@ -527,10 +830,14 @@ func (s *ControlHTTPServer) handleRegister(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	myInviteCode := GenerateInviteCode(req.Username)
-	user, err := s.db.CreateUser(req.Username, hash, req.Email, myInviteCode, nil)
+	user, err := s.db.CreateUser(req.Username, hash, req.Email, "")
 	if err != nil {
-		writeError(w, http.StatusConflict, err.Error())
+		if errors.Is(err, ErrUserAlreadyExists) {
+			writeError(w, http.StatusConflict, "username or email already registered")
+			return
+		}
+		log.Printf("[AUTH] Failed to create user %s: %v", req.Username, err)
+		writeError(w, http.StatusInternalServerError, "failed to create user account")
 		return
 	}
 
@@ -547,6 +854,8 @@ func (s *ControlHTTPServer) handleRegister(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
+	s.tokenCache.Set(user.ID, user.TokenVersion, user.Status, 10*time.Second)
+
 	writeJSON(w, http.StatusCreated, AuthResp{
 		Token: token,
 		User:  user,
@@ -561,12 +870,25 @@ func (s *ControlHTTPServer) handleLogin(w http.ResponseWriter, r *http.Request) 
 
 	var req LoginReq
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		var maxBytesErr *http.MaxBytesError
+		if errors.As(err, &maxBytesErr) {
+			writeError(w, http.StatusRequestEntityTooLarge, "request body exceeds maximum allowed size (1MB)")
+			return
+		}
 		writeError(w, http.StatusBadRequest, "invalid request body")
 		return
 	}
 
 	user, err := s.db.GetUserByUsername(strings.TrimSpace(req.Username))
-	if err != nil || !CheckPassword(user.PasswordHash, req.Password) {
+	hashToCompare := dummyBcryptHash
+	if err == nil && user != nil {
+		hashToCompare = user.PasswordHash
+	}
+
+	// Constant-time bcrypt computation to eliminate username enumeration timing side channels
+	passwordMatch := CheckPassword(hashToCompare, req.Password)
+
+	if err != nil || user == nil || !passwordMatch {
 		writeError(w, http.StatusUnauthorized, "invalid username or password")
 		return
 	}
@@ -588,6 +910,8 @@ func (s *ControlHTTPServer) handleLogin(w http.ResponseWriter, r *http.Request) 
 		writeError(w, http.StatusInternalServerError, "failed to generate token")
 		return
 	}
+
+	s.tokenCache.Set(user.ID, user.TokenVersion, user.Status, 10*time.Second)
 
 	writeJSON(w, http.StatusOK, AuthResp{
 		Token: token,
@@ -643,12 +967,20 @@ func (s *ControlHTTPServer) handleStartSandbox(w http.ResponseWriter, r *http.Re
 			Ticket:    freshTicket,
 			ExpiresIn: s.cfg.Auth.TicketTTLSec,
 			SandboxIP: existing.SandboxIP,
-			TargetIP:  existing.TargetIP,
 			SlotIndex: existing.SlotIndex,
+			ExpiresAt: existing.ExpiresAt,
 			Policy:    existing.Policy,
 		})
 		return
 	}
+
+	// 2. Atomically reserve slot to eliminate TOCTOU concurrent creation races
+	releaseReserve, ok := s.sessions.TryReserve(uid)
+	if !ok {
+		writeError(w, http.StatusConflict, "sandbox creation is already in progress or already active for this user")
+		return
+	}
+	defer releaseReserve()
 
 	var req StartSandboxReq
 	if r.Body != nil {
@@ -661,7 +993,7 @@ func (s *ControlHTTPServer) handleStartSandbox(w http.ResponseWriter, r *http.Re
 		return
 	}
 
-	mergedPolicy := s.resolvePolicy(role, req.CustomPolicy)
+	policy := s.resolvePolicy()
 
 	worker, err := s.clusterMgr.SelectBestWorker()
 	if err != nil {
@@ -680,7 +1012,7 @@ func (s *ControlHTTPServer) handleStartSandbox(w http.ResponseWriter, r *http.Re
 		SandboxID: sandboxID,
 		UserID:    uid,
 		SlotIndex: slotIndex,
-		Policy:    mergedPolicy,
+		Policy:    policy,
 	}
 
 	resp, err := s.clusterMgr.CreateBox(r.Context(), worker.NodeID, createReq)
@@ -716,16 +1048,19 @@ func (s *ControlHTTPServer) handleStartSandbox(w http.ResponseWriter, r *http.Re
 		return
 	}
 
+	now := time.Now()
+	expiresAt := now.Add(time.Duration(s.cfg.Sandbox.TTLSeconds) * time.Second)
+
 	session := &ActiveSession{
 		SandboxID:    sandboxID,
 		UserID:       uid,
 		WorkerNodeID: worker.NodeID,
 		SlotIndex:    slotIndex,
 		SandboxIP:    resp.SandboxIP,
-		TargetIP:     resp.TargetIP,
-		LabID:        req.LabID,
-		StartedAt:    time.Now(),
-		Policy:       mergedPolicy,
+		StartedAt:    now,
+		LastActiveAt: now,
+		ExpiresAt:    expiresAt,
+		Policy:       policy,
 	}
 	s.sessions.Add(session)
 
@@ -743,11 +1078,37 @@ func (s *ControlHTTPServer) handleStartSandbox(w http.ResponseWriter, r *http.Re
 		Ticket:    ticket,
 		ExpiresIn: s.cfg.Auth.TicketTTLSec,
 		SandboxIP: resp.SandboxIP,
-		TargetIP:  resp.TargetIP,
 		SlotIndex: slotIndex,
-		Policy:    mergedPolicy,
+		ExpiresAt: expiresAt,
+		Policy:    policy,
 	})
 	_ = role
+}
+
+// TerminateSandbox terminates a sandbox session, rolls back cluster resources,
+// releases IP slots, and records an audit log. Shared identically by user Stop and background Reaper.
+func (s *ControlHTTPServer) TerminateSandbox(ctx context.Context, sandboxID string, reason string) (*ActiveSession, error) {
+	session := s.sessions.Remove(sandboxID)
+	if session == nil {
+		return nil, errors.New("sandbox not found or already terminated")
+	}
+
+	// 1. Release IP slot
+	s.slots.Release(session.SandboxID)
+
+	// 2. Dispatch reverse DestroyBox to worker node
+	destroyCtx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+	_ = s.clusterMgr.DestroyBox(destroyCtx, session.WorkerNodeID, protocol.DestroyBoxReq{
+		SandboxID: session.SandboxID,
+		Reason:    reason,
+	})
+
+	// 3. Record audit log
+	durationSec := int64(time.Since(session.StartedAt).Seconds())
+	_ = s.db.AddAuditLog(&session.UserID, "sandbox_terminate", "", fmt.Sprintf("box=%s, reason=%s, duration=%ds", session.SandboxID, reason, durationSec))
+
+	return session, nil
 }
 
 func (s *ControlHTTPServer) handleStopSandbox(w http.ResponseWriter, r *http.Request) {
@@ -764,6 +1125,11 @@ func (s *ControlHTTPServer) handleStopSandbox(w http.ResponseWriter, r *http.Req
 
 	var req StopSandboxReq
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.SandboxID == "" {
+		var maxBytesErr *http.MaxBytesError
+		if errors.As(err, &maxBytesErr) {
+			writeError(w, http.StatusRequestEntityTooLarge, "request body exceeds maximum allowed size (1MB)")
+			return
+		}
 		writeError(w, http.StatusBadRequest, "invalid request body: sandbox_id is required")
 		return
 	}
@@ -779,24 +1145,58 @@ func (s *ControlHTTPServer) handleStopSandbox(w http.ResponseWriter, r *http.Req
 		return
 	}
 
-	_ = s.clusterMgr.DestroyBox(r.Context(), session.WorkerNodeID, protocol.DestroyBoxReq{
-		SandboxID: session.SandboxID,
-		Reason:    "user_stop",
-	})
+	stoppedSession, err := s.TerminateSandbox(r.Context(), req.SandboxID, "user_stop")
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to terminate sandbox: "+err.Error())
+		return
+	}
 
-	s.slots.Release(session.SandboxID)
-	s.sessions.Remove(session.SandboxID)
-
-	duration := time.Since(session.StartedAt)
-	durationSec := int64(duration.Seconds())
-
-	_ = s.db.AddAuditLog(&uid, "sandbox_stop", r.RemoteAddr, fmt.Sprintf("box=%s, duration=%ds", session.SandboxID, durationSec))
-
+	durationSec := int64(time.Since(stoppedSession.StartedAt).Seconds())
 	writeJSON(w, http.StatusOK, StopSandboxResp{
 		Success:         true,
-		SandboxID:       session.SandboxID,
+		SandboxID:       stoppedSession.SandboxID,
 		DurationSeconds: durationSec,
 	})
+}
+
+// StartSessionReaper launches the background scanning loop to automatically reclaim expired (TTL)
+// and idle (inactive) sandboxes using the exact same TerminateSandbox pipeline.
+func (s *ControlHTTPServer) StartSessionReaper(ctx context.Context, checkInterval time.Duration) {
+	if checkInterval <= 0 {
+		checkInterval = 30 * time.Second
+	}
+	ticker := time.NewTicker(checkInterval)
+	go func() {
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				s.ReapExpiredSessions()
+			}
+		}
+	}()
+}
+
+// ReapExpiredSessions scans and terminates sandboxes that have exceeded TTL or idle thresholds.
+func (s *ControlHTTPServer) ReapExpiredSessions() {
+	now := time.Now()
+	sessions := s.sessions.ListAll()
+	for _, sess := range sessions {
+		// 1. Hard TTL expiration check
+		if !sess.ExpiresAt.IsZero() && now.After(sess.ExpiresAt) {
+			log.Printf("[REAPER] Sandbox %s (User %d) reached hard TTL (%v). Reaping...", sess.SandboxID, sess.UserID, sess.ExpiresAt)
+			_, _ = s.TerminateSandbox(context.Background(), sess.SandboxID, "ttl_expired")
+			continue
+		}
+		// 2. Inactivity / idle timeout check
+		if s.cfg.Sandbox.IdleSeconds > 0 && !sess.LastActiveAt.IsZero() && now.Sub(sess.LastActiveAt) > time.Duration(s.cfg.Sandbox.IdleSeconds)*time.Second {
+			log.Printf("[REAPER] Sandbox %s (User %d) idle for %v (> %ds). Reaping...", sess.SandboxID, sess.UserID, now.Sub(sess.LastActiveAt), s.cfg.Sandbox.IdleSeconds)
+			_, _ = s.TerminateSandbox(context.Background(), sess.SandboxID, "idle_timeout")
+			continue
+		}
+	}
 }
 
 func (s *ControlHTTPServer) handleActiveSandbox(w http.ResponseWriter, r *http.Request) {
@@ -817,6 +1217,9 @@ func (s *ControlHTTPServer) handleActiveSandbox(w http.ResponseWriter, r *http.R
 		return
 	}
 
+	// Refresh activity timestamp on user polling
+	s.sessions.Touch(session.SandboxID)
+
 	ticket, _ := s.issueTicket(uid, session.SandboxID)
 	workerIP, workerPort, exists := s.clusterMgr.GetWorkerEndpoint(session.WorkerNodeID)
 	if !exists {
@@ -832,8 +1235,8 @@ func (s *ControlHTTPServer) handleActiveSandbox(w http.ResponseWriter, r *http.R
 		"ticket":     ticket,
 		"expires_in": s.cfg.Auth.TicketTTLSec,
 		"sandbox_ip": session.SandboxIP,
-		"target_ip":  session.TargetIP,
 		"started_at": session.StartedAt,
+		"expires_at": session.ExpiresAt,
 		"policy":     session.Policy,
 	})
 }
@@ -850,44 +1253,18 @@ func (s *ControlHTTPServer) issueTicket(uid int64, sandboxID string) (string, er
 	return protocol.SignTicket(claims, s.privKey)
 }
 
-func (s *ControlHTTPServer) resolvePolicy(role string, custom *protocol.SandboxPolicy) protocol.SandboxPolicy {
-	// 1. Single source of truth from s.cfg.Sandbox
-	policy := protocol.SandboxPolicy{
+// resolvePolicy constructs the authoritative SandboxPolicy directly from ControlConfig.
+// Sandboxes strictly obey machine/cluster administrative baselines. End-users are never permitted
+// to inject, override, or tamper with host infrastructure resource policies.
+func (s *ControlHTTPServer) resolvePolicy() protocol.SandboxPolicy {
+	return protocol.SandboxPolicy{
 		Resources: s.cfg.Sandbox.Resources,
 		Storage:   s.cfg.Sandbox.Storage,
-		Network: protocol.BoxNetworkPolicy{
-			EgressMode:        s.cfg.Sandbox.Network.DefaultEgressMode,
-			ExtraAllowedPorts: s.cfg.Sandbox.Network.AllowedEgressPorts,
-		},
 		Security: protocol.BoxSecurityPolicy{
 			ReadOnlyProcSys: true,
 			MaskSysrq:       true,
-			AllowPTrace:     true,
-			ExtraEnv:        make(map[string]string),
 		},
 	}
-
-	// 2. Only admin role is permitted to override baseline quotas
-	if custom != nil && role == "admin" {
-		cp := *custom
-		if cp.Resources.CPUWeight > 0 {
-			policy.Resources.CPUWeight = cp.Resources.CPUWeight
-		}
-		if cp.Resources.MemoryMaxMB > 0 {
-			policy.Resources.MemoryMaxMB = cp.Resources.MemoryMaxMB
-		}
-		if cp.Resources.PIDsMax > 0 {
-			policy.Resources.PIDsMax = cp.Resources.PIDsMax
-		}
-		if cp.Network.EgressMode != "" {
-			policy.Network.EgressMode = cp.Network.EgressMode
-		}
-		if len(cp.Network.ExtraAllowedPorts) > 0 {
-			policy.Network.ExtraAllowedPorts = cp.Network.ExtraAllowedPorts
-		}
-	}
-
-	return policy
 }
 
 func generateSandboxID() string {

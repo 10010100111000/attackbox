@@ -1,9 +1,11 @@
 package node
 
 import (
+	"bufio"
 	"context"
 	"crypto/ed25519"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"log"
 	"net"
@@ -221,6 +223,7 @@ func (c *NodeControlClient) runSession(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("dial control hub: %w", err)
 	}
+	conn.SetReadLimit(protocol.MaxWebSocketMessageSize)
 
 	c.connMu.Lock()
 	c.conn = conn
@@ -251,18 +254,18 @@ func (c *NodeControlClient) runSession(ctx context.Context) error {
 		}
 	}
 
+	totalMemMB, _ := readSystemMemoryMB()
+
 	// 1. Send Registration frame
 	regPayload := protocol.RegisterReq{
 		NodeID:   c.cfg.Node.NodeID,
 		Version:  "2.0",
 		DataPort: dataPort,
 		Capabilities: protocol.NodeCapabilities{
-			HasOverlayFS: true,
-			HasKVM:       hasKVMSupport(),
-			HasDocker:    true,
-			CPUCores:     runtime.NumCPU(),
-			TotalMemMB:   65536,
-			OSVersion:    runtime.GOOS + "/" + runtime.GOARCH,
+			HasKVM:     hasKVMSupport(),
+			CPUCores:   runtime.NumCPU(),
+			TotalMemMB: totalMemMB,
+			OSVersion:  runtime.GOOS + "/" + runtime.GOARCH,
 		},
 	}
 
@@ -326,11 +329,12 @@ func (c *NodeControlClient) heartbeatLoop(ctx context.Context) {
 		case <-c.stopCh:
 			return
 		case <-ticker.C:
+			_, availableMemMB := readSystemMemoryMB()
 			hbPayload := protocol.HeartbeatReq{
 				NodeID:          c.cfg.Node.NodeID,
 				Timestamp:       time.Now().Unix(),
-				CPUUsagePercent: 5.0,
-				MemFreeMB:       32768,
+				LoadAvg:         readSystemLoadAvg(),
+				MemAvailableMB:  availableMemMB,
 				DiskFreeGB:      c.rtMgr.DiskGuard().GetCurrentFreeMB() / 1024,
 				ActiveSandboxes: len(c.rtMgr.ListSandboxes()),
 			}
@@ -526,7 +530,6 @@ func (c *NodeControlClient) handleCreateBox(msg *protocol.Message, mb *sandboxMa
 
 					respPayload.Success = true
 					respPayload.SandboxIP = sbxNet.IP
-					respPayload.TargetIP = "172.17.0.2"
 					log.Printf("[CLUSTER] Sandbox %s created successfully! (IP: %s, Slot: %d)", req.SandboxID, sbxNet.IP, slotIdx)
 				}
 			}
@@ -551,21 +554,43 @@ func (c *NodeControlClient) handleDestroyBox(msg *protocol.Message) {
 
 	c.slotsMu.Lock()
 	slotIdx := c.slots[req.SandboxID]
-	delete(c.slots, req.SandboxID)
 	c.slotsMu.Unlock()
 
+	var errs []string
+
+	// 1. Teardown sandbox veth & firewall rules
 	if slotIdx > 0 {
-		_ = TeardownSandboxNetwork(context.Background(), slotIdx)
+		if netErr := TeardownSandboxNetwork(context.Background(), slotIdx); netErr != nil {
+			log.Printf("[CLUSTER] Warning: Teardown network for %s (slot %d) failed: %v", req.SandboxID, slotIdx, netErr)
+			errs = append(errs, fmt.Sprintf("net teardown: %v", netErr))
+		}
 	}
 
-	err := c.rtMgr.DestroySandbox(context.Background(), req.SandboxID)
+	// 2. Destroy sandbox runtime (processes, cgroups, mounts, btrfs)
+	destroyCtx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+	if rtErr := c.rtMgr.DestroySandbox(destroyCtx, req.SandboxID); rtErr != nil {
+		log.Printf("[CLUSTER] Error: DestroySandbox for %s failed: %v", req.SandboxID, rtErr)
+		errs = append(errs, fmt.Sprintf("runtime destroy: %v", rtErr))
+	}
+
+	// 3. P1-8 Fix: Only remove slot mapping from state if destruction succeeded without errors.
+	// If it failed, retain state so that retry requests can still locate slotIdx and retry teardown!
+	var finalErr error
+	if len(errs) > 0 {
+		finalErr = errors.New(strings.Join(errs, "; "))
+	} else {
+		c.slotsMu.Lock()
+		delete(c.slots, req.SandboxID)
+		c.slotsMu.Unlock()
+	}
 
 	respPayload := protocol.DestroyBoxResp{
 		SandboxID: req.SandboxID,
-		Success:   err == nil,
+		Success:   finalErr == nil,
 	}
-	if err != nil {
-		respPayload.Error = err.Error()
+	if finalErr != nil {
+		respPayload.Error = finalErr.Error()
 	}
 
 	respMsg, err := protocol.NewMessage(protocol.MsgTypeDestroyBoxResp, respPayload)
@@ -580,4 +605,49 @@ func hasKVMSupport() bool {
 		return true
 	}
 	return false
+}
+
+// readSystemMemoryMB reads real Total and Available physical memory from /proc/meminfo.
+func readSystemMemoryMB() (totalMB int64, availableMB int64) {
+	file, err := os.Open("/proc/meminfo")
+	if err != nil {
+		return 0, 0
+	}
+	defer file.Close()
+
+	scanner := bufio.NewScanner(file)
+	for scanner.Scan() {
+		line := scanner.Text()
+		if strings.HasPrefix(line, "MemTotal:") {
+			fields := strings.Fields(line)
+			if len(fields) >= 2 {
+				kb, _ := strconv.ParseInt(fields[1], 10, 64)
+				totalMB = kb / 1024
+			}
+		} else if strings.HasPrefix(line, "MemAvailable:") {
+			fields := strings.Fields(line)
+			if len(fields) >= 2 {
+				kb, _ := strconv.ParseInt(fields[1], 10, 64)
+				availableMB = kb / 1024
+			}
+		}
+		if totalMB > 0 && availableMB > 0 {
+			break
+		}
+	}
+	return totalMB, availableMB
+}
+
+// readSystemLoadAvg reads real 1-minute system load average from /proc/loadavg.
+func readSystemLoadAvg() float64 {
+	data, err := os.ReadFile("/proc/loadavg")
+	if err != nil {
+		return 0.0
+	}
+	fields := strings.Fields(string(data))
+	if len(fields) > 0 {
+		val, _ := strconv.ParseFloat(fields[0], 64)
+		return val
+	}
+	return 0.0
 }

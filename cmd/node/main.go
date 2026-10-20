@@ -21,6 +21,11 @@ func main() {
 		return
 	}
 
+	// Step 1.5: Intercept host container enter entrypoint (__enter__)
+	if runtime.EnterDispatcher() {
+		return
+	}
+
 	configPath := flag.String("config", "configs/node.yaml", "Path to node configuration file")
 	buildBaseOnly := flag.Bool("build-base", false, "Force derive and sanitize golden base image, then exit")
 	flag.Parse()
@@ -46,12 +51,12 @@ func main() {
 		return
 	}
 
-	fmt.Printf("[CONFIG] Node ID: %s\n", cfg.Node.NodeID)
-	fmt.Printf("[CONFIG] Control WSS: %s\n", cfg.Node.ControlURL)
-	fmt.Printf("[CONFIG] Gateway Listener: %s (TLS: %v)\n", cfg.Gateway.ListenAddr, cfg.Gateway.TLSEnabled)
-	fmt.Printf("[CONFIG] Btrfs Base Rootfs: %s\n", cfg.Runtime.BaseRootfs)
-	fmt.Printf("[CONFIG] Cgroups v2 Root: %s\n", cfg.Runtime.CgroupRoot)
-	fmt.Printf("[CONFIG] Disk Guard: MinFreeSpace=%dMB, WarnFreeSpace=%dMB\n",
+	log.Printf("[CONFIG] Node ID: %s", cfg.Node.NodeID)
+	log.Printf("[CONFIG] Control WSS: %s", cfg.Node.ControlURL)
+	log.Printf("[CONFIG] Gateway Listener: %s (TLS: %v)", cfg.Gateway.ListenAddr, cfg.Gateway.TLSEnabled)
+	log.Printf("[CONFIG] Btrfs Base Rootfs: %s", cfg.Runtime.BaseRootfs)
+	log.Printf("[CONFIG] Cgroups v2 Root: %s", cfg.Runtime.CgroupRoot)
+	log.Printf("[CONFIG] Disk Guard: MinFreeSpace=%dMB, WarnFreeSpace=%dMB",
 		cfg.Runtime.DiskGuard.MinFreeSpaceMB,
 		cfg.Runtime.DiskGuard.WarnFreeSpaceMB,
 	)
@@ -74,7 +79,7 @@ func main() {
 	}
 	defer rtMgr.Stop()
 
-	fmt.Printf("[INFO] Node runtime initialized successfully. Host free disk: %d MB\n",
+	log.Printf("[INFO] Node runtime initialized successfully. Host free disk: %d MB",
 		rtMgr.DiskGuard().GetCurrentFreeMB())
 
 	// 3. Initialize & Start Direct Terminal Gateway Server (:8443)

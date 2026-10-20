@@ -53,39 +53,32 @@ func StartPTY(targetPID int, cgroupPath string, rows, cols uint16) (*PTYSession,
 		cols = 110
 	}
 
-	// 1. Locate nsenter binary (check PATH and fallback standard paths, avoiding hardcoded single location)
-	nsenterBin, err := exec.LookPath("nsenter")
+	exePath, err := os.Executable()
 	if err != nil {
-		for _, fallback := range []string{"/usr/bin/nsenter", "/bin/nsenter", "/usr/local/bin/nsenter"} {
-			if _, statErr := os.Stat(fallback); statErr == nil {
-				nsenterBin = fallback
-				break
-			}
-		}
-	}
-	if nsenterBin == "" {
-		return nil, fmt.Errorf("nsenter binary not found in PATH or standard system locations")
+		exePath = "/proc/self/exe"
 	}
 
-	wrapperPath := fmt.Sprintf("/proc/%d/root/usr/bin/attackbox-enter", targetPID)
+	// 1. Locate trusted host-side privilege dropping wrapper:
+	// Priority 1: /usr/local/bin/attackbox-enter or PATH on host
+	// Priority 2: Currently running trusted host binary via __enter__ dispatcher
+	// NEVER execute any binary from container rootfs, and FAIL-CLOSED if wrapper is unavailable.
+	var enterCmd string
 	var cmdArgs []string
-	if _, err := os.Stat(wrapperPath); err == nil {
-		cmdArgs = []string{
-			"--target", strconv.Itoa(targetPID),
-			"--mount", "--uts", "--ipc", "--net", "--pid",
-			"--root", "--wd",
-			"/usr/bin/attackbox-enter", "/bin/bash", "-l",
-		}
+
+	if fallback, statErr := os.Stat("/usr/local/bin/attackbox-enter"); statErr == nil && !fallback.IsDir() {
+		enterCmd = "/usr/local/bin/attackbox-enter"
+		cmdArgs = []string{strconv.Itoa(targetPID)}
+	} else if lookPath, lookErr := exec.LookPath("attackbox-enter"); lookErr == nil {
+		enterCmd = lookPath
+		cmdArgs = []string{strconv.Itoa(targetPID)}
+	} else if exePath != "" {
+		enterCmd = exePath
+		cmdArgs = []string{"__enter__", strconv.Itoa(targetPID)}
 	} else {
-		cmdArgs = []string{
-			"--target", strconv.Itoa(targetPID),
-			"--mount", "--uts", "--ipc", "--net", "--pid",
-			"--root", "--wd",
-			"/bin/bash", "-l",
-		}
+		return nil, fmt.Errorf("fail-closed: no trusted host attackbox-enter wrapper available")
 	}
 
-	cmd := exec.Command(nsenterBin, cmdArgs...)
+	cmd := exec.Command(enterCmd, cmdArgs...)
 	cmd.Env = []string{
 		"TERM=xterm-256color",
 		"LANG=en_US.UTF-8",
@@ -232,6 +225,7 @@ type ContainerGatewayServer struct {
 	rtMgr        *runtime.RuntimeManager
 	sessions     *GatewaySessionManager
 	replayFilter *protocol.JTIReplayFilter
+	keyMu        sync.RWMutex
 	pubKey       ed25519.PublicKey
 	httpServer   *http.Server
 	upgrader     websocket.Upgrader
@@ -290,7 +284,19 @@ func NewContainerGatewayServer(cfg GatewayConfig, rtMgr *runtime.RuntimeManager)
 }
 
 func (s *ContainerGatewayServer) SetPublicKey(pubKey ed25519.PublicKey) {
+	s.keyMu.Lock()
+	defer s.keyMu.Unlock()
 	s.pubKey = pubKey
+}
+
+func (s *ContainerGatewayServer) getPublicKey() ed25519.PublicKey {
+	s.keyMu.RLock()
+	defer s.keyMu.RUnlock()
+	return s.pubKey
+}
+
+func (s *ContainerGatewayServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	s.httpServer.Handler.ServeHTTP(w, r)
 }
 
 func (s *ContainerGatewayServer) Start() error {
@@ -317,12 +323,13 @@ func (s *ContainerGatewayServer) handleCLI(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	if len(s.pubKey) == 0 {
+	pubKey := s.getPublicKey()
+	if len(pubKey) == 0 {
 		http.Error(w, "server ed25519 key not configured", http.StatusServiceUnavailable)
 		return
 	}
 
-	claims, err := protocol.VerifyTicket(rawTicket, s.pubKey)
+	claims, err := protocol.VerifyTicket(rawTicket, pubKey)
 	if err != nil {
 		log.Printf("[DATA] Ticket verification rejected: %v", err)
 		http.Error(w, fmt.Sprintf("invalid ticket: %v", err), http.StatusForbidden)
@@ -350,6 +357,8 @@ func (s *ContainerGatewayServer) handleCLI(w http.ResponseWriter, r *http.Reques
 		log.Printf("[DATA] WebSocket upgrade error: %v", err)
 		return
 	}
+	// Enforce strict upper bound on inbound PTY chunks to prevent memory exhaustion
+	rawConn.SetReadLimit(protocol.MaxPTYFrameSize)
 	conn := NewSafeConn(rawConn)
 	defer conn.Close()
 

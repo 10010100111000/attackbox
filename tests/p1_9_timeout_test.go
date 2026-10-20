@@ -107,7 +107,6 @@ func TestP1_9_CreateBoxTimeoutAndLateResponseRollback(t *testing.T) {
 		SandboxID: "sbx-timeout-001",
 		Success:   true,
 		SandboxIP: "10.200.0.11",
-		TargetIP:  "172.17.0.2",
 	}
 	respMsg, _ := protocol.NewMessage(protocol.MsgTypeCreateBoxResp, lateResp)
 	respData, _ := protocol.PackMessage(respMsg)

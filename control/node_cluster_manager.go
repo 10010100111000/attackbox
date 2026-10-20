@@ -166,6 +166,7 @@ func (h *NodeClusterManager) HandleAgentConnect(w http.ResponseWriter, r *http.R
 		log.Printf("[CLUSTER] WebSocket upgrade failed: %v", err)
 		return
 	}
+	conn.SetReadLimit(protocol.MaxWebSocketMessageSize)
 
 	node := &WorkerNode{
 		NodeID:        nodeID,
@@ -177,7 +178,7 @@ func (h *NodeClusterManager) HandleAgentConnect(w http.ResponseWriter, r *http.R
 	}
 
 	h.registerWorker(node)
-	defer h.unregisterWorker(nodeID)
+	defer h.unregisterWorker(node)
 
 	log.Printf("[CLUSTER] Node %s connected from %s", nodeID, remoteIP)
 
@@ -201,13 +202,24 @@ func (h *NodeClusterManager) HandleAgentConnect(w http.ResponseWriter, r *http.R
 func (h *NodeClusterManager) registerWorker(w *WorkerNode) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
+	// If a worker with the same nodeID was previously connected, close the stale connection
+	// to prevent orphaned goroutines and avoid leaking old RPC loops.
+	if old, exists := h.workers[w.NodeID]; exists && old != w && old.conn != nil {
+		_ = old.conn.Close()
+	}
 	h.workers[w.NodeID] = w
 }
 
-func (h *NodeClusterManager) unregisterWorker(nodeID string) {
+func (h *NodeClusterManager) unregisterWorker(w *WorkerNode) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
-	delete(h.workers, nodeID)
+	// P1-5 Fix: Only unregister if the worker currently registered in the pool is this exact instance.
+	// If the node has reconnected, h.workers[w.NodeID] will already point to the new WorkerNode instance,
+	// and unregistering by nodeID alone would inadvertently kick the newly reconnected worker out of the cluster!
+	if current, exists := h.workers[w.NodeID]; exists && current == w {
+		delete(h.workers, w.NodeID)
+		log.Printf("[CLUSTER] Node %s unregistered (session terminated)", w.NodeID)
+	}
 }
 
 func (h *NodeClusterManager) handleWorkerMessage(node *WorkerNode, msg *protocol.Message) {
@@ -377,7 +389,9 @@ func (h *NodeClusterManager) DestroyBox(ctx context.Context, nodeID string, req 
 	node, exists := h.workers[nodeID]
 	h.mu.RUnlock()
 	if !exists {
-		return nil // If worker already disconnected, nothing to destroy
+		// P1-7: Return ErrWorkerNotFound when worker is not in pool.
+		// Never return nil on missing worker, which falsely signals destruction success.
+		return ErrWorkerNotFound
 	}
 
 	msg, err := protocol.NewMessage(protocol.MsgTypeDestroyBox, req)
@@ -397,9 +411,13 @@ func (h *NodeClusterManager) DestroyBox(ctx context.Context, nodeID string, req 
 		return err
 	}
 
+	// P1-7: Avoid zero-value integer truncation pitfall (e.g. rpc_timeout_sec: 1 -> /2 -> 0s -> time.After(0))
 	destroyTimeout := 15 * time.Second
 	if h.rpcTimeoutSec > 0 {
-		destroyTimeout = time.Duration(h.rpcTimeoutSec/2) * time.Second
+		destroyTimeout = time.Duration(h.rpcTimeoutSec) * time.Second
+	}
+	if destroyTimeout < 1*time.Second {
+		destroyTimeout = 1 * time.Second
 	}
 
 	select {

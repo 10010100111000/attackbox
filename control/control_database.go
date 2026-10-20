@@ -12,10 +12,8 @@ import (
 )
 
 var (
-	ErrUserNotFound       = errors.New("user not found")
-	ErrUserAlreadyExists  = errors.New("username or email already exists")
-	ErrCursorAlreadyUsed  = errors.New("point transaction cursor already processed")
-	ErrInsufficientPoints = errors.New("insufficient points balance")
+	ErrUserNotFound      = errors.New("user not found")
+	ErrUserAlreadyExists = errors.New("username or email already exists")
 )
 
 // User represents a registered participant or administrator.
@@ -27,9 +25,6 @@ type User struct {
 	Role         string    `json:"role"`
 	Status       int       `json:"status"`
 	TokenVersion int       `json:"token_version"`
-	InviteCode   string    `json:"invite_code"`
-	InvitedBy    *int64    `json:"invited_by,omitempty"`
-	Points       int       `json:"points"`
 	CreatedAt    time.Time `json:"created_at"`
 }
 
@@ -51,8 +46,10 @@ func NewDatabaseStore(dbPath string) (*DatabaseStore, error) {
 		return nil, fmt.Errorf("open sqlite db: %w", err)
 	}
 
-	// Single writer connection pool for SQLite concurrency safety
-	db.SetMaxOpenConns(1)
+	// WAL mode with _busy_timeout enables concurrent readers alongside writers
+	db.SetMaxOpenConns(16)
+	db.SetMaxIdleConns(8)
+	db.SetConnMaxLifetime(1 * time.Hour)
 
 	s := &DatabaseStore{db: db}
 	if err := s.migrate(); err != nil {
@@ -78,25 +75,11 @@ func (s *DatabaseStore) migrate() error {
 		role          TEXT NOT NULL DEFAULT 'user',
 		status        INTEGER NOT NULL DEFAULT 1,
 		token_version INTEGER NOT NULL DEFAULT 1,
-		invite_code   TEXT UNIQUE NOT NULL,
-		invited_by    INTEGER,
-		points        INTEGER NOT NULL DEFAULT 100,
 		created_at    DATETIME DEFAULT CURRENT_TIMESTAMP
 	);
 
 	CREATE INDEX IF NOT EXISTS idx_users_username ON users(username);
 	CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
-
-	CREATE TABLE IF NOT EXISTS point_transactions (
-		id          INTEGER PRIMARY KEY AUTOINCREMENT,
-		cursor_id   TEXT UNIQUE NOT NULL,
-		user_id     INTEGER NOT NULL,
-		amount      INTEGER NOT NULL,
-		action      TEXT NOT NULL,
-		created_at  DATETIME DEFAULT CURRENT_TIMESTAMP
-	);
-
-	CREATE INDEX IF NOT EXISTS idx_transactions_user ON point_transactions(user_id);
 
 	CREATE TABLE IF NOT EXISTS audit_logs (
 		id         INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -111,13 +94,24 @@ func (s *DatabaseStore) migrate() error {
 	return err
 }
 
-// CreateUser registers a new user with initial points.
-func (s *DatabaseStore) CreateUser(username, passwordHash, email, inviteCode string, invitedBy *int64) (*User, error) {
+// CreateUser registers a new user. If role is empty, the first user in the database is automatically
+// assigned 'admin' for system bootstrapping.
+func (s *DatabaseStore) CreateUser(username, passwordHash, email string, role string) (*User, error) {
+	if role == "" {
+		var count int
+		_ = s.db.QueryRow(`SELECT COUNT(1) FROM users`).Scan(&count)
+		if count == 0 {
+			role = "admin"
+		} else {
+			role = "user"
+		}
+	}
+
 	query := `
-	INSERT INTO users (username, password_hash, email, invite_code, invited_by, points)
-	VALUES (?, ?, ?, ?, ?, 100)
+	INSERT INTO users (username, password_hash, email, role)
+	VALUES (?, ?, ?, ?)
 	`
-	res, err := s.db.Exec(query, username, passwordHash, email, inviteCode, invitedBy)
+	res, err := s.db.Exec(query, username, passwordHash, email, role)
 	if err != nil {
 		return nil, fmt.Errorf("%w: %v", ErrUserAlreadyExists, err)
 	}
@@ -130,16 +124,28 @@ func (s *DatabaseStore) CreateUser(username, passwordHash, email, inviteCode str
 	return s.GetUserByID(id)
 }
 
+// EnsureAdminUser bootstraps an initial administrator account if no admin currently exists.
+func (s *DatabaseStore) EnsureAdminUser(username, passwordHash, email string) error {
+	var count int
+	_ = s.db.QueryRow(`SELECT COUNT(1) FROM users WHERE role = 'admin'`).Scan(&count)
+	if count > 0 {
+		return nil // Admin already present
+	}
+
+	_, err := s.db.Exec(`INSERT INTO users (username, password_hash, email, role) VALUES (?, ?, ?, 'admin')`, username, passwordHash, email)
+	return err
+}
+
 // GetUserByUsername retrieves a user by their username.
 func (s *DatabaseStore) GetUserByUsername(username string) (*User, error) {
-	query := `SELECT id, username, password_hash, email, role, status, token_version, invite_code, invited_by, points, created_at FROM users WHERE username = ?`
+	query := `SELECT id, username, password_hash, email, role, status, token_version, created_at FROM users WHERE username = ?`
 	row := s.db.QueryRow(query, username)
 	return scanUser(row)
 }
 
 // GetUserByID retrieves a user by their unique ID.
 func (s *DatabaseStore) GetUserByID(id int64) (*User, error) {
-	query := `SELECT id, username, password_hash, email, role, status, token_version, invite_code, invited_by, points, created_at FROM users WHERE id = ?`
+	query := `SELECT id, username, password_hash, email, role, status, token_version, created_at FROM users WHERE id = ?`
 	row := s.db.QueryRow(query, id)
 	return scanUser(row)
 }
@@ -147,7 +153,7 @@ func (s *DatabaseStore) GetUserByID(id int64) (*User, error) {
 func scanUser(row *sql.Row) (*User, error) {
 	var u User
 	var createdAt string
-	err := row.Scan(&u.ID, &u.Username, &u.PasswordHash, &u.Email, &u.Role, &u.Status, &u.TokenVersion, &u.InviteCode, &u.InvitedBy, &u.Points, &createdAt)
+	err := row.Scan(&u.ID, &u.Username, &u.PasswordHash, &u.Email, &u.Role, &u.Status, &u.TokenVersion, &createdAt)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, ErrUserNotFound
@@ -164,51 +170,10 @@ func (s *DatabaseStore) IncrementTokenVersion(userID int64) error {
 	return err
 }
 
-// DeductPointsWithCursor atomically deducts points using an idempotency cursor.
-func (s *DatabaseStore) DeductPointsWithCursor(cursorID string, userID int64, amount int, action string) (int, error) {
-	tx, err := s.db.Begin()
-	if err != nil {
-		return 0, err
-	}
-	defer tx.Rollback()
-
-	// 1. Check idempotency cursor
-	var exists int
-	err = tx.QueryRow(`SELECT 1 FROM point_transactions WHERE cursor_id = ?`, cursorID).Scan(&exists)
-	if err == nil {
-		return 0, ErrCursorAlreadyUsed
-	}
-
-	// 2. Check current balance
-	var balance int
-	err = tx.QueryRow(`SELECT points FROM users WHERE id = ?`, userID).Scan(&balance)
-	if err != nil {
-		return 0, ErrUserNotFound
-	}
-	if balance < amount {
-		return balance, ErrInsufficientPoints
-	}
-
-	// 3. Deduct points
-	newBalance := balance - amount
-	_, err = tx.Exec(`UPDATE users SET points = ? WHERE id = ?`, newBalance, userID)
-	if err != nil {
-		return 0, err
-	}
-
-	// 4. Record transaction cursor
-	_, err = tx.Exec(`INSERT INTO point_transactions (cursor_id, user_id, amount, action) VALUES (?, ?, ?, ?)`,
-		cursorID, userID, amount, action)
-	if err != nil {
-		return 0, err
-	}
-
-	return newBalance, tx.Commit()
-}
-
 // AddAuditLog records critical administrative and user security events.
 func (s *DatabaseStore) AddAuditLog(userID *int64, action, ip, details string) error {
 	_, err := s.db.Exec(`INSERT INTO audit_logs (user_id, action, ip, details) VALUES (?, ?, ?, ?)`,
 		userID, action, ip, details)
 	return err
 }
+

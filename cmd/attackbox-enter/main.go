@@ -3,33 +3,25 @@ package main
 import (
 	"fmt"
 	"os"
-	"syscall"
+	"strconv"
 
 	"attackbox/node/runtime"
 )
 
 func main() {
-	// 1. Drop dangerous capabilities (CAP_SYS_BOOT, CAP_SYS_RAWIO, CAP_SYS_MODULE) from Effective, Permitted, Bounding
-	// and lock down privileges with PR_SET_NO_NEW_PRIVS
-	if err := runtime.DropDangerousCapabilitiesAllThreads(); err != nil {
-		fmt.Fprintf(os.Stderr, "Error: attackbox-enter failed to drop capabilities: %v\n", err)
+	if len(os.Args) < 2 {
+		fmt.Fprintf(os.Stderr, "Usage: %s <targetPID> [command...]\n", os.Args[0])
 		os.Exit(1)
 	}
 
-	// 2. Resolve target command to execute (default: /bin/bash -l)
-	targetCmd := "/bin/bash"
-	targetArgs := []string{"/bin/bash", "-l"}
-
-	if len(os.Args) > 1 {
-		targetCmd = os.Args[1]
-		targetArgs = os.Args[1:]
+	targetPID, err := strconv.Atoi(os.Args[1])
+	if err != nil || targetPID <= 0 {
+		fmt.Fprintf(os.Stderr, "Error: invalid target PID '%s'\n", os.Args[1])
+		os.Exit(1)
 	}
 
-	env := os.Environ()
-
-	// 3. Execvp into target shell / command, replacing current process
-	if err := syscall.Exec(targetCmd, targetArgs, env); err != nil {
-		fmt.Fprintf(os.Stderr, "Error: attackbox-enter exec %s failed: %v\n", targetCmd, err)
+	if err := runtime.ExecEnterTarget(targetPID, os.Args[2:]); err != nil {
+		fmt.Fprintf(os.Stderr, "Error: attackbox-enter failed: %v\n", err)
 		os.Exit(1)
 	}
 }

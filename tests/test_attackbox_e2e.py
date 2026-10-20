@@ -275,10 +275,10 @@ def main():
         "email": "tester@attackbox.local"
     }
     r = requests.post(f"{CONTROL_URL}/api/auth/register", json=reg_data, timeout=5)
-    if r.status_code != 200:
-        # Try login
+    if r.status_code == 409:
+        # User already exists, fall back to login
         r = requests.post(f"{CONTROL_URL}/api/auth/login", json=reg_data, timeout=5)
-    assert r.status_code == 200, f"Auth failed: {r.text}"
+    assert r.status_code in (200, 201), f"Auth failed: {r.text}"
     token = r.json()["token"]
     log("[PASS] User authenticated successfully")
 

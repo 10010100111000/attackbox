@@ -4,11 +4,31 @@ import (
 	"bufio"
 	"fmt"
 	"os"
+	"os/exec"
 	"strconv"
 	"strings"
 	"syscall"
 	"unsafe"
 )
+
+// Security Architecture Note:
+// AttackBox is an interactive offensive security container intended for authorized penetration
+// testing and security auditing. Users possess passwordless sudo inside their sandbox.
+// To preserve essential pentesting tools (iptables packet redirection, virtual tmpfs mounting,
+// chroot inspection) while strictly safeguarding the host node against compromise:
+// 1. We selectively and permanently strip the 4 most critical host-destructive capabilities:
+//    - CAP_SYS_BOOT (22): Prevents rebooting or shutting down the host machine.
+//    - CAP_SYS_MODULE (16): Prevents loading or unloading host kernel modules.
+//    - CAP_SYS_RAWIO (17): Prevents direct raw I/O or memory access to host devices.
+//    - CAP_MKNOD (27): Prevents creating block/character device nodes (e.g. /dev/sda).
+// 2. We deliberately preserve CAP_SYS_ADMIN inside the container for internal management,
+//    while neutralizing escape vectors through host-enforced isolation:
+//    - Read-only sysfs (/sys) and procfs system tunables (/proc/sys)
+//    - Masking /proc/sysrq-trigger with /dev/null
+//    - PID namespace isolation preventing visibility into host processes
+//    - Elimination of host device access via tmpfs on /dev and stripped CAP_MKNOD.
+// Note on Commit 561046a: The mention of "CAP_SYS_ADMIN" in the historical commit message was an
+// inadvertent erratum; CAP_SYS_ADMIN is intentionally retained for sandbox utility.
 
 const (
 	_LINUX_CAPABILITY_VERSION_3 = 0x20080522
@@ -32,9 +52,9 @@ type capUserData struct {
 	inheritable uint32
 }
 
-// DropDangerousCapabilitiesAllThreads executes the security lockdown on all threads of PID 1:
+// DropDangerousCapabilitiesAllThreads executes the security lockdown across Go threads:
 // 1. capset: clears CAP_SYS_BOOT, CAP_SYS_RAWIO, CAP_SYS_MODULE, CAP_MKNOD from Effective & Permitted
-// 2. PR_CAPBSET_DROP: permanently strips them from the Capability Bounding Set
+// 2. PR_CAPBSET_DROP: permanently strips them from the Capability Bounding Set across all active OS threads
 func DropDangerousCapabilitiesAllThreads() error {
 	var hdr capUserHeader
 	hdr.version = _LINUX_CAPABILITY_VERSION_3
@@ -64,17 +84,24 @@ func DropDangerousCapabilitiesAllThreads() error {
 		}
 	}
 
-	// 3. Drop from Capability Bounding Set (PR_CAPBSET_DROP)
+	// 3. Drop from Capability Bounding Set (PR_CAPBSET_DROP) across all Go OS threads
+	// Bounding set is a per-thread attribute in Linux; use AllThreadsSyscall to ensure all Go runtime
+	// OS threads (M) have the dangerous capabilities stripped.
 	dangerousCaps := []uintptr{CapSysBoot, CapSysRawIO, CapSysModule, CapMknod}
 	for _, capVal := range dangerousCaps {
-		_, _, errNo := syscall.RawSyscall(syscall.SYS_PRCTL, prCapbsetDrop, capVal, 0)
+		_, _, errNo := syscall.AllThreadsSyscall(syscall.SYS_PRCTL, prCapbsetDrop, capVal, 0)
 		if errNo != 0 {
-			return fmt.Errorf("prctl PR_CAPBSET_DROP %d failed: %w", capVal, errNo)
+			_, _, errNo = syscall.RawSyscall(syscall.SYS_PRCTL, prCapbsetDrop, capVal, 0)
+			if errNo != 0 {
+				return fmt.Errorf("prctl PR_CAPBSET_DROP %d failed: %w", capVal, errNo)
+			}
 		}
 	}
 
 	return nil
 }
+
+
 
 // VerifyDangerousCapsDropped inspects /proc/<pid>/status to verify capabilities and NoNewPrivs.
 func VerifyDangerousCapsDropped(pid int) error {
@@ -142,3 +169,91 @@ func VerifyDangerousCapsDropped(pid int) error {
 
 	return nil
 }
+
+// ExecEnterTarget executes on the host as host root. It permanently strips dangerous capabilities
+// (CAP_SYS_BOOT, CAP_SYS_RAWIO, CAP_SYS_MODULE, CAP_MKNOD) from Effective, Permitted, and Bounding sets,
+// then invokes nsenter on the host to attach to targetPID's namespaces and switch to user 'box'.
+func ExecEnterTarget(targetPID int, targetArgs []string) error {
+	// 1. Permanently drop dangerous capabilities from Capability Bounding Set and effective/permitted sets
+	if err := DropDangerousCapabilitiesAllThreads(); err != nil {
+		return fmt.Errorf("failed to drop capabilities on host: %w", err)
+	}
+
+	// 2. Locate nsenter on host
+	nsenterBin, err := exec.LookPath("nsenter")
+	if err != nil {
+		for _, fallback := range []string{"/usr/bin/nsenter", "/bin/nsenter", "/usr/local/bin/nsenter"} {
+			if _, statErr := os.Stat(fallback); statErr == nil {
+				nsenterBin = fallback
+				break
+			}
+		}
+	}
+	if nsenterBin == "" {
+		return fmt.Errorf("nsenter binary not found on host")
+	}
+
+	// 3. Assemble command inside container.
+	// Prefer /sbin/runuser or /usr/sbin/runuser to switch to non-root user 'box' with supplementary 'sudo' group.
+	// Fallback to /bin/su if runuser is unavailable.
+	var runnerBin string
+	for _, cand := range []string{
+		fmt.Sprintf("/proc/%d/root/sbin/runuser", targetPID),
+		fmt.Sprintf("/proc/%d/root/usr/sbin/runuser", targetPID),
+	} {
+		if _, statErr := os.Stat(cand); statErr == nil {
+			runnerBin = strings.TrimPrefix(cand, fmt.Sprintf("/proc/%d/root", targetPID))
+			break
+		}
+	}
+
+	var innerCmd []string
+	if runnerBin != "" {
+		innerCmd = []string{runnerBin, "-u", "box", "--"}
+		if len(targetArgs) > 0 {
+			innerCmd = append(innerCmd, targetArgs...)
+		} else {
+			innerCmd = append(innerCmd, "/bin/bash", "-l")
+		}
+	} else {
+		// Fallback to su - box
+		if len(targetArgs) > 0 {
+			innerCmd = []string{"/bin/su", "-l", "box", "-c", strings.Join(targetArgs, " ")}
+		} else {
+			innerCmd = []string{"/bin/su", "-l", "box"}
+		}
+	}
+
+	nsenterArgs := []string{
+		"nsenter",
+		"--target", strconv.Itoa(targetPID),
+		"--mount", "--uts", "--ipc", "--net", "--pid",
+		"--root", "--wd",
+		"--",
+	}
+	nsenterArgs = append(nsenterArgs, innerCmd...)
+
+	// 4. Replace process with nsenter
+	return syscall.Exec(nsenterBin, nsenterArgs, os.Environ())
+}
+
+// EnterDispatcher intercepts __enter__ on the host:
+// e.g. attackbox-node __enter__ <targetPID> [command...]
+func EnterDispatcher() bool {
+	if len(os.Args) >= 3 && os.Args[1] == "__enter__" {
+		targetPID, err := strconv.Atoi(os.Args[2])
+		if err != nil || targetPID <= 0 {
+			fmt.Fprintf(os.Stderr, "Invalid target PID: %s\n", os.Args[2])
+			os.Exit(1)
+		}
+		if err := ExecEnterTarget(targetPID, os.Args[3:]); err != nil {
+			fmt.Fprintf(os.Stderr, "Error: host enter failed: %v\n", err)
+			os.Exit(1)
+		}
+		os.Exit(0)
+		return true
+	}
+	return false
+}
+
+

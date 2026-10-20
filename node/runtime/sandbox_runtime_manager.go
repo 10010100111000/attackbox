@@ -6,9 +6,11 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 
@@ -68,21 +70,35 @@ type ResourceLimits struct {
 }
 
 func LimitsFromPolicy(q protocol.BoxResourceQuota) ResourceLimits {
-	var memBytes int64
-	if q.MemoryMaxMB > 0 {
-		memBytes = q.MemoryMaxMB * 1024 * 1024
+	memMB := q.MemoryMaxMB
+	if memMB <= 0 {
+		memMB = protocol.DefaultMemLimitMB // Fail-closed: default to 2048MB, never leave unbound
 	}
+	memBytes := memMB * 1024 * 1024
+
 	var swapBytes int64
 	if q.MemorySwapMaxMB > 0 {
 		swapBytes = q.MemorySwapMaxMB * 1024 * 1024
 	}
+
 	cpuWeight := q.CPUWeight
 	if cpuWeight == 0 {
-		cpuWeight = 100
+		cpuWeight = protocol.DefaultCPUWeight
 	}
+
 	pidsMax := q.PIDsMax
-	if pidsMax == 0 {
-		pidsMax = 256
+	if pidsMax <= 0 {
+		pidsMax = protocol.DefaultPIDsLimit
+	}
+
+	ioBytes := q.IOWriteBytesSec
+	if ioBytes <= 0 {
+		ioBytes = protocol.DefaultIOWriteBytesSec
+	}
+
+	iops := q.IOWriteIOPS
+	if iops <= 0 {
+		iops = protocol.DefaultIOWriteIOPS
 	}
 
 	return ResourceLimits{
@@ -90,8 +106,8 @@ func LimitsFromPolicy(q protocol.BoxResourceQuota) ResourceLimits {
 		MemoryMaxBytes:  memBytes,
 		SwapMaxBytes:    swapBytes,
 		CPUWeight:       cpuWeight,
-		IOWriteBytesSec: q.IOWriteBytesSec,
-		IOWriteIOPS:     q.IOWriteIOPS,
+		IOWriteBytesSec: ioBytes,
+		IOWriteIOPS:      iops,
 	}
 }
 
@@ -146,7 +162,7 @@ func NewRuntimeManager(cfg RuntimeConfig) *RuntimeManager {
 	}
 
 	mgr.diskGuard = NewDiskGuard(cfg.DiskGuard, "/", func(freeMB int64) {
-		fmt.Printf("[ALERT] Host disk circuit breaker activated at %d MB free.\n", freeMB)
+		log.Printf("[ALERT] Host disk circuit breaker activated at %d MB free.", freeMB)
 	})
 
 	return mgr
@@ -200,12 +216,6 @@ func (m *RuntimeManager) CreateSandbox(ctx context.Context, scfg SandboxConfig) 
 		return nil, fmt.Errorf("create btrfs snapshot: %w", err)
 	}
 
-	targetWrapper := filepath.Join(rootfsPath, "usr/bin/attackbox-enter")
-	if _, err := os.Stat(targetWrapper); err != nil {
-		if hostData, err := os.ReadFile("/usr/local/bin/attackbox-enter"); err == nil {
-			_ = os.WriteFile(targetWrapper, hostData, 0755)
-		}
-	}
 
 	rPipe, wPipe, err := os.Pipe()
 	if err != nil {
@@ -294,37 +304,62 @@ func (m *RuntimeManager) CreateSandbox(ctx context.Context, scfg SandboxConfig) 
 }
 
 func (m *RuntimeManager) DestroySandbox(ctx context.Context, sandboxID string) error {
-	m.mu.Lock()
+	m.mu.RLock()
 	sbx, exists := m.sandboxes[sandboxID]
 	cmd := m.commands[sandboxID]
+	m.mu.RUnlock()
+
+	rootfsPath := filepath.Join(m.cfg.InstancesDir, sandboxID, "rootfs")
+	if exists && sbx != nil && sbx.RootfsPath != "" {
+		rootfsPath = sbx.RootfsPath
+	}
+
+	var destroyErrors []string
+
+	// 1. Terminate container process with bounded wait timeout (prevent indefinite hang on D-state)
+	if cmd != nil && cmd.Process != nil {
+		_ = cmd.Process.Kill()
+		waitCh := make(chan error, 1)
+		go func() {
+			waitCh <- cmd.Wait()
+		}()
+		select {
+		case <-waitCh:
+		case <-ctx.Done():
+			destroyErrors = append(destroyErrors, fmt.Sprintf("wait process exit: %v", ctx.Err()))
+		case <-time.After(5 * time.Second):
+			destroyErrors = append(destroyErrors, "wait process exit timed out after 5s")
+		}
+	}
+
+	// 2. Unmount container filesystems
+	if _, err := os.Stat(rootfsPath); err == nil {
+		if unmountErr := m.unmountContainerFilesystems(rootfsPath); unmountErr != nil {
+			destroyErrors = append(destroyErrors, fmt.Sprintf("unmount rootfs: %v", unmountErr))
+		}
+	}
+
+	// 3. Destroy cgroups
+	if err := m.cgroups.Destroy(sandboxID); err != nil && !os.IsNotExist(err) {
+		destroyErrors = append(destroyErrors, fmt.Sprintf("destroy cgroup: %v", err))
+	}
+
+	// 4. Destroy Btrfs snapshot
+	if err := m.btrfs.DestroySnapshot(sandboxID); err != nil {
+		destroyErrors = append(destroyErrors, fmt.Sprintf("destroy btrfs snapshot: %v", err))
+	}
+
+	// 5. P1-8 Fix: If any destruction step failed, DO NOT delete state from memory
+	// so that subsequent retries still have full context and won't falsely hit a "non-existent" success branch!
+	if len(destroyErrors) > 0 {
+		return fmt.Errorf("destroy sandbox %s: %s", sandboxID, strings.Join(destroyErrors, "; "))
+	}
+
+	// 6. Only purge from memory state once all resources are cleanly wiped
+	m.mu.Lock()
 	delete(m.sandboxes, sandboxID)
 	delete(m.commands, sandboxID)
 	m.mu.Unlock()
-
-	if !exists && sbx == nil {
-		cgPath := filepath.Join(m.cfg.CgroupRoot, sandboxID)
-		if _, err := os.Stat(cgPath); err == nil {
-			_ = m.cgroups.Destroy(sandboxID)
-		}
-		_ = m.btrfs.DestroySnapshot(sandboxID)
-		return nil
-	}
-
-	if cmd != nil && cmd.Process != nil {
-		_ = cmd.Process.Kill()
-	}
-
-	_ = m.cgroups.Destroy(sandboxID)
-
-	if cmd != nil {
-		_ = cmd.Wait()
-	}
-
-	_ = m.unmountContainerFilesystems(sbx.RootfsPath)
-
-	if err := m.btrfs.DestroySnapshot(sandboxID); err != nil {
-		return fmt.Errorf("destroy btrfs snapshot: %w", err)
-	}
 
 	return nil
 }
@@ -341,12 +376,26 @@ func (m *RuntimeManager) unmountContainerFilesystems(rootfsPath string) error {
 		filepath.Join(rootfsPath, "tmp"),
 	}
 
+	var errs []string
 	for _, mp := range mountPoints {
 		if _, err := os.Stat(mp); err == nil {
-			_ = exec.Command("umount", "-l", mp).Run()
+			out, err := exec.Command("umount", "-l", mp).CombinedOutput()
+			if err != nil {
+				if isMountPoint(mp) {
+					errs = append(errs, fmt.Sprintf("umount %s: %v (%s)", mp, err, strings.TrimSpace(string(out))))
+				}
+			}
 		}
 	}
+	if len(errs) > 0 {
+		return errors.New(strings.Join(errs, "; "))
+	}
 	return nil
+}
+
+func isMountPoint(path string) bool {
+	cmd := exec.Command("mountpoint", "-q", path)
+	return cmd.Run() == nil
 }
 
 func (m *RuntimeManager) GetSandbox(sandboxID string) (*SandboxState, bool) {

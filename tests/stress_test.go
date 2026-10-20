@@ -22,7 +22,6 @@ import (
 	"attackbox/control"
 	"attackbox/node"
 	"attackbox/node/runtime"
-	"attackbox/protocol"
 )
 
 func TestDistributedE2E_ConcurrentStress(t *testing.T) {
@@ -151,14 +150,7 @@ func TestDistributedE2E_ConcurrentStress(t *testing.T) {
 			defer wg.Done()
 			reqStart := time.Now()
 
-			reqBody, _ := json.Marshal(control.StartSandboxReq{
-				CustomPolicy: &protocol.SandboxPolicy{
-					Resources: protocol.BoxResourceQuota{
-						MemoryMaxMB: int64(256 + idx*64), // Dynamic variations
-						PIDsMax:     64,
-					},
-				},
-			})
+			reqBody, _ := json.Marshal(control.StartSandboxReq{})
 
 			req, _ := http.NewRequest(http.MethodPost, "http://127.0.0.1:18081/api/sandbox/start", bytes.NewReader(reqBody))
 			req.Header.Set("Authorization", "Bearer "+userTokens[idx])

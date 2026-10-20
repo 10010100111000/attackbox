@@ -21,7 +21,6 @@ import (
 	"attackbox/control"
 	"attackbox/node"
 	"attackbox/node/runtime"
-	"attackbox/protocol"
 )
 
 func TestSecurityContainment_CapabilitiesAndNoNewPrivs(t *testing.T) {
@@ -123,14 +122,7 @@ func TestSecurityContainment_CapabilitiesAndNoNewPrivs(t *testing.T) {
 	resp.Body.Close()
 
 	// Launch sandbox
-	startReqBody, _ := json.Marshal(control.StartSandboxReq{
-		CustomPolicy: &protocol.SandboxPolicy{
-			Resources: protocol.BoxResourceQuota{
-				MemoryMaxMB: 512,
-				PIDsMax:     128,
-			},
-		},
-	})
+	startReqBody, _ := json.Marshal(control.StartSandboxReq{})
 	req, _ := http.NewRequest(http.MethodPost, "http://127.0.0.1:18082/api/sandbox/start", bytes.NewReader(startReqBody))
 	req.Header.Set("Authorization", "Bearer "+authResp.Token)
 	req.Header.Set("Content-Type", "application/json")
@@ -245,6 +237,34 @@ func TestSecurityContainment_CapabilitiesAndNoNewPrivs(t *testing.T) {
 	t.Log("[PASS] Passwordless sudo successfully elevated to root!")
 
 	// -------------------------------------------------------------
+	// TEST 2.6: Negative Exploit Test: P0-4 MKNOD Physical Device Access Defense
+	// -------------------------------------------------------------
+	t.Log("[SECURITY AUDIT 2.6] Simulating mknod /dev/sda exploit attempt under sudo...")
+	outputBuf.Reset()
+	mknodCmd := "sudo mknod /dev/test_block_dev b 8 0 2>&1; echo RESULT_MKNOD_$?\n"
+	_ = wsConn.WriteMessage(websocket.BinaryMessage, []byte(mknodCmd))
+
+	deadline = time.Now().Add(5 * time.Second)
+	for time.Now().Before(deadline) {
+		_ = wsConn.SetReadDeadline(time.Now().Add(2 * time.Second))
+		_, msg, err := wsConn.ReadMessage()
+		if err != nil {
+			break
+		}
+		outputBuf.Write(msg)
+		if strings.Contains(outputBuf.String(), "\nRESULT_MKNOD_") || strings.Contains(outputBuf.String(), "\r\nRESULT_MKNOD_") {
+			break
+		}
+	}
+	mknodOutput := outputBuf.String()
+	t.Logf("Mknod Exploit Attempt Output:\n%s", mknodOutput)
+
+	if !strings.Contains(strings.ToLower(mknodOutput), "operation not permitted") {
+		t.Fatalf("P0-4 MKNOD exploit was NOT blocked by kernel! Output: %s", mknodOutput)
+	}
+	t.Log("[PASS] P0-4 MKNOD Defense Confirmed: Creating block devices in /dev blocked with EPERM!")
+
+	// -------------------------------------------------------------
 	// TEST 3: Negative Exploit Test: Execute reboot syscall
 	// -------------------------------------------------------------
 	t.Log("[SECURITY AUDIT 3/7] Simulating reboot exploit inside sandbox under sudo...")
@@ -356,35 +376,6 @@ func TestSecurityContainment_CapabilitiesAndNoNewPrivs(t *testing.T) {
 		t.Fatalf("Sysrq trigger execution failed or hung! Output: %s", sysrqOutput)
 	}
 	t.Log("[PASS] /proc/sysrq-trigger Masking Confirmed: Host kernel panic averted via /dev/null bind mount!")
-
-	// -------------------------------------------------------------
-	// TEST 7: Negative Exploit Test: P0-4 MKNOD Physical Device Access Defense
-	// -------------------------------------------------------------
-	t.Log("[SECURITY AUDIT 7/7] Simulating mknod /dev/sda exploit attempt under sudo...")
-	outputBuf.Reset()
-	mknodCmd := "sudo mknod /dev/test_block_dev b 8 0 2>&1; echo RESULT_MKNOD_$?\n"
-	_ = wsConn.WriteMessage(websocket.BinaryMessage, []byte(mknodCmd))
-
-	time.Sleep(100 * time.Millisecond)
-	deadline = time.Now().Add(5 * time.Second)
-	for time.Now().Before(deadline) {
-		_ = wsConn.SetReadDeadline(time.Now().Add(2 * time.Second))
-		_, msg, err := wsConn.ReadMessage()
-		if err != nil {
-			break
-		}
-		outputBuf.Write(msg)
-		if strings.Contains(outputBuf.String(), "\nRESULT_MKNOD_") || strings.Contains(outputBuf.String(), "\r\nRESULT_MKNOD_") {
-			break
-		}
-	}
-	mknodOutput := outputBuf.String()
-	t.Logf("Mknod Exploit Attempt Output:\n%s", mknodOutput)
-
-	if !strings.Contains(strings.ToLower(mknodOutput), "operation not permitted") {
-		t.Fatalf("P0-4 MKNOD exploit was NOT blocked by kernel! Output: %s", mknodOutput)
-	}
-	t.Log("[PASS] P0-4 MKNOD Defense Confirmed: Creating block devices in /dev blocked with EPERM!")
 
 	// Teardown
 	stopBody, _ := json.Marshal(control.StopSandboxReq{SandboxID: boxResp.SandboxID})

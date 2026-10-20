@@ -98,7 +98,6 @@ func (b *GoldenImageBuilder) SanitizeRootfs() error {
 	}
 
 	b.ensureEssentialDirectories()
-	b.injectPrivilegeDropBinary()
 
 	return nil
 }
@@ -327,22 +326,7 @@ func (b *GoldenImageBuilder) ensureEssentialDirectories() {
 	_ = os.Chown(homeBox, 1001, 1013)
 }
 
-// injectPrivilegeDropBinary copies attackbox-enter to /usr/bin/ if available on host.
-func (b *GoldenImageBuilder) injectPrivilegeDropBinary() {
-	targetBin := filepath.Join(b.targetDir, "usr/bin/attackbox-enter")
-	candidates := []string{
-		"/usr/local/bin/attackbox-enter",
-		"/usr/bin/attackbox-enter",
-		"/tmp/attackbox-enter",
-	}
 
-	for _, src := range candidates {
-		if _, err := os.Stat(src); err == nil {
-			_ = copyFile(src, targetBin, 0755)
-			break
-		}
-	}
-}
 
 func (b *GoldenImageBuilder) unlockImageWritable() error {
 	cmd := exec.Command("btrfs", "property", "set", b.targetDir, "ro", "false")

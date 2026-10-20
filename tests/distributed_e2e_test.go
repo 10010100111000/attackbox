@@ -49,6 +49,11 @@ func TestDistributedE2E_FullLoop(t *testing.T) {
 	ctrlCfg.Cluster.HeartbeatTimeoutSec = 10
 	ctrlCfg.Auth.JWTExpireHours = 1
 	ctrlCfg.Auth.TicketTTLSec = 60
+	ctrlCfg.Sandbox.Resources = protocol.BoxResourceQuota{
+		MemoryMaxMB: 512,
+		PIDsMax:     128,
+		CPUWeight:   150,
+	}
 
 	pubKey, privKey, err := control.LoadOrGenerateKeys("")
 	if err != nil {
@@ -168,22 +173,8 @@ func TestDistributedE2E_FullLoop(t *testing.T) {
 	}
 	t.Log("[4/7] User registered successfully, JWT obtained")
 
-	// 5. Request to start sandbox with Fine-Grained Custom Policy
-	startReqBody, _ := json.Marshal(control.StartSandboxReq{
-		CustomPolicy: &protocol.SandboxPolicy{
-			Resources: protocol.BoxResourceQuota{
-				MemoryMaxMB: 512,
-				PIDsMax:     128,
-				CPUWeight:   150,
-			},
-			Storage: protocol.BoxStoragePolicy{
-				TmpfsTmpSize: "256M",
-			},
-			Network: protocol.BoxNetworkPolicy{
-				EgressMode: "restricted",
-			},
-		},
-	})
+	// 5. Request to start sandbox (machine policy managed authoritatively by Control Hub)
+	startReqBody, _ := json.Marshal(control.StartSandboxReq{})
 
 	req, _ := http.NewRequest(http.MethodPost, "http://127.0.0.1:18080/api/sandbox/start", bytes.NewReader(startReqBody))
 	req.Header.Set("Authorization", "Bearer "+authResp.Token)

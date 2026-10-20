@@ -147,37 +147,15 @@ func SetupSandboxNetwork(ctx context.Context, bridge string, slotIndex int, targ
 		return nil, fmt.Errorf("move %s to netns %s: %s (%w)", vethGuest, targetNetns, strings.TrimSpace(string(out)), err)
 	}
 
-	// 5. Rename guest interface to eth0 inside the sandbox netns
-	cmdRename := exec.CommandContext(ctx, "ip", "netns", "exec", targetNetns, "ip", "link", "set", vethGuest, "name", "eth0")
-	if out, err := cmdRename.CombinedOutput(); err != nil {
-		cmdRenameFile := exec.CommandContext(ctx, "nsenter", "--net="+targetNetns, "ip", "link", "set", vethGuest, "name", "eth0")
-		if out2, err2 := cmdRenameFile.CombinedOutput(); err2 != nil {
-			_ = exec.CommandContext(ctx, "ip", "link", "del", vethHost).Run()
-			return nil, fmt.Errorf("rename guest veth to eth0 in %s: %s / %s (%w)", targetNetns, string(out), string(out2), err2)
-		}
-	}
-
-	// 6. Assign IP address and set eth0 UP inside sandbox
-	cmdIP := exec.CommandContext(ctx, "nsenter", "--net="+targetNetns, "ip", "addr", "add", boxIP, "dev", "eth0")
-	if out, err := cmdIP.CombinedOutput(); err != nil {
+	// 5-8. Configure guest interfaces in a single batched nsenter invocation (avoids fork storm)
+	script := fmt.Sprintf(
+		"ip link set %s name eth0 && ip addr add %s dev eth0 && ip link set eth0 up && ip link set lo up && ip route add default via 10.200.0.1",
+		vethGuest, boxIP,
+	)
+	cmdGuest := exec.CommandContext(ctx, "nsenter", "--net="+targetNetns, "sh", "-c", script)
+	if out, err := cmdGuest.CombinedOutput(); err != nil {
 		_ = exec.CommandContext(ctx, "ip", "link", "del", vethHost).Run()
-		return nil, fmt.Errorf("set eth0 ip %s in %s: %s (%w)", boxIP, targetNetns, strings.TrimSpace(string(out)), err)
-	}
-
-	cmdUp := exec.CommandContext(ctx, "nsenter", "--net="+targetNetns, "ip", "link", "set", "eth0", "up")
-	if out, err := cmdUp.CombinedOutput(); err != nil {
-		_ = exec.CommandContext(ctx, "ip", "link", "del", vethHost).Run()
-		return nil, fmt.Errorf("set eth0 up in %s: %s (%w)", targetNetns, strings.TrimSpace(string(out)), err)
-	}
-
-	// 7. Enable Loopback device inside sandbox
-	_ = exec.CommandContext(ctx, "nsenter", "--net="+targetNetns, "ip", "link", "set", "lo", "up").Run()
-
-	// 8. Set default gateway to bridge IP (10.200.0.1)
-	cmdRoute := exec.CommandContext(ctx, "nsenter", "--net="+targetNetns, "ip", "route", "add", "default", "via", "10.200.0.1")
-	if out, err := cmdRoute.CombinedOutput(); err != nil {
-		_ = exec.CommandContext(ctx, "ip", "link", "del", vethHost).Run()
-		return nil, fmt.Errorf("set default route in %s: %s (%w)", targetNetns, strings.TrimSpace(string(out)), err)
+		return nil, fmt.Errorf("configure sandbox netns %s interfaces: %s (%w)", targetNetns, strings.TrimSpace(string(out)), err)
 	}
 
 	assignedIP := strings.Split(boxIP, "/")[0]

@@ -72,14 +72,12 @@ func UnpackMessage(data []byte, m *Message) error {
 
 // ----------------- 载荷结构定义 -----------------
 
-// NodeCapabilities 节点硬件与功能探测字典
+// NodeCapabilities 节点硬件与功能真实探测字典
 type NodeCapabilities struct {
-	HasOverlayFS bool   `json:"has_overlayfs"` // 是否支持 OverlayFS
-	HasKVM       bool   `json:"has_kvm"`       // 是否支持 /dev/kvm
-	HasDocker    bool   `json:"has_docker"`    // 是否运行 Docker 守护进程
-	CPUCores     int    `json:"cpu_cores"`     // 物理 CPU 核心数
-	TotalMemMB   int64  `json:"total_mem_mb"`  // 物理总内存 (MB)
-	OSVersion    string `json:"os_version"`    // 宿主机系统版本
+	HasKVM     bool   `json:"has_kvm"`      // 是否支持 /dev/kvm
+	CPUCores   int    `json:"cpu_cores"`    // 物理 CPU 核心数
+	TotalMemMB int64  `json:"total_mem_mb"` // 物理总内存 (MB, 真实读取 /proc/meminfo)
+	OSVersion  string `json:"os_version"`   // 宿主机系统版本
 }
 
 // RegisterReq 节点向控制端主动注册请求
@@ -98,14 +96,14 @@ type RegisterResp struct {
 	PublicKey string `json:"public_key,omitempty"` // Hex-encoded Ed25519 Public Key
 }
 
-// HeartbeatReq 节点周期心跳遥测 (每 3 秒)
+// HeartbeatReq 节点周期心跳真实遥测 (每 3 秒)
 type HeartbeatReq struct {
 	NodeID          string  `json:"node_id"`
 	Timestamp       int64   `json:"timestamp"`
-	CPUUsagePercent float64 `json:"cpu_usage_percent"`
-	MemFreeMB       int64   `json:"mem_free_mb"`
-	DiskFreeGB      int64   `json:"disk_free_gb"`
-	ActiveSandboxes int     `json:"active_sandboxes"`
+	LoadAvg         float64 `json:"load_avg"`          // 宿主机 1分钟平均负载 (真实读取 /proc/loadavg)
+	MemAvailableMB  int64   `json:"mem_available_mb"`  // 真实可用物理内存 MB (真实读取 /proc/meminfo)
+	DiskFreeGB      int64   `json:"disk_free_gb"`      // 真实磁盘剩余 GB
+	ActiveSandboxes int     `json:"active_sandboxes"`  // 真实活跃沙箱运行数
 }
 
 // HeartbeatResp 控制端心跳响应
@@ -129,36 +127,17 @@ type BoxStoragePolicy struct {
 	TmpfsRunSize string `json:"tmpfs_run_size"` // /run 内存盘大小 (如 "256M")
 }
 
-// BoxNetworkPolicy 精细化网络管控策略
-type BoxNetworkPolicy struct {
-	EgressMode        string `json:"egress_mode"`         // "airgap" | "restricted" | "full"
-	ExtraAllowedPorts []int  `json:"extra_allowed_ports"` // 额外放行出向端口
-}
-
-// BoxSecurityPolicy 精细化沙箱安全与环境策略
+// BoxSecurityPolicy 精细化沙箱安全策略 (只保留内核真正消费的策略)
 type BoxSecurityPolicy struct {
-	ReadOnlyProcSys bool              `json:"read_only_proc_sys" yaml:"read_only_proc_sys"`
-	MaskSysrq       bool              `json:"mask_sysrq" yaml:"mask_sysrq"`
-	AllowPTrace     bool              `json:"allow_ptrace" yaml:"allow_ptrace"`
-	ExtraEnv        map[string]string `json:"extra_env" yaml:"extra_env"`
+	ReadOnlyProcSys bool `json:"read_only_proc_sys" yaml:"read_only_proc_sys"`
+	MaskSysrq       bool `json:"mask_sysrq" yaml:"mask_sysrq"`
 }
 
 // SandboxPolicy 控制端向节点下发的综合精细化策略包（全管道单一 JSON 透传）
 type SandboxPolicy struct {
 	Resources BoxResourceQuota  `json:"resources"`
 	Storage   BoxStoragePolicy  `json:"storage"`
-	Network   BoxNetworkPolicy  `json:"network"`
 	Security  BoxSecurityPolicy `json:"security"`
-}
-
-// TargetSpec 靶机目标规格定义
-type TargetSpec struct {
-	Enabled      bool              `json:"enabled"`
-	LabID        string            `json:"lab_id"`
-	Image        string            `json:"image"`
-	Runtime      string            `json:"runtime"`
-	ExposedPorts []int             `json:"exposed_ports"`
-	Env          map[string]string `json:"env"`
 }
 
 // CreateBoxReq 控制端下发沙箱创建指令
@@ -167,7 +146,6 @@ type CreateBoxReq struct {
 	UserID    int64         `json:"user_id"`
 	SlotIndex int           `json:"slot_index"` // 网络槽位索引 (1-250)
 	Policy    SandboxPolicy `json:"policy"`     // 完整细粒度策略
-	Target    TargetSpec    `json:"target,omitempty"`
 }
 
 // CreateBoxResp 节点响应沙箱创建结果
@@ -176,7 +154,6 @@ type CreateBoxResp struct {
 	Success   bool   `json:"success"`
 	Error     string `json:"error,omitempty"`
 	SandboxIP string `json:"sandbox_ip,omitempty"`
-	TargetIP  string `json:"target_ip,omitempty"`
 }
 
 // DestroyBoxReq 控制端下发沙箱销毁指令
