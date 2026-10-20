@@ -37,7 +37,7 @@ func main() {
 	// Load configuration from YAML
 	cfg, err := node.LoadNodeConfig(*configPath)
 	if err != nil {
-		fmt.Printf("[INFO] %v\n", err)
+		log.Fatalf("[FATAL] Load configuration: %v", err)
 	}
 
 	if *buildBaseOnly {
@@ -66,7 +66,7 @@ func main() {
 
 	// 1. Initialize Host Network & Firewall Baseline
 	if err := node.EnsureHostNetwork(cfg.Network); err != nil {
-		log.Printf("[WARN] Host network init warning: %v (running non-root or lab test?)", err)
+		log.Fatalf("[FATAL] Host network initialization: %v", err)
 	} else {
 		log.Printf("[INFO] Host bridge %s and nftables containment baseline initialized", cfg.Network.BridgeName)
 	}
@@ -90,6 +90,9 @@ func main() {
 		os.Exit(1)
 	}
 	defer rtMgr.Stop()
+	if err := node.CleanupSandboxInterfaces(ctx); err != nil {
+		log.Fatalf("[FATAL] Residual network cleanup: %v", err)
+	}
 
 	log.Printf("[INFO] Node runtime initialized successfully. Host free disk: %d MB",
 		rtMgr.DiskGuard().GetCurrentFreeMB())

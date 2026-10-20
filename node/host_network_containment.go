@@ -3,6 +3,8 @@ package node
 import (
 	"bytes"
 	"context"
+	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -176,7 +178,10 @@ func SetupSandboxNetwork(ctx context.Context, bridge string, slotIndex int, sand
 	}
 
 	// 3. Enable Bridge Port Isolation (prevents inter-sandbox ARP sniffing/spoofing on the same bridge)
-	_ = exec.CommandContext(ctx, "ip", "link", "set", vethHost, "type", "bridge_slave", "isolated", "on").Run()
+	if out, err := exec.CommandContext(ctx, "ip", "link", "set", vethHost, "type", "bridge_slave", "isolated", "on").CombinedOutput(); err != nil {
+		_ = deleteSandboxInterface(ctx, vethHost)
+		return nil, fmt.Errorf("enable bridge isolation: %s: %w", out, err)
+	}
 
 	// 4. Move guest interface into the sandbox network namespace
 	if out, err := exec.CommandContext(ctx, "ip", "link", "set", vethGuest, "netns", targetNetns).CombinedOutput(); err != nil {
@@ -207,13 +212,56 @@ func SetupSandboxNetwork(ctx context.Context, bridge string, slotIndex int, sand
 
 // TeardownSandboxNetwork deletes the host veth peer, automatically cleaning up the kernel veth pair.
 func TeardownSandboxNetwork(ctx context.Context, slotIndex int, sandboxID string) error {
+	if slotIndex <= 0 {
+		return cleanupSandboxInterfaces(ctx, sandboxID)
+	}
 	vethHost, _ := VethNameForSandbox(slotIndex, sandboxID)
-	_ = exec.CommandContext(ctx, "ip", "link", "del", vethHost).Run()
+	return deleteSandboxInterface(ctx, vethHost)
+}
 
-	// Clean legacy vh<slot> interface if present
-	legacyHost := fmt.Sprintf("vh%d", slotIndex)
-	_ = exec.CommandContext(ctx, "ip", "link", "del", legacyHost).Run()
+func deleteSandboxInterface(ctx context.Context, name string) error {
+	out, err := exec.CommandContext(ctx, "ip", "link", "del", name).CombinedOutput()
+	if err != nil && !strings.Contains(string(out), "Cannot find device") && !strings.Contains(string(out), "does not exist") {
+		return fmt.Errorf("delete network interface %s: %s: %w", name, strings.TrimSpace(string(out)), err)
+	}
 	return nil
+}
+
+// CleanupSandboxInterfaces runs only before the gateway/control client start.
+func CleanupSandboxInterfaces(ctx context.Context) error { return cleanupSandboxInterfaces(ctx, "") }
+
+func cleanupSandboxInterfaces(ctx context.Context, sandboxID string) error {
+	out, err := exec.CommandContext(ctx, "ip", "-j", "link", "show").Output()
+	if err != nil {
+		return fmt.Errorf("list residual network interfaces: %w", err)
+	}
+	var links []struct {
+		Name string `json:"ifname"`
+	}
+	if err := json.Unmarshal(out, &links); err != nil {
+		return err
+	}
+	var errs []error
+	for _, link := range links {
+		if !strings.HasPrefix(link.Name, "vh") {
+			continue
+		}
+		part := strings.SplitN(strings.TrimPrefix(link.Name, "vh"), "_", 2)
+		slot, err := strconv.Atoi(part[0])
+		if err != nil || slot <= 0 {
+			continue
+		}
+		if sandboxID != "" {
+			expected, _ := VethNameForSandbox(slot, sandboxID)
+			if link.Name != expected {
+				continue
+			}
+		}
+		if err := deleteSandboxInterface(ctx, link.Name); err != nil {
+			errs = append(errs, err)
+		}
+	}
+	return errors.Join(errs...)
 }
 
 func detectDefaultWANInterface() string {

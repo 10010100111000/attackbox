@@ -189,4 +189,3 @@ func (s *DatabaseStore) AddAuditLog(userID *int64, action, ip, details string) e
 		userID, action, ip, details)
 	return err
 }
-

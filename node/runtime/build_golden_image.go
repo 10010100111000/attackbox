@@ -106,6 +106,12 @@ func (b *GoldenImageBuilder) SanitizeRootfs(rootDir string) error {
 		rootDir = b.targetDir
 	}
 
+	// Reject writes through host-absolute links before touching account files.
+	for _, rel := range []string{"etc/passwd", "etc/shadow", "etc/group", "etc/sudoers.d/attackbox", "home/box", "tmp"} {
+		if err := checkImagePath(rootDir, filepath.Join(rootDir, rel), true); err != nil {
+			return err
+		}
+	}
 	validUsers, err := b.sanitizePasswdFile(rootDir)
 	if err != nil {
 		return fmt.Errorf("sanitize passwd: %w", err)
@@ -317,10 +323,12 @@ func (b *GoldenImageBuilder) purgeHostCredentials(rootDir string) error {
 		filepath.Join(rootDir, "root/.config/gcloud"),
 		filepath.Join(rootDir, "root/.kube"),
 		filepath.Join(rootDir, "root/.docker"),
-		filepath.Join(rootDir, "var/run/secrets"),
+		filepath.Join(rootDir, "run/secrets"),
 	}
 	for _, d := range attackboxDirs {
-		_ = os.RemoveAll(d)
+		if err := removeImagePath(rootDir, d); err != nil {
+			return err
+		}
 	}
 
 	// 2. Comprehensive pattern eradication for certificates, systemd units, tokens
@@ -354,9 +362,12 @@ func (b *GoldenImageBuilder) purgeHostCredentials(rootDir string) error {
 
 	for _, pattern := range purgePatterns {
 		matches, err := filepath.Glob(pattern)
-		if err == nil {
-			for _, m := range matches {
-				_ = os.RemoveAll(m)
+		if err != nil {
+			return err
+		}
+		for _, path := range matches {
+			if err := removeImagePath(rootDir, path); err != nil {
+				return err
 			}
 		}
 	}
@@ -371,14 +382,21 @@ func (b *GoldenImageBuilder) purgeHistoryAndLogs(rootDir string) error {
 		filepath.Join(rootDir, "var/log/*"),
 		filepath.Join(rootDir, "tmp/*"),
 		filepath.Join(rootDir, "var/tmp/*"),
-		filepath.Join(rootDir, "var/run/*"),
+		filepath.Join(rootDir, "run/*"),
+	}
+
+	if info, err := os.Lstat(filepath.Join(rootDir, "var/run")); err == nil && info.Mode()&os.ModeSymlink == 0 {
+		purgePatterns = append(purgePatterns, filepath.Join(rootDir, "var/run/*"))
 	}
 
 	for _, pattern := range purgePatterns {
 		matches, err := filepath.Glob(pattern)
-		if err == nil {
-			for _, m := range matches {
-				_ = os.RemoveAll(m)
+		if err != nil {
+			return err
+		}
+		for _, path := range matches {
+			if err := removeImagePath(rootDir, path); err != nil {
+				return err
 			}
 		}
 	}
@@ -469,4 +487,49 @@ func copyFile(src, dst string, perm os.FileMode) error {
 		return err
 	}
 	return os.Chmod(dst, perm)
+}
+
+// The image is offline and root-owned while sanitized. Verify resolved ancestors
+// before writes/removals; RemoveAll itself does not follow a final symlink.
+func checkImagePath(root, path string, followFinal bool) error {
+	root, err := filepath.Abs(root)
+	if err != nil {
+		return err
+	}
+	root, err = filepath.EvalSymlinks(root)
+	if err != nil {
+		return err
+	}
+	if !followFinal {
+		path = filepath.Dir(path)
+	}
+	path, err = filepath.Abs(path)
+	if err != nil {
+		return err
+	}
+	for {
+		resolved, e := filepath.EvalSymlinks(path)
+		if e == nil {
+			rel, e := filepath.Rel(root, resolved)
+			if e != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(os.PathSeparator)) {
+				return fmt.Errorf("image path escapes root: %s", path)
+			}
+			return nil
+		}
+		if !os.IsNotExist(e) {
+			return e
+		}
+		parent := filepath.Dir(path)
+		if parent == path {
+			return e
+		}
+		path = parent
+	}
+}
+
+func removeImagePath(root, path string) error {
+	if err := checkImagePath(root, path, false); err != nil {
+		return err
+	}
+	return os.RemoveAll(path)
 }

@@ -127,8 +127,11 @@ func (c *CgroupManager) Create(sandboxID string, limits ResourceLimits) (*os.Fil
 	if limits.SwapMaxBytes >= 0 {
 		swapPath := filepath.Join(cgPath, "memory.swap.max")
 		swapStr := strconv.FormatInt(limits.SwapMaxBytes, 10)
-		if err := os.WriteFile(swapPath, []byte(swapStr+"\n"), 0644); err == nil {
-			_, _ = os.ReadFile(swapPath)
+		if err := os.WriteFile(swapPath, []byte(swapStr+"\n"), 0644); err != nil {
+			return rollback(fmt.Errorf("write memory.swap.max: %w", err))
+		}
+		if data, err := os.ReadFile(swapPath); err != nil || strings.TrimSpace(string(data)) != swapStr {
+			return rollback(fmt.Errorf("verify memory.swap.max: expected %s, got %q (%v)", swapStr, data, err))
 		}
 	}
 

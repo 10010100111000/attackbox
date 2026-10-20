@@ -28,13 +28,13 @@ const (
 
 // Resource & Security Limits
 const (
-	MaxHTTPPayloadSize      = 1 << 20       // 1MB request body limit
-	MaxWebSocketMessageSize = 1 << 20       // 1MB control message limit
-	MaxPTYFrameSize         = 64 * 1024     // 64KB PTY interactive stream chunk
+	MaxHTTPPayloadSize      = 1 << 20   // 1MB request body limit
+	MaxWebSocketMessageSize = 1 << 20   // 1MB control message limit
+	MaxPTYFrameSize         = 64 * 1024 // 64KB PTY interactive stream chunk
 	DefaultMemLimitMB       = 2048
 	DefaultPIDsLimit        = 512
 	DefaultCPUWeight        = 100
-	DefaultIOWriteBytesSec  = 20971520      // 20MB/s
+	DefaultIOWriteBytesSec  = 20971520 // 20MB/s
 	DefaultIOWriteIOPS      = 500
 	DefaultTmpfsTmpSize     = "512M"
 	DefaultTmpfsRunSize     = "256M"

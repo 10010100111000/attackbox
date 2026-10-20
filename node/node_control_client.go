@@ -39,10 +39,10 @@ type NodeInfoConfig struct {
 }
 
 type NodeConfig struct {
-	Node    NodeInfoConfig      `yaml:"node"`
-	Gateway GatewayConfig       `yaml:"gateway"`
-	Runtime rt.RuntimeConfig    `yaml:"runtime"`
-	Network NetworkConfig       `yaml:"network"`
+	Node    NodeInfoConfig   `yaml:"node"`
+	Gateway GatewayConfig    `yaml:"gateway"`
+	Runtime rt.RuntimeConfig `yaml:"runtime"`
+	Network NetworkConfig    `yaml:"network"`
 }
 
 // LoadNodeConfig parses configs/node.yaml or falls back to production defaults.
@@ -63,12 +63,12 @@ func LoadNodeConfig(path string) (*NodeConfig, error) {
 			InstancesDir: "/var/lib/attackbox/instances",
 			CgroupRoot:   "/sys/fs/cgroup/attackbox",
 			Limits: rt.RuntimeLimitsConfig{
-				PIDsMax:          256,
-				MemoryMaxMB:      1024,
-				MemorySwapMaxMB:  0,
-				CPUWeight:        100,
-				IOWriteBytesSec:  20971520,
-				IOWriteIOPS:      1000,
+				PIDsMax:         256,
+				MemoryMaxMB:     1024,
+				MemorySwapMaxMB: 0,
+				CPUWeight:       100,
+				IOWriteBytesSec: 20971520,
+				IOWriteIOPS:     1000,
 			},
 			DiskGuard: rt.DiskGuardConfig{
 				Enabled:          true,
@@ -260,7 +260,7 @@ func (c *NodeControlClient) runSession(ctx context.Context) error {
 
 	totalMemMB, _ := readSystemMemoryMB()
 
-	activeIDs := c.rtMgr.ListSandboxIDs()
+	activeIDs := sandboxIDs(c.rtMgr)
 
 	// 1. Send Registration frame
 	regPayload := protocol.RegisterReq{
@@ -320,7 +320,20 @@ func (c *NodeControlClient) sendMessage(msg *protocol.Message) error {
 	if c.conn == nil {
 		return fmt.Errorf("connection closed")
 	}
+	_ = c.conn.SetWriteDeadline(time.Now().Add(5 * time.Second))
 	return c.conn.WriteMessage(websocket.TextMessage, data)
+}
+
+func sandboxIDs(m *rt.RuntimeManager) []string {
+	if m == nil {
+		return nil
+	}
+	_, inventory := m.Inventory()
+	ids := make([]string, 0, len(inventory))
+	for _, s := range inventory {
+		ids = append(ids, s.ID)
+	}
+	return ids
 }
 
 func (c *NodeControlClient) heartbeatLoop(ctx context.Context) {
@@ -328,9 +341,15 @@ func (c *NodeControlClient) heartbeatLoop(ctx context.Context) {
 	if interval <= 0 {
 		interval = 3 * time.Second
 	}
+	send := func() {
+		_, available := readSystemMemoryMB()
+		revision, inventory := c.rtMgr.Inventory()
+		hb, _ := protocol.NewMessage(protocol.MsgTypeHeartbeat, protocol.HeartbeatReq{NodeID: c.cfg.Node.NodeID, BootID: c.bootID, Seq: atomic.AddUint64(&c.seq, 1), InventoryRevision: revision, Timestamp: time.Now().Unix(), LoadAvg: readSystemLoadAvg(), MemAvailableMB: available, DiskFreeGB: c.rtMgr.DiskGuard().GetCurrentFreeMB() / 1024, ActiveSandboxes: len(inventory), Sandboxes: inventory})
+		_ = c.sendMessage(hb)
+	}
+	send()
 	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
-
 	for {
 		select {
 		case <-ctx.Done():
@@ -338,29 +357,7 @@ func (c *NodeControlClient) heartbeatLoop(ctx context.Context) {
 		case <-c.stopCh:
 			return
 		case <-ticker.C:
-			_, availableMemMB := readSystemMemoryMB()
-			var summaries []protocol.SandboxSummary
-			var activeIDs []string
-			if c.rtMgr != nil {
-				summaries = c.rtMgr.ListSummaries()
-				activeIDs = c.rtMgr.ListSandboxIDs()
-			}
-			hbPayload := protocol.HeartbeatReq{
-				NodeID:           c.cfg.Node.NodeID,
-				BootID:           c.bootID,
-				Seq:              atomic.AddUint64(&c.seq, 1),
-				Timestamp:        time.Now().Unix(),
-				LoadAvg:          readSystemLoadAvg(),
-				MemAvailableMB:   availableMemMB,
-				DiskFreeGB:       c.rtMgr.DiskGuard().GetCurrentFreeMB() / 1024,
-				ActiveSandboxes:  len(activeIDs),
-				ActiveSandboxIDs: activeIDs,
-				Sandboxes:        summaries,
-			}
-			hbMsg, err := protocol.NewMessage(protocol.MsgTypeHeartbeat, hbPayload)
-			if err == nil {
-				_ = c.sendMessage(hbMsg)
-			}
+			send()
 		}
 	}
 }
@@ -481,17 +478,15 @@ func (c *NodeControlClient) handleCreateBox(msg *protocol.Message) {
 		return
 	}
 
+	if req.BootID != c.bootID {
+		c.sendErrorResponse(msg, "worker generation changed")
+		return
+	}
+
 	log.Printf("[CLUSTER] Received CreateBox for %s (User %d, Slot %d)", req.SandboxID, req.UserID, req.SlotIndex)
 
 	if c.rtMgr == nil {
-		log.Printf("[CLUSTER] Mock/nil rtMgr: skipping actual sandbox creation for %s", req.SandboxID)
-		respMsg, _ := protocol.NewMessage(protocol.MsgTypeCreateBoxResp, protocol.CreateBoxResp{
-			SandboxID: req.SandboxID,
-			Success:   true,
-			SandboxIP: fmt.Sprintf("10.99.0.%d", req.SlotIndex),
-		})
-		respMsg.ID = msg.ID
-		_ = c.sendMessage(respMsg)
+		c.sendErrorResponse(msg, "runtime unavailable")
 		return
 	}
 
@@ -507,6 +502,7 @@ func (c *NodeControlClient) handleCreateBox(msg *protocol.Message) {
 	defer cancel()
 
 	sbx, err := c.rtMgr.CreateSandbox(ctx, rt.SandboxConfig{
+		TTLSeconds: req.TTLSeconds, IdleSeconds: req.IdleSeconds,
 		ID:        req.SandboxID,
 		UserID:    req.UserID,
 		SlotIndex: req.SlotIndex,
@@ -515,6 +511,7 @@ func (c *NodeControlClient) handleCreateBox(msg *protocol.Message) {
 
 	respPayload := protocol.CreateBoxResp{
 		SandboxID: req.SandboxID,
+		BootID:    c.bootID,
 		Success:   err == nil,
 	}
 	if err != nil {
@@ -522,9 +519,11 @@ func (c *NodeControlClient) handleCreateBox(msg *protocol.Message) {
 		log.Printf("[CLUSTER] CreateSandbox %s failed: %v", req.SandboxID, err)
 	} else {
 		respPayload.SandboxIP = sbx.IP
+		respPayload.ExpiresAt = sbx.ExpiresAt
 		log.Printf("[CLUSTER] Sandbox %s created successfully! (IP: %s, Slot: %d)", req.SandboxID, sbx.IP, sbx.SlotIndex)
 	}
 
+	respPayload.InventoryRevision, _ = c.rtMgr.Inventory()
 	respMsg, packErr := protocol.NewMessage(protocol.MsgTypeCreateBoxResp, respPayload)
 	if packErr == nil {
 		respMsg.ID = msg.ID
@@ -540,18 +539,28 @@ func (c *NodeControlClient) handleDestroyBox(msg *protocol.Message) {
 		return
 	}
 
+	if req.BootID != c.bootID {
+		c.sendErrorResponse(msg, "worker generation changed")
+		return
+	}
+
 	log.Printf("[CLUSTER] Received DestroyBox for %s (Reason: %s)", req.SandboxID, req.Reason)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
 
 	var err error
+	if c.rtMgr == nil {
+		c.sendErrorResponse(msg, "runtime unavailable")
+		return
+	}
 	if c.rtMgr != nil {
 		err = c.rtMgr.DestroySandbox(ctx, req.SandboxID)
 	}
 
 	respPayload := protocol.DestroyBoxResp{
 		SandboxID: req.SandboxID,
+		BootID:    c.bootID,
 		Success:   err == nil,
 	}
 	if err != nil {

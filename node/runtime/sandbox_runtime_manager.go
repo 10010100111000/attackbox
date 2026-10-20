@@ -10,6 +10,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"sync"
 	"time"
@@ -120,15 +121,23 @@ func LimitsFromPolicy(q protocol.BoxResourceQuota, rootDeviceNumber ...string) R
 }
 
 type SandboxConfig struct {
-	ID        string
-	UserID    int64
-	SlotIndex int
-	IP        string
-	Policy    protocol.SandboxPolicy
+	TTLSeconds  int
+	IdleSeconds int
+	ID          string
+	UserID      int64
+	SlotIndex   int
+	IP          string
+	Policy      protocol.SandboxPolicy
 }
 
 // SandboxRecord Worker 内部唯一的全量权威实例记录
 type SandboxRecord struct {
+	opMu         sync.Mutex
+	State        string    `json:"state"`
+	Revision     uint64    `json:"revision"`
+	ExpiresAt    time.Time `json:"expires_at"`
+	waitDone     chan struct{}
+	idleLimit    time.Duration
 	ID           string    `json:"id"`
 	UserID       int64     `json:"user_id"`
 	SlotIndex    int       `json:"slot_index"`
@@ -138,14 +147,15 @@ type SandboxRecord struct {
 	LastActiveAt time.Time `json:"last_active_at"`
 	CleanupError string    `json:"cleanup_error,omitempty"`
 
-	cmd          *exec.Cmd `json:"-"`
+	cmd *exec.Cmd `json:"-"`
 }
-
-// SandboxState 兼容别名
-type SandboxState = SandboxRecord
 
 // SandboxSnapshot 外部组件只读值快照
 type SandboxSnapshot struct {
+	IdleSeconds  int64  `json:"idle_seconds"`
+	State        string `json:"state"`
+	Revision     uint64 `json:"revision"`
+	ExpiresAt    int64  `json:"expires_at"`
 	ID           string `json:"id"`
 	UserID       int64  `json:"user_id"`
 	SlotIndex    int    `json:"slot_index"`
@@ -169,6 +179,9 @@ type RuntimeManager struct {
 	netSetup         func(ctx context.Context, slotIndex int, id, netns string) (string, error)
 	netTeardown      func(ctx context.Context, slotIndex int, id string) error
 	mu               sync.RWMutex
+	revision         uint64
+	reaperCancel     context.CancelFunc
+	reaperWG         sync.WaitGroup
 	sandboxes        map[string]*SandboxRecord
 }
 
@@ -184,6 +197,22 @@ func (m *RuntimeManager) SetNetworkLifecycle(
 }
 
 func NewRuntimeManager(cfg RuntimeConfig) *RuntimeManager {
+	if cfg.BaseRootfs == "" {
+		cfg.BaseRootfs = "/var/lib/attackbox/base_rootfs"
+	}
+	if cfg.InstancesDir == "" {
+		cfg.InstancesDir = "/var/lib/attackbox/instances"
+	}
+	if cfg.CgroupRoot == "" {
+		cfg.CgroupRoot = "/sys/fs/cgroup/attackbox"
+	}
+	if cfg.SandboxTTLSec <= 0 {
+		cfg.SandboxTTLSec = 7200
+	}
+	if cfg.SandboxIdleSec <= 0 {
+		cfg.SandboxIdleSec = 900
+	}
+
 	rootDev := cfg.Limits.RootDeviceNumber
 	if rootDev == "" {
 		instDir := cfg.InstancesDir
@@ -287,10 +316,13 @@ func DetectDeviceNumber(path string) string {
 }
 
 func (m *RuntimeManager) Start(ctx context.Context) error {
-	m.diskGuard.Start(ctx)
 	if err := m.btrfs.EnsureBaseRootfs(); err != nil {
 		return fmt.Errorf("verify golden base image: %w", err)
 	}
+	if err := m.CleanupResidualSandboxes(ctx); err != nil {
+		return err
+	}
+	m.diskGuard.Start(ctx)
 	m.StartLocalReaper(ctx)
 	return nil
 }
@@ -306,97 +338,133 @@ func (m *RuntimeManager) ListSandboxIDs() []string {
 }
 
 // StartLocalReaper runs authoritative lifecycle reaper on Worker (TTL and Idle timeout).
+// ReapSandboxes uses the same serialized stop path as explicit requests.
+func (m *RuntimeManager) ReapSandboxes(ctx context.Context, now time.Time) {
+	for _, sbx := range m.ListSnapshots() {
+		if sbx.State == "creating" || sbx.State == "stopping" {
+			continue
+		}
+		if sbx.CleanupError != "" || now.Unix() >= sbx.ExpiresAt || now.Sub(time.Unix(sbx.LastActiveAt, 0)) >= time.Duration(sbx.IdleSeconds)*time.Second {
+			_ = m.DestroySandbox(ctx, sbx.ID)
+		}
+	}
+}
+
 func (m *RuntimeManager) StartLocalReaper(ctx context.Context) {
-	ticker := time.NewTicker(10 * time.Second)
+	ctx, m.reaperCancel = context.WithCancel(ctx)
+	m.reaperWG.Add(1)
 	go func() {
+		defer m.reaperWG.Done()
+		ticker := time.NewTicker(10 * time.Second)
 		defer ticker.Stop()
 		for {
 			select {
 			case <-ctx.Done():
 				return
-			case <-ticker.C:
-				now := time.Now()
-				ttlLimit := 2 * time.Hour
-				idleLimit := 15 * time.Minute
-				if m.cfg.SandboxTTLSec > 0 {
-					ttlLimit = time.Duration(m.cfg.SandboxTTLSec) * time.Second
-				}
-				if m.cfg.SandboxIdleSec > 0 {
-					idleLimit = time.Duration(m.cfg.SandboxIdleSec) * time.Second
-				}
-
-				m.mu.RLock()
-				type reapItem struct {
-					id     string
-					reason string
-				}
-				var toReap []reapItem
-				for id, sbx := range m.sandboxes {
-					if now.Sub(sbx.StartedAt) > ttlLimit {
-						toReap = append(toReap, reapItem{id: id, reason: "ttl_expired"})
-					} else if idleLimit > 0 && now.Sub(sbx.LastActiveAt) > idleLimit {
-						toReap = append(toReap, reapItem{id: id, reason: "idle_timeout"})
-					}
-				}
-				m.mu.RUnlock()
-
-				for _, item := range toReap {
-					log.Printf("[LOCAL-REAPER] Sandbox %s reached %s on worker, terminating...", item.id, item.reason)
-					_ = m.DestroySandbox(context.Background(), item.id)
-				}
+			case now := <-ticker.C:
+				m.ReapSandboxes(ctx, now)
 			}
 		}
 	}()
 }
 
 func (m *RuntimeManager) Stop() {
-	m.diskGuard.Stop()
-
-	m.mu.Lock()
-	ids := make([]string, 0, len(m.sandboxes))
-	for id := range m.sandboxes {
-		ids = append(ids, id)
+	if m.reaperCancel != nil {
+		m.reaperCancel()
 	}
-	m.mu.Unlock()
-
-	for _, id := range ids {
-		_ = m.DestroySandbox(context.Background(), id)
+	m.reaperWG.Wait()
+	m.diskGuard.Stop()
+	for _, sbx := range m.ListSnapshots() {
+		_ = m.DestroySandbox(context.Background(), sbx.ID)
 	}
 }
 
-func (m *RuntimeManager) CreateSandbox(ctx context.Context, scfg SandboxConfig) (*SandboxState, error) {
-	if m.diskGuard.IsTripped() {
-		return nil, ErrDiskFuseTripped
-	}
+var sandboxIDPattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$`)
 
+// CleanupResidualSandboxes implements restart-as-reset. No new work is accepted
+// until all leftovers have been cleaned, including resources without a rootfs.
+func (m *RuntimeManager) CleanupResidualSandboxes(ctx context.Context) error {
+	ids := make(map[string]bool)
+	for _, dir := range []string{m.cfg.InstancesDir, m.cfg.CgroupRoot} {
+		entries, err := os.ReadDir(dir)
+		if err != nil && !os.IsNotExist(err) {
+			return fmt.Errorf("scan residual resources: %w", err)
+		}
+		for _, e := range entries {
+			if e.IsDir() {
+				ids[e.Name()] = true
+			}
+		}
+	}
+	var errs []error
+	for id := range ids {
+		if !sandboxIDPattern.MatchString(id) {
+			errs = append(errs, fmt.Errorf("invalid residual sandbox ID %q", id))
+			continue
+		}
+		if err := m.DestroySandbox(ctx, id); err != nil {
+			errs = append(errs, err)
+		}
+	}
+	return errors.Join(errs...)
+}
+
+func (m *RuntimeManager) CreateSandbox(ctx context.Context, scfg SandboxConfig) (result SandboxSnapshot, err error) {
+	if !sandboxIDPattern.MatchString(scfg.ID) {
+		return result, errors.New("invalid sandbox ID")
+	}
+	if m.diskGuard.IsTripped() {
+		return result, ErrDiskFuseTripped
+	}
+	rec := &SandboxRecord{ID: scfg.ID, UserID: scfg.UserID, SlotIndex: scfg.SlotIndex, State: "creating", StartedAt: time.Now(), LastActiveAt: time.Now()}
+	ttl := scfg.TTLSeconds
+	if ttl <= 0 {
+		ttl = m.cfg.SandboxTTLSec
+	}
+	idle := scfg.IdleSeconds
+	if idle <= 0 {
+		idle = m.cfg.SandboxIdleSec
+	}
+	rec.ExpiresAt = rec.StartedAt.Add(time.Duration(ttl) * time.Second)
+	rec.idleLimit = time.Duration(idle) * time.Second
+	rec.opMu.Lock()
+	defer rec.opMu.Unlock()
 	m.mu.Lock()
 	if _, exists := m.sandboxes[scfg.ID]; exists {
 		m.mu.Unlock()
-		return nil, ErrSandboxExists
+		return result, ErrSandboxExists
 	}
+	m.revision++
+	rec.Revision = m.revision
+	m.sandboxes[scfg.ID] = rec
 	m.mu.Unlock()
-
+	defer func() {
+		if err != nil {
+			cleanupCtx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+			defer cancel()
+			err = errors.Join(err, m.destroyRecord(cleanupCtx, rec))
+		}
+	}()
 	limits := LimitsFromPolicy(scfg.Policy.Resources, m.rootDeviceNumber)
 	cgFile, _, err := m.cgroups.Create(scfg.ID, limits)
 	if err != nil {
-		return nil, fmt.Errorf("create cgroup: %w", err)
+		return SandboxSnapshot{}, fmt.Errorf("create cgroup: %w", err)
 	}
 	defer cgFile.Close()
 
-	rootfsPath, err := m.btrfs.CreateSnapshot(scfg.ID)
+	rootfsPath, err := m.btrfs.CreateSnapshot(ctx, scfg.ID)
 	if err != nil {
-		_ = m.cgroups.Destroy(scfg.ID)
-		return nil, fmt.Errorf("create btrfs snapshot: %w", err)
-	}
 
+		return SandboxSnapshot{}, fmt.Errorf("create btrfs snapshot: %w", err)
+	}
 
 	rPipe, wPipe, err := os.Pipe()
 	if err != nil {
-		_ = m.btrfs.DestroySnapshot(scfg.ID)
-		_ = m.cgroups.Destroy(scfg.ID)
-		return nil, fmt.Errorf("create sync pipe: %w", err)
+
+		return SandboxSnapshot{}, fmt.Errorf("create sync pipe: %w", err)
 	}
 	defer rPipe.Close()
+	defer wPipe.Close()
 
 	exePath, err := os.Executable()
 	if err != nil {
@@ -405,9 +473,8 @@ func (m *RuntimeManager) CreateSandbox(ctx context.Context, scfg SandboxConfig) 
 
 	policyBytes, err := json.Marshal(scfg.Policy)
 	if err != nil {
-		_ = m.btrfs.DestroySnapshot(scfg.ID)
-		_ = m.cgroups.Destroy(scfg.ID)
-		return nil, fmt.Errorf("marshal policy json: %w", err)
+
+		return SandboxSnapshot{}, fmt.Errorf("marshal policy json: %w", err)
 	}
 
 	cmd := exec.Command(exePath, "__init__", scfg.ID, rootfsPath)
@@ -417,11 +484,29 @@ func (m *RuntimeManager) CreateSandbox(ctx context.Context, scfg SandboxConfig) 
 
 	if err := cmd.Start(); err != nil {
 		_ = wPipe.Close()
-		_ = m.btrfs.DestroySnapshot(scfg.ID)
-		_ = m.cgroups.Destroy(scfg.ID)
-		return nil, fmt.Errorf("start container init process: %w", err)
+
+		return SandboxSnapshot{}, fmt.Errorf("start container init process: %w", err)
 	}
 	_ = wPipe.Close()
+	m.mu.Lock()
+	rec.cmd = cmd
+	rec.PID = cmd.Process.Pid
+	rec.waitDone = make(chan struct{})
+	m.mu.Unlock()
+	go func() {
+		_ = cmd.Wait()
+		close(rec.waitDone)
+		rec.opMu.Lock()
+		defer rec.opMu.Unlock()
+		m.mu.Lock()
+		defer m.mu.Unlock()
+		if m.sandboxes[rec.ID] == rec && rec.State == "running" {
+			rec.State = "cleanup_failed"
+			rec.CleanupError = "container init exited"
+			m.revision++
+			rec.Revision = m.revision
+		}
+	}()
 
 	readyChan := make(chan error, 1)
 	go func() {
@@ -440,21 +525,15 @@ func (m *RuntimeManager) CreateSandbox(ctx context.Context, scfg SandboxConfig) 
 
 	select {
 	case <-ctx.Done():
-		_ = cmd.Process.Kill()
-		_ = m.btrfs.DestroySnapshot(scfg.ID)
-		_ = m.cgroups.Destroy(scfg.ID)
-		return nil, ctx.Err()
+
+		return SandboxSnapshot{}, ctx.Err()
 	case <-time.After(10 * time.Second):
-		_ = cmd.Process.Kill()
-		_ = m.btrfs.DestroySnapshot(scfg.ID)
-		_ = m.cgroups.Destroy(scfg.ID)
-		return nil, ErrInitTimeout
+
+		return SandboxSnapshot{}, ErrInitTimeout
 	case err := <-readyChan:
 		if err != nil {
-			_ = cmd.Process.Kill()
-			_ = m.btrfs.DestroySnapshot(scfg.ID)
-			_ = m.cgroups.Destroy(scfg.ID)
-			return nil, fmt.Errorf("container init failed: %w", err)
+
+			return SandboxSnapshot{}, fmt.Errorf("container init failed: %w", err)
 		}
 	}
 
@@ -463,31 +542,20 @@ func (m *RuntimeManager) CreateSandbox(ctx context.Context, scfg SandboxConfig) 
 		netns := fmt.Sprintf("/proc/%d/ns/net", cmd.Process.Pid)
 		ip, netErr := m.netSetup(ctx, scfg.SlotIndex, scfg.ID, netns)
 		if netErr != nil {
-			_ = cmd.Process.Kill()
-			_ = m.btrfs.DestroySnapshot(scfg.ID)
-			_ = m.cgroups.Destroy(scfg.ID)
-			return nil, fmt.Errorf("setup sandbox network: %w", netErr)
+
+			return SandboxSnapshot{}, fmt.Errorf("setup sandbox network: %w", netErr)
 		}
 		sandboxIP = ip
 	}
 
-	now := time.Now()
-	state := &SandboxRecord{
-		ID:           scfg.ID,
-		UserID:       scfg.UserID,
-		SlotIndex:    scfg.SlotIndex,
-		IP:           sandboxIP,
-		PID:          cmd.Process.Pid,
-		StartedAt:    now,
-		LastActiveAt: now,
-		cmd:          cmd,
-	}
-
 	m.mu.Lock()
-	m.sandboxes[scfg.ID] = state
+	rec.IP = sandboxIP
+	rec.State = "running"
+	m.revision++
+	rec.Revision = m.revision
+	result = snapshotOf(rec)
 	m.mu.Unlock()
-
-	return state, nil
+	return result, nil
 }
 
 func (m *RuntimeManager) TouchSandbox(id string) {
@@ -499,77 +567,96 @@ func (m *RuntimeManager) TouchSandbox(id string) {
 }
 
 func (m *RuntimeManager) DestroySandbox(ctx context.Context, sandboxID string) error {
-	m.mu.RLock()
-	sbx, exists := m.sandboxes[sandboxID]
-	if !exists {
-		m.mu.RUnlock()
-		return nil // 幂等：沙箱已不存在，直接成功
+	if !sandboxIDPattern.MatchString(sandboxID) {
+		return errors.New("invalid sandbox ID")
 	}
-	cmd := sbx.cmd
-	m.mu.RUnlock()
-
-	rootfsPath := filepath.Join(m.cfg.InstancesDir, sandboxID, "rootfs")
-	var destroyErrors []string
-
-	// 1. Terminate container process with bounded wait timeout (prevent indefinite hang on D-state)
-	if cmd != nil && cmd.Process != nil {
-		_ = cmd.Process.Kill()
-		waitCh := make(chan error, 1)
-		go func() {
-			waitCh <- cmd.Wait()
-		}()
-		select {
-		case <-waitCh:
-		case <-ctx.Done():
-			destroyErrors = append(destroyErrors, fmt.Sprintf("wait process exit: %v", ctx.Err()))
-		case <-time.After(5 * time.Second):
-			destroyErrors = append(destroyErrors, "wait process exit timed out after 5s")
-		}
-	}
-
-	// 2. Unmount container filesystems
-	if _, err := os.Stat(rootfsPath); err == nil {
-		if unmountErr := m.unmountContainerFilesystems(rootfsPath); unmountErr != nil {
-			destroyErrors = append(destroyErrors, fmt.Sprintf("unmount rootfs: %v", unmountErr))
-		}
-	}
-
-	// 3. Teardown network if configured
-	if m.netTeardown != nil && sbx.SlotIndex > 0 {
-		if netErr := m.netTeardown(ctx, sbx.SlotIndex, sandboxID); netErr != nil {
-			destroyErrors = append(destroyErrors, fmt.Sprintf("teardown network: %v", netErr))
-		}
-	}
-
-	// 4. Destroy cgroups
-	if err := m.cgroups.Destroy(sandboxID); err != nil && !os.IsNotExist(err) {
-		destroyErrors = append(destroyErrors, fmt.Sprintf("destroy cgroup: %v", err))
-	}
-
-	// 5. Destroy Btrfs snapshot
-	if err := m.btrfs.DestroySnapshot(sandboxID); err != nil {
-		destroyErrors = append(destroyErrors, fmt.Sprintf("destroy btrfs snapshot: %v", err))
-	}
-
-	// 6. If any destruction step failed, record error and retain in memory
-	if len(destroyErrors) > 0 {
-		m.mu.Lock()
-		if cur, ok := m.sandboxes[sandboxID]; ok {
-			cur.CleanupError = strings.Join(destroyErrors, "; ")
-		}
-		m.mu.Unlock()
-		return fmt.Errorf("destroy sandbox %s: %s", sandboxID, strings.Join(destroyErrors, "; "))
-	}
-
-	// 6. Only purge from memory state once all resources are cleanly wiped
 	m.mu.Lock()
-	delete(m.sandboxes, sandboxID)
+	rec, exists := m.sandboxes[sandboxID]
+	if !exists {
+		residual := false
+		for _, path := range []string{filepath.Dir(m.RootfsPath(sandboxID)), m.CgroupPath(sandboxID)} {
+			if _, err := os.Lstat(path); err == nil {
+				residual = true
+			} else if !os.IsNotExist(err) {
+				m.mu.Unlock()
+				return err
+			}
+		}
+		if !residual {
+			m.mu.Unlock()
+			return nil
+		}
+		// An absent RAM record is not proof that disk/cgroup resources are gone.
+		rec = &SandboxRecord{ID: sandboxID, State: "cleanup_failed"}
+		m.sandboxes[sandboxID] = rec
+	}
 	m.mu.Unlock()
+	rec.opMu.Lock()
+	defer rec.opMu.Unlock()
+	m.mu.RLock()
+	current := m.sandboxes[sandboxID] == rec
+	m.mu.RUnlock()
+	if !current {
+		return nil
+	} // another stop already completed
+	return m.destroyRecord(ctx, rec)
+}
 
+// destroyRecord requires rec.opMu. It is shared by rollback, retries and all stops.
+func (m *RuntimeManager) destroyRecord(ctx context.Context, rec *SandboxRecord) error {
+	m.mu.Lock()
+	rec.State = "stopping"
+	m.revision++
+	rec.Revision = m.revision
+	m.mu.Unlock()
+	var errs []error
+	if rec.cmd != nil && rec.cmd.Process != nil {
+		_ = rec.cmd.Process.Kill()
+	}
+	// cgroup.kill also handles processes surviving a daemon crash.
+	if err := m.cgroups.Destroy(rec.ID); err != nil && !os.IsNotExist(err) {
+		errs = append(errs, err)
+	}
+	if rec.waitDone != nil {
+		timer := time.NewTimer(5 * time.Second)
+		select {
+		case <-rec.waitDone:
+		case <-ctx.Done():
+			errs = append(errs, ctx.Err())
+		case <-timer.C:
+			errs = append(errs, errors.New("process exit timeout"))
+		}
+		timer.Stop()
+	}
+	if len(errs) == 0 {
+		if err := m.unmountContainerFilesystems(ctx, m.RootfsPath(rec.ID)); err != nil {
+			errs = append(errs, err)
+		}
+		if m.netTeardown != nil {
+			if err := m.netTeardown(ctx, rec.SlotIndex, rec.ID); err != nil {
+				errs = append(errs, err)
+			}
+		}
+		if len(errs) == 0 {
+			if err := m.btrfs.DestroySnapshot(ctx, rec.ID); err != nil {
+				errs = append(errs, err)
+			}
+		}
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.revision++
+	if err := errors.Join(errs...); err != nil {
+		rec.State = "cleanup_failed"
+		rec.CleanupError = err.Error()
+		rec.Revision = m.revision
+		return fmt.Errorf("destroy sandbox %s: %w", rec.ID, err)
+	}
+	delete(m.sandboxes, rec.ID)
 	return nil
 }
 
-func (m *RuntimeManager) unmountContainerFilesystems(rootfsPath string) error {
+func (m *RuntimeManager) unmountContainerFilesystems(ctx context.Context, rootfsPath string) error {
 	mountPoints := []string{
 		filepath.Join(rootfsPath, "dev/shm"),
 		filepath.Join(rootfsPath, "dev/pts"),
@@ -584,7 +671,7 @@ func (m *RuntimeManager) unmountContainerFilesystems(rootfsPath string) error {
 	var errs []string
 	for _, mp := range mountPoints {
 		if _, err := os.Stat(mp); err == nil {
-			out, err := exec.Command("umount", "-l", mp).CombinedOutput()
+			out, err := exec.CommandContext(ctx, "umount", "-l", mp).CombinedOutput()
 			if err != nil {
 				if isMountPoint(mp) {
 					errs = append(errs, fmt.Sprintf("umount %s: %v (%s)", mp, err, strings.TrimSpace(string(out))))
@@ -603,72 +690,38 @@ func isMountPoint(path string) bool {
 	return cmd.Run() == nil
 }
 
-func (m *RuntimeManager) GetSandbox(sandboxID string) (*SandboxState, bool) {
-	m.mu.RLock()
-	defer m.mu.RUnlock()
-	sbx, ok := m.sandboxes[sandboxID]
-	return sbx, ok
+func snapshotOf(s *SandboxRecord) SandboxSnapshot {
+	return SandboxSnapshot{IdleSeconds: int64(s.idleLimit / time.Second), ID: s.ID, UserID: s.UserID, SlotIndex: s.SlotIndex, IP: s.IP, PID: s.PID, State: s.State, Revision: s.Revision, StartedAt: s.StartedAt.Unix(), LastActiveAt: s.LastActiveAt.Unix(), ExpiresAt: s.ExpiresAt.Unix(), CleanupError: s.CleanupError}
 }
 
-func (m *RuntimeManager) GetSnapshot(sandboxID string) (SandboxSnapshot, bool) {
+func (m *RuntimeManager) GetSnapshot(id string) (SandboxSnapshot, bool) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
-	sbx, ok := m.sandboxes[sandboxID]
+	s, ok := m.sandboxes[id]
 	if !ok {
 		return SandboxSnapshot{}, false
 	}
-	return SandboxSnapshot{
-		ID:           sbx.ID,
-		UserID:       sbx.UserID,
-		SlotIndex:    sbx.SlotIndex,
-		IP:           sbx.IP,
-		PID:          sbx.PID,
-		StartedAt:    sbx.StartedAt.Unix(),
-		LastActiveAt: sbx.LastActiveAt.Unix(),
-		CleanupError: sbx.CleanupError,
-	}, true
+	return snapshotOf(s), true
+}
+
+func (m *RuntimeManager) Inventory() (uint64, []protocol.SandboxSummary) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	res := make([]protocol.SandboxSummary, 0, len(m.sandboxes))
+	for _, s := range m.sandboxes {
+		res = append(res, protocol.SandboxSummary{ID: s.ID, LastActiveAt: s.LastActiveAt.Unix(), State: s.State})
+	}
+	return m.revision, res
 }
 
 func (m *RuntimeManager) ListSnapshots() []SandboxSnapshot {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
-	list := make([]SandboxSnapshot, 0, len(m.sandboxes))
-	for _, sbx := range m.sandboxes {
-		list = append(list, SandboxSnapshot{
-			ID:           sbx.ID,
-			UserID:       sbx.UserID,
-			SlotIndex:    sbx.SlotIndex,
-			IP:           sbx.IP,
-			PID:          sbx.PID,
-			StartedAt:    sbx.StartedAt.Unix(),
-			LastActiveAt: sbx.LastActiveAt.Unix(),
-			CleanupError: sbx.CleanupError,
-		})
-	}
-	return list
-}
-
-func (m *RuntimeManager) ListSummaries() []protocol.SandboxSummary {
-	m.mu.RLock()
-	defer m.mu.RUnlock()
-	res := make([]protocol.SandboxSummary, 0, len(m.sandboxes))
-	for _, sbx := range m.sandboxes {
-		res = append(res, protocol.SandboxSummary{
-			ID:           sbx.ID,
-			LastActiveAt: sbx.LastActiveAt.Unix(),
-		})
+	res := make([]SandboxSnapshot, 0, len(m.sandboxes))
+	for _, s := range m.sandboxes {
+		res = append(res, snapshotOf(s))
 	}
 	return res
-}
-
-func (m *RuntimeManager) ListSandboxes() []*SandboxState {
-	m.mu.RLock()
-	defer m.mu.RUnlock()
-	list := make([]*SandboxState, 0, len(m.sandboxes))
-	for _, sbx := range m.sandboxes {
-		list = append(list, sbx)
-	}
-	return list
 }
 
 func (m *RuntimeManager) DiskGuard() *DiskGuard {

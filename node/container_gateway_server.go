@@ -193,6 +193,7 @@ func (c *SafeConn) WriteMessage(messageType int, data []byte) (err error) {
 	}()
 	c.writeMu.Lock()
 	defer c.writeMu.Unlock()
+	_ = c.Conn.SetWriteDeadline(time.Now().Add(5 * time.Second))
 	return c.Conn.WriteMessage(messageType, data)
 }
 
@@ -205,8 +206,6 @@ func (c *SafeConn) WriteControl(messageType int, data []byte, deadline time.Time
 			err = fmt.Errorf("safe_conn write_control panic: %v", r)
 		}
 	}()
-	c.writeMu.Lock()
-	defer c.writeMu.Unlock()
 	return c.Conn.WriteControl(messageType, data, deadline)
 }
 
@@ -399,8 +398,8 @@ func (s *ContainerGatewayServer) handleCLI(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	sbx, ok := s.rtMgr.GetSandbox(claims.Sbx)
-	if !ok || sbx.PID <= 0 {
+	sbx, ok := s.rtMgr.GetSnapshot(claims.Sbx)
+	if !ok || sbx.PID <= 0 || sbx.State != "running" {
 		http.Error(w, "target sandbox is not active", http.StatusNotFound)
 		return
 	}

@@ -1,6 +1,7 @@
 package runtime
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"os/exec"
@@ -30,7 +31,7 @@ func (b *BtrfsDriver) EnsureBaseRootfs() error {
 }
 
 // CreateSnapshot derives a writable transient btrfs subvolume snapshot from the base image.
-func (b *BtrfsDriver) CreateSnapshot(sandboxID string) (string, error) {
+func (b *BtrfsDriver) CreateSnapshot(ctx context.Context, sandboxID string) (string, error) {
 	targetDir := filepath.Join(b.InstancesDir, sandboxID, "rootfs")
 	if err := os.MkdirAll(filepath.Dir(targetDir), 0755); err != nil {
 		return "", fmt.Errorf("mkdir instance dir: %w", err)
@@ -42,7 +43,7 @@ func (b *BtrfsDriver) CreateSnapshot(sandboxID string) (string, error) {
 	}
 
 	// Execute atomic btrfs subvolume snapshot
-	cmd := exec.Command("btrfs", "subvolume", "snapshot", b.BaseRootfs, targetDir)
+	cmd := exec.CommandContext(ctx, "btrfs", "subvolume", "snapshot", b.BaseRootfs, targetDir)
 	if out, err := cmd.CombinedOutput(); err != nil {
 		return "", fmt.Errorf("btrfs snapshot: %s (%w)", strings.TrimSpace(string(out)), err)
 	}
@@ -51,17 +52,20 @@ func (b *BtrfsDriver) CreateSnapshot(sandboxID string) (string, error) {
 }
 
 // DestroySnapshot atomically deletes a transient instance btrfs subvolume snapshot.
-func (b *BtrfsDriver) DestroySnapshot(sandboxID string) error {
+func (b *BtrfsDriver) DestroySnapshot(ctx context.Context, sandboxID string) error {
 	targetDir := filepath.Join(b.InstancesDir, sandboxID, "rootfs")
 	if _, err := os.Stat(targetDir); os.IsNotExist(err) {
-		return nil
+		err := os.Remove(filepath.Dir(targetDir))
+		if os.IsNotExist(err) {
+			return nil
+		}
+		return err
 	}
 
-	cmd := exec.Command("btrfs", "subvolume", "delete", targetDir)
+	cmd := exec.CommandContext(ctx, "btrfs", "subvolume", "delete", targetDir)
 	if out, err := cmd.CombinedOutput(); err != nil {
 		return fmt.Errorf("btrfs subvolume delete: %s (%w)", strings.TrimSpace(string(out)), err)
 	}
 
-	_ = os.RemoveAll(filepath.Join(b.InstancesDir, sandboxID))
-	return nil
+	return os.Remove(filepath.Join(b.InstancesDir, sandboxID))
 }

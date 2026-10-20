@@ -24,7 +24,7 @@ func main() {
 	// 1. Load configuration from YAML
 	cfg, err := control.LoadControlConfig(*configPath)
 	if err != nil {
-		log.Printf("[WARN] %v (using defaults)", err)
+		log.Fatalf("[FATAL] Load configuration: %v", err)
 	}
 
 	// 2. Load or generate Ed25519 Keys

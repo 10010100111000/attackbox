@@ -11,6 +11,7 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -28,10 +29,12 @@ var (
 
 // WorkerNode represents an active sacrificial worker connection in the cluster pool.
 type WorkerNode struct {
-	NodeID          string
-	RemoteIP        string
-	BootID          string
-	LastSeq         uint64
+	NodeID            string
+	RemoteIP          string
+	BootID            string
+	LastSeq           uint64
+	InventoryRevision uint64
+	Ready             bool
 
 	stateMu         sync.RWMutex
 	State           protocol.NodeState
@@ -42,10 +45,10 @@ type WorkerNode struct {
 	ActiveSandboxes int
 	LastHeartbeat   time.Time
 
-	conn            *websocket.Conn
-	connMu          sync.Mutex
-	pendingMu       sync.Mutex
-	pendingRPC      map[string]chan *protocol.Message
+	conn       *websocket.Conn
+	connMu     sync.Mutex
+	pendingMu  sync.Mutex
+	pendingRPC map[string]chan *protocol.Message
 }
 
 func (w *WorkerNode) SetState(s protocol.NodeState) {
@@ -63,7 +66,7 @@ func (w *WorkerNode) GetState() protocol.NodeState {
 func (w *WorkerNode) UpdateRegister(reg protocol.RegisterReq) {
 	w.stateMu.Lock()
 	defer w.stateMu.Unlock()
-	w.State = protocol.NodeStateOnline
+	w.Ready = false
 	w.Capabilities = reg.Capabilities
 	if reg.BootID != "" {
 		w.BootID = reg.BootID
@@ -90,30 +93,33 @@ func (w *WorkerNode) GetDataURL(fallbackHost string) string {
 	if port <= 0 {
 		port = 8443
 	}
-	return fmt.Sprintf("ws://%s:%d/ws/cli", host, port)
+	if parsed, _, err := net.SplitHostPort(host); err == nil {
+		host = parsed
+	}
+	return "ws://" + net.JoinHostPort(strings.Trim(host, "[]"), strconv.Itoa(port)) + "/ws/cli"
 }
 
-func (w *WorkerNode) UpdateHeartbeat(hb protocol.HeartbeatReq) (rebooted bool) {
+// Accept only monotonic inventories from the registered daemon generation.
+func (w *WorkerNode) UpdateHeartbeat(hb protocol.HeartbeatReq) bool {
 	w.stateMu.Lock()
 	defer w.stateMu.Unlock()
-	if hb.BootID != "" && w.BootID != "" && hb.BootID != w.BootID {
-		rebooted = true
+	if hb.BootID == "" || hb.BootID != w.BootID || hb.Seq <= w.LastSeq || hb.InventoryRevision < w.InventoryRevision {
+		return false
 	}
-	if hb.BootID != "" {
-		w.BootID = hb.BootID
-	}
-	if hb.Seq > 0 {
-		w.LastSeq = hb.Seq
-	}
+	w.LastSeq = hb.Seq
+	w.InventoryRevision = hb.InventoryRevision
 	w.LastHeartbeat = time.Now()
 	w.Telemetry = hb
 	w.ActiveSandboxes = hb.ActiveSandboxes
-	// If node was marked offline due to missed heartbeats, restore to Online
-	if w.State == protocol.NodeStateOffline || w.State == "" {
-		w.State = protocol.NodeStateOnline
-	}
-	return rebooted
+	return true
 }
+
+func (w *WorkerNode) Generation() string {
+	w.stateMu.RLock()
+	defer w.stateMu.RUnlock()
+	return w.BootID
+}
+func (w *WorkerNode) IsReady() bool { w.stateMu.RLock(); defer w.stateMu.RUnlock(); return w.Ready }
 
 func (w *WorkerNode) GetSchedulingSnapshot() (state protocol.NodeState, lastHB time.Time, activeSandboxes int, dataPort int) {
 	w.stateMu.RLock()
@@ -128,45 +134,48 @@ func (w *WorkerNode) Send(msg *protocol.Message) error {
 	}
 	w.connMu.Lock()
 	defer w.connMu.Unlock()
+	_ = w.conn.SetWriteDeadline(time.Now().Add(5 * time.Second))
 	return w.conn.WriteMessage(websocket.TextMessage, data)
 }
 
 // NodeClusterManager manages active worker WebSocket connections and coordinates RPC dispatching.
+type inventoryClock struct {
+	BootID        string
+	Seq, Revision uint64
+}
+
 type NodeClusterManager struct {
 	clusterSecret       string
 	pubKeyHex           string
 	heartbeatTimeoutSec int
 	rpcTimeoutSec       int
-	reconcileHandler    func(workerID string, sandboxes []protocol.SandboxReconcileInfo) protocol.ReconcileResp
-	onHeartbeat         func(workerID string, hb protocol.HeartbeatReq, rebooted bool)
+	onHeartbeat         func(workerID string, hb protocol.HeartbeatReq)
 	mu                  sync.RWMutex
 	workers             map[string]*WorkerNode
+	clocks              map[string]inventoryClock
+	desiredStates       map[string]protocol.NodeState
 	upgrader            websocket.Upgrader
 }
 
 // SetHeartbeatHandler registers a callback invoked whenever a worker reports a heartbeat.
-func (h *NodeClusterManager) SetHeartbeatHandler(fn func(workerID string, hb protocol.HeartbeatReq, rebooted bool)) {
+func (h *NodeClusterManager) SetHeartbeatHandler(fn func(workerID string, hb protocol.HeartbeatReq)) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	h.onHeartbeat = fn
 }
 
-// SetReconcileHandler registers a handler triggered when a worker reports state reconciliation (deprecated).
-func (h *NodeClusterManager) SetReconcileHandler(fn func(workerID string, sandboxes []protocol.SandboxReconcileInfo) protocol.ReconcileResp) {
-	h.mu.Lock()
-	defer h.mu.Unlock()
-	h.reconcileHandler = fn
-}
-
 // SetNodeState transitions a worker node's lifecycle state (Online, Draining, Offline, Resetting).
 func (h *NodeClusterManager) SetNodeState(nodeID string, state protocol.NodeState) error {
-	h.mu.RLock()
+	h.mu.Lock()
 	w, exists := h.workers[nodeID]
-	h.mu.RUnlock()
+	if exists {
+		h.desiredStates[nodeID] = state
+		w.SetState(state)
+	}
+	h.mu.Unlock()
 	if !exists {
 		return ErrWorkerNotFound
 	}
-	w.SetState(state)
 	return nil
 }
 
@@ -198,6 +207,7 @@ func NewNodeClusterManager(clusterSecret string) *NodeClusterManager {
 		heartbeatTimeoutSec: 15,
 		rpcTimeoutSec:       30,
 		workers:             make(map[string]*WorkerNode),
+		clocks:              make(map[string]inventoryClock), desiredStates: make(map[string]protocol.NodeState),
 		upgrader: websocket.Upgrader{
 			ReadBufferSize:  1 << 15,
 			WriteBufferSize: 1 << 15,
@@ -283,6 +293,7 @@ func (h *NodeClusterManager) HandleAgentConnect(w http.ResponseWriter, r *http.R
 
 	h.registerWorker(node)
 	defer h.unregisterWorker(node)
+	defer conn.Close()
 
 	log.Printf("[CLUSTER] Node %s connected from %s", nodeID, remoteIP)
 
@@ -311,6 +322,9 @@ func (h *NodeClusterManager) registerWorker(w *WorkerNode) {
 	if old, exists := h.workers[w.NodeID]; exists && old != w && old.conn != nil {
 		_ = old.conn.Close()
 	}
+	if desired, ok := h.desiredStates[w.NodeID]; ok {
+		w.SetState(desired)
+	}
 	h.workers[w.NodeID] = w
 }
 
@@ -327,6 +341,13 @@ func (h *NodeClusterManager) unregisterWorker(w *WorkerNode) {
 }
 
 func (h *NodeClusterManager) handleWorkerMessage(node *WorkerNode, msg *protocol.Message) {
+	h.mu.RLock()
+	current := h.workers[node.NodeID] == node
+	h.mu.RUnlock()
+	if !current {
+		return
+	}
+
 	// Check if this message is a response to a pending RPC
 	node.pendingMu.Lock()
 	ch, isResponse := node.pendingRPC[msg.ID]
@@ -346,7 +367,24 @@ func (h *NodeClusterManager) handleWorkerMessage(node *WorkerNode, msg *protocol
 	case protocol.MsgTypeRegister:
 		var reg protocol.RegisterReq
 		if err := msg.UnpackPayload(&reg); err == nil {
+			if reg.BootID == "" {
+				_ = node.conn.Close()
+				return
+			}
+			h.mu.Lock()
+			if h.workers[node.NodeID] != node {
+				h.mu.Unlock()
+				return
+			}
+			previous := h.clocks[node.NodeID]
 			node.UpdateRegister(reg)
+			node.stateMu.Lock()
+			if previous.BootID == reg.BootID {
+				node.LastSeq = previous.Seq
+				node.InventoryRevision = previous.Revision
+			}
+			node.stateMu.Unlock()
+			h.mu.Unlock()
 			// Send RegisterAck with distributed Control Hub Ed25519 public key
 			h.mu.RLock()
 			pk := h.pubKeyHex
@@ -363,34 +401,24 @@ func (h *NodeClusterManager) handleWorkerMessage(node *WorkerNode, msg *protocol
 	case protocol.MsgTypeHeartbeat:
 		var hb protocol.HeartbeatReq
 		if err := msg.UnpackPayload(&hb); err == nil {
-			rebooted := node.UpdateHeartbeat(hb)
-			// Send HeartbeatAck
+			accepted := node.UpdateHeartbeat(hb)
+			if !accepted {
+				return
+			}
+
+			h.mu.Lock()
+			if h.workers[node.NodeID] != node {
+				h.mu.Unlock()
+				return
+			}
+			h.clocks[node.NodeID] = inventoryClock{BootID: hb.BootID, Seq: hb.Seq, Revision: hb.InventoryRevision}
+			hbHandler := h.onHeartbeat
+			h.mu.Unlock()
+			if hbHandler != nil {
+				hbHandler(node.NodeID, hb)
+			}
 			ack, _ := protocol.NewMessage(protocol.MsgTypeHeartbeatAck, protocol.HeartbeatResp{Success: true})
 			_ = node.Send(ack)
-
-			h.mu.RLock()
-			hbHandler := h.onHeartbeat
-			h.mu.RUnlock()
-			if hbHandler != nil {
-				hbHandler(node.NodeID, hb, rebooted)
-			}
-		}
-
-	case protocol.MsgTypeReconcile:
-		var req protocol.ReconcileReq
-		if err := msg.UnpackPayload(&req); err == nil {
-			h.mu.RLock()
-			handler := h.reconcileHandler
-			h.mu.RUnlock()
-			var resp protocol.ReconcileResp
-			if handler != nil {
-				resp = handler(node.NodeID, req.Sandboxes)
-			} else {
-				resp = protocol.ReconcileResp{Success: true}
-			}
-			respMsg, _ := protocol.NewMessage(protocol.MsgTypeReconcileResp, resp)
-			respMsg.ID = msg.ID
-			_ = node.Send(respMsg)
 		}
 
 	case protocol.MsgTypeCreateBoxResp:
@@ -431,10 +459,9 @@ func (h *NodeClusterManager) SelectBestWorker() (*WorkerNode, error) {
 			hbTimeout = time.Duration(h.heartbeatTimeoutSec) * time.Second
 		}
 		if now.Sub(lastHB) > hbTimeout {
-			w.SetState(protocol.NodeStateOffline)
 			continue
 		}
-		if state != protocol.NodeStateOnline {
+		if state != protocol.NodeStateOnline || !w.IsReady() {
 			continue
 		}
 		if activeBoxes < minLoad {
@@ -469,6 +496,9 @@ func (h *NodeClusterManager) CreateBox(ctx context.Context, nodeID string, req p
 	if !exists {
 		return nil, ErrWorkerNotFound
 	}
+	if !node.IsReady() || req.BootID != node.Generation() {
+		return nil, ErrWorkerNotFound
+	}
 
 	msg, err := protocol.NewMessage(protocol.MsgTypeCreateBox, req)
 	if err != nil {
@@ -487,9 +517,11 @@ func (h *NodeClusterManager) CreateBox(ctx context.Context, nodeID string, req p
 		return nil, err
 	}
 
-	rpcTimeout := 30 * time.Second
-	if h.rpcTimeoutSec > 0 {
-		rpcTimeout = time.Duration(h.rpcTimeoutSec) * time.Second
+	h.mu.RLock()
+	rpcTimeout := time.Duration(h.rpcTimeoutSec) * time.Second
+	h.mu.RUnlock()
+	if rpcTimeout <= 0 {
+		rpcTimeout = 30 * time.Second
 	}
 
 	select {
@@ -509,7 +541,10 @@ func (h *NodeClusterManager) CreateBox(ctx context.Context, nodeID string, req p
 			return nil, fmt.Errorf("unpack response: %w", err)
 		}
 		if !resp.Success {
-			return nil, errors.New(resp.Error)
+			return &resp, errors.New(resp.Error)
+		}
+		if resp.SandboxID != req.SandboxID || resp.BootID != node.Generation() || resp.InventoryRevision == 0 || resp.ExpiresAt <= 0 {
+			return nil, errors.New("invalid worker create acknowledgement")
 		}
 		return &resp, nil
 	}
@@ -525,6 +560,7 @@ func (h *NodeClusterManager) DestroyBox(ctx context.Context, nodeID string, req 
 		// Never return nil on missing worker, which falsely signals destruction success.
 		return ErrWorkerNotFound
 	}
+	req.BootID = node.Generation()
 
 	msg, err := protocol.NewMessage(protocol.MsgTypeDestroyBox, req)
 	if err != nil {
@@ -544,9 +580,11 @@ func (h *NodeClusterManager) DestroyBox(ctx context.Context, nodeID string, req 
 	}
 
 	// P1-7: Avoid zero-value integer truncation pitfall (e.g. rpc_timeout_sec: 1 -> /2 -> 0s -> time.After(0))
-	destroyTimeout := 15 * time.Second
-	if h.rpcTimeoutSec > 0 {
-		destroyTimeout = time.Duration(h.rpcTimeoutSec) * time.Second
+	h.mu.RLock()
+	destroyTimeout := time.Duration(h.rpcTimeoutSec) * time.Second
+	h.mu.RUnlock()
+	if destroyTimeout <= 0 {
+		destroyTimeout = 15 * time.Second
 	}
 	if destroyTimeout < 1*time.Second {
 		destroyTimeout = 1 * time.Second
@@ -571,6 +609,41 @@ func (h *NodeClusterManager) DestroyBox(ctx context.Context, nodeID string, req 
 		if !resp.Success {
 			return errors.New(resp.Error)
 		}
+		if resp.SandboxID != req.SandboxID || resp.BootID != req.BootID {
+			return errors.New("invalid worker cleanup acknowledgement")
+		}
 		return nil
 	}
+}
+
+func (h *NodeClusterManager) SetInventoryReady(nodeID, bootID string, seq uint64, ready bool) {
+	h.mu.RLock()
+	defer h.mu.RUnlock()
+	if w := h.workers[nodeID]; w != nil {
+		w.stateMu.Lock()
+		defer w.stateMu.Unlock()
+		if w.BootID == bootID && w.Telemetry.Seq == seq {
+			w.Ready = ready
+		}
+	}
+}
+
+func (h *NodeClusterManager) IsCurrentInventory(nodeID string, hb protocol.HeartbeatReq) bool {
+	h.mu.RLock()
+	defer h.mu.RUnlock()
+	w := h.workers[nodeID]
+	if w == nil {
+		return false
+	}
+	w.stateMu.RLock()
+	defer w.stateMu.RUnlock()
+	return w.BootID == hb.BootID && w.Telemetry.Seq == hb.Seq
+}
+func (h *NodeClusterManager) WorkerBootID(nodeID string) string {
+	h.mu.RLock()
+	defer h.mu.RUnlock()
+	if w := h.workers[nodeID]; w != nil {
+		return w.Generation()
+	}
+	return ""
 }

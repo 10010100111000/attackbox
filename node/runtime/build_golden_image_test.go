@@ -7,6 +7,56 @@ import (
 	"testing"
 )
 
+func TestGoldenSanitizationDoesNotFollowAbsoluteRunLink(t *testing.T) {
+	root, outside := t.TempDir(), t.TempDir()
+	if err := os.MkdirAll(filepath.Join(root, "var"), 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Join(root, "run"), 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(outside, filepath.Join(root, "var/run")); err != nil {
+		t.Fatal(err)
+	}
+	victim := filepath.Join(outside, "host-state")
+	inside := filepath.Join(root, "run", "image-state")
+	if err := os.WriteFile(victim, []byte("host fixture"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(inside, []byte("image fixture"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if err := NewGoldenImageBuilder(root).SanitizeRootfs(root); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(victim); err != nil {
+		t.Fatal("sanitizer touched path outside image", err)
+	}
+	if _, err := os.Stat(inside); !os.IsNotExist(err) {
+		t.Fatal("image run directory not cleaned")
+	}
+}
+
+func TestGoldenSanitizationRejectsEscapingLogDirectory(t *testing.T) {
+	root, outside := t.TempDir(), t.TempDir()
+	if err := os.MkdirAll(filepath.Join(root, "var"), 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(outside, filepath.Join(root, "var/log")); err != nil {
+		t.Fatal(err)
+	}
+	victim := filepath.Join(outside, "host-log")
+	if err := os.WriteFile(victim, []byte("fixture"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if err := NewGoldenImageBuilder(root).SanitizeRootfs(root); err == nil {
+		t.Fatal("escaping path was accepted")
+	}
+	if _, err := os.Stat(victim); err != nil {
+		t.Fatal("host log was removed", err)
+	}
+}
+
 func TestGoldenImageBuilder_DataSanitization(t *testing.T) {
 	tempDir := t.TempDir()
 	builder := NewGoldenImageBuilder(tempDir)

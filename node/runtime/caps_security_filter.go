@@ -102,8 +102,6 @@ func DropDangerousCapabilitiesAllThreads() error {
 	return nil
 }
 
-
-
 // VerifyDangerousCapsDropped inspects /proc/<pid>/status to verify capabilities and NoNewPrivs.
 func VerifyDangerousCapsDropped(pid int) error {
 	statusPath := fmt.Sprintf("/proc/%d/status", pid)
@@ -317,5 +315,3 @@ func EnterDispatcher() bool {
 	}
 	return false
 }
-
-
