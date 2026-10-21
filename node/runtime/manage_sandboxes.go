@@ -33,6 +33,7 @@ type SandboxRecord struct {
 	StartedAt    time.Time `json:"started_at"`
 	LastActiveAt time.Time `json:"last_active_at"`
 	CleanupError string    `json:"cleanup_error,omitempty"`
+	GUIRunning   bool      `json:"gui_running,omitempty"`
 
 	cmd *exec.Cmd `json:"-"`
 }
@@ -51,6 +52,7 @@ type SandboxSnapshot struct {
 	StartedAt    int64  `json:"started_at"`
 	LastActiveAt int64  `json:"last_active_at"`
 	CleanupError string `json:"cleanup_error,omitempty"`
+	GUIRunning   bool   `json:"gui_running,omitempty"`
 }
 
 func (m *RuntimeManager) ListSandboxIDs() []string {
@@ -72,7 +74,21 @@ func (m *RuntimeManager) TouchSandbox(id string) {
 }
 
 func snapshotOf(s *SandboxRecord) SandboxSnapshot {
-	return SandboxSnapshot{IdleSeconds: int64(s.idleLimit / time.Second), ID: s.ID, UserID: s.UserID, SlotIndex: s.SlotIndex, IP: s.IP, PID: s.PID, State: s.State, Revision: s.Revision, StartedAt: s.StartedAt.Unix(), LastActiveAt: s.LastActiveAt.Unix(), ExpiresAt: s.ExpiresAt.Unix(), CleanupError: s.CleanupError}
+	return SandboxSnapshot{
+		IdleSeconds:  int64(s.idleLimit / time.Second),
+		ID:           s.ID,
+		UserID:       s.UserID,
+		SlotIndex:    s.SlotIndex,
+		IP:           s.IP,
+		PID:          s.PID,
+		State:        s.State,
+		Revision:     s.Revision,
+		StartedAt:    s.StartedAt.Unix(),
+		LastActiveAt: s.LastActiveAt.Unix(),
+		ExpiresAt:    s.ExpiresAt.Unix(),
+		CleanupError: s.CleanupError,
+		GUIRunning:   s.GUIRunning,
+	}
 }
 
 func (m *RuntimeManager) GetSnapshot(id string) (SandboxSnapshot, bool) {
@@ -90,7 +106,12 @@ func (m *RuntimeManager) Inventory() (uint64, []protocol.SandboxSummary) {
 	defer m.mu.RUnlock()
 	res := make([]protocol.SandboxSummary, 0, len(m.sandboxes))
 	for _, s := range m.sandboxes {
-		res = append(res, protocol.SandboxSummary{ID: s.ID, LastActiveAt: s.LastActiveAt.Unix(), State: s.State})
+		res = append(res, protocol.SandboxSummary{
+			ID:           s.ID,
+			LastActiveAt: s.LastActiveAt.Unix(),
+			State:        s.State,
+			GUIRunning:   s.GUIRunning,
+		})
 	}
 	return m.revision, res
 }

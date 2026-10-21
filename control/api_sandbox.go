@@ -13,15 +13,17 @@ import (
 type StartSandboxReq struct{}
 
 type StartSandboxResp struct {
-	SandboxID string                 `json:"sandbox_id"`
-	WorkerID  string                 `json:"worker_id"`
-	WorkerURL string                 `json:"worker_url"`
-	Ticket    string                 `json:"ticket"`
-	ExpiresIn int                    `json:"expires_in"`
-	SandboxIP string                 `json:"sandbox_ip"`
-	SlotIndex int                    `json:"slot_index"`
-	ExpiresAt time.Time              `json:"expires_at"`
-	Policy    protocol.SandboxPolicy `json:"policy"`
+	SandboxID    string                 `json:"sandbox_id"`
+	WorkerID     string                 `json:"worker_id"`
+	WorkerURL    string                 `json:"worker_url"`
+	Ticket       string                 `json:"ticket"`
+	GUIWorkerURL string                 `json:"gui_worker_url,omitempty"`
+	GUITicket    string                 `json:"gui_ticket,omitempty"`
+	ExpiresIn    int                    `json:"expires_in"`
+	SandboxIP    string                 `json:"sandbox_ip"`
+	SlotIndex    int                    `json:"slot_index"`
+	ExpiresAt    time.Time              `json:"expires_at"`
+	Policy       protocol.SandboxPolicy `json:"policy"`
 }
 
 type StopSandboxReq struct {
@@ -84,6 +86,9 @@ func (s *ControlHTTPServer) handleStartSandbox(w http.ResponseWriter, r *http.Re
 		writeError(w, http.StatusServiceUnavailable, "worker node currently unreachable")
 		return
 	}
+	guiTicket, _ := s.issueTicketWithType(uid, session.SandboxID, "vnc")
+	guiEndpoint, _ := s.clusterMgr.GetWorkerStreamURL(session.WorkerNodeID, "vnc", r.Host)
+
 	status := http.StatusOK
 	if created {
 		status = http.StatusCreated
@@ -91,7 +96,19 @@ func (s *ControlHTTPServer) handleStartSandbox(w http.ResponseWriter, r *http.Re
 			_ = s.db.AddAuditLog(&uid, "sandbox_start", r.RemoteAddr, fmt.Sprintf("box=%s, worker=%s", session.SandboxID, session.WorkerNodeID))
 		}
 	}
-	writeJSON(w, status, StartSandboxResp{SandboxID: session.SandboxID, WorkerID: session.WorkerNodeID, WorkerURL: endpoint, Ticket: ticket, ExpiresIn: s.cfg.Auth.TicketTTLSec, SandboxIP: session.SandboxIP, SlotIndex: session.SlotIndex, ExpiresAt: session.ExpiresAt, Policy: session.Policy})
+	writeJSON(w, status, StartSandboxResp{
+		SandboxID:    session.SandboxID,
+		WorkerID:     session.WorkerNodeID,
+		WorkerURL:    endpoint,
+		Ticket:       ticket,
+		GUIWorkerURL: guiEndpoint,
+		GUITicket:    guiTicket,
+		ExpiresIn:    s.cfg.Auth.TicketTTLSec,
+		SandboxIP:    session.SandboxIP,
+		SlotIndex:    session.SlotIndex,
+		ExpiresAt:    session.ExpiresAt,
+		Policy:       session.Policy,
+	})
 }
 
 func (s *ControlHTTPServer) handleStopSandbox(w http.ResponseWriter, r *http.Request) {
@@ -143,6 +160,10 @@ func (s *ControlHTTPServer) handleStopSandbox(w http.ResponseWriter, r *http.Req
 
 	stoppedSession, err := s.TerminateSandbox(r.Context(), sandboxID, "user_stop")
 	if err != nil {
+		if errors.Is(err, ErrSandboxStopping) {
+			writeError(w, http.StatusConflict, "sandbox not found or already stopping")
+			return
+		}
 		writeError(w, http.StatusInternalServerError, "failed to terminate sandbox: "+err.Error())
 		return
 	}
@@ -179,24 +200,91 @@ func (s *ControlHTTPServer) handleActiveSandbox(w http.ResponseWriter, r *http.R
 	}
 	// Strictly read-only: Do NOT touch activity timestamp on polling
 
-	ticket, _ := s.issueTicket(uid, session.SandboxID)
+	streamParam := r.URL.Query().Get("stream")
+	isGUIStream := streamParam == "gui" || streamParam == "vnc"
+
+	ticket, _ := s.issueTicketWithType(uid, session.SandboxID, "pty")
 	endpoint, exists := s.clusterMgr.GetWorkerDataURL(session.WorkerNodeID, r.Host)
 	if !exists {
 		writeError(w, http.StatusServiceUnavailable, "worker node currently unreachable")
 		return
 	}
 
+	guiTicket, _ := s.issueTicketWithType(uid, session.SandboxID, "vnc")
+	guiEndpoint, _ := s.clusterMgr.GetWorkerStreamURL(session.WorkerNodeID, "vnc", r.Host)
+
+	primaryURL := endpoint
+	primaryTicket := ticket
+	if isGUIStream && guiEndpoint != "" {
+		primaryURL = guiEndpoint
+		primaryTicket = guiTicket
+	}
+
 	writeJSON(w, http.StatusOK, map[string]interface{}{
-		"active":     true,
-		"sandbox_id": session.SandboxID,
-		"worker_id":  session.WorkerNodeID,
-		"worker_url": endpoint,
-		"ticket":     ticket,
-		"expires_in": s.cfg.Auth.TicketTTLSec,
-		"sandbox_ip": session.SandboxIP,
-		"state":      session.State,
-		"started_at": session.StartedAt,
-		"expires_at": session.ExpiresAt,
-		"policy":     session.Policy,
+		"active":         true,
+		"sandbox_id":     session.SandboxID,
+		"worker_id":      session.WorkerNodeID,
+		"worker_url":     primaryURL,
+		"ticket":         primaryTicket,
+		"gui_worker_url": guiEndpoint,
+		"gui_ticket":     guiTicket,
+		"gui_running":    session.GUIRunning,
+		"expires_in":     s.cfg.Auth.TicketTTLSec,
+		"sandbox_ip":     session.SandboxIP,
+		"state":          session.State,
+		"started_at":     session.StartedAt,
+		"expires_at":     session.ExpiresAt,
+		"policy":         session.Policy,
+	})
+}
+
+func (s *ControlHTTPServer) handleGuiToggle(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		writeError(w, http.StatusMethodNotAllowed, "method not allowed")
+		return
+	}
+
+	uid, _, _, ok := UserFromContext(r.Context())
+	if !ok {
+		writeError(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+
+	session, _, err := s.scheduler.ScheduleOrCreate(r.Context(), uid)
+	if err != nil {
+		status := http.StatusInternalServerError
+		switch {
+		case errors.Is(err, ErrUserNotFound):
+			status = http.StatusNotFound
+		case errors.Is(err, ErrNoWorkersAvailable), errors.Is(err, ErrNoAvailableSlots):
+			status = http.StatusServiceUnavailable
+		}
+		writeError(w, status, err.Error())
+		return
+	}
+
+	guiTicket, err := s.issueTicketWithType(uid, session.SandboxID, "vnc")
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to issue gui session ticket")
+		return
+	}
+
+	guiEndpoint, exists := s.clusterMgr.GetWorkerStreamURL(session.WorkerNodeID, "vnc", r.Host)
+	if !exists {
+		writeError(w, http.StatusServiceUnavailable, "worker node currently unreachable")
+		return
+	}
+
+	writeJSON(w, http.StatusOK, map[string]interface{}{
+		"success":        true,
+		"envRunning":     true,
+		"cliRunning":     true,
+		"guiRunning":     session.GUIRunning,
+		"sandbox_id":     session.SandboxID,
+		"worker_url":     guiEndpoint,
+		"gui_worker_url": guiEndpoint,
+		"ticket":         guiTicket,
+		"gui_ticket":     guiTicket,
+		"expires_in":     s.cfg.Auth.TicketTTLSec,
 	})
 }

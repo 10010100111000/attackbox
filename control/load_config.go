@@ -68,10 +68,10 @@ func (cfg *ControlConfig) SanitizeAndApplyDefaults() {
 		cfg.Auth.InitialAdminUsername = "admin"
 	}
 	if cfg.Auth.InitialAdminPassword == "" {
-		cfg.Auth.InitialAdminPassword = "AdminSecurePassword123!"
+		cfg.Auth.InitialAdminPassword = "qwer1234!"
 	}
 	if cfg.Auth.InitialAdminEmail == "" {
-		cfg.Auth.InitialAdminEmail = "admin@attackbox.local"
+		cfg.Auth.InitialAdminEmail = "admin@gmail.com"
 	}
 
 	// Fail-closed baseline resource enforcement

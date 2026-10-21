@@ -35,8 +35,11 @@ func (s *ControlHTTPServer) syncWorkerState(workerID string, hb protocol.Heartbe
 		}
 		if sess.State == SessionStateCleanupFailed || (present && item.State == "cleanup_failed") {
 			s.asyncCompensatingDestroy(workerID, sess.SandboxID, "retry_cleanup")
-		} else if present && item.LastActiveAt > 0 {
-			s.sessions.Touch(sess.SandboxID, time.Unix(item.LastActiveAt, 0))
+		} else if present {
+			if item.LastActiveAt > 0 {
+				s.sessions.Touch(sess.SandboxID, time.Unix(item.LastActiveAt, 0))
+			}
+			s.sessions.SetGUIRunning(sess.SandboxID, item.GUIRunning)
 		}
 	}
 	for id := range alive {

@@ -32,4 +32,4 @@ network:
   bridge_name: "br-attackbox"
   gateway_ip: "10.200.0.1"
   subnet_cidr: "10.200.0.0/16"
-  egress_interface: "eth0"
+  egress_interface: ""

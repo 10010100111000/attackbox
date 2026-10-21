@@ -16,8 +16,8 @@ auth:
   jwt_expire_hours: 24
   ticket_ttl_sec: 60
   initial_admin_username: "admin"
-  initial_admin_password: "AdminSecurePassword123!"
-  initial_admin_email: "admin@attackbox.local"
+  initial_admin_password: "qwer1234!"
+  initial_admin_email: "admin@gmail.com"
 
 sandbox:
   resources:

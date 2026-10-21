@@ -75,10 +75,18 @@ func (w *WorkerNode) UpdateRegister(reg protocol.RegisterReq) {
 }
 
 func (w *WorkerNode) GetDataURL(fallbackHost string) string {
+	return w.GetStreamURL("pty", fallbackHost)
+}
+
+func (w *WorkerNode) GetStreamURL(streamType, fallbackHost string) string {
 	w.stateMu.RLock()
 	defer w.stateMu.RUnlock()
+	endpointPath := "/ws/cli"
+	if streamType == "vnc" || streamType == "gui" {
+		endpointPath = "/ws/gui"
+	}
 	if w.PublicDataURL != "" {
-		return strings.TrimSuffix(w.PublicDataURL, "/") + "/ws/cli"
+		return strings.TrimSuffix(w.PublicDataURL, "/") + endpointPath
 	}
 	host := w.RemoteIP
 	if host == "" || host == "127.0.0.1" {
@@ -91,7 +99,7 @@ func (w *WorkerNode) GetDataURL(fallbackHost string) string {
 	if parsed, _, err := net.SplitHostPort(host); err == nil {
 		host = parsed
 	}
-	return "ws://" + net.JoinHostPort(strings.Trim(host, "[]"), strconv.Itoa(port)) + "/ws/cli"
+	return "ws://" + net.JoinHostPort(strings.Trim(host, "[]"), strconv.Itoa(port)) + endpointPath
 }
 
 // Accept only monotonic inventories from the registered daemon generation.
@@ -176,13 +184,17 @@ func (h *NodeClusterManager) GetNodeState(nodeID string) (protocol.NodeState, er
 }
 
 func (h *NodeClusterManager) GetWorkerDataURL(nodeID, fallbackHost string) (string, bool) {
+	return h.GetWorkerStreamURL(nodeID, "pty", fallbackHost)
+}
+
+func (h *NodeClusterManager) GetWorkerStreamURL(nodeID, streamType, fallbackHost string) (string, bool) {
 	h.mu.RLock()
 	node, exists := h.workers[nodeID]
 	h.mu.RUnlock()
 	if !exists {
 		return "", false
 	}
-	return node.GetDataURL(fallbackHost), true
+	return node.GetStreamURL(streamType, fallbackHost), true
 }
 
 // NewNodeClusterManager creates a cluster manager.

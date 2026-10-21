@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"github.com/gorilla/websocket"
 	"log"
+	"net"
 	"net/http"
 	"net/url"
 	"strings"
@@ -81,6 +82,7 @@ func NewContainerGatewayServer(cfg GatewayConfig, rtMgr *runtime.RuntimeManager)
 	mux := http.NewServeMux()
 	mux.HandleFunc("/health", s.handleHealth)
 	mux.HandleFunc("/ws/cli", s.handleCLI)
+	mux.HandleFunc("/ws/gui", s.handleGUI)
 
 	listenAddr := cfg.ListenAddr
 	if listenAddr == "" {
@@ -255,4 +257,123 @@ func (s *ContainerGatewayServer) keepalive(c *SafeConn, stop <-chan struct{}) {
 			_ = c.WriteControl(websocket.PingMessage, nil, time.Now().Add(5*time.Second))
 		}
 	}
+}
+
+func (s *ContainerGatewayServer) handleGUI(w http.ResponseWriter, r *http.Request) {
+	rawTicket := r.URL.Query().Get("ticket")
+	if rawTicket == "" {
+		http.Error(w, "missing ticket query parameter", http.StatusUnauthorized)
+		return
+	}
+
+	pubKey := s.getPublicKey()
+	if len(pubKey) == 0 {
+		http.Error(w, "server ed25519 key not configured", http.StatusServiceUnavailable)
+		return
+	}
+
+	claims, err := protocol.VerifyTicket(rawTicket, pubKey)
+	if err != nil {
+		log.Printf("[DATA] GUI Ticket verification rejected: %v", err)
+		http.Error(w, fmt.Sprintf("invalid ticket: %v", err), http.StatusForbidden)
+		return
+	}
+
+	if err := s.replayFilter.CheckAndConsume(claims.JTI, 60*time.Second); err != nil {
+		http.Error(w, "ticket jti already consumed (replay)", http.StatusForbidden)
+		return
+	}
+
+	if claims.Typ != "vnc" {
+		http.Error(w, "invalid stream type for GUI endpoint", http.StatusBadRequest)
+		return
+	}
+
+	sbx, ok := s.rtMgr.GetSnapshot(claims.Sbx)
+	if !ok || sbx.PID <= 0 || sbx.State != "running" {
+		http.Error(w, "target sandbox is not active", http.StatusNotFound)
+		return
+	}
+
+	// 1. 按需确保沙箱内部的 GUI 桌面 (TigerVNC + MATE) 已就绪
+	ctx, cancel := context.WithTimeout(r.Context(), 25*time.Second)
+	defer cancel()
+	if err := s.rtMgr.EnsureGUI(ctx, sbx.ID); err != nil {
+		log.Printf("[DATA] EnsureGUI failed for %s: %v", sbx.ID, err)
+		http.Error(w, "failed to start desktop environment", http.StatusInternalServerError)
+		return
+	}
+
+	// 2. 取得宿主机可访问的沙箱 gui.sock 路径
+	sockPath, err := s.rtMgr.GetGUISocketPath(sbx.ID)
+	if err != nil {
+		http.Error(w, "cannot locate sandbox gui socket", http.StatusInternalServerError)
+		return
+	}
+
+	// 3. 升级 WebSocket
+	rawConn, err := s.upgrader.Upgrade(w, r, nil)
+	if err != nil {
+		log.Printf("[DATA] WebSocket upgrade error for GUI %s: %v", claims.Sbx, err)
+		return
+	}
+	conn := NewSafeConn(rawConn)
+	defer conn.Close()
+
+	// 4. 注册 GUI 会话并执行单连接互斥抢占
+	s.sessions.RegisterGUI(sbx.ID, conn)
+	defer s.sessions.UnregisterGUI(sbx.ID, conn)
+
+	// 5. 连接沙箱内部的 Unix Socket
+	unixConn, err := net.DialTimeout("unix", sockPath, 5*time.Second)
+	if err != nil {
+		log.Printf("[DATA] Dial gui.sock %s failed: %v", sockPath, err)
+		_ = conn.WriteMessage(websocket.TextMessage, []byte("box desktop socket unavailable"))
+		return
+	}
+	defer unixConn.Close()
+
+	stopKeepalive := make(chan struct{})
+	go s.keepalive(conn, stopKeepalive)
+	defer close(stopKeepalive)
+
+	done := make(chan struct{}, 2)
+
+	// WebSocket -> Unix Domain Socket
+	go func() {
+		defer func() { done <- struct{}{} }()
+		for {
+			mt, msg, err := conn.ReadMessage()
+			if err != nil {
+				return
+			}
+			if mt != websocket.BinaryMessage && mt != websocket.TextMessage {
+				continue
+			}
+			// 刷新沙箱真实活跃时间 (键盘 / 鼠标输入)
+			s.rtMgr.TouchSandbox(claims.Sbx)
+			if _, err := unixConn.Write(msg); err != nil {
+				return
+			}
+		}
+	}()
+
+	// Unix Domain Socket -> WebSocket
+	go func() {
+		defer func() { done <- struct{}{} }()
+		buf := make([]byte, 1<<15)
+		for {
+			n, err := unixConn.Read(buf)
+			if n > 0 {
+				if werr := conn.WriteMessage(websocket.BinaryMessage, buf[:n]); werr != nil {
+					return
+				}
+			}
+			if err != nil {
+				return
+			}
+		}
+	}()
+
+	<-done
 }

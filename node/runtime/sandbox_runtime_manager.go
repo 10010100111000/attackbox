@@ -28,6 +28,7 @@ type RuntimeManager struct {
 	revision         uint64
 	reaperCancel     context.CancelFunc
 	reaperWG         sync.WaitGroup
+	guiMu            sync.Mutex
 	sandboxes        map[string]*SandboxRecord
 }
 

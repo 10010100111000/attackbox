@@ -58,11 +58,13 @@ func (c *SafeConn) WriteControl(messageType int, data []byte, deadline time.Time
 type GatewaySessionManager struct {
 	mu          sync.Mutex
 	cliSessions map[string]*SafeConn
+	guiSessions map[string]*SafeConn
 }
 
 func NewGatewaySessionManager() *GatewaySessionManager {
 	return &GatewaySessionManager{
 		cliSessions: make(map[string]*SafeConn),
+		guiSessions: make(map[string]*SafeConn),
 	}
 }
 
@@ -94,5 +96,35 @@ func (sm *GatewaySessionManager) UnregisterCLI(key string, conn *SafeConn) {
 
 	if cur, exists := sm.cliSessions[key]; exists && cur == conn {
 		delete(sm.cliSessions, key)
+	}
+}
+
+func (sm *GatewaySessionManager) RegisterGUI(key string, conn *SafeConn) {
+	var oldConn *SafeConn
+	sm.mu.Lock()
+	if old, exists := sm.guiSessions[key]; exists {
+		oldConn = old
+	}
+	sm.guiSessions[key] = conn
+	sm.mu.Unlock()
+
+	if oldConn != nil && oldConn.Conn != nil {
+		go func() {
+			_ = oldConn.WriteControl(
+				websocket.CloseMessage,
+				websocket.FormatCloseMessage(4001, "preempted by new connection"),
+				time.Now().Add(time.Second),
+			)
+			_ = oldConn.Close()
+		}()
+	}
+}
+
+func (sm *GatewaySessionManager) UnregisterGUI(key string, conn *SafeConn) {
+	sm.mu.Lock()
+	defer sm.mu.Unlock()
+
+	if cur, exists := sm.guiSessions[key]; exists && cur == conn {
+		delete(sm.guiSessions, key)
 	}
 }

@@ -81,11 +81,18 @@ func CheckPassword(hash, password string) bool {
 const dummyBcryptHash = "$2a$10$wT5Y1eS6Fqm9g4O/rQhGceJzR0d8z1bS3h1J6D8W2Y1bS3h1J6D8W"
 
 func (s *ControlHTTPServer) issueTicket(uid int64, sandboxID string) (string, error) {
+	return s.issueTicketWithType(uid, sandboxID, "pty")
+}
+
+func (s *ControlHTTPServer) issueTicketWithType(uid int64, sandboxID string, streamType string) (string, error) {
+	if streamType == "" {
+		streamType = "pty"
+	}
 	jti := generateJTI()
 	claims := &protocol.TicketClaims{
 		Sub: uid,
 		Sbx: sandboxID,
-		Typ: "pty",
+		Typ: streamType,
 		Exp: time.Now().Add(time.Duration(s.cfg.Auth.TicketTTLSec) * time.Second).Unix(),
 		JTI: jti,
 	}

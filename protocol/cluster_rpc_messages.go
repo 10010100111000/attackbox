@@ -1,4 +1,4 @@
-package protocol
+﻿package protocol
 
 import (
 	"crypto/rand"
@@ -112,6 +112,7 @@ type SandboxSummary struct {
 	State        string `json:"state"`
 	ID           string `json:"id"`
 	LastActiveAt int64  `json:"last_active_at"` // Unix timestamp (秒)
+	GUIRunning   bool   `json:"gui_running,omitempty"`
 }
 
 // HeartbeatReq 节点周期心跳真实遥测 (每 3 秒)

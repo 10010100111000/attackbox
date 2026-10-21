@@ -9,6 +9,8 @@ import (
 	"time"
 )
 
+var ErrSandboxStopping = errors.New("sandbox not found or already stopping")
+
 // TerminateSandbox terminates a sandbox session, rolls back cluster resources,
 // releases IP slots, and records an audit log. Shared identically by user Stop and background Reaper.
 // State machine: Running -> Terminating -> Terminated (Success) or CleanupFailed (Retained for retry).
@@ -17,7 +19,7 @@ func (s *ControlHTTPServer) TerminateSandbox(ctx context.Context, sandboxID stri
 	stored, exists := s.sessions.sessions[sandboxID]
 	if !exists || stored.State == SessionStateTerminating {
 		s.sessions.mu.Unlock()
-		return ActiveSession{}, errors.New("sandbox not found or already stopping")
+		return ActiveSession{}, ErrSandboxStopping
 	}
 	session := *stored
 	stored.State = SessionStateTerminating

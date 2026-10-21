@@ -30,6 +30,7 @@ type ActiveSession struct {
 	LastActiveAt      time.Time              `json:"last_active_at"`
 	ExpiresAt         time.Time              `json:"expires_at"`
 	Policy            protocol.SandboxPolicy `json:"policy"`
+	GUIRunning        bool                   `json:"gui_running,omitempty"`
 }
 
 type SessionManager struct {
@@ -96,6 +97,14 @@ func (sm *SessionManager) SetState(sandboxID string, state SessionState) {
 	defer sm.mu.Unlock()
 	if s, ok := sm.sessions[sandboxID]; ok {
 		s.State = state
+	}
+}
+
+func (sm *SessionManager) SetGUIRunning(sandboxID string, running bool) {
+	sm.mu.Lock()
+	defer sm.mu.Unlock()
+	if s, ok := sm.sessions[sandboxID]; ok {
+		s.GUIRunning = running
 	}
 }
 
