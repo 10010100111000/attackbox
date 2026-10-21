@@ -79,6 +79,8 @@ async function connectDesktop(reuseOnly = false) {
     current.resizeSession = true
     current.clipViewport = false
     current.background = '#09090b'
+    current.compressionLevel = 4
+    current.qualityLevel = 7
     current.addEventListener('connect', () => {
       if (disposed || rfb !== current) return
       statusText.value = ''

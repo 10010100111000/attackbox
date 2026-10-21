@@ -21,12 +21,22 @@ certs/
 # Deployment scripts & temp
 deploy_remote.sh
 deploy_stage*.sh
+deploy_patch.sh
+scripts/deploy_patch.sh
 test_*.js
 verify_*.js
 scratch_*.cjs
 /*_snap.png
 /*_shot*.png
 !web/static/*.png
+
+# Ad-hoc tests & benchmark suites
+tests/
+test_*.py
+stress_*.py
+get_hash.py
+*.pyc
+__pycache__/
 
 # Frontend
 frontend/node_modules/

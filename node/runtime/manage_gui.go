@@ -36,6 +36,10 @@ const guiScript = `set -e
 install -d -m 1777 /tmp/.ICE-unix /tmp/.X11-unix
 install -d -m 0700 -o box -g box /run/attackbox /tmp/runtime-box
 rm -f /run/attackbox/gui.sock /tmp/.X11-unix/X1 /tmp/.X1-lock
+if [ ! -f /home/box/.config/dconf/user ] || [ $(wc -c < /home/box/.config/dconf/user 2>/dev/null || echo 0) -lt 10000 ]; then
+  cp -r /etc/skel/. /home/box/ 2>/dev/null || true
+  chown -R box:box /home/box 2>/dev/null || true
+fi
 exec runuser -u box -- /bin/bash <<'DESKTOP'
 set -e
 export DISPLAY=:1
@@ -50,6 +54,7 @@ trap 'kill $vnc $desktop 2>/dev/null || true; rm -f /run/attackbox/gui.sock' EXI
 trap 'exit 0' TERM INT
 /usr/bin/Xtigervnc :1 -rfbunixpath /run/attackbox/gui.sock -rfbunixmode 0600 \
  -rfbport -1 -nolisten tcp -SecurityTypes None -AlwaysShared -UseBlacklist=0 \
+ -FrameRate 30 -CompareFB 1 \
  -geometry 1280x800 -depth 24 &
 vnc=$!
 for i in $(seq 1 80); do
@@ -58,7 +63,7 @@ for i in $(seq 1 80); do
  sleep 0.1
 done
 [ -S /tmp/.X11-unix/X1 ] && [ -S /run/attackbox/gui.sock ] || exit 1
-dbus-run-session /usr/bin/mate-session &
+dbus-run-session /bin/bash -c 'gsettings set org.mate.Marco.general compositing-manager false 2>/dev/null || true; gsettings set org.mate.interface enable-animations false 2>/dev/null || true; exec /usr/bin/mate-session' &
 desktop=$!
 wait -n "$vnc" "$desktop"
 DESKTOP
