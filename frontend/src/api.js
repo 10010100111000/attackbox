@@ -27,7 +27,9 @@ async function request(url, options = {}) {
   })
   const data = await resp.json().catch(() => ({}))
   if (!resp.ok) {
-    throw new Error(data.error || `请求失败 (${resp.status})`)
+    const error = new Error(data.error || `请求失败 (${resp.status})`)
+    error.status = resp.status
+    throw error
   }
   return data
 }
@@ -79,17 +81,7 @@ export const api = {
       body: JSON.stringify({ oldPassword, newPassword }),
     }),
 
-  toggleCli: () => request('/api/sandbox/start', { method: 'POST', body: '{}' }),
-
-  toggleGui: () => request('/api/env/gui/toggle', { method: 'POST', body: '{}' }),
-
-  destroyEnv: (sandboxId = '') =>
-    request('/api/sandbox/stop', {
-      method: 'POST',
-      body: JSON.stringify({ sandbox_id: sandboxId }),
-    }),
-
-  startSandbox: () => request('/api/sandbox/start', { method: 'POST', body: '{}' }),
+  startSandbox: (signal) => request('/api/sandbox/start', { method: 'POST', body: '{}', signal }),
 
   stopSandbox: (sandboxId = '') =>
     request('/api/sandbox/stop', {
@@ -97,8 +89,36 @@ export const api = {
       body: JSON.stringify({ sandbox_id: sandboxId }),
     }),
 
-  getActiveSandbox: (params = '') => {
+  getActiveSandbox: (params = '', signal) => {
     const qs = typeof params === 'string' && params ? (params.startsWith('?') ? params : `?${params}`) : ''
-    return request(`/api/sandbox/active${qs}`)
+    return request(`/api/sandbox/active${qs}`, { signal })
   },
+}
+
+// Both viewers use the same idempotent start. A concurrent start may still be
+// creating; wait for that instance instead of allocating another environment.
+export async function ensureSandbox(signal) {
+  try {
+    return await api.startSandbox(signal)
+  } catch (error) {
+    if (error.status !== 409) throw error
+    for (let attempt = 0; attempt < 60; attempt++) {
+      const active = await api.getActiveSandbox('', signal)
+      if (active.active) return active
+      if (active.state && active.state !== 'creating') throw error
+      await new Promise((resolve, reject) => {
+        if (signal?.aborted) return reject(new DOMException('Aborted', 'AbortError'))
+        const abort = () => {
+          clearTimeout(timer)
+          reject(new DOMException('Aborted', 'AbortError'))
+        }
+        const timer = setTimeout(() => {
+          signal?.removeEventListener('abort', abort)
+          resolve()
+        }, 500)
+        signal?.addEventListener('abort', abort, { once: true })
+      })
+    }
+    throw new Error('沙箱仍在启动，请稍后重试')
+  }
 }

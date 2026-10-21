@@ -25,13 +25,14 @@
       <div v-if="connecting" class="w-2.5 h-2.5 rounded-full border-2 border-zinc-300 border-t-transparent animate-spin"></div>
       <div v-else class="w-2 h-2 rounded-full bg-zinc-300"></div>
       <span>{{ statusText }}</span>
+      <button v-if="!connecting" @click="connectDesktop(true)" class="underline ml-2">重新连接</button>
     </div>
   </div>
 </template>
 
 <script setup>
 import { ref, onMounted, onBeforeUnmount } from 'vue'
-import { api } from '../api.js'
+import { api, ensureSandbox } from '../api.js'
 import DraggableDock from '../components/DraggableDock.vue'
 import QuickNotepad from '../components/QuickNotepad.vue'
 
@@ -41,86 +42,88 @@ const statusText = ref('正在连接图形远程桌面...')
 const connecting = ref(true)
 
 let rfb = null
+let disposed = false
+let controller = null
+let RFB = null
 
-onMounted(async () => {
+async function connectDesktop(reuseOnly = false) {
+  if (disposed || controller || rfb) return
+  const attempt = new AbortController()
+  controller = attempt
+  connecting.value = true
   try {
-    statusText.value = '正在获取远程桌面连接凭证...'
-    let act = await api.getActiveSandbox('stream=gui').catch(() => null)
-    if (!act || !act.active) {
-      statusText.value = '正在按需拉起沙箱环境...'
-      act = await api.startSandbox().catch((err) => {
-        throw new Error('启动沙箱环境失败: ' + (err.message || err))
-      })
-    }
-
-    const workerUrl = act.gui_worker_url || act.worker_url
-    const ticket = act.gui_ticket || act.ticket
-    if (!workerUrl || !ticket) {
-      throw new Error('未获取到 Worker 节点数据通道或 Ed25519 Ticket')
-    }
-
-    let wsUrl = workerUrl
-    try {
-      const u = new URL(workerUrl)
-      if (!u.pathname.endsWith('/ws/gui')) {
-        u.pathname = u.pathname.replace(/\/ws\/cli$/, '') + '/ws/gui'
-      }
-      u.searchParams.set('ticket', ticket)
-      wsUrl = u.toString()
-    } catch (_) {
-      const sep = workerUrl.includes('?') ? '&' : '?'
-      wsUrl = `${workerUrl}${sep}ticket=${ticket}`
-    }
-
     statusText.value = '正在载入桌面渲染核心...'
-    // 动态载入后端静态挂载的 noVNC RFB 核心 (使用原生动态导入)
-    const importEsm = new Function('u', 'return import(u)')
-    const { default: RFB } = await importEsm('/vnc/core/rfb.js')
-
+    if (!RFB) {
+      const importEsm = new Function('u', 'return import(u)')
+      RFB = (await importEsm('/vnc/core/rfb.js')).default
+    }
+    if (disposed || attempt.signal.aborted) return
+    statusText.value = '正在获取远程桌面连接凭证...'
+    const act = reuseOnly
+      ? await api.getActiveSandbox('stream=gui', attempt.signal)
+      : await ensureSandbox(attempt.signal)
+    if (disposed || attempt.signal.aborted) return
+    if (reuseOnly && !act.active) throw new Error('沙箱已关闭，请从工作区重新启动')
+    const workerUrl = act.gui_worker_url
+    const ticket = act.gui_ticket
+    if (!workerUrl || !ticket) throw new Error('未获取到桌面连接凭证')
+    const u = new URL(workerUrl)
+    if (u.hostname === '127.0.0.1' || u.hostname === 'localhost') u.hostname = window.location.hostname
+    u.searchParams.set('ticket', ticket)
     statusText.value = '正在连接 Worker 桌面服务...'
-    rfb = new RFB(screenRef.value, wsUrl, {
-      credentials: {},
-      wsProtocols: ['binary']
+    const current = new RFB(screenRef.value, u.toString(), {
+      credentials: {}, wsProtocols: ['binary']
     })
-
-    rfb.scaleViewport = true
-    rfb.resizeSession = true
-    rfb.clipViewport = false
-    rfb.background = '#09090b'
-
-    rfb.addEventListener('connect', () => {
+    rfb = current
+    current.scaleViewport = true
+    current.resizeSession = true
+    current.clipViewport = false
+    current.background = '#09090b'
+    current.addEventListener('connect', () => {
+      if (disposed || rfb !== current) return
       statusText.value = ''
       connecting.value = false
-      rfb.focus()
+      current.focus()
     })
-
-    rfb.addEventListener('disconnect', (e) => {
+    current.addEventListener('disconnect', () => {
+      if (disposed || rfb !== current) return
+      rfb = null
       connecting.value = false
-      if (e.detail && e.detail.clean) {
-        statusText.value = '远程桌面会话已关闭'
-      } else {
-        statusText.value = '连接中断，请刷新重试'
-      }
+      statusText.value = '连接已断开，可以重新连接原桌面'
     })
-
-    // 无感远程剪贴板监听
-    rfb.addEventListener('clipboard', (e) => {
-      if (e.detail && e.detail.text) {
-        try {
-          navigator.clipboard.writeText(e.detail.text)
-        } catch (_) {}
+    current.addEventListener('clipboard', (e) => {
+      if (e.detail?.text && navigator.clipboard) {
+        navigator.clipboard.writeText(e.detail.text).catch(() => {})
       }
     })
   } catch (err) {
-    statusText.value = '加载远程桌面组件失败: ' + err.message
-    connecting.value = false
+    if (!disposed && !attempt.signal.aborted) {
+      statusText.value = '桌面连接失败: ' + err.message
+      connecting.value = false
+    }
+  } finally {
+    if (controller === attempt) controller = null
   }
+}
+
+function onOpenRequest(e) {
+  if (e.origin === window.location.origin && e.data?.type === 'attackbox:open-viewer') {
+    return connectDesktop()
+  }
+}
+
+onMounted(() => {
+  window.addEventListener('message', onOpenRequest)
+  connectDesktop()
 })
 
 onBeforeUnmount(() => {
-  if (rfb) {
-    try { rfb.disconnect() } catch (_) {}
-  }
+  disposed = true
+  window.removeEventListener('message', onOpenRequest)
+  controller?.abort()
+  const current = rfb
+  rfb = null
+  current?.disconnect()
 })
 
 // 键入文本到图形远程桌面
@@ -128,18 +131,21 @@ async function onTypeSnippet(text) {
   if (!text || !rfb) return
   rfb.focus()
 
-  for (let i = 0; i < text.length; i++) {
-    const ch = text[i]
+  const target = rfb
+  let i = 0
+  for (const ch of text) {
+    if (disposed || rfb !== target) return
     if (ch === '\r') continue
-    let keysym = ch.charCodeAt(0)
+    let keysym = ch.codePointAt(0)
+    if (keysym > 0xFF) keysym |= 0x01000000
     if (ch === '\n') keysym = 0xFF0D // Return
     else if (ch === '\t') keysym = 0xFF09 // Tab
     else if (ch === '\b') keysym = 0xFF08 // Backspace
 
-    rfb.sendKey(keysym, null, true)
-    rfb.sendKey(keysym, null, false)
+    target.sendKey(keysym, null, true)
+    target.sendKey(keysym, null, false)
 
-    if (i % 6 === 0) {
+    if (++i % 6 === 0) {
       await new Promise(r => setTimeout(r, 6))
     }
   }

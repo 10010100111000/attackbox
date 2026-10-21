@@ -98,7 +98,7 @@
 
 <script setup>
 import { ref, onMounted, onBeforeUnmount } from 'vue'
-import { api } from '../api.js'
+import { ensureSandbox } from '../api.js'
 import DraggableDock from '../components/DraggableDock.vue'
 import QuickNotepad from '../components/QuickNotepad.vue'
 
@@ -108,6 +108,7 @@ const notepadVisible = ref(false)
 
 let termSeq = 0
 const activeBoxes = []
+let disposed = false
 
 function getTermCtor() {
   if (typeof window.Terminal === 'function') return window.Terminal
@@ -122,6 +123,7 @@ function getFitCtor() {
 }
 
 async function createTerminal() {
+  if (disposed) return
   if (typeof window.WinBox === 'undefined') {
     console.error('WinBox 未就绪')
     return
@@ -145,6 +147,8 @@ async function createTerminal() {
   let term = null
   let fit = null
   let ws = null
+  let closed = false
+  const controller = new AbortController()
 
   const wb = new window.WinBox({
     title: `终端 #${num}`,
@@ -171,6 +175,8 @@ async function createTerminal() {
       syncSize()
     },
     onclose: () => {
+      closed = true
+      controller.abort()
       const idx = activeBoxes.findIndex(b => b.num === num)
       if (idx !== -1) {
         const item = activeBoxes[idx]
@@ -239,17 +245,14 @@ async function createTerminal() {
     }
   })
 
-  const boxItem = { num, winbox: wb, term, fit, ws: null, mountEl }
+  const boxItem = { num, winbox: wb, term, fit, ws: null, mountEl, connecting: true }
   activeBoxes.push(boxItem)
   termCount.value = activeBoxes.length
   focusedNum.value = num
 
   try {
-    let act = await api.getActiveSandbox()
-    if (!act || !act.active) {
-      term.write('\x1b[90m[AttackBox] 沙箱未处于就绪状态，正在启动沙箱...\x1b[0m\r\n')
-      act = await api.startSandbox()
-    }
+    const act = await ensureSandbox(controller.signal)
+    if (closed || disposed) return
     const workerUrl = act.worker_url
     const ticket = act.ticket
     if (!workerUrl || !ticket) {
@@ -272,6 +275,7 @@ async function createTerminal() {
     boxItem.ws = ws
 
     ws.onopen = () => {
+      if (closed || disposed) { ws.close(); return }
       term.write('\r\x1b[K\x1b[32m[AttackBox] 终端已连接 (PTY #w' + num + ')\x1b[0m\r\n')
       if (fit) {
         try { fit.fit() } catch (_) {}
@@ -283,6 +287,8 @@ async function createTerminal() {
     ws.onmessage = (e) => {
       if (typeof e.data !== 'string') {
         term.write(new Uint8Array(e.data))
+      } else {
+        term.write('\r\n[AttackBox] ' + e.data + '\r\n')
       }
     }
 
@@ -298,10 +304,14 @@ async function createTerminal() {
       term.write('\r\n\x1b[31m[AttackBox] 网络异常，无法连接终端网关。\x1b[0m\r\n')
     }
   } catch (err) {
+    if (closed || disposed) return
     term.write('\r\n\x1b[31m[AttackBox] 启动连接失败: ' + (err.message || '未知错误') + '\x1b[0m\r\n')
+  } finally {
+    boxItem.connecting = false
   }
 
   setTimeout(() => {
+    if (closed || disposed) return
     if (fit) {
       try { fit.fit() } catch (_) {}
     }
@@ -399,14 +409,24 @@ function onKeydown(e) {
   }
 }
 
+function onOpenRequest(e) {
+  if (e.origin !== window.location.origin || e.data?.type !== 'attackbox:open-viewer') return
+  const connected = activeBoxes.some(item => item.connecting ||
+    (item.ws && (item.ws.readyState === WebSocket.OPEN || item.ws.readyState === WebSocket.CONNECTING)))
+  if (!connected) return createTerminal()
+}
+
 onMounted(() => {
   window.addEventListener('keydown', onKeydown)
+  window.addEventListener('message', onOpenRequest)
   // 默认启动一个主终端
   createTerminal()
 })
 
 onBeforeUnmount(() => {
+  disposed = true
   window.removeEventListener('keydown', onKeydown)
+  window.removeEventListener('message', onOpenRequest)
   closeAllWindows()
 })
 </script>

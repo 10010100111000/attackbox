@@ -28,7 +28,6 @@
               </svg>
               <span class="text-zinc-500 text-[11px]">LEASE:</span>
               <span class="font-semibold text-zinc-900 tracking-wider">{{ leaseDisplay }}</span>
-              <span class="text-[10px] text-zinc-400 hidden sm:inline" title="Terminates automatically after 10m idle">(IDLE: 10m)</span>
             </div>
           </div>
         </div>
@@ -38,38 +37,30 @@
           <!-- CLI Terminal Button -->
           <button
             @click="handleOpenCli"
-            :disabled="startingCli || startingGui"
+            :disabled="destroying"
             class="px-3.5 py-1.5 rounded-md text-xs font-mono font-semibold bg-zinc-900 text-white hover:bg-zinc-800 shadow-sm flex items-center gap-1.5 transition-all cursor-pointer active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
             title="Open CLI terminal in a new window"
           >
-            <svg v-if="startingCli" class="animate-spin h-3.5 w-3.5 text-zinc-300" viewBox="0 0 24 24" fill="none">
-              <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-              <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path>
-            </svg>
-            <svg v-else class="w-3.5 h-3.5 text-zinc-300" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <svg class="w-3.5 h-3.5 text-zinc-300" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
               <polyline points="4 17 10 11 4 5"></polyline>
               <line x1="12" y1="19" x2="20" y2="19"></line>
             </svg>
-            <span>{{ startingCli ? 'SPAWNING...' : 'TERMINAL' }}</span>
+            <span>TERMINAL</span>
           </button>
 
           <!-- GUI Desktop Button -->
           <button
             @click="handleOpenGui"
-            :disabled="startingCli || startingGui"
+            :disabled="destroying"
             class="px-3.5 py-1.5 rounded-md text-xs font-mono font-semibold bg-zinc-900 text-white hover:bg-zinc-800 shadow-sm flex items-center gap-1.5 transition-all cursor-pointer active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
             title="Open GUI desktop in a new window"
           >
-            <svg v-if="startingGui" class="animate-spin h-3.5 w-3.5 text-zinc-300" viewBox="0 0 24 24" fill="none">
-              <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-              <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path>
-            </svg>
-            <svg v-else class="w-3.5 h-3.5 text-zinc-300" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <svg class="w-3.5 h-3.5 text-zinc-300" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
               <rect x="2" y="3" width="20" height="14" rx="2"></rect>
               <line x1="8" y1="21" x2="16" y2="21"></line>
               <line x1="12" y1="17" x2="12" y2="21"></line>
             </svg>
-            <span>{{ startingGui ? 'LAUNCHING...' : 'DESKTOP' }}</span>
+            <span>DESKTOP</span>
           </button>
 
           <!-- Release Sandbox Button (Active only) -->
@@ -183,8 +174,6 @@ const props = defineProps({
 const emit = defineEmits(['show-toast', 'env-updated'])
 
 const destroying = ref(false)
-const startingCli = ref(false)
-const startingGui = ref(false)
 const remainingSeconds = ref(props.expiresIn || 0)
 let timer = null
 
@@ -218,40 +207,31 @@ const leaseDisplay = computed(() => {
   return `${h}:${m}:${s}`
 })
 
-async function handleOpenCli() {
-  if (!props.isRunning) {
-    startingCli.value = true
-    try {
-      await api.toggleCli()
-      emit('env-updated')
-    } catch (e) {
-      emit('show-toast', 'Failed to start sandbox: ' + (e.message || 'System busy'))
-      startingCli.value = false
-      return
-    } finally {
-      startingCli.value = false
-    }
+function openViewer(path, name) {
+  const viewer = window.open('', name)
+  if (!viewer) {
+    emit('show-toast', 'Please allow popups to open the environment')
+    return
   }
-  window.open('/term', '_blank')
-  emit('show-toast', 'Terminal launched in new window')
+  // Opening the URL again would reload an existing terminal page and kill its
+  // PTYs. Reuse the named window without navigating when it is already there.
+  try {
+    if (viewer.location.origin !== window.location.origin || viewer.location.pathname !== path) {
+      viewer.location.replace(path)
+    }
+  } catch (_) {
+    viewer.location = path
+  }
+  viewer.focus()
+  viewer.postMessage({ type: 'attackbox:open-viewer' }, window.location.origin)
 }
 
-async function handleOpenGui() {
-  if (!props.isRunning) {
-    startingGui.value = true
-    try {
-      await api.toggleGui()
-      emit('env-updated')
-    } catch (e) {
-      emit('show-toast', 'Failed to start sandbox: ' + (e.message || 'System busy'))
-      startingGui.value = false
-      return
-    } finally {
-      startingGui.value = false
-    }
-  }
-  window.open('/gui', '_blank')
-  emit('show-toast', 'Remote desktop launched in new window')
+function handleOpenCli() {
+  openViewer('/term', 'attackbox_cli')
+}
+
+function handleOpenGui() {
+  openViewer('/gui', 'attackbox_gui')
 }
 
 async function handleDestroy() {
@@ -260,7 +240,7 @@ async function handleDestroy() {
   }
   destroying.value = true
   try {
-    const data = await api.destroyEnv()
+    const data = await api.stopSandbox()
     if (!data.success) {
       emit('show-toast', data.error || 'Failed to release')
       return

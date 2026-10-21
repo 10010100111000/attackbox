@@ -224,8 +224,6 @@ func (s *ContainerGatewayServer) handleCLI(w http.ResponseWriter, r *http.Reques
 			if err != nil {
 				break
 			}
-			// Refresh real activity timestamp on genuine terminal input / keystroke
-			s.rtMgr.TouchSandbox(claims.Sbx)
 			if mt == websocket.TextMessage {
 				var sz struct {
 					Cols uint16 `json:"cols"`
@@ -235,6 +233,9 @@ func (s *ContainerGatewayServer) handleCLI(w http.ResponseWriter, r *http.Reques
 					_ = ptySess.Resize(sz.Rows, sz.Cols)
 					continue
 				}
+			}
+			if len(msg) > 0 {
+				s.rtMgr.TouchSandbox(claims.Sbx)
 			}
 			if _, err := ptySess.Master.Write(msg); err != nil {
 				break
@@ -321,6 +322,7 @@ func (s *ContainerGatewayServer) handleGUI(w http.ResponseWriter, r *http.Reques
 	defer conn.Close()
 
 	// 4. 注册 GUI 会话并执行单连接互斥抢占
+	rawConn.SetReadLimit(protocol.MaxWebSocketMessageSize)
 	s.sessions.RegisterGUI(sbx.ID, conn)
 	defer s.sessions.UnregisterGUI(sbx.ID, conn)
 
@@ -342,6 +344,7 @@ func (s *ContainerGatewayServer) handleGUI(w http.ResponseWriter, r *http.Reques
 	// WebSocket -> Unix Domain Socket
 	go func() {
 		defer func() { done <- struct{}{} }()
+		activity := &rfbActivity{}
 		for {
 			mt, msg, err := conn.ReadMessage()
 			if err != nil {
@@ -350,8 +353,9 @@ func (s *ContainerGatewayServer) handleGUI(w http.ResponseWriter, r *http.Reques
 			if mt != websocket.BinaryMessage && mt != websocket.TextMessage {
 				continue
 			}
-			// 刷新沙箱真实活跃时间 (键盘 / 鼠标输入)
-			s.rtMgr.TouchSandbox(claims.Sbx)
+			if activity.Observe(msg) {
+				s.rtMgr.TouchSandbox(claims.Sbx)
+			}
 			if _, err := unixConn.Write(msg); err != nil {
 				return
 			}

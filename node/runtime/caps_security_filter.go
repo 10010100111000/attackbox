@@ -1,4 +1,4 @@
-﻿package runtime
+package runtime
 
 import (
 	"bufio"
@@ -225,6 +225,12 @@ func VerifyCurrentThreadCapsDropped() error {
 // (CAP_SYS_BOOT, CAP_SYS_RAWIO, CAP_SYS_MODULE, CAP_MKNOD) from Effective, Permitted, and Bounding sets,
 // then invokes nsenter on the host to attach to targetPID's namespaces and switch to user 'box'.
 func ExecEnterTarget(targetPID int, targetArgs []string) error {
+	return execEnterTarget(targetPID, targetArgs, false)
+}
+
+// Both PTY and desktop entrypoints drop capabilities before executing any
+// sandbox binary. The root mode is for desktop setup inside the same sandbox.
+func execEnterTarget(targetPID int, targetArgs []string, asRoot bool) error {
 	// 0. Strictly lock goroutine to the current OS thread until syscall.Exec
 	// This prevents Go M:N runtime scheduler drift between capability drop and exec in CGO environments.
 	runtime.LockOSThread()
@@ -268,7 +274,9 @@ func ExecEnterTarget(targetPID int, targetArgs []string) error {
 	}
 
 	var innerCmd []string
-	if runnerBin != "" {
+	if asRoot {
+		innerCmd = targetArgs
+	} else if runnerBin != "" {
 		innerCmd = []string{runnerBin, "-u", "box", "--"}
 		if len(targetArgs) > 0 {
 			innerCmd = append(innerCmd, targetArgs...)
@@ -300,13 +308,13 @@ func ExecEnterTarget(targetPID int, targetArgs []string) error {
 // EnterDispatcher intercepts __enter__ on the host:
 // e.g. attackbox-node __enter__ <targetPID> [command...]
 func EnterDispatcher() bool {
-	if len(os.Args) >= 3 && os.Args[1] == "__enter__" {
+	if len(os.Args) >= 3 && (os.Args[1] == "__enter__" || os.Args[1] == "__enter_root__") {
 		targetPID, err := strconv.Atoi(os.Args[2])
 		if err != nil || targetPID <= 0 {
 			fmt.Fprintf(os.Stderr, "Invalid target PID: %s\n", os.Args[2])
 			os.Exit(1)
 		}
-		if err := ExecEnterTarget(targetPID, os.Args[3:]); err != nil {
+		if err := execEnterTarget(targetPID, os.Args[3:], os.Args[1] == "__enter_root__"); err != nil {
 			fmt.Fprintf(os.Stderr, "Error: host enter failed: %v\n", err)
 			os.Exit(1)
 		}

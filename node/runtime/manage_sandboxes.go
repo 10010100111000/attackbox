@@ -35,7 +35,8 @@ type SandboxRecord struct {
 	CleanupError string    `json:"cleanup_error,omitempty"`
 	GUIRunning   bool      `json:"gui_running,omitempty"`
 
-	cmd *exec.Cmd `json:"-"`
+	cmd    *exec.Cmd `json:"-"`
+	guiCmd *exec.Cmd
 }
 
 // SandboxSnapshot 外部组件只读值快照

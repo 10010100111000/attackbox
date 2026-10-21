@@ -1,33 +1,33 @@
 [ATTACKBOX ARCHITECTURE & FLOWS]
 
-1. TOPOLOGY
-- Browser SPA: Hosted statically by Nginx, English UI
-- Control (:18080): Bound to 127.0.0.1, proxied by Nginx for /api/* only. Holds user DB, Ed25519 key, sandbox scheduler
-- Worker (:8443): Bound to 0.0.0.0. Holds signing public key, cgroup, btrfs, pty. Connects reverse WS to Control
-- CRITICAL: Terminal/Desktop PTY is direct WebSocket from browser to Worker :8443 with ticket. NO NGINX PROXY
+1. Browser -> Nginx static SPA and /api/* -> Control (:18080).
+   Browser terminal/desktop WebSockets connect directly to Worker (:8443).
+   Configure TLS/public_data_url for HTTPS deployments.
 
-2. AUTH & ONBOARDING FLOW
-- Send code: POST /api/auth/send-verification-code (email)
-- Register: POST /api/auth/register (email, code, password, optional username)
-- Control checks collision, assigns autoincrement ID, defaults to USER_<id>, issues Ed25519 JWT
-- Login: POST /api/auth/login strictly requires email + password
+2. One running sandbox per authenticated user.
+   CLI and GUI pages both POST /api/sandbox/start to create or reuse it.
+   Concurrent creation waits for the existing sandbox; cleanup never allocates another one.
+   Worker owns actual resources and lifecycle; Control owns authentication/scheduling.
 
-3. WORKSPACE & SANDBOX PROVISIONING
-- Workspace default state: STANDBY
-- Launch: User clicks TERMINAL or DESKTOP -> POST /api/sandbox/start
-- Control allocates slot IP, dispatches RPC to Worker to setup cgroup/veth/snapshot, issues 60s ticket (ptk_...)
-- Browser opens new tab (/term or /gui), connects directly to ws://<worker_ip>:8443/ws/cli?ticket=...
-- Worker verifies ticket signature, binds pty session
-- Workspace HUD transitions to ACTIVE, begins lease countdown
+3. TERMINAL opens/focuses the named CLI page without reloading it.
+   The page contains multiple PTYs in the same sandbox, running as box.
+   CLI alone never starts TigerVNC or MATE.
 
-4. MULTI-TERMINAL CLI FLOW
-- CliView.vue runs WinBox virtual window manager
-- Users can open, minimize, and tile multiple independent terminal windows in one tab
-- Each window requests ticket and opens independent direct WebSocket PTY connection to Worker
+4. DESKTOP opens/focuses the named GUI page.
+   Worker lazily ensures TigerVNC + MATE in the same sandbox, then forwards VNC.
+   The desktop runs as box, sharing home/files/network/cgroup with CLI.
+   VNC listens on a Unix socket only; no independent desktop sandbox is created.
 
-5. TEARDOWN & LIFECYCLE
-- Trigger 1: User clicks RELEASE button -> POST /api/sandbox/stop
-- Trigger 2: Max lease TTL (120 minutes)
-- Trigger 3: Idle timeout (10 minutes with no keyboard input on PTY)
-- Worker stops init process, unmounts snapshot, releases veth, notifies Control to free slot
-- Workspace HUD resets to STANDBY
+5. Closing a terminal ends its PTY. Closing GUI only disconnects the viewer.
+   GUI reconnect fetches a new ticket and reuses a surviving desktop.
+   Reconnect does not recreate a sandbox which has already been released.
+   No independent desktop stop control is provided.
+
+6. RELEASE, configured TTL, or configured idle timeout destroy the whole sandbox.
+   Keyboard/mouse input renews activity; display refresh/handshake/keepalive do not.
+   Worker PID 1/cgroup teardown includes all desktop and terminal processes.
+   Control releases user/slot after cleanup confirmation.
+   Workspace refreshes status periodically and on window focus.
+
+7. Worker/Control restart semantics and security boundaries are in ARCHITECTURE.md.
+   Ordinary connection loss does not have the same semantics as daemon restart.

@@ -84,6 +84,8 @@ const activeTab = ref(window.location.pathname === '/account' ? 'account' : 'wor
 const toasts = ref([])
 
 let toastSeq = 0
+let statusTimer = null
+let checking = false
 function addToast(message) {
   const id = ++toastSeq
   toasts.value.push({ id, message })
@@ -110,9 +112,10 @@ function handlePopState() {
 }
 
 async function checkAuth() {
-  if (currentPath.value === '/term' || currentPath.value === '/gui') {
+  if (checking || currentPath.value === '/term' || currentPath.value === '/gui') {
     return
   }
+  checking = true
   try {
     const data = await api.me()
     if (data.loggedIn && data.user) {
@@ -142,11 +145,14 @@ async function checkAuth() {
       }
     }
   } catch (e) {
+    if (e.status !== 401 && e.status !== 403) return
     user.value = null
     activeTab.value = 'workspace'
     if (window.location.pathname !== '/login') {
       window.history.replaceState(null, '', '/login')
     }
+  } finally {
+    checking = false
   }
 }
 
@@ -169,12 +175,18 @@ async function handleLogout() {
 
 onMounted(() => {
   window.addEventListener('popstate', handlePopState)
+  window.addEventListener('focus', checkAuth)
   if (currentPath.value !== '/term' && currentPath.value !== '/gui') {
     checkAuth()
+    statusTimer = setInterval(() => {
+      if (user.value && !document.hidden) checkAuth()
+    }, 10000)
   }
 })
 
 onUnmounted(() => {
   window.removeEventListener('popstate', handlePopState)
+  window.removeEventListener('focus', checkAuth)
+  if (statusTimer) clearInterval(statusTimer)
 })
 </script>

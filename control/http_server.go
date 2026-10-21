@@ -119,7 +119,7 @@ func NewControlHTTPServer(
 	mux.Handle("/api/sandbox/stop", authMw(http.HandlerFunc(s.handleStopSandbox)))
 	mux.Handle("/api/sandbox/active", authMw(http.HandlerFunc(s.handleActiveSandbox)))
 	mux.Handle("/api/env/cli/toggle", authMw(http.HandlerFunc(s.handleStartSandbox)))
-	mux.Handle("/api/env/gui/toggle", authMw(http.HandlerFunc(s.handleGuiToggle)))
+	mux.Handle("/api/env/gui/toggle", authMw(http.HandlerFunc(s.handleStartSandbox)))
 	mux.Handle("/api/env/destroy", authMw(http.HandlerFunc(s.handleStopSandbox)))
 
 	// Wrap in global middlewares (Recovery -> RequestID -> Logging -> CORS -> Session -> BodyLimit)
