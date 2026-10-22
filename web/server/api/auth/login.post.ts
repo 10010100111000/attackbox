@@ -1,0 +1,96 @@
+import { defineEventHandler, readBody, createError, getRequestHeader } from 'h3';
+import { db } from '../../db';
+import { users, authSessions } from '../../db/schema';
+import { eq } from 'drizzle-orm';
+import {
+  verifyPassword,
+  generateSecureToken,
+  hashToken,
+  setSessionCookie,
+  getEventIp,
+} from '../../utils/auth';
+
+export default defineEventHandler(async (event) => {
+  const body = await readBody(event);
+  const rawEmail = typeof body?.email === 'string' ? body.email.trim().toLowerCase() : '';
+  const password = typeof body?.password === 'string' ? body.password : '';
+  const rememberMe = Boolean(body?.rememberMe);
+
+  if (!rawEmail || !password) {
+    throw createError({
+      statusCode: 400,
+      statusMessage: '请输入邮箱和密码',
+    });
+  }
+
+  const [user] = await db
+    .select()
+    .from(users)
+    .where(eq(users.email, rawEmail))
+    .limit(1);
+
+  if (!user || !user.passwordHash) {
+    throw createError({
+      statusCode: 401,
+      statusMessage: '邮箱或密码错误',
+    });
+  }
+
+  // 账号生命周期状态校验
+  if (user.status === 'pending') {
+    throw createError({
+      statusCode: 403,
+      statusMessage: '账号尚未激活，请查收验证邮件以完成激活',
+    });
+  }
+
+  if (user.status === 'suspended') {
+    throw createError({
+      statusCode: 403,
+      statusMessage: '账号已被暂停使用，请联系管理员',
+    });
+  }
+
+  const isPasswordValid = await verifyPassword(user.passwordHash, password);
+  if (!isPasswordValid) {
+    throw createError({
+      statusCode: 401,
+      statusMessage: '邮箱或密码错误',
+    });
+  }
+
+  // 签发会话凭证
+  const rawSessionToken = generateSecureToken();
+  const tokenHash = hashToken(rawSessionToken);
+  const now = new Date();
+  const expiresAt = new Date(
+    now.getTime() + (rememberMe ? 30 * 24 * 60 * 60 * 1000 : 24 * 60 * 60 * 1000)
+  );
+
+  await db.insert(authSessions).values({
+    userId: user.id,
+    tokenHash,
+    expiresAt,
+    ip: getEventIp(event),
+    userAgent: getRequestHeader(event, 'user-agent')?.slice(0, 512),
+  });
+
+  // 更新最后登录时间
+  await db
+    .update(users)
+    .set({ lastLoginAt: now })
+    .where(eq(users.id, user.id));
+
+  // 写入 HttpOnly Cookie
+  setSessionCookie(event, rawSessionToken, rememberMe);
+
+  return {
+    user: {
+      id: user.id,
+      email: user.email,
+      displayName: user.displayName,
+      role: user.role,
+      status: user.status,
+    },
+  };
+});

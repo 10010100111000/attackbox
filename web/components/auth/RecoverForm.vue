@@ -52,6 +52,8 @@ function validate(): boolean {
   return true
 }
 
+const { forgotPassword } = useAuth()
+
 async function handleSubmit() {
   if (busy.value) return
   if (!validate()) return
@@ -61,10 +63,16 @@ async function handleSubmit() {
   emit('update:modelValueEmail', cleanEmail)
 
   busy.value = true
-  await new Promise((resolve) => setTimeout(resolve, 650))
-  busy.value = false
-  hasSent.value = true
-  statusMessage.value = '重置密码链接已发送至你的邮箱，请查收邮件。'
+  statusMessage.value = ''
+  try {
+    const res = await forgotPassword(cleanEmail)
+    hasSent.value = true
+    statusMessage.value = res?.message || '重置密码链接已发送至你的邮箱，请查收邮件。'
+  } catch (err: any) {
+    statusMessage.value = err?.data?.statusMessage || err?.message || '发送失败，请稍后重试'
+  } finally {
+    busy.value = false
+  }
 }
 </script>
 

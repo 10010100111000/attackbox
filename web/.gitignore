@@ -18,6 +18,7 @@ yarn-error.log*
 # Misc
 .DS_Store
 *.local
+*.tar.gz
 
 # Tests (override root tests/ ignore)
 !tests/

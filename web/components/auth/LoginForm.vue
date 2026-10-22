@@ -79,6 +79,8 @@ function validate(): boolean {
   return true
 }
 
+const { login } = useAuth()
+
 async function handleSubmit() {
   if (busy.value) return
   if (!validate()) return
@@ -88,14 +90,19 @@ async function handleSubmit() {
   emit('update:modelValueEmail', cleanEmail)
 
   busy.value = true
-  await new Promise((resolve) => setTimeout(resolve, 650))
-  busy.value = false
-  password.value = ''
-  isSuccessPreview.value = true
-
-  nextTick(() => {
-    document.getElementById('form-title')?.focus()
-  })
+  statusMessage.value = ''
+  try {
+    await login(cleanEmail, password.value, rememberMe.value)
+    password.value = ''
+    isSuccessPreview.value = true
+    nextTick(() => {
+      document.getElementById('form-title')?.focus()
+    })
+  } catch (err: any) {
+    statusMessage.value = err?.data?.statusMessage || err?.message || '登录失败，请检查邮箱与密码'
+  } finally {
+    busy.value = false
+  }
 }
 
 function handleProvider(_providerName: string) {

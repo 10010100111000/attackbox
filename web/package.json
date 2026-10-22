@@ -7,18 +7,26 @@
     "generate": "nuxt generate",
     "dev": "nuxt dev",
     "preview": "nuxt preview",
-    "test": "node --experimental-strip-types --test tests/composables.test.js tests/ui.test.js tests/landing.test.js tests/auth.test.js",
+    "test": "node --experimental-strip-types --test tests/auth-crypto.test.js tests/composables.test.js tests/ui.test.js tests/landing.test.js tests/auth.test.js",
+    "db:generate": "drizzle-kit generate",
+    "admin:init": "node server/scripts/init-admin.mjs",
     "postinstall": "nuxt prepare"
   },
   "dependencies": {
+    "@node-rs/argon2": "^2.2.2",
+    "@node-rs/argon2-linux-x64-gnu": "^2.2.2",
+    "argon2": "^0.45.1",
     "clsx": "^2.1.1",
+    "drizzle-orm": "^0.45.4",
     "lucide-vue-next": "^0.475.0",
+    "postgres": "^3.4.9",
     "reka-ui": "^2.0.1",
     "tailwind-merge": "^3.7.0",
     "vue": "^3.5.13"
   },
   "devDependencies": {
     "@nuxtjs/tailwindcss": "^6.13.1",
+    "drizzle-kit": "^0.31.11",
     "nuxt": "^3.15.4",
     "tailwindcss": "^3.4.17",
     "typescript": "^5.7.3"

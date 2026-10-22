@@ -75,6 +75,8 @@ function validate(): boolean {
   return true
 }
 
+const { register } = useAuth()
+
 async function handleSubmit() {
   if (busy.value) return
   if (!validate()) return
@@ -84,10 +86,16 @@ async function handleSubmit() {
   emit('update:modelValueEmail', cleanEmail)
 
   busy.value = true
-  await new Promise((resolve) => setTimeout(resolve, 650))
-  busy.value = false
-  password.value = ''
-  statusMessage.value = '邮箱验证邮件已发送，请查收邮件以完成账号激活。'
+  statusMessage.value = ''
+  try {
+    const res = await register(cleanEmail, password.value)
+    password.value = ''
+    statusMessage.value = res?.message || '邮箱验证邮件已发送，请查收邮件以完成账号激活。'
+  } catch (err: any) {
+    statusMessage.value = err?.data?.statusMessage || err?.message || '注册失败，请稍后重试'
+  } finally {
+    busy.value = false
+  }
 }
 </script>
 
