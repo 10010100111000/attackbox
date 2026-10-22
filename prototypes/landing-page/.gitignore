@@ -1,0 +1,9 @@
+node_modules/
+
+# Local design explorations; only the accepted version is archived in Git.
+archive/
+THREE-LICENSE.txt
+screenshots/*
+!screenshots/31-clean-desktop.png
+!screenshots/32-clean-full.png
+!screenshots/33-clean-mobile.png
