@@ -1,0 +1,26 @@
+{
+  "name": "attackbox-web",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "nuxt build",
+    "generate": "nuxt generate",
+    "dev": "nuxt dev",
+    "preview": "nuxt preview",
+    "test": "node --experimental-strip-types --test tests/composables.test.js tests/ui.test.js tests/landing.test.js tests/auth.test.js",
+    "postinstall": "nuxt prepare"
+  },
+  "dependencies": {
+    "clsx": "^2.1.1",
+    "lucide-vue-next": "^0.475.0",
+    "reka-ui": "^2.0.1",
+    "tailwind-merge": "^3.7.0",
+    "vue": "^3.5.13"
+  },
+  "devDependencies": {
+    "@nuxtjs/tailwindcss": "^6.13.1",
+    "nuxt": "^3.15.4",
+    "tailwindcss": "^3.4.17",
+    "typescript": "^5.7.3"
+  }
+}

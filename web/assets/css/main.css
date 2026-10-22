@@ -1,0 +1,84 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: dark;
+
+  /* 深海暗色默认 */
+  --bg-app: #090a0e;
+  --bg-card: #111217;
+  --bg-input: #121318;
+  --text-main: #f2f0ed;
+  --text-muted: #96939d;
+  --border-line: rgba(255, 255, 255, 0.07);
+
+  /* 品牌高亮与交互态 */
+  --accent-coral: #ffaf88;
+  --accent-hover: #ffc19e;
+  --text-on-accent: #271a15;
+  --color-error: #e6a49c;
+
+  /* 渐变与阴影 Token */
+  --gradient-warm: linear-gradient(100deg, #ffe0b0, #ffae82 48%, #ef7c8d);
+  --selection-bg: rgba(255, 175, 136, 0.27);
+  --card-glow: 0 15px 45px rgba(0, 0, 0, 0.4);
+
+  /* 统一圆角 */
+  --radius-sm: 4px;
+  --radius-md: 7px;
+  --radius-lg: 11px;
+  --radius-xl: 18px;
+}
+
+[data-theme='light'] {
+  color-scheme: light;
+  --bg-app: #f9f8f6;
+  --bg-card: #ffffff;
+  --bg-input: #f2f0ed;
+  --text-main: #1d1b20;
+  --text-muted: #736d7a;
+  --border-line: rgba(0, 0, 0, 0.08);
+  --text-on-accent: #271a15;
+  --color-error: #c53030;
+}
+
+body {
+  margin: 0;
+  background-color: var(--bg-app);
+  color: var(--text-main);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft Yahei", sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+a:focus-visible, button:focus-visible, [tabindex]:focus-visible {
+  outline: 2px solid var(--accent-coral);
+  outline-offset: 5px;
+}
+
+::selection {
+  background: var(--selection-bg);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+  *, *::before, *::after {
+    transition: none !important;
+    animation: none !important;
+  }
+}
+
+/* 禁用原生密码框额外眼睛图标与填充按钮 */
+input::-ms-reveal,
+input::-ms-clear {
+  display: none !important;
+}
+
+input::-webkit-contacts-auto-fill-button,
+input::-webkit-credentials-auto-fill-button {
+  visibility: hidden;
+  position: absolute;
+  right: 0;
+}

@@ -1,0 +1,15 @@
+@keyframes blink {
+  50% { opacity: 0; }
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.animate-blink {
+  animation: blink 0.8s steps(1) infinite;
+}
+
+.animate-spin-slow {
+  animation: spin 0.7s linear infinite;
+}
