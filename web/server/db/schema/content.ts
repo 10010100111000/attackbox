@@ -13,6 +13,7 @@ export const modules = pgTable('modules', {
   title: varchar('title', { length: 160 }).notNull(),
   summary: varchar('summary', { length: 500 }).notNull().default(''),
   descriptionMarkdown: text('description_markdown').notNull().default(''),
+  learningOutcomes: text('learning_outcomes').array().notNull().default(sql`'{}'::text[]`),
   difficulty: varchar('difficulty', { length: 20 }).$type<Difficulty>().notNull().default('beginner'),
   categoryId: uuid('category_id').references(() => contentCategories.id, { onDelete: 'restrict' }),
   coverAssetId: uuid('cover_asset_id').references(() => assets.id, { onDelete: 'set null' }),
@@ -37,6 +38,7 @@ export const chapters = pgTable('chapters', {
   slug: varchar('slug', { length: 100 }).notNull(),
   position: integer('position').notNull(),
   title: varchar('title', { length: 160 }).notNull(),
+  durationMinutes: integer('duration_minutes'),
   access: varchar('access', { length: 20 }).$type<'public' | 'authenticated'>().notNull().default('public'),
   bodyMarkdown: text('body_markdown').notNull().default(''),
   createdAt: timestamp('created_at', { withTimezone: true, mode: 'date' }).notNull().defaultNow(),
@@ -45,6 +47,7 @@ export const chapters = pgTable('chapters', {
   uniqueIndex('chapters_module_position_unique').on(table.moduleId, table.position),
   check('chapters_slug_check', sql`${table.slug} ~ '^[a-z0-9]+(-[a-z0-9]+)*$'`),
   check('chapters_position_check', sql`${table.position} > 0`),
+  check('chapters_duration_check', sql`${table.durationMinutes} is null or ${table.durationMinutes} between 1 and 1440`),
   check('chapters_access_check', sql`${table.access} in ('public', 'authenticated')`),
 ])
 
@@ -69,3 +72,15 @@ export const chapterAssets = pgTable('chapter_assets', {
   chapterId: uuid('chapter_id').notNull().references(() => chapters.id, { onDelete: 'cascade' }),
   assetId: uuid('asset_id').notNull().references(() => assets.id, { onDelete: 'restrict' }),
 }, table => [primaryKey({ columns: [table.chapterId, table.assetId] }), index('chapter_assets_asset_idx').on(table.assetId)])
+
+// Ordered recommendations. They do not gate access to a module.
+export const modulePrerequisites = pgTable('module_prerequisites', {
+  moduleId: uuid('module_id').notNull().references(() => modules.id, { onDelete: 'cascade' }),
+  prerequisiteId: uuid('prerequisite_id').notNull().references(() => modules.id, { onDelete: 'cascade' }),
+  position: integer('position').notNull(),
+}, table => [
+  primaryKey({ columns: [table.moduleId, table.prerequisiteId] }),
+  uniqueIndex('module_prerequisites_position_unique').on(table.moduleId, table.position),
+  check('module_prerequisites_self_check', sql`${table.moduleId} <> ${table.prerequisiteId}`),
+  check('module_prerequisites_position_check', sql`${table.position} > 0`),
+])

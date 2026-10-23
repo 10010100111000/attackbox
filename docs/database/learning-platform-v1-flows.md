@@ -24,6 +24,9 @@
 ```json
 {
   "lockVersion": 1,
+  "intent": "publish",
+  "prerequisiteModuleIds": [],
+  "learningOutcomes": ["查看当前用户与文件权限"],
   "title": "Linux 基础",
   "categoryId": null,
   "difficulty": "beginner",
@@ -33,6 +36,7 @@
       "title": "认识 Shell",
       "access": "public",
       "bodyMarkdown": "# Shell",
+      "durationMinutes": 20,
       "questions": [
         {
           "id": "已有题目 ID，新题省略",
@@ -46,6 +50,10 @@
 }
 ```
 
+- `intent: "draft"` 保存并下架；`intent: "publish"` 保存并发布，包括新建模块。编辑器只发送一次 POST 或 PUT，不再串行保存与发布。省略 intent 的旧客户端仍按当前状态保存。
+- `prerequisiteModuleIds` 为有序模块 ID 数组，空数组清除，省略保持；最多 12 个，不能成环。管理详情返回 `prerequisites`（含发布状态），公开详情只返回已发布项。
+- 章节 `durationMinutes` 是可选整数（1–1440），显式 null 清空，省略保留；公开目录与章节正文均返回此值。
+- `learningOutcomes` 为可选学习目标列表；空数组清空，省略保持原值。
 - `chapters` 数组顺序就是章节顺序；完整数组中省略的已有章节会被删除。
 - 整个 `chapters` 字段省略表示不改章节。
 - 章节的 `questions` 字段省略表示不改题目；空数组表示移除全部题目。
@@ -56,7 +64,7 @@
 
 1. 锁住模块行，比较 `lockVersion`。
 2. 更新元信息；删除移除的章节；暂移位置后依序写入章节和题目，保留已有 ID 和答案。
-3. 若模块已发布，校验全部章节和题目完整性。
+3. 根据 intent 确定目标公开状态；若目标为发布，校验全部章节和题目完整性；同一事务写入公开状态。
 4. 递增 `lockVersion`，记录审计，同一事务提交。任何失败都回滚。
 
 读取管理详情、目录、正文采用一致性读，避免并发保存过程中拼接出不同时间点的内容。编辑器一次保存全部表单；保存成功后重新读取服务端数据。

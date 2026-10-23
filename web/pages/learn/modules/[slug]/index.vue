@@ -1,556 +1,171 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useRoute, useFetch, useHead } from '#imports'
+import { ArrowLeft, ArrowRight, BookOpen, Check, ChevronRight, LockKeyhole, Clock3 } from 'lucide-vue-next'
+import MarkdownView from '~/components/ui/MarkdownView.vue'
+import type { ContentCategory, Difficulty, PrerequisiteModule } from '~/shared/content'
 
-definePageMeta({
-  layout: 'learning'
-})
-
+definePageMeta({ layout: 'learning' })
 interface ChapterItem {
-  id: string
-  slug: string
-  title: string
-  access: 'public' | 'authenticated'
-  position: number
-  questionsCount: number
-  isLocked: boolean
+  id: string; slug: string; title: string; access: 'public' | 'authenticated'
+  position: number; durationMinutes: number | null; questionsCount: number; isLocked: boolean
 }
-
-interface ModuleDetail {
-  id: string
-  slug: string
-  title: string
-  summary: string
-  descriptionMarkdown: string
-  difficulty: 'beginner' | 'intermediate' | 'advanced'
-  coverAssetId: string | null
-  publishedAt: string
-  chapters: ChapterItem[]
+interface ModuleInfo {
+  id: string; slug: string; title: string; summary: string; descriptionMarkdown: string
+  difficulty: Difficulty; category: ContentCategory | null; learningOutcomes: string[]
 }
-
 const route = useRoute()
 const slug = computed(() => String(route.params.slug || ''))
-
-type ModuleInfo = Omit<ModuleDetail, 'chapters'>
-
-// 接口返回 { module, chapters },这里归一化成页面使用的扁平结构
 const { data: response, pending, error } = await useFetch<{
-  ok: boolean
-  data: { module: ModuleInfo; chapters: ChapterItem[] }
-}>(
-  () => `/api/modules/${slug.value}`
-)
-
-const moduleData = computed<ModuleDetail | null>(() => {
+  ok: boolean; data: { module: ModuleInfo; chapters: ChapterItem[]; prerequisites: Omit<PrerequisiteModule, 'status'>[] }
+}>(() => `/api/modules/${slug.value}`)
+const moduleData = computed(() => {
   const data = response.value?.data
-  if (!data) return null
-  return { ...data.module, chapters: data.chapters }
+  return data ? { ...data.module, chapters: data.chapters, prerequisites: data.prerequisites } : null
 })
-
-const pageTitle = computed(() => {
-  return moduleData.value ? `${moduleData.value.title} — AttackBox 学习路线` : '学习模块 — AttackBox'
+const firstChapter = computed(() => moduleData.value?.chapters[0])
+const totalMinutes = computed(() => {
+  const list = moduleData.value?.chapters || []
+  return list.length && list.every(ch => ch.durationMinutes !== null) ? list.reduce((total, ch) => total + ch.durationMinutes!, 0) : null
 })
-
-useHead({
-  title: pageTitle,
-  meta: [
-    {
-      name: 'description',
-      content: computed(() => moduleData.value?.summary || '循序渐进掌握核心技能。')
-    }
-  ]
-})
-
-function difficultyToLabel(diff?: string): string {
-  switch (diff) {
-    case 'beginner': return '基础入门'
-    case 'intermediate': return '中级进阶'
-    case 'advanced': return '高阶实战'
-    default: return '学习模块'
-  }
+const difficultyLabels = { beginner: '基础入门', intermediate: '中级进阶', advanced: '高阶实战' }
+function chapterLink(chapter: ChapterItem) {
+  const path = `/learn/modules/${slug.value}/${chapter.slug}`
+  return chapter.isLocked ? `/auth?returnTo=${encodeURIComponent(path)}` : path
 }
-
-const firstChapterSlug = computed(() => {
-  const chs = moduleData.value?.chapters || []
-  return chs.length > 0 ? chs[0].slug : null
+useHead({
+  title: computed(() => moduleData.value ? `${moduleData.value.title} — AttackBox` : '学习模块 — AttackBox'),
+  meta: [{ name: 'description', content: computed(() => moduleData.value?.summary || '') }],
 })
 </script>
 
 <template>
-  <div class="roadmap-page">
-    <div class="container">
-      <!-- 顶部面包屑 -->
-      <nav class="crumb" aria-label="面包屑">
-        <NuxtLink to="/learn">学习空间</NuxtLink>
-        <span>/</span>
-        <span class="crumb-current">{{ moduleData?.title || slug }}</span>
-      </nav>
-
-      <!-- 加载中 -->
-      <div v-if="pending" class="state-box">
-        正在获取模块详情…
-      </div>
-
-      <!-- 404 或加载失败 -->
-      <div v-else-if="error || !moduleData" class="state-box">
-        <h2>模块不存在或尚未公开发布</h2>
-        <p>该学习模块可能已被下架或尚未完成发布。</p>
-        <NuxtLink to="/learn" class="back-home-btn">返回学习主页</NuxtLink>
-      </div>
-
-      <!-- 正常模块概览 -->
-      <div v-else>
-        <!-- 头部 Hero -->
-        <section class="hero-section">
-          <div class="hero-content">
-            <div class="tag-row">
-              <span class="tag difficulty-tag">{{ difficultyToLabel(moduleData.difficulty) }}</span>
-              <span class="tag quiz-tag">章节测验</span>
-            </div>
-            <h1 class="hero-title">{{ moduleData.title }}</h1>
-            <p class="hero-desc">{{ moduleData.summary || '建立扎实的基础认知与操作经验。' }}</p>
-
-            <div class="stats-row">
-              <span class="stat-item">◷ 约 {{ moduleData.chapters.length * 12 }} 分钟</span>
-              <span class="stat-item">▤ {{ moduleData.chapters.length }} 个章节</span>
-              <span class="stat-item">◎ 无需复杂前置</span>
-            </div>
-
-            <div class="instruction-line">
-              <span class="check-icon">✓</span>
-              <span>阅读教程 → 通过测验 → 解锁下一章</span>
-            </div>
+  <div class="module-page">
+    <nav class="crumb" aria-label="面包屑">
+      <NuxtLink to="/learn"><ArrowLeft :size="15" aria-hidden="true" />学习模块</NuxtLink>
+      <ChevronRight :size="13" aria-hidden="true" />
+      <span>{{ moduleData?.title || slug }}</span>
+    </nav>
+    <div v-if="pending" class="state-box" role="status">正在加载模块详情…</div>
+    <div v-else-if="error || !moduleData" class="state-box">
+      <h1>模块暂不可用</h1>
+      <NuxtLink to="/learn">返回学习模块</NuxtLink>
+    </div>
+    <template v-else>
+      <header class="hero-section">
+        <div class="hero-content">
+          <div class="module-meta">
+            <span v-if="moduleData.category" class="category-tag">{{ moduleData.category.name }}</span>
+            <span>{{ difficultyLabels[moduleData.difficulty] }}</span>
+            <span class="chapter-count"><BookOpen :size="15" aria-hidden="true" />{{ moduleData.chapters.length }} 章节</span>
+            <span v-if="totalMinutes" class="chapter-count"><Clock3 :size="15" aria-hidden="true" />约 {{ totalMinutes }} 分钟</span>
           </div>
+          <h1>{{ moduleData.title }}</h1>
+          <p v-if="moduleData.summary" class="hero-desc">{{ moduleData.summary }}</p>
+        </div>
+        <NuxtLink v-if="firstChapter" :to="chapterLink(firstChapter)" class="start-learning-btn">
+          {{ firstChapter.isLocked ? '登录后学习' : '开始学习' }}<ArrowRight :size="17" aria-hidden="true" />
+        </NuxtLink>
+      </header>
 
-          <!-- 右侧学习进度卡片 -->
-          <aside class="summary-card">
-            <div class="summary-eyebrow">YOUR LEARNING PATH</div>
-            <div class="progress-header">
-              <strong>学习进度</strong>
-              <span class="progress-pct">0%</span>
-            </div>
-            <div class="progress-bar">
-              <i style="width: 0%"></i>
-            </div>
-            <p class="progress-caption">共 {{ moduleData.chapters.length }} 个章节待完成</p>
-
-            <NuxtLink
-              v-if="firstChapterSlug"
-              :to="`/learn/modules/${moduleData.slug}/${firstChapterSlug}`"
-              class="start-learning-btn"
-            >
-              开始学习 →
-            </NuxtLink>
-          </aside>
-        </section>
-
-        <!-- 双栏路线布局 -->
-        <div class="road-layout">
-          <!-- 左侧章节路线 -->
-          <section class="road-section">
-            <div class="road-header">
-              <h2 class="road-title">你的学习路线</h2>
-              <span class="road-subtitle">循序渐进，一次一步</span>
-            </div>
-
-            <div class="road-list">
-              <div
-                v-for="(chapter, index) in moduleData.chapters"
-                :key="chapter.id"
-                class="road-item"
-                :class="{ locked: chapter.isLocked }"
-              >
-                <div class="step-circle" :class="{ current: index === 0 && !chapter.isLocked }">
-                  {{ index + 1 }}
-                </div>
-
+      <div class="module-content" :class="{ 'with-outcomes': moduleData.learningOutcomes.length || moduleData.prerequisites.length }">
+        <div class="main-content">
+          <section v-if="moduleData.descriptionMarkdown.trim()" class="module-description" aria-label="模块介绍">
+            <MarkdownView :content="moduleData.descriptionMarkdown" />
+          </section>
+          <section class="chapters-section" aria-labelledby="chapters-heading">
+            <h2 id="chapters-heading">章节内容</h2>
+            <div class="chapter-list">
+              <NuxtLink v-for="(chapter, index) in moduleData.chapters" :key="chapter.id"
+                :to="chapterLink(chapter)" class="chapter-row">
+                <span class="chapter-number">{{ String(index + 1).padStart(2, '0') }}</span>
                 <div class="chapter-info">
-                  <h3 class="chapter-title">{{ chapter.title }}</h3>
-                  <p class="chapter-meta">
-                    {{ chapter.questionsCount }} 道练习题
-                    <span v-if="chapter.access === 'authenticated'" class="auth-required-badge">· 需登录</span>
-                  </p>
+                  <h3>{{ chapter.title }}</h3>
+                  <div v-if="chapter.questionsCount || chapter.isLocked || chapter.durationMinutes" class="chapter-meta">
+                    <span v-if="chapter.durationMinutes" class="access-label"><Clock3 :size="13" aria-hidden="true" />{{ chapter.durationMinutes }} 分钟</span>
+                    <span v-if="chapter.questionsCount">{{ chapter.questionsCount }} 道练习</span>
+                    <span v-if="chapter.isLocked" class="access-label"><LockKeyhole :size="13" aria-hidden="true" />需登录</span>
+                  </div>
                 </div>
-
-                <div class="chapter-action">
-                  <NuxtLink
-                    v-if="!chapter.isLocked"
-                    :to="`/learn/modules/${moduleData.slug}/${chapter.slug}`"
-                    class="enter-chapter-link"
-                  >
-                    进入学习 →
-                  </NuxtLink>
-                  <span v-else class="locked-badge" title="受限章节，请登录账号后解锁">
-                    🔒 待登录
-                  </span>
-                </div>
-              </div>
+                <ChevronRight :size="18" class="chapter-arrow" aria-hidden="true" />
+              </NuxtLink>
             </div>
           </section>
-
-          <!-- 右侧指引 -->
-          <aside class="aside-guidance">
-            <div class="guidance-block">
-              <h3>学完后，你将能够</h3>
-              <p>
-                ✓ 掌握核心基础原理与常用命令<br />
-                ✓ 独立完成实验环境中的排错与验证<br />
-                ✓ 在真实场景中做出合理的安全决策
-              </p>
-            </div>
-
-            <div class="guidance-block">
-              <h3>关于章节测验</h3>
-              <p>
-                每章均配置标准练习题，全部答对即可解锁下一章。答错会获得排查提示，可随时重试。
-              </p>
-            </div>
-          </aside>
         </div>
+        <aside v-if="moduleData.learningOutcomes.length || moduleData.prerequisites.length" class="module-sidebar">
+        <section v-if="moduleData.learningOutcomes.length" class="outcomes" aria-labelledby="outcomes-heading">
+          <h2 id="outcomes-heading">学完后，你将能够</h2>
+          <ul>
+            <li v-for="(outcome, index) in moduleData.learningOutcomes" :key="index">
+              <Check :size="16" aria-hidden="true" /><span>{{ outcome }}</span>
+            </li>
+          </ul>
+        </section>
+        <section v-if="moduleData.prerequisites.length" class="prerequisites" aria-labelledby="prerequisites-heading">
+          <h2 id="prerequisites-heading">前置学习模块</h2>
+          <ol class="prerequisite-chain">
+            <li v-for="(prerequisite, index) in moduleData.prerequisites" :key="prerequisite.id">
+              <NuxtLink :to="`/learn/modules/${prerequisite.slug}`"><span class="chain-number">{{ index + 1 }}</span><span>{{ prerequisite.title }}</span><ChevronRight :size="14" aria-hidden="true" /></NuxtLink>
+            </li>
+          </ol>
+        </section>
+        </aside>
       </div>
-    </div>
+    </template>
   </div>
 </template>
 
 <style scoped>
-.roadmap-page {
-  padding: 32px 0 64px;
-}
-
-.container {
-  max-width: 1190px;
-  margin: 0 auto;
-  padding: 0 32px;
-}
-
-/* 面包屑导航 */
-.crumb {
-  font-size: 13px;
-  color: var(--muted);
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-bottom: 28px;
-}
-
-.crumb a {
-  color: var(--muted);
-  text-decoration: none;
-  transition: color 0.15s ease;
-}
-
-.crumb a:hover {
-  color: var(--green);
-}
-
-.crumb-current {
-  color: var(--ink);
-  font-weight: 500;
-}
-
-/* Hero 头部 */
-.hero-section {
-  display: grid;
-  grid-template-columns: 1fr 300px;
-  gap: 60px;
-  border-bottom: 1px solid var(--line);
-  padding-bottom: 40px;
-}
-
-.hero-content {
-  max-width: 680px;
-}
-
-.tag-row {
-  display: flex;
-  gap: 8px;
-  margin-bottom: 12px;
-}
-
-.tag {
-  font-size: 11px;
-  font-weight: 600;
-  padding: 3px 8px;
-  border-radius: 4px;
-  background: var(--mint);
-  color: var(--green);
-}
-
-.quiz-tag {
-  background: var(--soft);
-  color: var(--muted);
-}
-
-.hero-title {
-  font-size: 32px;
-  font-weight: 750;
-  letter-spacing: -0.6px;
-  margin: 0 0 12px;
-  color: var(--ink);
-}
-
-.hero-desc {
-  font-size: 15px;
-  color: var(--muted);
-  line-height: 1.6;
-  margin: 0 0 20px;
-}
-
-.stats-row {
-  display: flex;
-  gap: 20px;
-  font-size: 13px;
-  color: var(--muted);
-  margin-bottom: 16px;
-  flex-wrap: wrap;
-}
-
-.instruction-line {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 13px;
-  color: var(--ink);
-}
-
-.check-icon {
-  color: var(--green);
-  font-weight: bold;
-}
-
-/* 进度卡片 */
-.summary-card {
-  background: var(--paper);
-  border: 1px solid var(--line);
-  border-radius: 12px;
-  padding: 24px;
-  align-self: start;
-}
-
-.summary-eyebrow {
-  font-family: monospace;
-  font-size: 10px;
-  letter-spacing: 1.5px;
-  color: var(--muted);
-  margin-bottom: 12px;
-}
-
-.progress-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  font-size: 14px;
-  margin-bottom: 8px;
-  color: var(--ink);
-}
-
-.progress-pct {
-  font-size: 12px;
-  color: var(--muted);
-}
-
-.progress-bar {
-  height: 6px;
-  background: var(--soft);
-  border-radius: 6px;
-  overflow: hidden;
-  margin-bottom: 10px;
-}
-
-.progress-bar i {
-  display: block;
-  background: var(--green);
-  height: 100%;
-}
-
-.progress-caption {
-  font-size: 12px;
-  color: var(--muted);
-  margin: 0 0 20px;
-}
-
-.start-learning-btn {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 100%;
-  padding: 10px;
-  background: var(--green);
-  color: var(--on-accent);
-  border-radius: 8px;
-  font-size: 13px;
-  font-weight: 600;
-  text-decoration: none;
-  transition: opacity 0.15s ease;
-}
-
-.start-learning-btn:hover {
-  opacity: 0.9;
-}
-
-/* 路线列表 */
-.road-layout {
-  display: grid;
-  grid-template-columns: 1fr 300px;
-  gap: 60px;
-  padding-top: 36px;
-}
-
-.road-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: baseline;
-  margin-bottom: 20px;
-}
-
-.road-title {
-  font-size: 20px;
-  font-weight: 700;
-  margin: 0;
-  color: var(--ink);
-}
-
-.road-subtitle {
-  font-size: 12px;
-  color: var(--muted);
-}
-
-.road-list {
-  background: var(--paper);
-  border: 1px solid var(--line);
-  border-radius: 12px;
-  padding: 0 24px;
-}
-
-.road-item {
-  display: flex;
-  align-items: center;
-  gap: 20px;
-  padding: 22px 0;
-  border-bottom: 1px solid var(--line);
-}
-
-.road-item:last-child {
-  border-bottom: none;
-}
-
-.step-circle {
-  width: 36px;
-  height: 36px;
-  flex-shrink: 0;
-  border-radius: 50%;
-  border: 1px solid var(--line);
-  display: grid;
-  place-items: center;
-  font-family: monospace;
-  font-size: 13px;
-  color: var(--muted);
-}
-
-.step-circle.current {
-  background: var(--mint);
-  border-color: var(--green);
-  color: var(--green);
-  font-weight: 700;
-}
-
-.chapter-info {
-  flex: 1;
-}
-
-.chapter-title {
-  font-size: 16px;
-  font-weight: 650;
-  margin: 0 0 4px;
-  color: var(--ink);
-}
-
-.chapter-meta {
-  font-size: 12px;
-  color: var(--muted);
-  margin: 0;
-}
-
-.auth-required-badge {
-  color: var(--accent);
-}
-
-.enter-chapter-link {
-  color: var(--green);
-  font-weight: 600;
-  font-size: 13px;
-  text-decoration: none;
-  white-space: nowrap;
-}
-
-.enter-chapter-link:hover {
-  text-decoration: underline;
-}
-
-.locked-badge {
-  font-size: 12px;
-  color: var(--muted);
-  white-space: nowrap;
-}
-
-/* 侧边指引 */
-.aside-guidance {
-  padding-top: 6px;
-}
-
-.guidance-block {
-  margin-bottom: 32px;
-}
-
-.guidance-block h3 {
-  font-size: 14px;
-  font-weight: 650;
-  color: var(--ink);
-  margin: 0 0 10px;
-}
-
-.guidance-block p {
-  font-size: 13px;
-  color: var(--muted);
-  line-height: 1.7;
-  margin: 0;
-}
-
-/* 状态框 */
-.state-box {
-  text-align: center;
-  padding: 64px 20px;
-  background: var(--paper);
-  border: 1px dashed var(--line);
-  border-radius: 12px;
-}
-
-.state-box h2 {
-  font-size: 18px;
-  margin: 0 0 10px;
-}
-
-.state-box p {
-  font-size: 14px;
-  color: var(--muted);
-  margin: 0 0 20px;
-}
-
-.back-home-btn {
-  display: inline-block;
-  padding: 8px 18px;
-  background: var(--ink);
-  color: var(--paper);
-  border-radius: 6px;
-  text-decoration: none;
-  font-size: 13px;
-}
-
-@media (max-width: 840px) {
-  .hero-section,
-  .road-layout {
-    grid-template-columns: 1fr;
-    gap: 32px;
-  }
+.module-page { width: 100%; max-width: 1150px; margin: 0 auto; padding: 32px 32px 80px; color: var(--ink); }
+.crumb { display: flex; align-items: center; gap: 10px; color: var(--muted); font-size: 13px; margin-bottom: 48px; }
+.crumb a { display: inline-flex; align-items: center; gap: 8px; color: inherit; text-decoration: none; white-space: nowrap; }
+.crumb > span { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.crumb a:hover { color: var(--green); }
+.hero-section { display: flex; align-items: center; justify-content: space-between; gap: 40px; padding-bottom: 36px; border-bottom: 1px solid var(--line); }
+.hero-content { max-width: 740px; min-width: 0; }
+.module-meta { display: flex; gap: 18px; align-items: center; flex-wrap: wrap; color: var(--muted); font-size: 13px; margin-bottom: 18px; }
+.category-tag { color: var(--green); }
+.chapter-count { display: inline-flex; align-items: center; gap: 7px; }
+h1 { font-size: clamp(28px, 4vw, 40px); line-height: 1.25; letter-spacing: -.7px; margin: 0; overflow-wrap: anywhere; }
+.hero-desc { color: var(--muted); font-size: 15px; line-height: 1.8; margin: 16px 0 0; white-space: pre-line; }
+.start-learning-btn { display: inline-flex; align-items: center; justify-content: center; gap: 16px; flex-shrink: 0; padding: 13px 22px; background: var(--green); color: var(--on-accent); border-radius: 8px; font-size: 14px; font-weight: 600; text-decoration: none; transition: opacity .15s; }
+.start-learning-btn:hover { opacity: .85; }
+.module-content { padding-top: 36px; }
+.module-content.with-outcomes { display: grid; grid-template-columns: minmax(0, 1fr) 280px; gap: 56px; align-items: start; }
+.main-content { min-width: 0; }
+.module-description { margin-bottom: 36px; }
+h2 { font-size: 17px; margin: 0 0 20px; font-weight: 650; }
+.chapter-list { border-top: 1px solid var(--line); }
+.chapter-row { display: flex; align-items: center; gap: 22px; padding: 22px 12px; border-bottom: 1px solid var(--line); text-decoration: none; color: inherit; transition: background .15s; border-radius: 4px; }
+.chapter-row:hover { background: var(--soft); }
+.chapter-number { font-family: monospace; color: var(--muted); font-size: 13px; flex-shrink: 0; }
+.chapter-info { flex: 1; min-width: 0; }
+h3 { font-size: 15px; line-height: 1.5; margin: 0; font-weight: 550; overflow-wrap: anywhere; }
+.chapter-meta { display: flex; gap: 16px; color: var(--muted); font-size: 12px; margin-top: 7px; }
+.access-label { display: inline-flex; align-items: center; gap: 5px; }
+.chapter-arrow { color: var(--muted); flex-shrink: 0; }
+.module-sidebar { padding: 0 0 0 24px; border-left: 1px solid var(--line); }
+.module-sidebar h2 { font-size: 15px; }
+.outcomes ul { list-style: none; padding: 0; margin: 0; display: grid; gap: 16px; }
+.outcomes li { display: flex; align-items: flex-start; gap: 10px; font-size: 13px; line-height: 1.8; color: var(--muted); overflow-wrap: anywhere; }
+.outcomes li svg { flex-shrink: 0; margin-top: 4px; color: var(--green); }
+.prerequisites:not(:first-child) { margin-top: 32px; }
+.prerequisite-chain { list-style: none; padding: 0; margin: 0; }
+.prerequisite-chain li { position: relative; padding-bottom: 16px; }
+.prerequisite-chain li:last-child { padding-bottom: 0; }
+.prerequisite-chain li:not(:last-child)::after { content: ''; position: absolute; left: 12px; top: 27px; bottom: 3px; border-left: 1px solid var(--line); }
+.prerequisite-chain a { display: flex; align-items: center; gap: 11px; text-decoration: none; color: var(--muted); font-size: 13px; line-height: 1.6; }
+.prerequisite-chain a:hover { color: var(--green); }
+.chain-number { display: grid; place-items: center; width: 25px; height: 25px; flex-shrink: 0; border: 1px solid var(--line); border-radius: 50%; font-size: 11px; font-family: monospace; }
+.prerequisite-chain a > span:nth-child(2) { flex: 1; overflow-wrap: anywhere; }
+.state-box { padding: 60px 0; color: var(--muted); }
+.state-box a { color: var(--green); }
+a:focus-visible { outline: 2px solid var(--green); outline-offset: 4px; }
+@media (max-width: 800px) {
+  .module-page { padding: 24px 20px 56px; }
+  .crumb { margin-bottom: 32px; }
+  .hero-section { flex-direction: column; align-items: flex-start; gap: 24px; }
+  .module-content.with-outcomes { grid-template-columns: 1fr; gap: 32px; }
+  .module-sidebar { padding: 24px 0 0; border-left: 0; border-top: 1px solid var(--line); }
 }
 </style>

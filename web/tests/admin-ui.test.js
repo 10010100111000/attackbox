@@ -50,11 +50,14 @@ test('pages/admin/modules/[id].vue defines editor tabs, direct saving, publish, 
   assert.ok(!content.includes('baseRevisionId'));
   assert.ok(content.includes('chapters: localChapters.value.map'));
   assert.ok(!content.includes('handleDiscardDraft'));
-  assert.ok(content.includes('保存后立即对学习者生效'));
+  assert.ok(content.includes('保存为草稿'));
+  assert.ok(content.includes('保存并发布'));
+  assert.ok(content.includes('module-outcomes'));
   assert.ok(content.includes('handleDeleteModule'));
   assert.ok(content.includes('editor-double-layout'));
   assert.ok(content.includes('MarkdownView'));
-  assert.ok(content.includes('handlePublish'));
+  assert.ok(!content.includes('handlePublish'));
+  assert.ok(!content.includes('/publish`'));
   assert.ok(content.includes('handleSave'));
   assert.ok(content.includes('handleMoveChapter'));
   assert.ok(content.includes('handleAddQuestion'));

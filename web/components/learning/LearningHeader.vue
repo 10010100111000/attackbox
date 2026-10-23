@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { Sun, Moon } from 'lucide-vue-next'
 import { useAuth } from '~/composables/useAuth'
 import { useTheme } from '~/composables/useTheme'
 
@@ -84,14 +85,14 @@ function closeMenu() {
             class="user-link"
             @click="closeMenu"
           >
-            <span>管理后台</span>
+            <span>管理员</span>
           </NuxtLink>
           <button
             type="button"
             class="user-link logout-btn"
             @click="handleLogout"
           >
-            <span>退出登录</span>
+            <span>退出</span>
           </button>
         </div>
         <div v-else class="user-links">
@@ -106,20 +107,20 @@ function closeMenu() {
 
         <div class="appearance">
           <span>外观</span>
-          <div class="appearance-switch" role="group" aria-label="外观模式">
+          <div class="appearance-switch" role="group" aria-label="外观">
             <button
               type="button"
               :aria-pressed="currentTheme === 'graphite'"
               @click="setTheme('graphite')"
             >
-              ☀ 石墨
+              <Sun :size="14" aria-hidden="true" /> 石墨
             </button>
             <button
               type="button"
               :aria-pressed="currentTheme === 'midnight'"
               @click="setTheme('midnight')"
             >
-              ☾ 深海
+              <Moon :size="14" aria-hidden="true" /> 深海
             </button>
           </div>
         </div>
@@ -330,6 +331,7 @@ function closeMenu() {
 }
 
 .appearance-switch button {
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
   background: transparent;
   color: var(--muted);
   padding: 6px 4px;
@@ -351,11 +353,11 @@ function closeMenu() {
   .learning-header {
     padding: 0 16px;
   }
-  .header-left {
-    gap: 16px;
-  }
-  .main-nav {
-    gap: 16px;
-  }
+  .header-left { gap: 14px; min-width: 0; }
+  .brand > span { display: none; }
+  .brand { flex-shrink: 0; }
+  .user-menu { flex-shrink: 0; }
+  .main-nav { gap: 12px; }
+  .main-nav a { font-size: 13px; white-space: nowrap; }
 }
 </style>

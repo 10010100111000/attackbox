@@ -10,12 +10,14 @@ export interface QuestionInput {
 }
 export interface ChapterInput {
   chapterId?: string; slug?: string; title: string; access: 'public' | 'authenticated'
-  bodyMarkdown: string; questions?: QuestionInput[]
+  bodyMarkdown: string; durationMinutes?: number | null; questions?: QuestionInput[]
 }
 export interface ModuleInput {
   title?: string; slug?: string; summary?: string; descriptionMarkdown?: string
   difficulty?: Difficulty; coverAssetId?: string | null; categoryId?: string | null
-  lockVersion?: number; chapters?: ChapterInput[]
+  lockVersion?: number; chapters?: ChapterInput[]; learningOutcomes?: string[]
+  prerequisiteModuleIds?: string[]
+  intent?: 'draft' | 'publish'
 }
 export interface AdminQuestion {
   id: string; position: number; promptMarkdown: string
@@ -23,14 +25,17 @@ export interface AdminQuestion {
 }
 export interface AdminChapter {
   chapterId: string; slug: string; position: number; title: string
-  access: 'public' | 'authenticated'; bodyMarkdown: string; questions: AdminQuestion[]
+  access: 'public' | 'authenticated'; bodyMarkdown: string; durationMinutes: number | null; questions: AdminQuestion[]
 }
 export interface AdminModule {
   id: string; slug: string; title: string; summary: string; descriptionMarkdown: string
+  learningOutcomes: string[]
   difficulty: Difficulty; categoryId: string | null; coverAssetId: string | null
   status: ModuleStatus; lockVersion: number; createdAt: string; updatedAt: string; publishedAt: string | null
 }
-export type AdminModuleListItem = Omit<AdminModule, 'descriptionMarkdown'> & { chapterCount: number; category: ContentCategory | null }
+export type AdminModuleListItem = Omit<AdminModule, 'descriptionMarkdown' | 'learningOutcomes'> & { chapterCount: number; category: ContentCategory | null }
 export interface AdminModuleDetail {
-  module: AdminModule; category: ContentCategory | null; chapters: AdminChapter[]
+  module: AdminModule; category: ContentCategory | null; chapters: AdminChapter[]; prerequisites: PrerequisiteModule[]
 }
+
+export interface PrerequisiteModule { id: string; slug: string; title: string; status: ModuleStatus }

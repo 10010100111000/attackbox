@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
 import { useRoute, useFetch, useHead } from '#imports'
+import { ArrowLeft, ArrowRight, LockKeyhole, PanelLeft, Clock3 } from 'lucide-vue-next'
 import MarkdownView from '~/components/ui/MarkdownView.vue'
 import { renderMarkdown, type MarkdownHeading } from '~/utils/markdown'
 
@@ -23,12 +24,14 @@ interface ChapterInfo {
   access: 'public' | 'authenticated'
   position: number
   bodyMarkdown: string
+  durationMinutes: number | null
 }
 
 // 接口返回 { chapter, questions },这里归一化成页面使用的扁平结构
 interface ChapterDetail {
   title: string
   bodyMarkdown: string
+  durationMinutes: number | null
   questions: QuestionItem[]
 }
 
@@ -80,6 +83,7 @@ const chapterData = computed<ChapterDetail | null>(() => {
   return {
     title: data.chapter.title,
     bodyMarkdown: data.chapter.bodyMarkdown,
+    durationMinutes: data.chapter.durationMinutes,
     questions: data.questions || []
   }
 })
@@ -149,10 +153,10 @@ async function handleCheckAnswer(q: QuestionItem) {
     )
     const result = res.data
     answerFeedbacks.value[q.id] = result.correct
-      ? { status: 'success', message: '✓ 回答正确' }
+      ? { status: 'success', message: '回答正确' }
       : {
           status: 'error',
-          message: result.errorHint ? `✗ 答案不正确。提示:${result.errorHint}` : '✗ 答案不正确,请再试一次。'
+          message: result.errorHint ? `Incorrect. Hint: ${result.errorHint}` : '✗ 答案不正确,请再试一次。'
         }
   } catch (error: any) {
     answerFeedbacks.value[q.id] = {
@@ -167,7 +171,7 @@ useHead({
     if (chapterData.value && moduleData.value) {
       return `${chapterData.value.title} — ${moduleData.value.title}`
     }
-    return '章节阅读 — AttackBox'
+    return 'Chapter — AttackBox'
   })
 })
 </script>
@@ -177,7 +181,7 @@ useHead({
     <!-- 401 权限拦截提示 -->
     <div v-if="chapterError && chapterError.statusCode === 401" class="auth-gate-container">
       <div class="auth-gate-card">
-        <div class="gate-icon">🔒</div>
+        <div class="gate-icon"><LockKeyhole :size="28" aria-hidden="true" /></div>
         <h2>受限学习内容</h2>
         <p>当前章节为受限内容，需要登录账号后继续学习。</p>
         <div class="gate-actions">
@@ -188,7 +192,7 @@ useHead({
             登录账号并继续
           </NuxtLink>
           <NuxtLink :to="`/learn/modules/${moduleSlug}`" class="gate-btn secondary">
-            返回学习大纲
+            回顾模块概览
           </NuxtLink>
         </div>
       </div>
@@ -201,7 +205,7 @@ useHead({
         <h2>章节不存在或尚未公开发布</h2>
         <p>找不到该章节，可能已被更新或下架。</p>
         <NuxtLink :to="`/learn/modules/${moduleSlug}`" class="gate-btn secondary">
-          返回模块大纲
+          回顾模块概览
         </NuxtLink>
       </div>
     </div>
@@ -218,7 +222,7 @@ useHead({
       <!-- 左侧目录侧边栏 -->
       <aside class="reading-sidebar" :class="{ 'drawer-open': isSidebarOpen }">
         <NuxtLink :to="`/learn/modules/${moduleSlug}`" class="back-link">
-          ← 返回模块大纲
+          <ArrowLeft :size="15" aria-hidden="true" /> 回顾模块概览
         </NuxtLink>
 
         <div class="sidebar-module-title">
@@ -226,7 +230,7 @@ useHead({
           <h3>{{ moduleData?.title || '学习模块' }}</h3>
         </div>
 
-        <div class="side-label">章节目录</div>
+        <div class="side-label">章节内容</div>
 
         <nav class="sidebar-chapters" aria-label="章节导航">
           <NuxtLink
@@ -242,13 +246,9 @@ useHead({
           >
             <span class="chapter-nav-num">{{ idx + 1 }}</span>
             <span class="chapter-nav-text">{{ ch.title }}</span>
-            <span v-if="ch.isLocked" class="chapter-nav-lock">🔒</span>
+            <LockKeyhole v-if="ch.isLocked" :size="13" class="chapter-nav-lock" aria-label="需登录" />
           </NuxtLink>
         </nav>
-
-        <div class="sidebar-footer-note">
-          通过当前章节测验后即可顺畅解锁下一章节。
-        </div>
       </aside>
 
       <!-- 中间正文与右侧 TOC -->
@@ -261,7 +261,7 @@ useHead({
               aria-label="展开目录"
               @click="isSidebarOpen = !isSidebarOpen"
             >
-              ☰ 目录
+              <PanelLeft :size="16" aria-hidden="true" /> 目录
             </button>
             <span class="breadcrumb-trail">
               <NuxtLink :to="`/learn/modules/${moduleSlug}`">{{ moduleData?.title }}</NuxtLink>
@@ -281,6 +281,7 @@ useHead({
               CHAPTER {{ String(chapterIndex + 1).padStart(2, '0') }}
             </div>
             <h1 class="chapter-main-title">{{ chapterData.title }}</h1>
+            <p v-if="chapterData.durationMinutes" class="chapter-duration"><Clock3 :size="14" aria-hidden="true" /> 预计 {{ chapterData.durationMinutes }} 分钟</p>
 
             <!-- Markdown 正文渲染 -->
             <MarkdownView
@@ -296,12 +297,10 @@ useHead({
                   <h2 class="quiz-title">章节实操练习</h2>
                 </div>
                 <span class="quiz-badge">
-                  {{ chapterData.questions.length }} 道练习题
+                  {{ chapterData.questions.length }} 道练习
                 </span>
               </div>
-              <p class="quiz-desc">
-                完成以下输入式检验题，以验证你对本章核心知识的理解。
-              </p>
+
 
               <div
                 v-for="(q, qIndex) in chapterData.questions"
@@ -353,14 +352,14 @@ useHead({
                 :to="`/learn/modules/${moduleSlug}/${prevChapter.slug}`"
                 class="btn-nav prev-btn"
               >
-                ← 上一章：{{ prevChapter.title }}
+                <ArrowLeft :size="15" aria-hidden="true" /> 上一章：{{ prevChapter.title }}
               </NuxtLink>
               <NuxtLink
                 v-else
                 :to="`/learn/modules/${moduleSlug}`"
                 class="btn-nav prev-btn"
               >
-                ← 返回学习路线
+                <ArrowLeft :size="15" aria-hidden="true" /> 回顾模块概览
               </NuxtLink>
 
               <NuxtLink
@@ -368,7 +367,7 @@ useHead({
                 :to="`/learn/modules/${moduleSlug}/${nextChapter.slug}`"
                 class="btn-nav next-btn"
               >
-                下一章：{{ nextChapter.title }} →
+                下一章：{{ nextChapter.title }} <ArrowRight :size="15" aria-hidden="true" />
               </NuxtLink>
               <NuxtLink
                 v-else-if="!nextChapter"
@@ -383,7 +382,7 @@ useHead({
           <!-- 右侧小节目录 TOC -->
           <aside class="toc-sidebar">
             <div class="toc-title">本章内容</div>
-            <nav class="toc-nav" aria-label="本章小节目录">
+            <nav class="toc-nav" aria-label="本章内容">
               <a
                 v-for="h in headings"
                 :key="h.id"
@@ -400,7 +399,7 @@ useHead({
                 class="toc-link quiz-toc-link"
                 @click.prevent="scrollToSection('quiz')"
               >
-                章节练习
+                章节实操练习
               </a>
             </nav>
           </aside>
@@ -411,6 +410,9 @@ useHead({
 </template>
 
 <style scoped>
+.chapter-duration { color: var(--muted); font-size: 13px; margin: -10px 0 28px; }
+svg { display: inline-block; vertical-align: middle; flex-shrink: 0; }
+
 .reading-page {
   min-height: calc(100vh - 68px);
   background: var(--bg);
@@ -591,15 +593,6 @@ useHead({
 
 .chapter-nav-lock {
   font-size: 12px;
-}
-
-.sidebar-footer-note {
-  margin-top: 24px;
-  padding-top: 16px;
-  border-top: 1px solid var(--line);
-  font-size: 12px;
-  color: var(--muted);
-  line-height: 1.5;
 }
 
 /* 中间主内容区 */

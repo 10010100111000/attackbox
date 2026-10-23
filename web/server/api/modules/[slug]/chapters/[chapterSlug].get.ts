@@ -4,7 +4,7 @@ import { db } from '../../../../db'
 import { modules, chapters, chapterQuestions } from '../../../../db/schema'
 export default defineEventHandler(async event => db.transaction(async tx => {
   const [chapter] = await tx.select({ id: chapters.id, slug: chapters.slug, title: chapters.title,
-    access: chapters.access, position: chapters.position, bodyMarkdown: chapters.bodyMarkdown,
+    access: chapters.access, position: chapters.position, durationMinutes: chapters.durationMinutes, bodyMarkdown: chapters.bodyMarkdown,
   }).from(chapters).innerJoin(modules, eq(chapters.moduleId, modules.id)).where(and(
     eq(modules.slug, getRouterParam(event, 'slug') || ''), eq(modules.status, 'published'),
     eq(chapters.slug, getRouterParam(event, 'chapterSlug') || ''),

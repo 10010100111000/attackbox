@@ -44,13 +44,18 @@ test('pages/learn/index.vue defines learning layout, /api/modules fetch, and cat
   assert.ok(content.includes('card-art'));
 });
 
-test('pages/learn/modules/[slug]/index.vue renders roadmap layout and stats', () => {
+test('pages/learn/modules/[slug]/index.vue renders real module content and configurable learning outcomes', () => {
   const content = fs.readFileSync(path.join(webDir, 'pages/learn/modules/[slug]/index.vue'), 'utf-8');
   assert.ok(content.includes("layout: 'learning'"));
   assert.ok(content.includes('/api/modules/'));
   assert.ok(content.includes('hero-section'));
-  assert.ok(content.includes('road-layout'));
-  assert.ok(content.includes('step-circle'));
+  assert.ok(content.includes('module-content'));
+  assert.ok(content.includes('moduleData.learningOutcomes'));
+  assert.ok(!content.includes('progress-pct'));
+  assert.ok(!content.includes('关于章节测验'));
+  assert.ok(!content.includes('循序渐进'));
+  assert.ok(content.includes('lucide-vue-next'));
+  assert.ok(content.includes('chapter-number'));
   assert.ok(content.includes('start-learning-btn'));
 });
 

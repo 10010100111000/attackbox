@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { BookOpen, Route, LayoutTemplate, Users, Server, Monitor, Settings, ExternalLink, LockKeyhole, Sun, Moon } from 'lucide-vue-next'
 import { useAuth } from '~/composables/useAuth'
 import { useTheme } from '~/composables/useTheme'
 
@@ -49,7 +50,7 @@ async function handleLogout() {
     <!-- 非管理员拦截提示 -->
     <div v-else-if="!isAdmin" class="admin-denied">
       <div class="denied-card">
-        <div class="denied-icon">🔒</div>
+        <div class="denied-icon"><LockKeyhole :size="28" aria-hidden="true" /></div>
         <h2>需要管理员权限</h2>
         <p>当前登录账号不是管理员，无法访问管理后台。</p>
         <div class="denied-actions">
@@ -77,42 +78,42 @@ async function handleLogout() {
             class="admin-nav-link"
             :class="{ active: currentSection === 'modules' }"
           >
-            <span class="nav-icon">▤</span>
+            <BookOpen :size="16" class="nav-icon" aria-hidden="true" />
             <span>学习模块</span>
           </NuxtLink>
           <span class="admin-nav-link disabled" title="后续阶段接入">
-            <span class="nav-icon">↳</span>
+            <Route :size="16" class="nav-icon" aria-hidden="true" />
             <span>学习路线</span>
             <span class="badge-plan">计划</span>
           </span>
           <span class="admin-nav-link disabled" title="后续阶段接入">
-            <span class="nav-icon">▧</span>
+            <LayoutTemplate :size="16" class="nav-icon" aria-hidden="true" />
             <span>首页管理</span>
             <span class="badge-plan">计划</span>
           </span>
 
           <div class="nav-group-label">账户管理</div>
           <span class="admin-nav-link disabled" title="后续阶段接入">
-            <span class="nav-icon">♙</span>
+            <Users :size="16" class="nav-icon" aria-hidden="true" />
             <span>用户管理</span>
             <span class="badge-plan">计划</span>
           </span>
 
           <div class="nav-group-label">环境管理</div>
           <span class="admin-nav-link disabled" title="后续阶段接入">
-            <span class="nav-icon">▦</span>
+            <Server :size="16" class="nav-icon" aria-hidden="true" />
             <span>节点管理</span>
             <span class="badge-plan">计划</span>
           </span>
           <span class="admin-nav-link disabled" title="后续阶段接入">
-            <span class="nav-icon">▣</span>
+            <Monitor :size="16" class="nav-icon" aria-hidden="true" />
             <span>运行实例</span>
             <span class="badge-plan">计划</span>
           </span>
 
           <div class="nav-group-label">系统管理</div>
           <span class="admin-nav-link disabled" title="后续阶段接入">
-            <span class="nav-icon">⚙</span>
+            <Settings :size="16" class="nav-icon" aria-hidden="true" />
             <span>系统设置</span>
             <span class="badge-plan">计划</span>
           </span>
@@ -120,7 +121,7 @@ async function handleLogout() {
 
         <div class="sidebar-bottom">
           <NuxtLink to="/learn" class="bottom-link" target="_blank">
-            <span>↗ 预览学习前台</span>
+            <ExternalLink :size="14" aria-hidden="true" /><span>预览学习前台</span>
           </NuxtLink>
           <div class="admin-user-info">
             <span class="admin-email">{{ currentUser?.email }}</span>
@@ -139,22 +140,22 @@ async function handleLogout() {
           </div>
 
           <div class="topbar-right">
-            <div class="theme-switch-mini" role="group" aria-label="外观切换">
+            <div class="theme-switch-mini" role="group" aria-label="外观">
               <button
                 type="button"
                 :class="{ active: currentTheme === 'graphite' }"
-                title="石墨模式"
+                title="石墨"
                 @click="setTheme('graphite')"
               >
-                ☀
+                <Sun :size="15" aria-hidden="true" />
               </button>
               <button
                 type="button"
                 :class="{ active: currentTheme === 'midnight' }"
-                title="深海模式"
+                title="深海"
                 @click="setTheme('midnight')"
               >
-                ☾
+                <Moon :size="15" aria-hidden="true" />
               </button>
             </div>
             <span class="admin-tag">管理员</span>
@@ -336,10 +337,9 @@ async function handleLogout() {
 }
 
 .bottom-link {
-  font-size: 12px;
+  display: flex; align-items: center; gap: 6px;  font-size: 12px;
   color: var(--green);
   text-decoration: none;
-  display: block;
   margin-bottom: 10px;
 }
 
