@@ -62,4 +62,33 @@ test('pages/learn/modules/[slug]/[chapterSlug].vue renders learn-shell, Markdown
   assert.ok(content.includes('quiz-card'));
   assert.ok(content.includes('answer-check-btn'));
   assert.ok(content.includes('auth-gate-card'));
+  // 阅读端必须适配后端嵌套结构,否则标题/正文会渲染成 undefined
+  assert.ok(content.includes('data.chapter.title'), 'chapter page must read data.chapter');
+  assert.ok(content.includes('data.questions'), 'chapter page must read top-level questions');
+  assert.ok(content.includes('/attempt'), 'chapter page must post answers to the attempt endpoint');
+  assert.ok(content.includes('renderPrompt'), 'question prompts must render through sanitized markdown');
+});
+
+test('reader pages map the nested API payload (module/chapter)', () => {
+  const modulePage = fs.readFileSync(path.join(webDir, 'pages/learn/modules/[slug]/index.vue'), 'utf-8');
+  assert.ok(modulePage.includes('data.module'), 'roadmap page must read data.module');
+  assert.ok(modulePage.includes('chapters: data.chapters'), 'roadmap page must lift data.chapters');
+  const chapterPage = fs.readFileSync(path.join(webDir, 'pages/learn/modules/[slug]/[chapterSlug].vue'), 'utf-8');
+  assert.ok(chapterPage.includes('data.module'), 'chapter page must read data.module for the module title');
+});
+
+test('quiz attempt endpoint verifies answers server-side without leaking hashes', () => {
+  const route = fs.readFileSync(path.join(webDir, 'server/api/modules/[slug]/chapters/[chapterSlug]/attempt.post.ts'), 'utf-8');
+  assert.ok(route.includes('verifyQuizAnswer'));
+  assert.ok(route.includes('questionId'));
+  const responseBlock = route.slice(route.indexOf('return {'));
+  assert.ok(responseBlock.includes('correct'));
+  assert.ok(responseBlock.includes('errorHint'));
+  assert.ok(!responseBlock.includes('answerHmac'), 'response must not leak answer_hmac');
+});
+
+test('nuxt.config injects a pre-paint theme bootstrap to avoid the theme flash', () => {
+  const content = fs.readFileSync(path.join(webDir, 'nuxt.config.ts'), 'utf-8');
+  assert.ok(content.includes('attackbox-appearance'));
+  assert.ok(content.includes('data-theme'));
 });

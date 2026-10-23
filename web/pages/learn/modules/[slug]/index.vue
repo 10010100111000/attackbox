@@ -31,12 +31,20 @@ interface ModuleDetail {
 const route = useRoute()
 const slug = computed(() => String(route.params.slug || ''))
 
-const { data: response, pending, error } = await useFetch<{ ok: boolean; data: ModuleDetail }>(
+type ModuleInfo = Omit<ModuleDetail, 'chapters'>
+
+// 接口返回 { module, chapters },这里归一化成页面使用的扁平结构
+const { data: response, pending, error } = await useFetch<{
+  ok: boolean
+  data: { module: ModuleInfo; chapters: ChapterItem[] }
+}>(
   () => `/api/modules/${slug.value}`
 )
 
 const moduleData = computed<ModuleDetail | null>(() => {
-  return response.value?.data || null
+  const data = response.value?.data
+  if (!data) return null
+  return { ...data.module, chapters: data.chapters }
 })
 
 const pageTitle = computed(() => {

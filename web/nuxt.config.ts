@@ -39,6 +39,13 @@ export default defineNuxtConfig({
       link: [
         { rel: 'icon', type: 'image/x-icon', href: '/favicon.ico' },
         { rel: 'apple-touch-icon', href: '/logo.png' }
+      ],
+      // 首屏前置读取本地主题,避免 SSR 默认「深海」在 hydration 后跳变成「石墨」造成闪烁
+      script: [
+        {
+          type: 'text/javascript',
+          innerHTML: `(function(){try{var t=localStorage.getItem("attackbox-appearance")||localStorage.getItem("attackbox-learning-theme");if(t!=="graphite"&&t!=="midnight"){t="graphite"}document.documentElement.setAttribute("data-theme",t)}catch(e){document.documentElement.setAttribute("data-theme","graphite")}})();`
+        }
       ]
     }
   }

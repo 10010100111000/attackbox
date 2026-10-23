@@ -2,7 +2,7 @@
 import { ref, computed } from 'vue'
 import { useRoute, useFetch, useHead } from '#imports'
 import MarkdownView from '~/components/ui/MarkdownView.vue'
-import type { MarkdownHeading } from '~/utils/markdown'
+import { renderMarkdown, type MarkdownHeading } from '~/utils/markdown'
 
 definePageMeta({
   layout: 'learning'
@@ -16,20 +16,19 @@ interface QuestionItem {
   normalization: string | null
 }
 
-interface ChapterDetail {
-  chapterId: string
+interface ChapterInfo {
+  id: string
   slug: string
-  position: number
-  chapterRevisionId: string
   title: string
   access: 'public' | 'authenticated'
+  position: number
   bodyMarkdown: string
-  isSealed: boolean
-  module: {
-    id: string
-    slug: string
-    publishedRevisionId: string
-  }
+}
+
+// 接口返回 { chapter, questions },这里归一化成页面使用的扁平结构
+interface ChapterDetail {
+  title: string
+  bodyMarkdown: string
   questions: QuestionItem[]
 }
 
@@ -60,21 +59,35 @@ const {
   data: chapterResponse,
   pending: chapterPending,
   error: chapterError
-} = await useFetch<{ ok: boolean; data: ChapterDetail }>(
+} = await useFetch<{
+  ok: boolean
+  data: { chapter: ChapterInfo; questions: QuestionItem[] }
+}>(
   () => `/api/modules/${moduleSlug.value}/chapters/${chapterSlug.value}`
 )
 
 // 2. 获取所属模块完整大纲
-const { data: moduleResponse } = await useFetch<{ ok: boolean; data: ModuleOutline }>(
+const { data: moduleResponse } = await useFetch<{
+  ok: boolean
+  data: { module: Omit<ModuleOutline, 'chapters'>; chapters: ModuleOutlineChapter[] }
+}>(
   () => `/api/modules/${moduleSlug.value}`
 )
 
 const chapterData = computed<ChapterDetail | null>(() => {
-  return chapterResponse.value?.data || null
+  const data = chapterResponse.value?.data
+  if (!data) return null
+  return {
+    title: data.chapter.title,
+    bodyMarkdown: data.chapter.bodyMarkdown,
+    questions: data.questions || []
+  }
 })
 
 const moduleData = computed<ModuleOutline | null>(() => {
-  return moduleResponse.value?.data || null
+  const data = moduleResponse.value?.data
+  if (!data) return null
+  return { ...data.module, chapters: data.chapters }
 })
 
 const isSidebarOpen = ref(false)
@@ -114,7 +127,11 @@ function scrollToSection(id: string) {
   }
 }
 
-function handleCheckAnswer(q: QuestionItem) {
+function renderPrompt(markdown: string): string {
+  return renderMarkdown(markdown || '').html
+}
+
+async function handleCheckAnswer(q: QuestionItem) {
   const input = (userAnswers.value[q.id] || '').trim()
   if (!input) {
     answerFeedbacks.value[q.id] = {
@@ -124,10 +141,24 @@ function handleCheckAnswer(q: QuestionItem) {
     return
   }
 
-  // 前端交互式轻量校验反馈
-  answerFeedbacks.value[q.id] = {
-    status: 'success',
-    message: '✓ 已完成输入并记录（最终成果将在提交测验时统一判定）'
+  answerFeedbacks.value[q.id] = { status: 'idle', message: '正在校验...' }
+  try {
+    const res = await $fetch<{ ok: boolean; data: { correct: boolean; errorHint: string | null } }>(
+      `/api/modules/${moduleSlug.value}/chapters/${chapterSlug.value}/attempt`,
+      { method: 'POST', body: { questionId: q.id, answer: input } }
+    )
+    const result = res.data
+    answerFeedbacks.value[q.id] = result.correct
+      ? { status: 'success', message: '✓ 回答正确' }
+      : {
+          status: 'error',
+          message: result.errorHint ? `✗ 答案不正确。提示:${result.errorHint}` : '✗ 答案不正确,请再试一次。'
+        }
+  } catch (error: any) {
+    answerFeedbacks.value[q.id] = {
+      status: 'error',
+      message: error?.data?.message || '校验失败,请稍后重试。'
+    }
   }
 }
 
@@ -279,7 +310,7 @@ useHead({
               >
                 <div class="question-label">
                   <span class="q-num">{{ qIndex + 1 }}.</span>
-                  <div class="q-prompt" v-html="q.promptMarkdown"></div>
+                  <div class="q-prompt" v-html="renderPrompt(q.promptMarkdown)"></div>
                 </div>
 
                 <div class="answer-line">

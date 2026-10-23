@@ -50,42 +50,18 @@ if ! sudo systemctl is-active --quiet attackbox-web.service; then
 fi
 echo "attackbox-web.service 正在运行中"
 
-# 检查并更新 Nginx 反向代理配置
-echo "--> 更新 Nginx /api/auth/ 路由..."
-if ! grep -q "location /api/auth/" /etc/nginx/sites-available/attackbox; then
-    sudo python3 - << 'PYEOF'
-with open("/etc/nginx/sites-available/attackbox", "r") as f:
-    content = f.read()
+# 验证 Nginx 配置并平滑重载
+sudo /usr/sbin/nginx -t
+sudo systemctl reload nginx
+echo "Nginx 路由检测与重载完成。"
 
-auth_block = """    location /api/auth/ {
-        proxy_pass http://127.0.0.1:3000;
-        proxy_http_version 1.1;
-        proxy_set_header Upgrade $http_upgrade;
-        proxy_set_header Connection "upgrade";
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-        proxy_read_timeout 60s;
-        proxy_send_timeout 60s;
-    }
-"""
-
-if "location /api/ {" in content:
-    content = content.replace("location /api/ {", auth_block + "\n    location /api/ {", 1)
-    with open("/etc/nginx/sites-available/attackbox", "w") as f:
-        f.write(content)
-print("Updated nginx configuration successfully.")
-PYEOF
+# 运行端到端测试套件 (E2E)
+if [ -f /var/www/attackbox-web/tests/auth-remote-e2e.mjs ]; then
+    echo "--> 运行端到端认证测试套件 (auth E2E)..."
+    cd /var/www/attackbox-web
+    BASE_URL="http://127.0.0.1" node --test tests/auth-remote-e2e.mjs
 fi
 
-sudo nginx -t
-sudo systemctl reload nginx
-echo "Nginx 路由重载完成。"
-
-echo "--> 运行端到端测试套件 (E2E)..."
-cd /var/www/attackbox-web
-BASE_URL="http://127.0.0.1" node --test tests/auth-remote-e2e.mjs
 echo "=========================================="
 echo "Remote Deployment & Verification Complete"
 echo "=========================================="

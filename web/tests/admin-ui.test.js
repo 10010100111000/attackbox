@@ -56,4 +56,9 @@ test('pages/admin/modules/[id].vue defines editor tabs, draft saving, publish, a
   assert.ok(content.includes('handleSaveDraft'));
   assert.ok(content.includes('handleMoveChapter'));
   assert.ok(content.includes('handleAddQuestion'));
+  assert.ok(content.includes('handleRemoveChapter'));
+  assert.ok(!content.includes('预览大纲'));
+  assert.ok(!content.includes('isPublishErrorModalOpen'));
+  assert.ok(content.indexOf("activeTab === 'basic'") < content.indexOf("activeTab === 'chapters'"));
+  assert.ok(content.includes('chapter-delete-btn'));
 });

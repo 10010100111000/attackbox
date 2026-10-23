@@ -26,7 +26,7 @@ async function addCategory() {
 function localId() { return globalThis.crypto?.randomUUID?.() || `${Date.now().toString(36)}-${Math.random().toString(36).slice(2,10)}` }
 
 const moduleData = computed<AdminModuleDetail | null>(() => isNew.value ? { module: { id: 'new', slug: '', publishedRevisionId: null, createdAt: '', archivedAt: null }, draft: null, published: null, editable: null, category: null, isPublished: false, hasDraft: false, chapterCount: 0, baseRevisionId: null, lockVersion: 0, chapters: [] } : response.value?.data || null)
-const activeTab = ref<'chapters' | 'basic'>(isNew.value ? 'basic' : 'chapters')
+const activeTab = ref<'chapters' | 'basic'>('basic')
 const selectedChapterId = ref<string | null>(null)
 const chapterEditorTab = ref<'markdown' | 'questions' | 'preview'>('markdown')
 const localChapters = ref<ChapterDraft[]>([])
@@ -34,7 +34,6 @@ const localModuleForm = ref({ title: '', slug: '', summary: '', descriptionMarkd
 const isDirty = ref(false), isSaving = ref(false), isPublishing = ref(false), isMutating = ref(false), toastMessage = ref('')
 const busy = computed(() => isSaving.value || isPublishing.value || isMutating.value)
 let toastTimer: ReturnType<typeof setTimeout> | undefined
-const isPreviewModalOpen = ref(false), publishErrors = ref<string[]>([]), isPublishErrorModalOpen = ref(false)
 function showToast(msg: string) { toastMessage.value = msg; clearTimeout(toastTimer); toastTimer = setTimeout(() => toastMessage.value = '', 4000) }
 function message(err: any) { return err?.data?.message || err?.data?.statusMessage || err?.message || '操作失败' }
 watch(response, val => {
@@ -51,6 +50,17 @@ function handleAddChapter() {
   const id = `local-${localId()}`
   localChapters.value.push({ chapterId: id, slug: `chapter-${localId().slice(0,8)}`, position: localChapters.value.length + 1, title: `新建章节 ${localChapters.value.length + 1}`, access: 'public', bodyMarkdown: '', isSealed: false, questions: [] })
   selectedChapterId.value = id; activeTab.value = 'chapters'; markDirty()
+}
+function handleRemoveChapter(index: number) {
+  const target = localChapters.value[index]
+  if (!target) return
+  if (!confirm(`确认从草稿中移除章节「${target.title}」?保存后生效,历史发布版本不受影响。`)) return
+  localChapters.value.splice(index, 1)
+  localChapters.value.forEach((ch, i) => { ch.position = i + 1 })
+  if (selectedChapterId.value === target.chapterId) {
+    selectedChapterId.value = localChapters.value[Math.min(index, localChapters.value.length - 1)]?.chapterId || null
+  }
+  markDirty()
 }
 function handleMoveChapter(index: number, delta: number) {
   const target = index + delta
@@ -85,7 +95,7 @@ async function handleSaveDraft(): Promise<boolean> {
 }
 async function handlePublish() {
   if (busy.value) return
-  isPublishing.value = true; publishErrors.value = []
+  isPublishing.value = true
   try {
     if ((isNew.value || isDirty.value || !moduleData.value?.draft) && !(await handleSaveDraft())) return
     await $fetch(`/api/admin/modules/${moduleId.value}/publish`, { method: 'POST', body: { lockVersion: localModuleForm.value.lockVersion, baseRevisionId: response.value?.data?.baseRevisionId } })
@@ -161,14 +171,6 @@ useHead({ title: computed(() => `${isNew.value ? '新建' : '编辑'}模块：${
           <button
             type="button"
             class="btn secondary"
-            @click="isPreviewModalOpen = true"
-          >
-            预览大纲
-          </button>
-
-          <button
-            type="button"
-            class="btn secondary"
             :disabled="busy"
             @click="handleSaveDraft"
           >
@@ -201,18 +203,18 @@ useHead({ title: computed(() => `${isNew.value ? '新建' : '编辑'}模块：${
         <button
           type="button"
           class="tab-link"
-          :class="{ active: activeTab === 'chapters' }"
-          @click="activeTab = 'chapters'"
-        >
-          章节内容 ({{ localChapters.length }})
-        </button>
-        <button
-          type="button"
-          class="tab-link"
           :class="{ active: activeTab === 'basic' }"
           @click="activeTab = 'basic'"
         >
           模块设置
+        </button>
+        <button
+          type="button"
+          class="tab-link"
+          :class="{ active: activeTab === 'chapters' }"
+          @click="activeTab = 'chapters'"
+        >
+          章节内容 ({{ localChapters.length }})
         </button>
       </div>
 
@@ -266,6 +268,16 @@ useHead({ title: computed(() => `${isNew.value ? '新建' : '编辑'}模块：${
                   ↓
                 </button>
               </div>
+              <button
+                type="button"
+                class="chapter-delete-btn"
+                :disabled="busy"
+                aria-label="删除章节"
+                title="删除章节"
+                @click="handleRemoveChapter(idx)"
+              >
+                ✕
+              </button>
             </div>
 
             <div v-if="localChapters.length === 0" class="empty-chapters">
@@ -504,54 +516,6 @@ useHead({ title: computed(() => `${isNew.value ? '新建' : '编辑'}模块：${
       </fieldset>
     </div>
 
-    <!-- 预览 Modal -->
-    <div v-if="isPreviewModalOpen" class="modal-backdrop" @click.self="isPreviewModalOpen = false">
-      <div class="modal-card">
-        <div class="modal-header">
-          <h2>{{ localModuleForm.title }} · 路线大纲预览</h2>
-          <button type="button" class="close-btn" @click="isPreviewModalOpen = false">✕</button>
-        </div>
-        <p class="preview-summary">{{ localModuleForm.summary || '暂无简介' }}</p>
-        <div class="outline-preview-list">
-          <div
-            v-for="(ch, idx) in localChapters"
-            :key="ch.chapterId"
-            class="outline-item"
-          >
-            <strong>{{ idx + 1 }}. {{ ch.title }}</strong>
-            <span class="outline-item-meta">{{ ch.questions.length }} 道练习题 · {{ ch.access === 'authenticated' ? '需登录' : '公开' }}</span>
-          </div>
-        </div>
-        <div class="modal-footer">
-          <button type="button" class="btn secondary" @click="isPreviewModalOpen = false">
-            关闭预览
-          </button>
-        </div>
-      </div>
-    </div>
-
-    <!-- 发布前阻断校验 Modal -->
-    <div v-if="isPublishErrorModalOpen" class="modal-backdrop" @click.self="isPublishErrorModalOpen = false">
-      <div class="modal-card">
-        <div class="modal-header">
-          <h2>发布前还需完善</h2>
-          <button type="button" class="close-btn" @click="isPublishErrorModalOpen = false">✕</button>
-        </div>
-        <p class="publish-error-desc">
-          发布模块要求所有章节具备正文且所有题目配置了标准答案，以下检查未通过：
-        </p>
-        <ul class="publish-error-list">
-          <li v-for="(err, eIdx) in publishErrors" :key="eIdx">
-            {{ err }}
-          </li>
-        </ul>
-        <div class="modal-footer">
-          <button type="button" class="btn primary" @click="isPublishErrorModalOpen = false">
-            继续编辑并完善
-          </button>
-        </div>
-      </div>
-    </div>
   </div>
 </template>
 
@@ -782,6 +746,21 @@ useHead({ title: computed(() => `${isNew.value ? '新建' : '编辑'}模块：${
 }
 
 .reorder-btns button:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
+.chapter-delete-btn {
+  background: transparent;
+  border: none;
+  color: var(--color-error);
+  font-size: 13px;
+  line-height: 1;
+  padding: 2px 4px;
+  cursor: pointer;
+}
+
+.chapter-delete-btn:disabled {
   opacity: 0.3;
   cursor: not-allowed;
 }

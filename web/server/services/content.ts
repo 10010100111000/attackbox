@@ -51,6 +51,7 @@ async function audit(tx: Tx, actor: string, id: string, action: string) {
 }
 async function writeChapter(tx: Tx, mod: typeof modules.$inferSelect, draft: typeof moduleRevisions.$inferSelect, actor: string, input: ChapterInput) {
   if (!input.title?.trim() || input.title.length > 160) fail('章节标题不能为空，且不能超过 160 字')
+  if (input.bodyMarkdown !== undefined && typeof input.bodyMarkdown !== 'string') fail('章节正文必须是文本')
   if (!['public', 'authenticated'].includes(input.access)) fail('章节访问权限无效')
   let chapterId = input.chapterId
   let oldRevisionId: string | undefined
@@ -219,7 +220,10 @@ export async function lifecycle(id: string, actor: string, action: 'publish' | '
       await tx.delete(moduleRevisions).where(eq(moduleRevisions.id, active.id))
     } else {
       // Archive rather than destroy revisions and future learning evidence.
-      await tx.update(modules).set({ archivedAt: new Date(), publishedRevisionId: null }).where(eq(modules.id, id))
+      // 同时释放 slug(加 -archived-<id8> 后缀),避免被删除模块永久占用访问标识。
+      const suffix = `-archived-${id.slice(0, 8)}`
+      const base = mod.slug.slice(0, Math.max(1, 100 - suffix.length)).replace(/-+$/, '') || 'module'
+      await tx.update(modules).set({ archivedAt: new Date(), publishedRevisionId: null, slug: `${base}${suffix}` }).where(eq(modules.id, id))
     }
     await audit(tx, actor, id, `admin.module.${action}`)
     if (action === 'publish' || action === 'unpublish') {
