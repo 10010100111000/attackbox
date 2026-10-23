@@ -42,18 +42,20 @@ test('pages/admin/modules/index.vue defines module list, status filters, and uns
   assert.ok(content.includes('filters-tabs'));
 });
 
-test('pages/admin/modules/[id].vue defines editor tabs, draft saving, publish, and reorder', () => {
+test('pages/admin/modules/[id].vue defines editor tabs, direct saving, publish, and reorder', () => {
   const content = fs.readFileSync(path.join(webDir, 'pages/admin/modules/[id].vue'), 'utf-8');
   assert.ok(content.includes("layout: 'admin'"));
   assert.ok(content.includes('/api/admin/modules/'));
-  assert.ok(content.includes('baseRevisionId'));
+  assert.ok(content.includes('lockVersion'));
+  assert.ok(!content.includes('baseRevisionId'));
   assert.ok(content.includes('chapters: localChapters.value.map'));
-  assert.ok(content.includes('handleDiscardDraft'));
+  assert.ok(!content.includes('handleDiscardDraft'));
+  assert.ok(content.includes('保存后立即对学习者生效'));
   assert.ok(content.includes('handleDeleteModule'));
   assert.ok(content.includes('editor-double-layout'));
   assert.ok(content.includes('MarkdownView'));
   assert.ok(content.includes('handlePublish'));
-  assert.ok(content.includes('handleSaveDraft'));
+  assert.ok(content.includes('handleSave'));
   assert.ok(content.includes('handleMoveChapter'));
   assert.ok(content.includes('handleAddQuestion'));
   assert.ok(content.includes('handleRemoveChapter'));

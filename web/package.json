@@ -11,7 +11,9 @@
     "db:generate": "drizzle-kit generate",
     "admin:init": "node server/scripts/init-admin.mjs",
     "postinstall": "nuxt prepare",
-    "test:content": "node --test tests/content-migration.test.mjs tests/content-lifecycle.test.mjs"
+    "test:content": "node --test tests/content-migration.test.mjs tests/content-lifecycle.test.mjs",
+    "db:migrate": "node server/scripts/apply-migrations.mjs",
+    "db:reset": "node server/scripts/reset-db.mjs"
   },
   "dependencies": {
     "@node-rs/argon2": "^2.2.2",

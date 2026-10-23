@@ -1,62 +1,14 @@
-import { defineEventHandler } from 'h3';
-import { db } from '../../db';
-import { modules, moduleRevisions, moduleRevisionChapters, contentCategories } from '../../db/schema';
-import { eq, isNotNull, isNull, and, desc, sql } from 'drizzle-orm';
-
+import { defineEventHandler } from 'h3'
+import { eq, desc, sql } from 'drizzle-orm'
+import { db } from '../../db'
+import { modules, chapters, contentCategories } from '../../db/schema'
 export default defineEventHandler(async () => {
-  // 查询所有已发布且未归档的模块
-  const publishedModules = await db
-    .select({
-      id: modules.id,
-      slug: modules.slug,
-      publishedRevisionId: modules.publishedRevisionId,
-      createdAt: modules.createdAt,
-      title: moduleRevisions.title,
-      summary: moduleRevisions.summary,
-      difficulty: moduleRevisions.difficulty,
-      categoryId: moduleRevisions.categoryId,
-      categorySlug: contentCategories.slug,
-      categoryName: contentCategories.name,
-      coverAssetId: moduleRevisions.coverAssetId,
-      publishedAt: moduleRevisions.publishedAt,
-    })
-    .from(modules)
-    .innerJoin(moduleRevisions, eq(modules.publishedRevisionId, moduleRevisions.id))
-    .leftJoin(contentCategories, eq(moduleRevisions.categoryId, contentCategories.id))
-    .where(
-      and(
-        isNotNull(modules.publishedRevisionId),
-        isNull(modules.archivedAt),
-        eq(moduleRevisions.state, 'published')
-      )
-    )
-    .orderBy(desc(moduleRevisions.publishedAt));
-
-  const items = [];
-
-  for (const mod of publishedModules) {
-    // 统计当前发布版本章节数
-    const [cnt] = await db
-      .select({ count: sql<number>`count(*)` })
-      .from(moduleRevisionChapters)
-      .where(eq(moduleRevisionChapters.moduleRevisionId, mod.publishedRevisionId!));
-
-    items.push({
-      id: mod.id,
-      slug: mod.slug,
-      title: mod.title,
-      summary: mod.summary,
-      difficulty: mod.difficulty,
-      categoryId: mod.categoryId,
-      category: mod.categoryId ? { id: mod.categoryId, slug: mod.categorySlug, name: mod.categoryName } : null,
-      coverAssetId: mod.coverAssetId,
-      publishedAt: mod.publishedAt,
-      chapterCount: Number(cnt?.count || 0),
-    });
-  }
-
-  return {
-    ok: true,
-    data: items,
-  };
-});
+  const items = await db.select({ id: modules.id, slug: modules.slug, title: modules.title,
+    summary: modules.summary, difficulty: modules.difficulty, categoryId: modules.categoryId,
+    coverAssetId: modules.coverAssetId, publishedAt: modules.publishedAt,
+    category: { id: contentCategories.id, slug: contentCategories.slug, name: contentCategories.name },
+    chapterCount: sql<number>`(select count(*)::int from ${chapters} where ${chapters.moduleId} = ${modules.id})`,
+  }).from(modules).leftJoin(contentCategories, eq(modules.categoryId, contentCategories.id))
+    .where(eq(modules.status, 'published')).orderBy(desc(modules.publishedAt))
+  return { ok: true, data: items }
+})

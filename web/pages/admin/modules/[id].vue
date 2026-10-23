@@ -5,8 +5,8 @@ import { useFetch, useHead } from '#imports'
 import MarkdownView from '~/components/ui/MarkdownView.vue'
 import type { Normalization, ContentCategory, AdminModuleDetail, Difficulty } from '~/shared/content'
 definePageMeta({ layout: 'admin' })
-interface QuestionDraft { id?: string; questionKey?: string; position?: number; promptMarkdown: string; answer: string; hasAnswer?: boolean; clearAnswer?: boolean; errorHint: string; normalization: Normalization }
-interface ChapterDraft { chapterId: string; slug: string; position: number; title: string; access: 'public' | 'authenticated'; bodyMarkdown: string; isSealed: boolean; questions: QuestionDraft[] }
+interface QuestionDraft { id?: string; position?: number; promptMarkdown: string; answer: string; hasAnswer?: boolean; clearAnswer?: boolean; errorHint: string; normalization: Normalization }
+interface ChapterDraft { chapterId: string; slug: string; position: number; title: string; access: 'public' | 'authenticated'; bodyMarkdown: string; questions: QuestionDraft[] }
 const route = useRoute(), router = useRouter()
 const moduleId = computed(() => String(route.params.id || ''))
 const isNew = computed(() => moduleId.value === 'new')
@@ -25,8 +25,10 @@ async function addCategory() {
 }
 function localId() { return globalThis.crypto?.randomUUID?.() || `${Date.now().toString(36)}-${Math.random().toString(36).slice(2,10)}` }
 
-const moduleData = computed<AdminModuleDetail | null>(() => isNew.value ? { module: { id: 'new', slug: '', publishedRevisionId: null, createdAt: '', archivedAt: null }, draft: null, published: null, editable: null, category: null, isPublished: false, hasDraft: false, chapterCount: 0, baseRevisionId: null, lockVersion: 0, chapters: [] } : response.value?.data || null)
-const activeTab = ref<'chapters' | 'basic'>('basic')
+const moduleData = computed<AdminModuleDetail | null>(() => response.value?.data || null)
+const isPublished = computed(() => !isNew.value && moduleData.value?.module.status === 'published')
+const moreOpen = ref(false)
+const activeTab = ref<'chapters' | 'basic'>(route.query.tab === 'chapters' ? 'chapters' : 'basic')
 const selectedChapterId = ref<string | null>(null)
 const chapterEditorTab = ref<'markdown' | 'questions' | 'preview'>('markdown')
 const localChapters = ref<ChapterDraft[]>([])
@@ -38,9 +40,9 @@ function showToast(msg: string) { toastMessage.value = msg; clearTimeout(toastTi
 function message(err: any) { return err?.data?.message || err?.data?.statusMessage || err?.message || '操作失败' }
 watch(response, val => {
   if (!val?.data || isNew.value) return
-  const data = val.data, d = data.editable || data.draft || data.published
+  const data = val.data, d = data.module
   const previousSlug = localChapters.value.find(c => c.chapterId === selectedChapterId.value)?.slug
-  localModuleForm.value = { title: d?.title || '', slug: data.module.slug, summary: d?.summary || '', descriptionMarkdown: d?.descriptionMarkdown || '', difficulty: d?.difficulty || 'beginner', categoryId: d?.categoryId || null, lockVersion: data.lockVersion ?? data.draft?.lockVersion ?? 0 }
+  localModuleForm.value = { title: d?.title || '', slug: data.module.slug, summary: d?.summary || '', descriptionMarkdown: d?.descriptionMarkdown || '', difficulty: d?.difficulty || 'beginner', categoryId: d?.categoryId || null, lockVersion: d.lockVersion }
   localChapters.value = (data.chapters || []).map((ch) => ({ ...ch, questions: (ch.questions || []).map((q) => ({ ...q, answer: '', clearAnswer: false, errorHint: q.errorHint || '' })) }))
   if (!localChapters.value.some(c => c.chapterId === selectedChapterId.value)) selectedChapterId.value = localChapters.value.find(c => c.slug === previousSlug)?.chapterId || localChapters.value[0]?.chapterId || null
 }, { immediate: true })
@@ -48,13 +50,13 @@ const activeChapter = computed(() => localChapters.value.find(c => c.chapterId =
 function markDirty() { isDirty.value = true }
 function handleAddChapter() {
   const id = `local-${localId()}`
-  localChapters.value.push({ chapterId: id, slug: `chapter-${localId().slice(0,8)}`, position: localChapters.value.length + 1, title: `新建章节 ${localChapters.value.length + 1}`, access: 'public', bodyMarkdown: '', isSealed: false, questions: [] })
+  localChapters.value.push({ chapterId: id, slug: `chapter-${localId().slice(0,8)}`, position: localChapters.value.length + 1, title: `新建章节 ${localChapters.value.length + 1}`, access: 'public', bodyMarkdown: '', questions: [] })
   selectedChapterId.value = id; activeTab.value = 'chapters'; markDirty()
 }
 function handleRemoveChapter(index: number) {
   const target = localChapters.value[index]
   if (!target) return
-  if (!confirm(`确认从草稿中移除章节「${target.title}」?保存后生效,历史发布版本不受影响。`)) return
+  if (!confirm(`删除章节「${target.title}」？保存后生效。`)) return
   localChapters.value.splice(index, 1)
   localChapters.value.forEach((ch, i) => { ch.position = i + 1 })
   if (selectedChapterId.value === target.chapterId) {
@@ -70,26 +72,25 @@ function handleMoveChapter(index: number, delta: number) {
 }
 function handleAddQuestion() { activeChapter.value?.questions.push({ promptMarkdown: '', answer: '', errorHint: '', normalization: 'trim', hasAnswer: false }); markDirty() }
 function handleRemoveQuestion(index: number) { activeChapter.value?.questions.splice(index, 1); markDirty() }
-async function handleSaveDraft(): Promise<boolean> {
+async function handleSave(): Promise<boolean> {
   if (isSaving.value) return false
   if (!localModuleForm.value.title.trim()) { activeTab.value = 'basic'; showToast('请填写模块名称'); return false }
   isSaving.value = true
   try {
     const payload = { ...localModuleForm.value,
-      baseRevisionId: isNew.value ? undefined : response.value?.data?.baseRevisionId,
       lockVersion: isNew.value ? undefined : localModuleForm.value.lockVersion,
       chapters: localChapters.value.map(ch => ({
         chapterId: ch.chapterId.startsWith('local-') ? undefined : ch.chapterId,
         slug: ch.slug, title: ch.title, access: ch.access, bodyMarkdown: ch.bodyMarkdown,
-        questions: ch.questions.map(q => ({ id: q.id, questionKey: q.questionKey, promptMarkdown: q.promptMarkdown,
+        questions: ch.questions.map(q => ({ id: q.id, promptMarkdown: q.promptMarkdown,
           answer: q.answer.length ? q.answer : undefined, clearAnswer: q.clearAnswer || false, errorHint: q.errorHint, normalization: q.normalization }))
       })) }
     if (isNew.value) {
       const res = await $fetch<any>('/api/admin/modules', { method: 'POST', body: payload })
       isDirty.value = false
-      await router.replace(`/admin/modules/${res.data.module.id}`)
-    } else await $fetch(`/api/admin/modules/${moduleId.value}/draft`, { method: 'PUT', body: payload })
-    await refresh(); isDirty.value = false; showToast('全部草稿已保存，线上版本未改变'); return true
+      await router.replace({ path: `/admin/modules/${res.data.module.id}`, query: { tab: activeTab.value } })
+    } else await $fetch(`/api/admin/modules/${moduleId.value}`, { method: 'PUT', body: payload })
+    await refresh(); isDirty.value = false; showToast(isPublished.value ? '更新已保存并生效' : '内容已保存'); return true
   } catch (err) { showToast(message(err)); return false }
   finally { isSaving.value = false }
 }
@@ -97,36 +98,30 @@ async function handlePublish() {
   if (busy.value) return
   isPublishing.value = true
   try {
-    if ((isNew.value || isDirty.value || !moduleData.value?.draft) && !(await handleSaveDraft())) return
-    await $fetch(`/api/admin/modules/${moduleId.value}/publish`, { method: 'POST', body: { lockVersion: localModuleForm.value.lockVersion, baseRevisionId: response.value?.data?.baseRevisionId } })
+    if ((isNew.value || isDirty.value) && !(await handleSave())) return
+    await $fetch(`/api/admin/modules/${moduleId.value}/publish`, { method: 'POST', body: { lockVersion: localModuleForm.value.lockVersion } })
     await refresh(); isDirty.value = false; showToast('模块已发布')
   } catch (err) { showToast(message(err)) }
   finally { isPublishing.value = false }
 }
 async function handleUnpublish() {
-  if (busy.value || !confirm('确认下架？章节与历史版本会完整保留。')) return
+  if (busy.value || !confirm('下架后学习者将无法访问，内容仍可编辑。确认下架？')) return
   if (isDirty.value && !confirm('继续将放弃未保存的本地修改，是否继续？')) return
   isMutating.value = true
-  try { await $fetch(`/api/admin/modules/${moduleId.value}/unpublish`, { method: 'POST' }); await refresh(); isDirty.value = false; showToast('已下架，内容已保留为草稿') }
-  catch (err) { showToast(message(err)) } finally { isMutating.value = false }
-}
-async function handleDiscardDraft() {
-  if (busy.value || !confirm('移除保存的草稿并放弃本地修改？历史发布版本不会删除。')) return
-  isMutating.value = true
-  try { await $fetch(`/api/admin/modules/${moduleId.value}/draft`, { method: 'DELETE', body: { baseRevisionId: response.value?.data?.baseRevisionId, lockVersion: localModuleForm.value.lockVersion } }); await refresh(); isDirty.value = false; showToast('草稿已移除，已回到历史发布内容') }
+  try { await $fetch(`/api/admin/modules/${moduleId.value}/unpublish`, { method: 'POST', body: { lockVersion: localModuleForm.value.lockVersion } }); await refresh(); isDirty.value = false; moreOpen.value = false; showToast('已下架，内容已保留') }
   catch (err) { showToast(message(err)) } finally { isMutating.value = false }
 }
 async function handleDeleteModule() {
-  if (busy.value || !confirm(isNew.value ? '放弃未保存内容并取消新建？' : '删除该模块？它将从学习页和管理列表移除，历史内容保留。')) return
+  if (busy.value || !confirm(isNew.value ? '放弃未保存内容并取消新建？' : '永久删除该模块及其全部章节和题目？此操作无法撤销。')) return
   isMutating.value = true
-  try { if (!isNew.value) await $fetch(`/api/admin/modules/${moduleId.value}`, { method: 'DELETE' }); isDirty.value = false; await router.push('/admin/modules') }
+  try { if (!isNew.value) await $fetch(`/api/admin/modules/${moduleId.value}`, { method: 'DELETE', body: { lockVersion: localModuleForm.value.lockVersion } }); isDirty.value = false; await router.push('/admin/modules') }
   catch (err) { showToast(message(err)) } finally { isMutating.value = false }
 }
 function beforeUnload(event: BeforeUnloadEvent) { if (isDirty.value) { event.preventDefault(); event.returnValue = '' } }
 onMounted(() => window.addEventListener('beforeunload', beforeUnload))
 onBeforeUnmount(() => { clearTimeout(toastTimer); window.removeEventListener('beforeunload', beforeUnload) })
 onBeforeRouteLeave(() => !isDirty.value || confirm('有未保存修改，确认离开？'))
-useHead({ title: computed(() => `${isNew.value ? '新建' : '编辑'}模块：${localModuleForm.value.title || '草稿'} — AttackBox`) })
+useHead({ title: computed(() => `${isNew.value ? '新建' : '编辑'}模块：${localModuleForm.value.title || '未命名模块'} — AttackBox`) })
 </script>
 <template>
   <div class="module-editor-page">
@@ -137,11 +132,11 @@ useHead({ title: computed(() => `${isNew.value ? '新建' : '编辑'}模块：${
 
     <!-- 加载中 -->
     <div v-if="pending && !isNew" class="state-panel">
-      正在加载模块详情与修订历史…
+      正在加载模块…
     </div>
 
     <!-- 异常状态 -->
-    <div v-else-if="error || !moduleData" class="state-panel">
+    <div v-else-if="!isNew && (error || !moduleData)" class="state-panel">
       <h2>模块不存在或无权访问</h2>
       <NuxtLink to="/admin/modules" class="back-btn">← 返回模块列表</NuxtLink>
     </div>
@@ -153,47 +148,45 @@ useHead({ title: computed(() => `${isNew.value ? '新建' : '编辑'}模块：${
         <div>
           <div class="title-status-row">
             <h1 class="editor-title">{{ localModuleForm.title || '未命名模块' }}</h1>
-            <span v-if="moduleData.module.publishedRevisionId" class="badge published">已发布</span>
-            <span v-else class="badge draft">草稿</span>
+            <span v-if="isPublished" class="badge published">已发布</span>
+            <span v-else class="badge unpublished">未发布</span>
           </div>
           <p class="module-sub-meta">
-            {{ localChapters.length }} 章节 · /learn/{{ moduleData.module.slug }}
+            {{ localChapters.length }} 章节<span v-if="!isNew"> · /learn/modules/{{ localModuleForm.slug }}</span><span v-if="isPublished"> · 保存后立即对学习者生效</span>
           </p>
         </div>
 
         <div class="action-buttons">
-          <button v-if="!isNew && moduleData.draft && (moduleData.published || moduleData.editable?.revisionNo > 1)" type="button" class="btn secondary" :disabled="busy" @click="handleDiscardDraft">移除草稿</button>
-          <button type="button" class="btn danger-outline" :disabled="busy" @click="handleDeleteModule">{{ isNew ? '取消新建' : '删除模块' }}</button>
           <span class="save-status-text" :class="{ dirty: isDirty }">
             {{ isNew ? '首次保存后创建模块' : isDirty ? '● 有未保存修改' : '✓ 已保存' }}
           </span>
 
           <button
             type="button"
-            class="btn secondary"
-            :disabled="busy"
-            @click="handleSaveDraft"
+            :class="['btn', isNew || isPublished ? 'primary' : 'secondary']"
+            :disabled="busy || (!isNew && !isDirty)"
+            @click="handleSave"
           >
-            {{ isSaving ? '保存中…' : '保存草稿' }}
+            {{ isSaving ? '保存中…' : isPublished ? '保存更新' : '保存' }}
           </button>
 
           <button
             type="button"
             class="btn primary"
             :disabled="busy"
+            v-if="!isNew && !isPublished"
             @click="handlePublish"
           >
-            {{ isPublishing ? '发布中…' : (moduleData.module.publishedRevisionId ? '发布更新' : '发布模块') }}
+            {{ isPublishing ? '发布中…' : '发布模块' }}
           </button>
 
-          <button
-            v-if="moduleData.module.publishedRevisionId"
-            type="button"
-            class="btn danger-outline"
-            @click="handleUnpublish"
-          >
-            下架
-          </button>
+          <div class="more-actions">
+            <button type="button" class="btn secondary" :disabled="busy" :aria-expanded="moreOpen" @click="moreOpen = !moreOpen">更多</button>
+            <div v-if="moreOpen" class="more-menu">
+              <button v-if="isPublished" type="button" :disabled="busy" @click="handleUnpublish">下架模块</button>
+              <button type="button" class="danger" :disabled="busy" @click="handleDeleteModule">{{ isNew ? '取消新建' : '删除模块' }}</button>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -354,7 +347,7 @@ useHead({ title: computed(() => `${isNew.value ? '新建' : '编辑'}模块：${
                 @input="markDirty"
               ></textarea>
               <div class="editor-tip">
-                支持标准 Markdown 与代码高亮块（```bash），修改后记得保存草稿。
+                支持标准 Markdown 与代码高亮块（```bash），修改后点击保存。
               </div>
             </div>
 
@@ -469,7 +462,7 @@ useHead({ title: computed(() => `${isNew.value ? '新建' : '编辑'}模块：${
         <div v-if="!isNew" class="form-field">
           <label>模块访问标识 (Slug)</label>
           <input
-            :value="moduleData.module.slug"
+            :value="localModuleForm.slug"
             type="text"
             class="form-input"
             disabled
@@ -502,16 +495,6 @@ useHead({ title: computed(() => `${isNew.value ? '新建' : '编辑'}模块：${
           </select>
         </div>
 
-        <div class="settings-actions">
-          <button
-            type="button"
-            class="btn primary"
-            :disabled="busy"
-            @click="handleSaveDraft"
-          >
-            {{ isSaving ? '保存中…' : '保存模块设置' }}
-          </button>
-        </div>
       </div>
       </fieldset>
     </div>
@@ -520,6 +503,12 @@ useHead({ title: computed(() => `${isNew.value ? '新建' : '编辑'}模块：${
 </template>
 
 <style scoped>
+.more-actions { position: relative; }
+.more-menu { position: absolute; top: calc(100% + 8px); right: 0; z-index: 20; min-width: 130px; padding: 5px; border: 1px solid var(--line); border-radius: 8px; background: var(--paper); box-shadow: 0 8px 24px #0002; }
+.more-menu button { display: block; width: 100%; text-align: left; padding: 9px 12px; background: transparent; border: 0; border-radius: 5px; color: var(--ink); cursor: pointer; }
+.more-menu button:hover { background: var(--soft); }
+.more-menu .danger { color: var(--error-ink, #bf4545); }
+
 .editor-content { border: 0; padding: 0; margin: 0; min-width: 0; }
 .module-editor-page {
   max-width: 1200px;
@@ -576,7 +565,7 @@ useHead({ title: computed(() => `${isNew.value ? '新建' : '编辑'}模块：${
   color: var(--success-ink);
 }
 
-.badge.draft {
+.badge.unpublished {
   background: var(--soft);
   color: var(--muted);
 }
@@ -929,101 +918,6 @@ useHead({ title: computed(() => `${isNew.value ? '新建' : '编辑'}模块：${
   padding: 64px;
   text-align: center;
   color: var(--muted);
-}
-
-.settings-actions {
-  margin-top: 24px;
-}
-
-/* Modal */
-.modal-backdrop {
-  position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.5);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 100;
-  padding: 16px;
-}
-
-.modal-card {
-  max-width: 560px;
-  width: 100%;
-  background: var(--paper);
-  border: 1px solid var(--line);
-  border-radius: 12px;
-  padding: 24px;
-}
-
-.modal-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 16px;
-}
-
-.modal-header h2 {
-  font-size: 18px;
-  margin: 0;
-  color: var(--ink);
-}
-
-.close-btn {
-  background: transparent;
-  border: none;
-  font-size: 16px;
-  cursor: pointer;
-  color: var(--muted);
-}
-
-.preview-summary {
-  font-size: 13px;
-  color: var(--muted);
-  margin-bottom: 20px;
-}
-
-.outline-preview-list {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  max-height: 360px;
-  overflow-y: auto;
-}
-
-.outline-item {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 10px 14px;
-  background: var(--soft);
-  border-radius: 6px;
-  font-size: 13px;
-}
-
-.outline-item-meta {
-  font-size: 11px;
-  color: var(--muted);
-}
-
-.publish-error-desc {
-  font-size: 13px;
-  color: var(--color-error);
-  margin-bottom: 16px;
-}
-
-.publish-error-list {
-  padding-left: 20px;
-  font-size: 13px;
-  color: var(--ink);
-  line-height: 1.6;
-}
-
-.modal-footer {
-  display: flex;
-  justify-content: flex-end;
-  gap: 10px;
-  margin-top: 24px;
 }
 
 @media (max-width: 900px) {

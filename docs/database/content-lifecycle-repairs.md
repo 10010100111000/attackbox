@@ -1,72 +1,55 @@
-# 管理员学习模块：生命周期修复与分类
+# 直接编辑模型与全新启动
 
-基于 `139aac3` 的问题修复记录。包含接口、编辑器、分类迁移和本地回归；不表示已经推送或部署生产。
+本次移除 `module_revisions`、`chapter_revisions`、`module_revision_chapters`、`chapter_revision_assets`，以及发布指针、封存标记、章节来源版本字段。当前结构与接口见 [数据模型](learning-platform-v1.md) 和 [接口契约](learning-platform-v1-flows.md)。
 
-## 生命周期规则
+后台只区分未发布和已发布。编辑先留在浏览器，点击保存后提交；已发布内容保存后立即生效。不保留草稿副本或历史正文。删除真实删除内容；操作审计继续保留。
 
-- 点击新建进入 `/admin/modules/new`，只维护页面内编辑数据，不发送创建请求。
-- 第一次“保存草稿”才原子创建模块、修订、章节清单和题目。取消／离开未保存页面不会创建空模块。
-- 后续保存使用一次模块级事务写入完整编辑内容，不再先写基本信息、再只写当前选中章节。
-- 排序和新增章节先修改本地草稿，保存后持久化。页面用未保存提示和离开确认明确反馈。
-- 后端各独立章节接口仍可使用，且共享同一套完整草稿派生逻辑；不存在草稿时从当前发布版本或最近历史发布版本复制资料和全部章节引用。
-- 发布、下架、保存、排序、移除草稿、删除在稳定模块行上统一加锁；带 baseRevisionId／lockVersion 的保存拒绝过期编辑。
-- 发布在事务中检查标题、正文和答案完整性；保存失败不会继续发布。
-- 下架保留／生成完整可编辑草稿。即使旧数据已下架且没有草稿，也可从历史发布版本显示编辑内容。
-- 移除草稿删除草稿清单与修订，回到发布内容或最近历史发布内容；不删除发布记录。只有首个、从未发布的草稿时，界面引导使用“删除模块”。
-- 删除采用归档：清空发布指针并设置 archived_at。管理列表和学习页排除归档模块，历史正文、题目与审计保留；slug 仍保留，不能把旧地址重新指给其他内容。
+## 启动
 
-## 接口契约
+迁移历史已重建为 `web/server/db/migrations/0000_simple_platform.sql`，不支持在旧表上执行升级。应创建空数据库，或停止应用后重置已有数据库。
 
-`shared/content.ts` 定义输入、列表和编辑器响应类型，前端不再自行猜测接口字段。
+在 `web/` 源码目录安装依赖并设置实际数据库连接：
 
-管理员列表返回：`isPublished`、`hasDraft`、`chapterCount`、`publishedChapterCount`、`category`、`draft`、`published`。chapterCount 是当前可编辑版本章节数；publishedChapterCount 是线上版本章节数。列表不读取正文和答案。
+```bash
+export DATABASE_URL='postgres://USER:PASSWORD@HOST:5432/DATABASE'
+npm ci
+npm run db:migrate
+npm run admin:init -- 'admin@example.com' 'YOUR_PASSWORD'
+npm run build
+node .output/server/index.mjs
+```
 
-编辑器详情返回 `editable`、`baseRevisionId`、`lockVersion`，章节采用 `chapterId`、`slug`、`chapterRevisionId`，题目采用 `id`、`questionKey`、`hasAnswer`。发布指针与元数据刷新后直接决定界面状态。
+`db:migrate` 可重复执行，使用 Drizzle 标准迁移记录，默认分类随基线插入。遇到旧内容表或旧迁移记录会拒绝执行，不会自动删除数据库。
 
-独立排序接口接受 `orderedChapterIds`，并保留原 orders 请求形式；后端验证完整集合、章节和位置不能重复。临时排序区间按现有最大位置计算，事务中避免唯一键冲突。
+如需清空已有数据库，先停止连接该库的应用，再显式指定待清空数据库名称：
 
-新增管理操作：
+```bash
+RESET_DATABASE='DATABASE' npm run db:reset
+npm run admin:init -- 'admin@example.com' 'YOUR_PASSWORD'
+```
 
-- `DELETE /api/admin/modules/:id/draft`：移除草稿。
-- `DELETE /api/admin/modules/:id`：归档删除模块。
-- `GET /api/categories`：真实内容分类。
-- `POST /api/admin/categories`：管理员创建分类。
+该操作删除目标库的 `public` 和 `drizzle` schema，重建全部账号、内容和迁移记录。数据库用户需拥有相应权限。也可在 VPS 指定 `WEB_DIR` 后运行 `scripts/reset_db_remote.sh`；脚本不自动停止或启动服务。
 
-现有独立草稿、章节创建、保存、发布／下架响应保留旧客户端所需字段；新的编辑器通过聚合保存接口和刷新详情取得权威状态。
-
-## 标准答案与规范化
-
-- 保存题目传回原 id／questionKey；没有新答案时沿用旧摘要与密钥版本。
-- 不传 questions 表示保留该章题目；传空数组表示显式移除全部题目。
-- 编辑题目提示或正文不会清空标准答案，后台显示“已设置，留空保留”。
-- 答案规则统一为 exact、trim、trim_casefold，其他值明确 400，不再默默回退 trim。
-- 已有答案的规范化规则改变时必须重新提供明文答案；摘要不能在新规则下自动重算。
-- 需要清除已存答案时使用显式 clearAnswer；清除后可以保存草稿，但不能发布缺答案的题目。
-- 公开和管理员详情均不返回 answer_hmac 或明文标准答案。
-
-## 内容分类
-
-新增 `content_categories` 和 `module_revisions.category_id`。单个模块当前设置一个主分类，分类与 beginner／intermediate／advanced 难度独立。
-
-迁移预置 Web 安全、Linux 基础、网络安全、云原生安全、逆向分析、容器安全；后台也可创建其他分类。分类属于内容修订：修改草稿分类不改变线上分类，重新发布后才替换。
-
-学习列表通过公开模块接口返回的 category 筛选，不再按标题关键字或难度推断。旧模块分类为空，明确展示“未分类”，由管理员编辑后发布；迁移不会根据标题猜测分类。
-
-迁移文件：`web/server/db/migrations/0002_mixed_juggernaut.sql`，包含分类表、外键、预置分类。已应用的旧迁移不做重写；发布前按当前环境采用的迁移方式验证并应用此增量，再切换应用版本。本轮只在独立本地测试库执行。
-
-## 历史错误数据
-
-修复不会擅自改写已有草稿或发布记录。已经丢失章节清单的草稿，可通过“移除草稿”回到完整历史发布版本，然后重新编辑。不要为自动补全而把用户有意移除的章节重新加入。
-
-已经被旧代码写成 NULL 的答案无法从摘要恢复，需要管理员重新填写；修复会保留尚存的摘要，并阻止发布缺失答案的题目。
+本次代码修改不执行线上数据库清理或部署。
 
 ## 验证
 
-- `npm test`：原有测试及答案规范化／哈希测试。
-- `tsc --noEmit -p tsconfig.json`：服务端及共享 TypeScript 检查。补齐 Node 类型，并修正原有 Argon2 const enum、Socket 类型和 Markdown 属性类型问题；不改变认证与渲染行为。
-- `npm run build`：Nuxt 生产构建。
-- `tests/content-lifecycle.test.mjs`：使用明确指定的本地 `_test` 数据库和本地服务，验证权限、列表契约、答案保留／清除、规范化、发布、草稿隔离、重排、并发冲突、批量回滚、下架、移除草稿、归档和分类。
-- `tests/content-migration.test.mjs`：在新建的独立测试库中先应用旧迁移，再升级分类迁移，验证原发布指针、标题、难度保持不变，新分类不猜测补值，重复执行迁移不重复插入。
-- 浏览器实际操作验证新建不落库、两章一起保存、题目保存、发布状态刷新、下架不空、排序刷新后保留、移除草稿恢复、真实分类筛选。
+```bash
+npm test
+npx tsc --noEmit -p tsconfig.json
+npm run build
+```
 
-运行数据库回归需显式设置 `CONTENT_TEST_DATABASE_URL`、`CONTENT_TEST_BASE_URL`；升级测试使用 `CONTENT_MIGRATION_TEST_DATABASE_URL`，后者要求空库。测试拒绝非本地目标与不以 `_test` 结尾的数据库名。未配置时跳过，不会自动连接远程默认数据库。
+不要在构建期间同时执行 TypeScript 检查，Nuxt 会重建 `.nuxt/tsconfig.json`。
+
+隔离的本地测试库迁移并启动应用后：
+
+```bash
+CONTENT_MIGRATION_TEST_DATABASE_URL='postgres://postgres@127.0.0.1:55440/attackbox_schema_test' \
+CONTENT_TEST_DATABASE_URL='postgres://postgres@127.0.0.1:55440/attackbox_content_test' \
+CONTENT_TEST_BASE_URL='http://127.0.0.1:18884' npm run test:content
+```
+
+测试仅接受本机地址和以 `_test` 结尾的数据库名称。迁移测试检查空库基线、重放、分类种子以及旧表消失；生命周期测试覆盖权限、答案保留、规范化、并发冲突、原子回滚、直接更新、排序、新增与删除章节、下架、重新发布和真实删除。
+
+原先针对草稿与修订历史的远程脚本测试已删除，由本地回归覆盖，避免误连远程数据库执行旧结构操作。

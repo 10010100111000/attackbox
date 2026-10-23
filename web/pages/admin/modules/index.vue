@@ -23,22 +23,22 @@ const modules = computed<AdminModuleItem[]>(() => {
   return response.value?.data || []
 })
 
-const filterTab = ref<'全部' | '已发布' | '草稿'>('全部')
+const filterTab = ref<'全部' | '已发布' | '未发布'>('全部')
 const searchQuery = ref('')
 
 const filteredModules = computed(() => {
   let list = modules.value
 
   if (filterTab.value === '已发布') {
-    list = list.filter(m => m.isPublished)
-  } else if (filterTab.value === '草稿') {
-    list = list.filter(m => !m.isPublished || m.hasDraft)
+    list = list.filter(m => m.status === 'published')
+  } else if (filterTab.value === '未发布') {
+    list = list.filter(m => m.status === 'unpublished')
   }
 
   const q = searchQuery.value.trim().toLowerCase()
   if (q) {
     list = list.filter(m => {
-      const title = (m.draft?.title || m.published?.title || '').toLowerCase()
+      const title = m.title.toLowerCase()
       const slug = m.slug.toLowerCase()
       return title.includes(q) || slug.includes(q)
     })
@@ -48,8 +48,8 @@ const filteredModules = computed(() => {
 })
 
 async function deleteModule(id: string) {
-  if (!confirm('删除该模块？模块将从管理列表和学习页移除，历史内容保留。')) return
-  try { await $fetch(`/api/admin/modules/${id}`, { method: 'DELETE' }); await refresh() }
+  if (!confirm('永久删除该模块及其全部章节和题目？此操作无法撤销。')) return
+  try { await $fetch(`/api/admin/modules/${id}`, { method: 'DELETE', body: { lockVersion: modules.value.find(m => m.id === id)?.lockVersion } }); await refresh() }
   catch (error: any) { alert(error?.data?.message || '删除失败') }
 }
 </script>
@@ -70,7 +70,7 @@ async function deleteModule(id: string) {
     <div class="filter-bar">
       <div class="filters-tabs" role="tablist">
         <button
-          v-for="tab in (['全部', '已发布', '草稿'] as const)"
+          v-for="tab in (['全部', '已发布', '未发布'] as const)"
           :key="tab"
           type="button"
           class="tab-btn"
@@ -118,21 +118,20 @@ async function deleteModule(id: string) {
             <td>
               <div class="title-cell">
                 <strong class="module-name">
-                  {{ m.draft?.title || m.published?.title || '未命名模块' }}
+                  {{ m.title }}
                 </strong>
-                <span class="module-slug">/learn/{{ m.slug }}</span>
+                <span class="module-slug">/learn/modules/{{ m.slug }}</span>
               </div>
             </td>
             <td>
               <div class="status-cell">
-                <span v-if="m.isPublished" class="badge-status published">已发布</span>
-                <span v-else class="badge-status draft">草稿</span>
-                <span v-if="m.isPublished && m.hasDraft" class="badge-status modified">有新草稿</span>
+                <span v-if="m.status === 'published'" class="badge-status published">已发布</span>
+                <span v-else class="badge-status unpublished">未发布</span>
               </div>
             </td>
             <td>{{ m.chapterCount }} 章节</td>
             <td>
-              <span>{{ m.category?.name || '未分类' }}</span> · <span class="diff-tag">{{ m.draft?.difficulty || m.published?.difficulty || 'beginner' }}</span>
+              <span>{{ m.category?.name || '未分类' }}</span> · <span class="diff-tag">{{ m.difficulty }}</span>
             </td>
             <td class="text-right">
               <div class="action-cell">
@@ -141,7 +140,7 @@ async function deleteModule(id: string) {
                 </NuxtLink>
                 <button class="action-btn" type="button" @click="deleteModule(m.id)">删除</button>
                 <NuxtLink
-                  v-if="m.isPublished"
+                  v-if="m.status === 'published'"
                   :to="`/learn/modules/${m.slug}`"
                   target="_blank"
                   class="action-btn view-btn"
@@ -161,7 +160,7 @@ async function deleteModule(id: string) {
       <p v-else>暂无任何模块，点击上方按钮新建第一个模块。</p>
     </div>
 
-    <p class="footnote">已发布模块的修改先保留为草稿，重新发布后才替换线上版本。</p>
+    <p class="footnote">已发布模块保存后立即更新；未发布模块仅管理员可见。</p>
 
   </div>
 </template>
@@ -322,14 +321,9 @@ async function deleteModule(id: string) {
   color: var(--success-ink);
 }
 
-.badge-status.draft {
+.badge-status.unpublished {
   background: var(--soft);
   color: var(--muted);
-}
-
-.badge-status.modified {
-  background: rgba(255, 175, 136, 0.15);
-  color: var(--accent);
 }
 
 .diff-tag {

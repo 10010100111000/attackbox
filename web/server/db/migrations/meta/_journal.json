@@ -5,22 +5,8 @@
     {
       "idx": 0,
       "version": "7",
-      "when": 1792700406997,
-      "tag": "0000_fancy_selene",
-      "breakpoints": true
-    },
-    {
-      "idx": 1,
-      "version": "7",
-      "when": 1792704610757,
-      "tag": "0001_yummy_trauma",
-      "breakpoints": true
-    },
-    {
-      "idx": 2,
-      "version": "7",
-      "when": 1792744206817,
-      "tag": "0002_mixed_juggernaut",
+      "when": 1792752205879,
+      "tag": "0000_simple_platform",
       "breakpoints": true
     }
   ]
