@@ -29,6 +29,13 @@
       "when": 1792782856741,
       "tag": "0003_sandbox_identity",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1792784715998,
+      "tag": "0004_sandbox_node_settings",
+      "breakpoints": true
     }
   ]
 }

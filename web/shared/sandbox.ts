@@ -1,4 +1,15 @@
+export interface SandboxNodeSettings {
+  label: string
+  maxSlots: number
+  ttlSeconds: number
+  idleSeconds: number
+  memoryMb: number
+  pidsMax: number
+  draining: boolean
+  lockVersion: number
+}
 export interface SandboxNodeStatus {
+  settings: SandboxNodeSettings
   id: string
   label: string
   publicDataUrl: string
@@ -41,5 +52,5 @@ export interface SandboxStatus {
   available: boolean
   instance: SandboxInstance | null
 }
-export interface SandboxTicket { url: string; ticket: string; expiresAt: string; sandboxId: string }
+export interface SandboxTicket { url: string; ticket: string; expiresAt: string; sandboxId: string; stream: 'cli' | 'gui' }
 export interface AdminSandboxInstance extends SandboxInstance { userId: string; email: string | null; displayName: string | null }

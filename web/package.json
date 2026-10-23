@@ -7,7 +7,7 @@
     "generate": "nuxt generate",
     "dev": "nuxt dev",
     "preview": "nuxt preview",
-    "test": "node --experimental-strip-types --test tests/auth-crypto.test.js tests/composables.test.js tests/ui.test.js tests/landing.test.js tests/auth.test.js tests/markdown.test.js tests/learning-ui.test.js tests/admin-ui.test.js tests/quiz-crypto.test.js tests/learning-access.test.js tests/sandbox-nodes.test.js tests/sandbox-lifecycle.test.js",
+    "test": "node --experimental-strip-types --test tests/auth-crypto.test.js tests/composables.test.js tests/ui.test.js tests/landing.test.js tests/auth.test.js tests/markdown.test.js tests/learning-ui.test.js tests/admin-ui.test.js tests/quiz-crypto.test.js tests/learning-access.test.js tests/sandbox-nodes.test.js tests/sandbox-lifecycle.test.js tests/sandbox-settings.test.js",
     "db:generate": "drizzle-kit generate",
     "admin:init": "node server/scripts/init-admin.mjs",
     "postinstall": "nuxt prepare",
@@ -16,11 +16,13 @@
     "db:reset": "node server/scripts/reset-db.mjs",
     "test:learning-browser": "node --test tests/learning-browser.test.mjs",
     "test:nodes-browser": "node --test tests/sandbox-nodes-browser.test.mjs",
-    "test:sandbox-browser": "node --test tests/sandbox-lifecycle-browser.test.mjs"
+    "test:sandbox-browser": "node --test tests/sandbox-lifecycle-browser.test.mjs",
+    "test:sandbox-persistence": "node --test tests/sandbox-settings-persistence.test.mjs"
   },
   "dependencies": {
     "@node-rs/argon2": "^2.2.2",
     "@node-rs/argon2-linux-x64-gnu": "^2.2.2",
+    "@novnc/novnc": "^1.7.0",
     "@xterm/addon-fit": "^0.11.0",
     "@xterm/xterm": "^6.0.0",
     "argon2": "^0.45.1",

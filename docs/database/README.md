@@ -15,3 +15,5 @@
 迁移基线为 `web/server/db/migrations/0000_simple_platform.sql`，仅用于空数据库。新环境部署直接执行 `npm run db:migrate` 与 `npm run admin:init` 初始化。之后的增量迁移也由 `npm run db:migrate` 执行。
 
 沙箱身份增量：`0003_sandbox_identity.sql` 新增 `sandbox_identities`，持久保存 UUID 用户与 Worker 数字标识的唯一映射。运行实例继续采用瞬态控制状态；重启行为见 [沙箱接入与运行](../implementation/sandbox-node-onboarding.md)。
+
+节点配置增量：`0004_sandbox_node_settings.sql` 保存节点配额、TTL/Idle 与排空设置；乐观版本控制避免并发覆盖，存量实例不随设置变更重建。

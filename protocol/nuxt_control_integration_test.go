@@ -87,6 +87,7 @@ func TestNuxtTicketCompatibility(t *testing.T) {
 		PublicKey    string `json:"publicKey"`
 		SandboxID    string `json:"sandboxId"`
 		WorkerUserID int64  `json:"workerUserId"`
+		Stream       string `json:"stream"`
 	}
 	if err := json.Unmarshal(data, &fixture); err != nil {
 		t.Fatal(err)
@@ -99,7 +100,7 @@ func TestNuxtTicketCompatibility(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if claims.Sub != fixture.WorkerUserID || claims.Sbx != fixture.SandboxID || claims.Typ != "pty" || claims.JTI == "" {
+	if claims.Sub != fixture.WorkerUserID || claims.Sbx != fixture.SandboxID || claims.Typ != fixture.Stream || claims.JTI == "" {
 		t.Fatal("Nuxt ticket does not preserve Worker identity or stream binding")
 	}
 }

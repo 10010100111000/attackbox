@@ -124,3 +124,37 @@ test('Worker autonomous stopping state can converge to absent without a Control 
   f.heartbeat([], 3)
   assert.equal(f.controller.status('user-1').instance, null)
 })
+
+test('GUI ticket binds vnc to the same owned instance without another create', async () => {
+  const f = fixture(), running = await f.started('alice', 8)
+  const ticket = f.controller.ticket('alice', running.id, 'gui')
+  assert.equal(ticket.url, 'ws://127.0.0.1:18443/ws/gui')
+  const [payload, signature] = ticket.ticket.split('.')
+  assert.ok(verify(null, Buffer.from(payload, 'base64url'), createPublicKey(f.config.signingKey), Buffer.from(signature, 'base64url')))
+  const claims = JSON.parse(Buffer.from(payload, 'base64url'))
+  assert.equal(claims.typ, 'vnc'); assert.equal(claims.sub, 8); assert.equal(claims.sbx, running.id)
+  assert.equal(f.requests('create_box').length, 1)
+  assert.throws(() => f.controller.ticket('bob', running.id, 'gui'), { statusCode: 404 })
+})
+test('draining preserves existing instances and new per-node policy only applies to future creates', async () => {
+  const f = fixture(), running = await f.started('alice', 1), settings = f.hub.snapshot().nodes[0].settings
+  f.hub.applySettings('test-node', { ...settings, draining: true, memoryMb: 256, ttlSeconds: 3600, idleSeconds: 600, lockVersion: 1 })
+  assert.equal((await f.controller.start('alice', 1)).id, running.id)
+  assert.equal(f.controller.status('alice').instance.policy.resources.memory_max_mb, 2048)
+  await assert.rejects(f.controller.start('bob', 2), { statusCode: 503 })
+  f.hub.applySettings('test-node', { ...settings, draining: false, lockVersion: 0 })
+  assert.equal(f.hub.snapshot().nodes[0].settings.draining, true, 'stale save cannot undo draining')
+  f.hub.applySettings('test-node', { ...settings, draining: false, memoryMb: 256, ttlSeconds: 3600, idleSeconds: 600, lockVersion: 2 })
+  const task = f.controller.start('bob', 2), request = f.requests('create_box').at(-1)
+  assert.equal(request.payload.policy.resources.memory_max_mb, 256); assert.equal(request.payload.ttl_seconds, 3600); assert.equal(request.payload.idle_seconds, 600)
+  f.respond(request, { inventory_revision: 2, expires_at: 1700003600, sandbox_ip: '10.200.0.3' }); await task
+})
+test('lowering concurrency prevents new allocations even when existing slots are above the new range', async () => {
+  const f = fixture(), settings = f.hub.snapshot().nodes[0].settings
+  f.hub.applySettings('test-node', { ...settings, maxSlots: 3, lockVersion: 1 })
+  const alice = await f.started('alice', 1), bob = await f.started('bob', 2), carol = await f.started('carol', 3)
+  assert.equal(carol.slot, 3)
+  for (const [user, record] of [['alice', alice], ['bob', bob]]) { const stop = f.controller.stopOwned(user, record.id); f.respond(f.requests('destroy_box').at(-1)); await stop }
+  f.hub.applySettings('test-node', { ...settings, maxSlots: 1, lockVersion: 2 })
+  await assert.rejects(f.controller.start('eve', 4), { statusCode: 503 })
+})

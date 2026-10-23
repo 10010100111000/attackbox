@@ -1,5 +1,5 @@
 import { randomBytes } from 'node:crypto'
-import type { SandboxNodesResponse, SandboxNodeStatus } from '../../shared/sandbox.ts'
+import type { SandboxNodesResponse, SandboxNodeStatus, SandboxNodeSettings } from '../../shared/sandbox.ts'
 import type { SandboxConfig } from './config.ts'
 export interface WorkerPeer { id: string; send: (data: string) => unknown; close: (code: number, reason: string) => unknown }
 interface Connection { peer: WorkerPeer; nodeId: string; openedAt: number; registered: boolean }
@@ -19,7 +19,13 @@ export class SandboxHub {
   private now: () => number
   constructor(config: SandboxConfig, now = Date.now) {
     this.config = config; this.now = now
-    for (const n of config.nodes) this.records.set(n.id, { status: { id: n.id, label: n.label, publicDataUrl: n.publicDataUrl, state: 'offline', bootId: null, lastHeartbeatAt: null, version: null, capabilities: null, telemetry: null, inventoryRevision: null, sandboxes: [] }, seq: 0, revision: 0, heartbeatAt: 0 })
+    for (const n of config.nodes) this.records.set(n.id, { status: { settings: { label: n.label, maxSlots: n.maxSlots, ttlSeconds: config.ttlSeconds, idleSeconds: config.idleSeconds, memoryMb: config.policy.resources.memory_max_mb, pidsMax: config.policy.resources.pids_max, draining: false, lockVersion: 0 }, id: n.id, label: n.label, publicDataUrl: n.publicDataUrl, state: 'offline', bootId: null, lastHeartbeatAt: null, version: null, capabilities: null, telemetry: null, inventoryRevision: null, sandboxes: [] }, seq: 0, revision: 0, heartbeatAt: 0 })
+  }
+  applySettings(nodeId: string, settings: SandboxNodeSettings) {
+    const record = this.records.get(nodeId)
+    if (!record) return
+    if (settings.lockVersion < record.status.settings.lockVersion) return
+    record.status.settings = structuredClone(settings); record.status.label = settings.label
   }
   open(peer: WorkerPeer, nodeId: string) {
     const record = this.records.get(nodeId)

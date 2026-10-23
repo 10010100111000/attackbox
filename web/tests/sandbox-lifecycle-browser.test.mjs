@@ -27,13 +27,18 @@ test('sandbox frontend/backend: stable identity, concurrent start, ticket securi
     await f.request('/api/sandbox/stop', { actor: bob, method: 'POST', body: { sandboxId: id }, status: 404 })
     await f.request('/api/admin/instances', { actor: bob, status: 403 })
     await f.request('/api/sandbox/start', { method: 'POST', status: 401 })
+    await f.request('/api/sandbox/ticket', { actor: bob, method: 'POST', body: { sandboxId: id, stream: 'gui' }, status: 404 })
+    await f.request('/api/sandbox/ticket', { actor: alice, method: 'POST', body: { sandboxId: id, stream: 'unknown' }, status: 400 })
     const csrf = await fetch(f.base + '/api/sandbox/stop', { method: 'POST', headers: { cookie: `attackbox_session=${alice.token}`, origin: 'https://other.example', 'content-type': 'application/json' }, body: JSON.stringify({ sandboxId: id }) }); assert.equal(csrf.status, 403)
     const ticket = (await f.request('/api/sandbox/ticket', { actor: alice, method: 'POST', body: { sandboxId: id } })).data
     if (process.env.GO_TEST_BINARY) {
       const folder = mkdtempSync(path.join(tmpdir(), 'nuxt-ticket-')), file = path.join(folder, 'ticket.json')
       try {
-        writeFileSync(file, JSON.stringify({ ticket: ticket.ticket, publicKey: worker.publicKey, sandboxId: id, workerUserId: Number(numericIdentity) }), { mode: 0o600 })
-        execFileSync(process.env.GO_TEST_BINARY, ['test', './protocol', '-run', 'TestNuxtTicketCompatibility', '-count=1'], { cwd: path.resolve(import.meta.dirname, '../..'), env: { ...process.env, NUXT_TICKET_TEST_FILE: file }, timeout: 30000, stdio: 'pipe' })
+        const guiTicket = (await f.request('/api/sandbox/ticket', { actor: alice, method: 'POST', body: { sandboxId: id, stream: 'gui' } })).data
+        for (const [issued, stream] of [[ticket, 'pty'], [guiTicket, 'vnc']]) {
+          writeFileSync(file, JSON.stringify({ ticket: issued.ticket, publicKey: worker.publicKey, sandboxId: id, workerUserId: Number(numericIdentity), stream }), { mode: 0o600 })
+          execFileSync(process.env.GO_TEST_BINARY, ['test', './protocol', '-run', 'TestNuxtTicketCompatibility', '-count=1'], { cwd: path.resolve(import.meta.dirname, '../..'), env: { ...process.env, NUXT_TICKET_TEST_FILE: file }, timeout: 30000, stdio: 'pipe' })
+        }
       } finally { rmSync(folder, { recursive: true, force: true }) }
     }
     async function connectToken() { const s = new WebSocket(ticket.url + '?ticket=' + encodeURIComponent(ticket.ticket)); await once(s, 'open'); return s }
@@ -54,7 +59,17 @@ test('sandbox frontend/backend: stable identity, concurrent start, ticket securi
     assert.equal(worker.terminals.length, opened, 'hide/minimize preserve existing terminal connection')
     await page.getByRole('button', { name: '新建终端', exact: true }).click(); await waitUntil(() => worker.terminals.length === opened + 1)
     assert.equal(new Set(worker.terminals.slice(1).map(s => s.windowId)).size, 2, 'separate PTYs use distinct window IDs')
-    await page.getByRole('button', { name: 'GUI 桌面', exact: true }).click(); await page.getByRole('heading', { name: '桌面接入将在下一阶段开放' }).waitFor()
+    await page.getByRole('button', { name: 'GUI 桌面', exact: true }).click(); await page.getByText('桌面已连接', { exact: true }).waitFor()
+    assert.equal(worker.desktops.length, 1)
+    assert.equal(worker.desktops[0].box, id)
+    await waitUntil(() => page.locator('.desktop-host canvas').evaluate(canvas => { const pixel = canvas.getContext('2d').getImageData(50, 70, 1, 1).data; return pixel[1] > 100 }))
+    await page.locator('.desktop-host canvas').click({ position: { x: 40, y: 40 } }); await page.keyboard.press('a')
+    await waitUntil(() => worker.desktopInputs.some(input => input.type === 'key' && input.down))
+    assert.ok(worker.tickets.some(ticket => ticket.typ === 'vnc'))
+    await page.getByRole('button', { name: '收起练习面板', exact: true }).click(); await page.getByRole('button', { name: '恢复练习面板', exact: true }).click()
+    assert.equal(worker.desktops.length, 1, 'minimize preserves the desktop connection')
+    await waitUntil(() => page.locator('.desktop-host canvas').evaluate(canvas => canvas.getBoundingClientRect().width > 100 && canvas.getBoundingClientRect().height > 100 && canvas.getContext('2d').getImageData(50, 70, 1, 1).data[1] > 100))
+    if (process.env.SANDBOX_SCREENSHOT_DIR) await page.screenshot({ path: process.env.SANDBOX_SCREENSHOT_DIR + '/learning-desktop.png' })
     await page.getByRole('button', { name: 'CLI 终端', exact: true }).click()
     assert.equal(worker.terminals.length, opened + 1, 'CLI/GUI mode changes preserve existing terminal connections')
     const beforeReconnect = worker.tickets.length
@@ -65,6 +80,40 @@ test('sandbox frontend/backend: stable identity, concurrent start, ticket securi
     if (process.env.SANDBOX_SCREENSHOT_DIR) { mkdirSync(process.env.SANDBOX_SCREENSHOT_DIR, { recursive: true }); await page.screenshot({ path: process.env.SANDBOX_SCREENSHOT_DIR + '/learning-terminal.png' }) }
     const admin = await browser.newContext({ viewport: { width: 1600, height: 1000 } }); await admin.addCookies([{ name: 'attackbox_session', value: f.admin.token, url: f.base }])
     const adminPage = await admin.newPage(); adminPage.on('pageerror', e => errors.push(e.message)); await adminPage.goto(f.base + '/admin/instances')
+    const originalSettings = (await f.request('/api/admin/nodes', { actor: f.admin })).data.nodes[0].settings
+    await adminPage.getByRole('link', { name: '节点管理', exact: true }).click()
+    await adminPage.getByRole('button', { name: '设置', exact: true }).click()
+    await adminPage.getByLabel('节点名称', { exact: true }).fill('联调节点')
+    await adminPage.getByLabel('并发实例上限', { exact: true }).fill('2')
+    await adminPage.getByLabel('单实例内存 · MB', { exact: true }).fill('512')
+    await adminPage.getByLabel('TTL · 秒', { exact: true }).fill('3600')
+    await adminPage.getByLabel('Idle · 秒', { exact: true }).fill('600')
+    await adminPage.getByLabel('排空：停止分配新实例', { exact: true }).check()
+    await adminPage.getByRole('button', { name: '保存设置', exact: true }).click()
+    await adminPage.getByText('排空中', { exact: true }).waitFor()
+    const drained = (await f.request('/api/admin/nodes', { actor: f.admin })).data.nodes[0].settings
+    assert.equal(drained.memoryMb, 512); assert.equal(drained.draining, true)
+    const [storedSettings] = await f.sql`SELECT memory_mb, draining, lock_version FROM sandbox_node_settings WHERE node_id='test-node'`
+    assert.equal(storedSettings.memory_mb, 512); assert.equal(storedSettings.draining, true); assert.equal(storedSettings.lock_version, drained.lockVersion)
+    assert.equal((await f.request('/api/sandbox/start', { actor: alice, method: 'POST' })).data.id, id)
+    await f.request('/api/sandbox/start', { actor: bob, method: 'POST', status: 503 })
+    await f.request('/api/admin/nodes/test-node/settings', { actor: bob, method: 'PUT', body: drained, status: 403 })
+    await f.request('/api/admin/nodes/test-node/settings', { actor: f.admin, method: 'PUT', body: { ...drained, maxSlots: 0 }, status: 400 })
+    await f.request('/api/admin/nodes/test-node/settings', { actor: f.admin, method: 'PUT', body: { ...drained, lockVersion: drained.lockVersion - 1 }, status: 409 })
+    await adminPage.reload(); await adminPage.getByRole('heading', { name: '联调节点', exact: true }).waitFor()
+    await adminPage.getByRole('button', { name: '设置', exact: true }).click()
+    assert.equal(await adminPage.getByLabel('单实例内存 · MB', { exact: true }).inputValue(), '512')
+    if (process.env.SANDBOX_SCREENSHOT_DIR) await adminPage.screenshot({ path: process.env.SANDBOX_SCREENSHOT_DIR + '/node-settings.png', fullPage: true })
+    await adminPage.getByLabel('排空：停止分配新实例', { exact: true }).uncheck()
+    await adminPage.getByRole('button', { name: '保存设置', exact: true }).click()
+    await adminPage.locator('.node-settings').waitFor({ state: 'hidden' })
+    const bobInstance = (await f.request('/api/sandbox/start', { actor: bob, method: 'POST' })).data
+    assert.equal(bobInstance.policy.resources.memory_max_mb, 512)
+    assert.equal((await f.request('/api/sandbox/status', { actor: alice })).data.instance.policy.resources.memory_max_mb, 2048, 'existing allocation retains its policy')
+    await f.request('/api/sandbox/stop', { actor: bob, method: 'POST', body: { sandboxId: bobInstance.id } })
+    const currentSettings = (await f.request('/api/admin/nodes', { actor: f.admin })).data.nodes[0].settings
+    await f.request('/api/admin/nodes/test-node/settings', { actor: f.admin, method: 'PUT', body: { ...originalSettings, lockVersion: currentSettings.lockVersion } })
+    await adminPage.getByRole('link', { name: '运行实例', exact: true }).click()
     const row = adminPage.locator('tbody tr').filter({ hasText: id }); await row.waitFor(); assert.ok((await row.innerText()).includes(alice.email))
     if (process.env.SANDBOX_SCREENSHOT_DIR) await adminPage.screenshot({ path: process.env.SANDBOX_SCREENSHOT_DIR + '/admin-instances.png', fullPage: true })
     adminPage.once('dialog', dialog => dialog.accept()); await row.getByRole('button', { name: '释放', exact: true }).click(); await row.waitFor({ state: 'hidden' })

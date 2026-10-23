@@ -2,7 +2,7 @@
 import { ref, onMounted, onBeforeUnmount, watch } from 'vue'
 import { Terminal, Monitor, Maximize2, Minimize2, Minus, X, Unplug, Plus, LoaderCircle } from 'lucide-vue-next'
 import { useAuth } from '~/composables/useAuth'
-import { LearningSandboxTerminal as SandboxTerminal } from '#components'
+import { LearningSandboxTerminal as SandboxTerminal, LearningSandboxDesktop as SandboxDesktop } from '#components'
 import type { SandboxStatus, SandboxInstance } from '~/shared/sandbox'
 const props = defineProps<{ active: boolean; mode: 'cli' | 'gui'; height: number; maxHeight: number; expanded: boolean }>()
 const emit = defineEmits<{ 'update:height': [height: number]; 'update:expanded': [expanded: boolean]; minimize: []; close: [] }>()
@@ -10,6 +10,11 @@ const { currentUser } = useAuth()
 const route = useRoute()
 const sandbox = ref<SandboxStatus>({ available: false, instance: null })
 const loading = ref(true), busy = ref(false), notice = ref('')
+const desktopOpened = ref(false)
+watch(() => props.mode, mode => {
+  if (mode === 'gui') desktopOpened.value = true
+  else if (sandbox.value.instance?.state === 'running' && !tabs.value.length) addTerminal()
+}, { immediate: true })
 const tabs = ref<{ id: string; label: string }[]>([]), selectedTab = ref('')
 let pollTimer: ReturnType<typeof setInterval> | undefined, disposed = false, refreshGeneration = 0
 function addTerminal() {
@@ -24,10 +29,10 @@ function closeTerminal(id: string) {
 }
 watch(() => sandbox.value.instance?.id, (id, oldId) => {
   if (id === oldId) return
-  tabs.value = []; selectedTab.value = ''; terminalCount = 0
-  if (id && sandbox.value.instance?.state === 'running') addTerminal()
+  tabs.value = []; selectedTab.value = ''; terminalCount = 0; desktopOpened.value = props.mode === 'gui'
+  if (id && props.mode === 'cli' && sandbox.value.instance?.state === 'running') addTerminal()
 })
-watch(() => sandbox.value.instance?.state, state => { if (state === 'running' && !tabs.value.length) addTerminal() })
+watch(() => sandbox.value.instance?.state, state => { if (state === 'running' && props.mode === 'cli' && !tabs.value.length) addTerminal() })
 async function refreshSandbox() {
   if (!currentUser.value || disposed || busy.value || document.hidden) { loading.value = false; return }
   const generation = ++refreshGeneration
@@ -100,13 +105,13 @@ onBeforeUnmount(stopResize)
     <div v-if="!currentUser" class="dock-empty"><Unplug :size="26" aria-hidden="true" /><h2>登录后使用练习环境</h2><NuxtLink :to="'/auth?returnTo=' + encodeURIComponent(route.fullPath)" class="sandbox-primary">登录并继续</NuxtLink></div>
     <div v-else-if="loading" class="dock-empty" role="status"><LoaderCircle :size="22" aria-hidden="true" /><p>正在获取环境状态…</p></div>
     <template v-else>
-    <div v-show="mode === 'gui'" class="dock-empty"><Monitor :size="26" aria-hidden="true" /><h2>桌面接入将在下一阶段开放</h2><p>当前可使用 CLI 终端；切换不会创建另一份环境。</p></div>
+    <div v-if="sandbox.instance?.state === 'running' && desktopOpened" v-show="mode === 'gui'" class="desktop-area"><ClientOnly><SandboxDesktop :key="sandbox.instance.id" :sandbox-id="sandbox.instance.id" :active="active && mode === 'gui'" /></ClientOnly></div>
     <div v-if="sandbox.instance?.state === 'running'" v-show="mode === 'cli'" class="cli-area">
       <div class="terminal-tabs" aria-label="终端列表"><div v-for="tab in tabs" :key="tab.id" class="terminal-tab" :class="{ selected: selectedTab === tab.id }"><button type="button" :aria-pressed="selectedTab === tab.id" @click="selectedTab = tab.id">{{ tab.label }}</button><button type="button" :aria-label="'关闭' + tab.label" @click="closeTerminal(tab.id)"><X :size="12" aria-hidden="true" /></button></div><button type="button" class="add-terminal" aria-label="新建终端" :disabled="!sandbox.instance.connected" @click="addTerminal"><Plus :size="15" aria-hidden="true" /></button><span v-if="sandbox.instance.expiresAt" class="expiry">到期 {{ new Date(sandbox.instance.expiresAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) }}</span></div>
       <div class="terminal-workspace"><ClientOnly><SandboxTerminal v-for="tab in tabs" v-show="selectedTab === tab.id" :key="tab.id" :sandbox-id="sandbox.instance.id" :window-id="tab.id" :active="active && mode === 'cli' && selectedTab === tab.id" /></ClientOnly><div v-if="!tabs.length" class="dock-empty"><button type="button" class="sandbox-primary" @click="addTerminal">打开终端</button></div></div>
     </div>
-    <div v-else-if="sandbox.instance" v-show="mode === 'cli'" class="dock-empty" role="status"><LoaderCircle :size="22" aria-hidden="true" /><h2>{{ stateLabels[sandbox.instance.state] }}</h2><p>{{ sandbox.instance.state === 'cleanup_failed' ? '占用保留至节点确认释放，可重试释放环境。' : '状态将自动更新，你可以继续阅读。' }}</p><button type="button" class="sandbox-secondary" @click="refreshSandbox">刷新状态</button></div>
-    <div v-else v-show="mode === 'cli'" class="dock-empty"><Terminal :size="26" :stroke-width="1.5" aria-hidden="true" /><h2>{{ sandbox.available ? '准备开始实践' : '练习环境暂不可用' }}</h2><p>{{ sandbox.available ? '每个账号共用一份环境，可打开多个终端。' : '你可以继续阅读教程并完成章节练习。' }}</p><button v-if="sandbox.available" type="button" class="sandbox-primary" :disabled="busy" @click="startSandbox">{{ busy ? '正在启动…' : '启动环境' }}</button></div>
+    <div v-else-if="sandbox.instance" class="dock-empty" role="status"><LoaderCircle :size="22" aria-hidden="true" /><h2>{{ stateLabels[sandbox.instance.state] }}</h2><p>{{ sandbox.instance.state === 'cleanup_failed' ? '占用保留至节点确认释放，可重试释放环境。' : '状态将自动更新，你可以继续阅读。' }}</p><button type="button" class="sandbox-secondary" @click="refreshSandbox">刷新状态</button></div>
+    <div v-else class="dock-empty"><Terminal :size="26" :stroke-width="1.5" aria-hidden="true" /><h2>{{ sandbox.available ? '准备开始实践' : '练习环境暂不可用' }}</h2><p>{{ sandbox.available ? '每个账号共用一份环境，可打开多个终端。' : '你可以继续阅读教程并完成章节练习。' }}</p><button v-if="sandbox.available" type="button" class="sandbox-primary" :disabled="busy" @click="startSandbox">{{ busy ? '正在启动…' : '启动环境' }}</button></div>
     </template>
   </section>
 </template>
@@ -143,6 +148,7 @@ button:focus-visible, .dock-grip:focus-visible { outline: 2px solid var(--focus)
 .terminal-tab.selected button { color: var(--ink); }
 .add-terminal:disabled { opacity: .5; cursor: not-allowed; }
 .expiry { margin-left: auto; white-space: nowrap; color: var(--muted); font-size: 10px; }
+.desktop-area { flex: 1; min-height: 0; }
 .cli-area { flex: 1; min-height: 0; display: flex; flex-direction: column; }
 .terminal-workspace { flex: 1; min-height: 0; }
 </style>

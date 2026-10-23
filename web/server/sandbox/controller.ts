@@ -41,10 +41,10 @@ export class SandboxController {
     return record?.nodeId === node.id && record.bootId === node.bootId
   }
   private canSchedule(node: SandboxNodeStatus) {
-    if (node.state !== 'online' || !node.bootId || !node.telemetry || node.telemetry.freeDiskGb < 5) return false
+    if (node.settings.draining || node.state !== 'online' || !node.bootId || !node.telemetry || node.telemetry.freeDiskGb < 5) return false
     if (node.sandboxes.some(box => !this.known(node, box.id))) return false
-    const creating = [...this.instances.values()].filter(r => r.nodeId === node.id && r.bootId === node.bootId && r.state === 'creating').length
-    return node.telemetry.availableMemoryMb - creating * this.hub.config.policy.resources.memory_max_mb >= this.hub.config.policy.resources.memory_max_mb + 256
+    const reservedMemory = [...this.instances.values()].filter(r => r.nodeId === node.id && r.bootId === node.bootId && r.state === 'creating').reduce((sum, record) => sum + record.policy.resources.memory_max_mb, 0)
+    return node.telemetry.availableMemoryMb - reservedMemory >= node.settings.memoryMb + 256
   }
   async start(userId: string, workerUserId: number): Promise<SandboxInstance> {
     if (!this.enabled()) throw new SandboxError(503, '练习环境尚未开放')
@@ -55,17 +55,20 @@ export class SandboxController {
     for (const node of this.nodes()) {
       if (!this.canSchedule(node)) continue
       const occupied = new Set([...this.instances.values()].filter(r => r.nodeId === node.id && r.bootId === node.bootId).map(r => r.slot))
-      const limit = this.hub.config.nodes.find(n => n.id === node.id)!.maxSlots
+      const limit = node.settings.maxSlots
+      if (occupied.size >= limit) continue
       for (let slot = 1; slot <= limit; slot++) if (!occupied.has(slot)) { selected = { node, slot }; break }
       if (selected) break
     }
     if (!selected) throw new SandboxError(503, '暂无可用节点或空闲资源，请稍后重试')
     const { node, slot } = selected
-    const record: InstanceRecord = { id: 'sbx_' + randomBytes(12).toString('hex'), userId, workerUserId, nodeId: node.id, bootId: node.bootId!, state: 'creating', slot, ip: null, startedAt: new Date(this.now()).toISOString(), expiresAt: null, lastActiveAt: null, confirmedRevision: null, policy: structuredClone(this.hub.config.policy), error: null }
+    const policy = structuredClone(this.hub.config.policy)
+    policy.resources.memory_max_mb = node.settings.memoryMb; policy.resources.pids_max = node.settings.pidsMax
+    const record: InstanceRecord = { id: 'sbx_' + randomBytes(12).toString('hex'), userId, workerUserId, nodeId: node.id, bootId: node.bootId!, state: 'creating', slot, ip: null, startedAt: new Date(this.now()).toISOString(), expiresAt: null, lastActiveAt: null, confirmedRevision: null, policy, error: null }
     // Reservation is synchronous and precedes RPC: concurrent starts share one instance.
     this.instances.set(record.id, record); this.byUser.set(userId, record.id)
     try {
-      const result = await this.hub.rpc(node.id, record.bootId, 'create_box', { sandbox_id: record.id, user_id: workerUserId, slot_index: slot, ttl_seconds: this.hub.config.ttlSeconds, idle_seconds: this.hub.config.idleSeconds, policy: record.policy }, this.timeout)
+      const result = await this.hub.rpc(node.id, record.bootId, 'create_box', { sandbox_id: record.id, user_id: workerUserId, slot_index: slot, ttl_seconds: node.settings.ttlSeconds, idle_seconds: node.settings.idleSeconds, policy: record.policy }, this.timeout)
       if (this.instances.get(record.id) !== record) throw new Error('Worker generation changed')
       if (!result.success || !Number.isSafeInteger(result.inventory_revision) || result.inventory_revision! < 1 || !Number.isSafeInteger(result.expires_at) || result.expires_at! * 1000 <= this.now() || result.expires_at! > 8640000000000 || !result.sandbox_ip || isIP(result.sandbox_ip) !== 4) throw new Error('Invalid create acknowledgement')
       record.confirmedRevision = result.inventory_revision!
@@ -141,14 +144,14 @@ export class SandboxController {
     }
     for (const id of alive.keys()) this.cleanUnknown(node.id, node.bootId!, id)
   }
-  ticket(userId: string, id: string): SandboxTicket {
+  ticket(userId: string, id: string, stream: 'cli' | 'gui' = 'cli'): SandboxTicket {
     const record = this.instances.get(id)
     if (!this.enabled() || !record || record.userId !== userId) throw new SandboxError(404, '实例不存在或已回收')
     const view = this.view(record)
     if (record.state !== 'running' || !view.connected || !record.expiresAt || Date.parse(record.expiresAt) <= this.now()) throw new SandboxError(409, '实例尚未就绪或节点已断开，请刷新状态')
     const exp = Math.min(Math.floor(this.now() / 1000) + 60, Math.floor(Date.parse(record.expiresAt) / 1000))
-    const claims = Buffer.from(JSON.stringify({ jti: randomBytes(16).toString('hex'), sub: record.workerUserId, sbx: record.id, typ: 'pty', exp }))
+    const claims = Buffer.from(JSON.stringify({ jti: randomBytes(16).toString('hex'), sub: record.workerUserId, sbx: record.id, typ: stream === 'gui' ? 'vnc' : 'pty', exp }))
     const token = claims.toString('base64url') + '.' + sign(null, claims, this.hub.config.signingKey!).toString('base64url')
-    return { url: this.hub.config.nodes.find(n => n.id === record.nodeId)!.publicDataUrl + '/ws/cli', ticket: token, expiresAt: new Date(exp * 1000).toISOString(), sandboxId: record.id }
+    return { url: this.hub.config.nodes.find(n => n.id === record.nodeId)!.publicDataUrl + (stream === 'gui' ? '/ws/gui' : '/ws/cli'), ticket: token, expiresAt: new Date(exp * 1000).toISOString(), sandboxId: record.id, stream }
   }
 }
