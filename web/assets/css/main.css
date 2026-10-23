@@ -20,6 +20,8 @@
   --ink: #e7ecef;
   --muted: #a0acb6;
   --body: #bbc5ce;
+  --reader-bg: #1b1d20;
+  --reader-ink: #d2d4d7;
   --line: #303a44;
   --green: #8ed6bd;
   --mint: #253b36;
@@ -76,6 +78,8 @@
   --ink: #202127;
   --muted: #666872;
   --body: #454751;
+  --reader-bg: #faf9f6;
+  --reader-ink: #343638;
   --line: #e2e2e7;
   --green: #30323a;
   --mint: #ebebef;

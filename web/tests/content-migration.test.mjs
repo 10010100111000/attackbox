@@ -23,6 +23,7 @@ test('fresh baseline has direct content records, seeded categories and no revisi
     assert.ok(tables.includes('chapter_questions'))
     assert.ok(tables.includes('chapter_progress'))
     assert.ok(tables.includes('question_completions'))
+    assert.ok(tables.includes('sandbox_identities'))
     assert.ok(!tables.some(t => t.includes('revision')))
     assert.equal((await client`SELECT id FROM content_categories`).length, 6)
     const columns = (await client`SELECT column_name FROM information_schema.columns WHERE table_name='modules' AND table_schema='public'`).map(c => c.column_name)

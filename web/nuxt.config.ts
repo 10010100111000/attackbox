@@ -20,6 +20,7 @@ export default defineNuxtConfig({
     '/auth': { prerender: true }
   },
   nitro: {
+    experimental: { websocket: true },
     prerender: {
       crawlLinks: false,
       routes: ['/', '/auth']

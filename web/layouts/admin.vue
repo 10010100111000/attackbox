@@ -28,6 +28,8 @@ const isAdmin = computed(() => {
 })
 
 const currentSection = computed(() => {
+  if (route.path.startsWith('/admin/instances')) return 'instances'
+  if (route.path.startsWith('/admin/nodes')) return 'nodes'
   if (route.path.startsWith('/admin/modules')) return 'modules'
   if (route.path.startsWith('/admin/routes')) return 'routes'
   if (route.path.startsWith('/admin/users')) return 'users'
@@ -100,16 +102,14 @@ async function handleLogout() {
           </span>
 
           <div class="nav-group-label">环境管理</div>
-          <span class="admin-nav-link disabled" title="后续阶段接入">
+          <NuxtLink to="/admin/nodes" class="admin-nav-link" :class="{ active: currentSection === 'nodes' }">
             <Server :size="16" class="nav-icon" aria-hidden="true" />
             <span>节点管理</span>
-            <span class="badge-plan">计划</span>
-          </span>
-          <span class="admin-nav-link disabled" title="后续阶段接入">
+          </NuxtLink>
+          <NuxtLink to="/admin/instances" class="admin-nav-link" :class="{ active: currentSection === 'instances' }">
             <Monitor :size="16" class="nav-icon" aria-hidden="true" />
             <span>运行实例</span>
-            <span class="badge-plan">计划</span>
-          </span>
+          </NuxtLink>
 
           <div class="nav-group-label">系统管理</div>
           <span class="admin-nav-link disabled" title="后续阶段接入">
@@ -134,9 +134,9 @@ async function handleLogout() {
       <div class="admin-main-wrap">
         <header class="admin-topbar">
           <div class="topbar-crumb">
-            <NuxtLink to="/admin/modules">内容管理</NuxtLink>
+            <NuxtLink :to="currentSection === 'nodes' || currentSection === 'instances' ? '/admin/nodes' : '/admin/modules'">{{ currentSection === 'nodes' || currentSection === 'instances' ? '环境管理' : '内容管理' }}</NuxtLink>
             <span>/</span>
-            <span class="crumb-active">学习模块</span>
+            <span class="crumb-active">{{ currentSection === 'nodes' ? '节点管理' : currentSection === 'instances' ? '运行实例' : '学习模块' }}</span>
           </div>
 
           <div class="topbar-right">

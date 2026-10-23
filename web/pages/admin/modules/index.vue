@@ -140,12 +140,13 @@ async function deleteModule(id: string) {
                 <NuxtLink :to="`/admin/modules/${m.id}`" class="action-btn edit-btn">
                   编辑
                 </NuxtLink>
-                <button class="action-btn" type="button" @click="deleteModule(m.id)">删除</button>
+                <button class="action-btn delete-btn" type="button" @click="deleteModule(m.id)">删除</button>
                 <NuxtLink
                   v-if="m.status === 'published'"
                   :to="`/learn/modules/${m.slug}`"
                   target="_blank"
                   class="action-btn view-btn"
+                  rel="noopener noreferrer"
                 >
                   前台预览 <ExternalLink :size="12" aria-hidden="true" />
                 </NuxtLink>
@@ -261,11 +262,12 @@ async function deleteModule(id: string) {
   background: var(--paper);
   border: 1px solid var(--line);
   border-radius: 10px;
-  overflow: hidden;
+  overflow-x: auto;
 }
 
 .module-table {
   width: 100%;
+  min-width: 940px;
   border-collapse: collapse;
   text-align: left;
   font-size: 13px;
@@ -280,7 +282,10 @@ async function deleteModule(id: string) {
   font-size: 12px;
 }
 
+.module-table th:last-child { width: 230px; }
+
 .module-table td {
+  vertical-align: middle;
   padding: 14px 18px;
   border-bottom: 1px solid var(--line);
   color: var(--ink);
@@ -305,6 +310,7 @@ async function deleteModule(id: string) {
   font-family: monospace;
   font-size: 11px;
   color: var(--muted);
+  overflow-wrap: anywhere;
 }
 
 .status-cell {
@@ -335,33 +341,37 @@ async function deleteModule(id: string) {
   color: var(--muted);
 }
 
+/* Reserve the same slots in published and draft rows. */
 .action-cell {
-  display: flex;
-  justify-content: flex-end;
-  gap: 12px;
+  display: grid;
+  grid-template-columns: 40px 40px 92px;
+  justify-content: end;
+  align-items: center;
+  gap: 8px;
 }
 
 .action-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  min-height: 32px;
+  padding: 0 5px;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
   font-size: 12px;
   font-weight: 600;
+  line-height: 1;
+  white-space: nowrap;
   text-decoration: none;
+  cursor: pointer;
 }
-
-.edit-btn {
-  color: var(--green);
-}
-
-.edit-btn:hover {
-  text-decoration: underline;
-}
-
-.view-btn {
-  color: var(--muted);
-}
-
-.view-btn:hover {
-  color: var(--ink);
-}
+.action-btn:hover { background: var(--soft); color: var(--ink); }
+.edit-btn { color: var(--green); }
+.delete-btn:hover { background: var(--error-bg); color: var(--error-ink); }
 
 .text-right {
   text-align: right;

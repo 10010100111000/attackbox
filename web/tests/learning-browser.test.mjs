@@ -16,7 +16,21 @@ test('browser: publish, guest preview, login, persistent completion, resume and 
     await admin.addCookies([{ name: 'attackbox_session', value: f.admin.token, url: f.base }])
     const edit = await admin.newPage(); await edit.goto(f.base + '/admin/modules/' + mod.module.id)
     await edit.getByRole('button', { name: '保存并发布', exact: true }).click()
-    await edit.locator('.badge.published').waitFor(); await admin.close()
+    await edit.locator('.badge.published').waitFor()
+    const draft = await f.createModule('draft')
+    await edit.goto(f.base + '/admin/modules')
+    const publishedRow = edit.locator('tbody tr').filter({ hasText: mod.module.title })
+    const draftRow = edit.locator('tbody tr').filter({ hasText: draft.module.title })
+    await publishedRow.waitFor(); await draftRow.waitFor()
+    for (const selector of ['.edit-btn', '.delete-btn']) {
+      const publishedButton = await publishedRow.locator(selector).boundingBox()
+      const draftButton = await draftRow.locator(selector).boundingBox()
+      assert.ok(Math.abs(publishedButton.x - draftButton.x) < 1, 'actions align in draft and published rows')
+    }
+    const preview = await publishedRow.locator('.view-btn').boundingBox()
+    const deleteButton = await publishedRow.locator('.delete-btn').boundingBox()
+    assert.ok(Math.abs(preview.y + preview.height / 2 - deleteButton.y - deleteButton.height / 2) < 1, 'preview and buttons share a vertical center')
+    await admin.close()
     const context = await browser.newContext({ viewport: { width: 1440, height: 1000 } }), page = await context.newPage(); currentPage = page
     page.setDefaultTimeout(12000); page.on('pageerror', e => errors.push(e.message))
     async function login(account) {
@@ -44,6 +58,24 @@ test('browser: publish, guest preview, login, persistent completion, resume and 
       await page.locator('.answer-feedback.success').nth(index).waitFor()
     }
     await page.goto(f.base + first)
+    await page.locator('.article-body > .markdown-body').waitFor()
+    if (process.env.LEARNING_SCREENSHOT_DIR) {
+      mkdirSync(process.env.LEARNING_SCREENSHOT_DIR, { recursive: true })
+      await page.screenshot({ path: process.env.LEARNING_SCREENSHOT_DIR + '/reader-expanded.png' })
+    }
+    const bodyBefore = await page.locator('.article-body > .markdown-body').boundingBox()
+    assert.equal(await page.locator('.article-body > .markdown-body').evaluate(el => getComputedStyle(el).fontSize), '17px')
+    await page.getByRole('button', { name: '收起模块目录', exact: true }).click()
+    const bodyAfter = await page.locator('.article-body > .markdown-body').boundingBox()
+    if (process.env.LEARNING_SCREENSHOT_DIR) {
+      await page.screenshot({ path: process.env.LEARNING_SCREENSHOT_DIR + '/reader-collapsed.png' })
+      await page.evaluate(() => document.documentElement.dataset.theme = 'midnight')
+      await page.screenshot({ path: process.env.LEARNING_SCREENSHOT_DIR + '/reader-dark.png' })
+      await page.evaluate(() => document.documentElement.dataset.theme = 'graphite')
+    }
+    assert.ok(bodyAfter.width - bodyBefore.width > 180, 'collapsing the outline expands the article instead of shifting a fixed-width column')
+    assert.ok(Math.abs(bodyBefore.x + bodyBefore.width - bodyAfter.x - bodyAfter.width) < 1, 'article right edge stays anchored')
+    await page.getByRole('button', { name: '展开模块目录', exact: true }).click()
     await answer(0, 'whoami'); await answer(1, 'pwd')
     await page.locator('.guest-progress').waitFor()
     await page.locator('.guest-progress a').click()
@@ -62,11 +94,13 @@ test('browser: publish, guest preview, login, persistent completion, resume and 
     await page.locator('.answer-input').nth(1).fill('pwd')
     await page.locator('.question-item').evaluateAll(forms => forms.forEach(form => form.requestSubmit()))
     await page.locator('.answer-feedback.success').nth(1).waitFor()
-    await page.unroute('**/attempt')
+    await page.unrouteAll({ behavior: 'wait' })
     assert.equal(await page.locator('.quiz-badge').innerText(), '已完成', 'late responses cannot undo a saved completion')
     await page.getByText('已完成', { exact: true }).first().waitFor()
+    assert.equal(await page.locator('.answer-input, .answer-check-btn').count(), 0, 'completed chapters have no answer controls')
     await page.reload(); await page.locator('.quiz-badge').filter({ hasText: '已完成' }).waitFor()
     assert.equal(await page.locator('.answer-feedback.success').count(), 2, 'refresh restores passed questions')
+    assert.equal(await page.locator('.answer-input, .answer-check-btn').count(), 0, 'completed chapter stays read-only after reload')
     await page.locator('.next-btn').click(); await page.waitForURL(f.base + second)
     await page.getByRole('button', { name: '完成本章', exact: true }).click()
     await page.getByText('本章已完成', { exact: true }).waitFor()

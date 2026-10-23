@@ -22,6 +22,13 @@
       "when": 1792777330932,
       "tag": "0002_learning_progress",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1792782856741,
+      "tag": "0003_sandbox_identity",
+      "breakpoints": true
     }
   ]
 }

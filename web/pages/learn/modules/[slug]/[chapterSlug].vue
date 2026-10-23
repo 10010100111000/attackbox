@@ -99,6 +99,7 @@ const sidebarCollapsed = ref(false)
 const mobileOutlineOpen = ref(false)
 const scrollElement = ref<HTMLElement | null>(null)
 const practiceMode = ref<'cli' | 'gui'>('cli')
+const practiceOpened = ref(false)
 const practiceVisible = ref(false), practiceMinimized = ref(false), practiceExpanded = ref(false)
 const dockHeight = ref(310), viewportHeight = ref(900)
 const maxDockHeight = computed(() => Math.max(180, viewportHeight.value - 220))
@@ -112,6 +113,7 @@ function toggleSidebar() {
   try { localStorage.setItem('attackbox-reader-outline-collapsed', String(sidebarCollapsed.value)) } catch {}
 }
 function openPractice(mode: 'cli' | 'gui') {
+  practiceOpened.value = true
   practiceMode.value = mode; practiceVisible.value = true; practiceMinimized.value = false
 }
 function closePractice() { practiceVisible.value = false; practiceExpanded.value = false }
@@ -192,7 +194,7 @@ function renderPrompt(markdown: string): string {
 }
 
 async function handleCheckAnswer(q: QuestionItem) {
-  if (answerFeedbacks.value[q.id]?.status === 'checking') return
+  if (savedProgress.value.completedAt || answerFeedbacks.value[q.id]?.status === 'checking') return
   const generation = chapterGeneration
   const input = userAnswers.value[q.id] || ''
   if (!input.length) {
@@ -283,11 +285,11 @@ useHead({
               <div class="quiz-head"><h2 id="quiz-title">章节练习</h2><span class="quiz-badge" :class="{ passed: allAnswersCorrect || savedProgress.completedAt }"><CheckCircle2 v-if="allAnswersCorrect || savedProgress.completedAt" :size="14" aria-hidden="true" />{{ savedProgress.completedAt ? '已完成' : allAnswersCorrect ? '全部通过' : `${chapterData.questions.length} 道题` }}</span></div>
               <form v-for="(q, qIndex) in chapterData.questions" :key="q.id" class="question-item" @submit.prevent="handleCheckAnswer(q)">
                 <div :id="`question-${q.id}`" class="question-label"><span class="q-num">{{ qIndex + 1 }}.</span><div class="q-prompt" v-html="renderPrompt(q.promptMarkdown)" /></div>
-                <div class="answer-line">
+                <div v-if="!savedProgress.completedAt" class="answer-line">
                   <input :id="`answer-${q.id}`" v-model="userAnswers[q.id]" type="text" class="answer-input" placeholder="输入你的答案" maxlength="2000" autocomplete="off" autocapitalize="off" spellcheck="false" :aria-labelledby="`question-${q.id}`" :aria-describedby="`feedback-${q.id}`" :aria-invalid="answerFeedbacks[q.id]?.status === 'error'" :disabled="answerFeedbacks[q.id]?.status === 'checking'" @input="delete answerFeedbacks[q.id]" />
                   <button type="submit" class="answer-check-btn" :disabled="answerFeedbacks[q.id]?.status === 'checking'"><LoaderCircle v-if="answerFeedbacks[q.id]?.status === 'checking'" :size="14" class="spinning" aria-hidden="true" />{{ answerFeedbacks[q.id]?.status === 'checking' ? '校验中' : '校验答案' }}</button>
                 </div>
-                <div :id="`feedback-${q.id}`" class="answer-feedback" :class="answerFeedbacks[q.id]?.status || (savedProgress.passedQuestionIds.includes(q.id) ? 'success' : undefined)" role="status" aria-live="polite"><template v-if="answerFeedbacks[q.id]"><CheckCircle2 v-if="answerFeedbacks[q.id].status === 'success'" :size="14" aria-hidden="true" /><CircleAlert v-else-if="answerFeedbacks[q.id].status === 'error'" :size="14" aria-hidden="true" />{{ answerFeedbacks[q.id].message }}</template><template v-else-if="savedProgress.passedQuestionIds.includes(q.id)"><CheckCircle2 :size="14" aria-hidden="true" />已通过</template></div>
+                <div :id="`feedback-${q.id}`" class="answer-feedback" :class="savedProgress.completedAt ? 'success' : answerFeedbacks[q.id]?.status || (savedProgress.passedQuestionIds.includes(q.id) ? 'success' : undefined)" role="status" aria-live="polite"><template v-if="savedProgress.completedAt"><CheckCircle2 :size="14" aria-hidden="true" />已完成</template><template v-else-if="answerFeedbacks[q.id]"><CheckCircle2 v-if="answerFeedbacks[q.id].status === 'success'" :size="14" aria-hidden="true" /><CircleAlert v-else-if="answerFeedbacks[q.id].status === 'error'" :size="14" aria-hidden="true" />{{ answerFeedbacks[q.id].message }}</template><template v-else-if="savedProgress.passedQuestionIds.includes(q.id)"><CheckCircle2 :size="14" aria-hidden="true" />已通过</template></div>
               </form>
             </section>
 
@@ -305,8 +307,8 @@ useHead({
             </nav>
           </article>
         </div>
-        <PracticeDock v-if="practiceVisible && !practiceMinimized" v-model:height="dockHeight" v-model:expanded="practiceExpanded" :mode="practiceMode" :max-height="maxDockHeight" @minimize="minimizePractice" @close="closePractice" />
-        <button v-else-if="practiceVisible" type="button" class="dock-restore" aria-label="恢复练习面板" @click="practiceMinimized = false"><Terminal v-if="practiceMode === 'cli'" :size="14" aria-hidden="true" /><Monitor v-else :size="14" aria-hidden="true" />{{ practiceMode === 'cli' ? '终端' : '桌面' }}<ChevronUp :size="15" aria-hidden="true" /></button>
+        <PracticeDock v-if="practiceOpened" v-show="practiceVisible && !practiceMinimized" :key="learnerId" :active="practiceVisible && !practiceMinimized" v-model:height="dockHeight" v-model:expanded="practiceExpanded" :mode="practiceMode" :max-height="maxDockHeight" @minimize="minimizePractice" @close="closePractice" />
+        <button v-if="practiceVisible && practiceMinimized" type="button" class="dock-restore" aria-label="恢复练习面板" @click="practiceMinimized = false"><Terminal v-if="practiceMode === 'cli'" :size="14" aria-hidden="true" /><Monitor v-else :size="14" aria-hidden="true" />{{ practiceMode === 'cli' ? '终端' : '桌面' }}<ChevronUp :size="15" aria-hidden="true" /></button>
       </div>
     </div>
     <div v-else class="reading-loading" role="status">正在加载章节…</div>
@@ -323,12 +325,12 @@ useHead({
 .progress-notice button { border: 0; background: transparent; cursor: pointer; }
 .next-locked { border: 0; background: transparent; cursor: not-allowed; text-align: right; }
 
-.reading-page { background: var(--bg); color: var(--ink); }
+.reading-page { background: var(--reader-bg); color: var(--ink); }
 .learn-shell { display: grid; grid-template-columns: 248px minmax(0, 1fr); height: calc(100dvh - 68px); min-height: 320px; }
 .learn-shell.outline-collapsed { grid-template-columns: 56px minmax(0, 1fr); }
 .reading-sidebar { min-height: 0; background: var(--paper); border-right: 1px solid var(--line); }
 .reading-main { min-width: 0; min-height: 0; display: flex; flex-direction: column; position: relative; }
-.reading-top-bar { display: flex; align-items: center; justify-content: space-between; gap: 16px; height: 45px; flex-shrink: 0; padding: 0 24px; border-bottom: 1px solid var(--line); background: var(--bg); }
+.reading-top-bar { display: flex; align-items: center; justify-content: space-between; gap: 16px; height: 45px; flex-shrink: 0; padding: 0 24px; border-bottom: 1px solid var(--line); background: var(--reader-bg); }
 .toolbar-left, .toolbar-tools { display: flex; align-items: center; gap: 12px; }
 .module-return { display: inline-flex; align-items: center; gap: 7px; font-size: 11px; text-decoration: none; color: var(--muted); }
 .module-return:hover { color: var(--ink); }
@@ -337,14 +339,16 @@ useHead({
 .toolbar-tools button:hover { background: var(--soft); color: var(--ink); }
 .toolbar-tools button[aria-pressed='true'] { border-color: var(--line); background: var(--paper); color: var(--ink); }
 .reading-scroll { flex: 1; overflow: auto; min-height: 0; overscroll-behavior: contain; scroll-padding-top: 24px; }
-.article-body { max-width: 1120px; width: 100%; margin: 0 auto; padding: 30px 48px 64px; }
+.article-body { width: 100%; min-width: 0; padding: 36px clamp(32px, 4vw, 72px) 64px; overflow-wrap: anywhere; }
 .chapter-meta { display: flex; flex-wrap: wrap; gap: 16px; font-size: 11px; color: var(--muted); margin-bottom: 12px; }
 .chapter-meta > span { display: inline-flex; align-items: center; gap: 5px; }
 .chapter-main-title { font-size: clamp(26px, 2.7vw, 32px); font-weight: 700; line-height: 1.4; letter-spacing: -.6px; margin: 0 0 20px; overflow-wrap: anywhere; }
-.article-body :deep(.markdown-body) { color: var(--body); font-size: 15px; line-height: 1.95; }
-.article-body :deep(.markdown-body p) { color: var(--body); opacity: 1; }
+.article-body :deep(.markdown-body) { color: var(--reader-ink); font-size: 17px; line-height: 1.9; }
+.article-body :deep(.markdown-body p) { color: var(--reader-ink); opacity: 1; }
 .article-body :deep(.markdown-body h2) { font-size: 22px; margin-top: 1.6em; border: 0; padding-bottom: 0; color: var(--ink); }
-.article-body :deep(.markdown-body h3) { color: var(--ink); }
+.article-body :deep(.markdown-body h3) { color: var(--ink); font-size: 19px; }
+.article-body :deep(.markdown-body pre) { font-size: 14px; }
+.article-body :deep(.markdown-body .callout p) { font-size: inherit; }
 .article-body :deep(.markdown-body a) { color: var(--green); }
 .article-body :deep(.markdown-body :not(pre) > code) { color: var(--ink); }
 .article-body :deep(.markdown-body blockquote) { border-left-color: var(--focus); background: var(--soft); }
@@ -357,7 +361,7 @@ useHead({
 .quiz-badge.passed { color: var(--success-ink); }
 .question-item { width: 100%; margin: 0; }
 .question-item + .question-item { padding-top: 24px; margin-top: 20px; border-top: 1px solid var(--line); }
-.question-label { display: flex; align-items: baseline; gap: 8px; font-size: 15px; line-height: 1.9; color: var(--ink); margin-bottom: 12px; }
+.question-label { display: flex; align-items: baseline; gap: 8px; font-size: 17px; line-height: 1.9; color: var(--ink); margin-bottom: 12px; }
 .q-num { flex-shrink: 0; color: var(--muted); font-size: 12px; font-family: monospace; }
 .q-prompt { min-width: 0; overflow-wrap: anywhere; }
 .q-prompt :deep(p) { margin: 0; }

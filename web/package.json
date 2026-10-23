@@ -7,18 +7,22 @@
     "generate": "nuxt generate",
     "dev": "nuxt dev",
     "preview": "nuxt preview",
-    "test": "node --experimental-strip-types --test tests/auth-crypto.test.js tests/composables.test.js tests/ui.test.js tests/landing.test.js tests/auth.test.js tests/markdown.test.js tests/learning-ui.test.js tests/admin-ui.test.js tests/quiz-crypto.test.js tests/learning-access.test.js",
+    "test": "node --experimental-strip-types --test tests/auth-crypto.test.js tests/composables.test.js tests/ui.test.js tests/landing.test.js tests/auth.test.js tests/markdown.test.js tests/learning-ui.test.js tests/admin-ui.test.js tests/quiz-crypto.test.js tests/learning-access.test.js tests/sandbox-nodes.test.js tests/sandbox-lifecycle.test.js",
     "db:generate": "drizzle-kit generate",
     "admin:init": "node server/scripts/init-admin.mjs",
     "postinstall": "nuxt prepare",
     "test:content": "node --test tests/content-migration.test.mjs tests/content-lifecycle.test.mjs tests/learning-progress.test.mjs",
     "db:migrate": "node server/scripts/apply-migrations.mjs",
     "db:reset": "node server/scripts/reset-db.mjs",
-    "test:learning-browser": "node --test tests/learning-browser.test.mjs"
+    "test:learning-browser": "node --test tests/learning-browser.test.mjs",
+    "test:nodes-browser": "node --test tests/sandbox-nodes-browser.test.mjs",
+    "test:sandbox-browser": "node --test tests/sandbox-lifecycle-browser.test.mjs"
   },
   "dependencies": {
     "@node-rs/argon2": "^2.2.2",
     "@node-rs/argon2-linux-x64-gnu": "^2.2.2",
+    "@xterm/addon-fit": "^0.11.0",
+    "@xterm/xterm": "^6.0.0",
     "argon2": "^0.45.1",
     "clsx": "^2.1.1",
     "drizzle-orm": "^0.45.4",
@@ -39,6 +43,7 @@
     "nuxt": "^3.15.4",
     "playwright": "^1.62.1",
     "tailwindcss": "^3.4.17",
-    "typescript": "^5.7.3"
+    "typescript": "^5.7.3",
+    "ws": "^8.22.0"
   }
 }
