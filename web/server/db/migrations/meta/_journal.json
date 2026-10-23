@@ -5,22 +5,8 @@
     {
       "idx": 0,
       "version": "7",
-      "when": 1792752205879,
+      "when": 1792769850919,
       "tag": "0000_simple_platform",
-      "breakpoints": true
-    },
-    {
-      "idx": 1,
-      "version": "7",
-      "when": 1792765890344,
-      "tag": "0001_module_outcomes",
-      "breakpoints": true
-    },
-    {
-      "idx": 2,
-      "version": "7",
-      "when": 1792766926368,
-      "tag": "0002_module_prerequisites_duration",
       "breakpoints": true
     }
   ]

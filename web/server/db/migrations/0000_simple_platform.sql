@@ -98,12 +98,23 @@ CREATE TABLE "chapters" (
 	"slug" varchar(100) NOT NULL,
 	"position" integer NOT NULL,
 	"title" varchar(160) NOT NULL,
+	"duration_minutes" integer,
 	"access" varchar(20) DEFAULT 'public' NOT NULL,
 	"body_markdown" text DEFAULT '' NOT NULL,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
 	CONSTRAINT "chapters_slug_check" CHECK ("chapters"."slug" ~ '^[a-z0-9]+(-[a-z0-9]+)*$'),
 	CONSTRAINT "chapters_position_check" CHECK ("chapters"."position" > 0),
+	CONSTRAINT "chapters_duration_check" CHECK ("chapters"."duration_minutes" is null or "chapters"."duration_minutes" between 1 and 1440),
 	CONSTRAINT "chapters_access_check" CHECK ("chapters"."access" in ('public', 'authenticated'))
+);
+--> statement-breakpoint
+CREATE TABLE "module_prerequisites" (
+	"module_id" uuid NOT NULL,
+	"prerequisite_id" uuid NOT NULL,
+	"position" integer NOT NULL,
+	CONSTRAINT "module_prerequisites_module_id_prerequisite_id_pk" PRIMARY KEY("module_id","prerequisite_id"),
+	CONSTRAINT "module_prerequisites_self_check" CHECK ("module_prerequisites"."module_id" <> "module_prerequisites"."prerequisite_id"),
+	CONSTRAINT "module_prerequisites_position_check" CHECK ("module_prerequisites"."position" > 0)
 );
 --> statement-breakpoint
 CREATE TABLE "modules" (
@@ -112,6 +123,7 @@ CREATE TABLE "modules" (
 	"title" varchar(160) NOT NULL,
 	"summary" varchar(500) DEFAULT '' NOT NULL,
 	"description_markdown" text DEFAULT '' NOT NULL,
+	"learning_outcomes" text[] DEFAULT '{}'::text[] NOT NULL,
 	"difficulty" varchar(20) DEFAULT 'beginner' NOT NULL,
 	"category_id" uuid,
 	"cover_asset_id" uuid,
@@ -143,6 +155,8 @@ ALTER TABLE "chapter_assets" ADD CONSTRAINT "chapter_assets_chapter_id_chapters_
 ALTER TABLE "chapter_assets" ADD CONSTRAINT "chapter_assets_asset_id_assets_id_fk" FOREIGN KEY ("asset_id") REFERENCES "public"."assets"("id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "chapter_questions" ADD CONSTRAINT "chapter_questions_chapter_id_chapters_id_fk" FOREIGN KEY ("chapter_id") REFERENCES "public"."chapters"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "chapters" ADD CONSTRAINT "chapters_module_id_modules_id_fk" FOREIGN KEY ("module_id") REFERENCES "public"."modules"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "module_prerequisites" ADD CONSTRAINT "module_prerequisites_module_id_modules_id_fk" FOREIGN KEY ("module_id") REFERENCES "public"."modules"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "module_prerequisites" ADD CONSTRAINT "module_prerequisites_prerequisite_id_modules_id_fk" FOREIGN KEY ("prerequisite_id") REFERENCES "public"."modules"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "modules" ADD CONSTRAINT "modules_category_id_content_categories_id_fk" FOREIGN KEY ("category_id") REFERENCES "public"."content_categories"("id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "modules" ADD CONSTRAINT "modules_cover_asset_id_assets_id_fk" FOREIGN KEY ("cover_asset_id") REFERENCES "public"."assets"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "modules" ADD CONSTRAINT "modules_created_by_users_id_fk" FOREIGN KEY ("created_by") REFERENCES "public"."users"("id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
@@ -159,10 +173,12 @@ CREATE INDEX "chapter_assets_asset_idx" ON "chapter_assets" USING btree ("asset_
 CREATE UNIQUE INDEX "chapter_questions_position_unique" ON "chapter_questions" USING btree ("chapter_id","position");--> statement-breakpoint
 CREATE UNIQUE INDEX "chapters_module_slug_unique" ON "chapters" USING btree ("module_id","slug");--> statement-breakpoint
 CREATE UNIQUE INDEX "chapters_module_position_unique" ON "chapters" USING btree ("module_id","position");--> statement-breakpoint
+CREATE UNIQUE INDEX "module_prerequisites_position_unique" ON "module_prerequisites" USING btree ("module_id","position");--> statement-breakpoint
 CREATE UNIQUE INDEX "modules_slug_unique_idx" ON "modules" USING btree ("slug");--> statement-breakpoint
 CREATE INDEX "modules_status_idx" ON "modules" USING btree ("status");--> statement-breakpoint
 CREATE UNIQUE INDEX "content_categories_slug_unique" ON "content_categories" USING btree ("slug");--> statement-breakpoint
 CREATE UNIQUE INDEX "content_categories_name_unique" ON "content_categories" USING btree ("name");
+
 --> statement-breakpoint
 INSERT INTO content_categories (slug, name, position) VALUES
 ('web-security', 'Web 安全', 1), ('linux', 'Linux 基础', 2),

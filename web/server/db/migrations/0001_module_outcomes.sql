@@ -1,1 +1,0 @@
-ALTER TABLE "modules" ADD COLUMN "learning_outcomes" text[] DEFAULT '{}'::text[] NOT NULL;

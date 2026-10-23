@@ -1,5 +1,5 @@
 {
-  "id": "9d2483fd-cc29-48ee-9975-45f5497abdde",
+  "id": "3f1f4dd1-5850-41b0-92cd-b6ba18f7579c",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
@@ -860,6 +860,12 @@
           "primaryKey": false,
           "notNull": true
         },
+        "duration_minutes": {
+          "name": "duration_minutes",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
         "access": {
           "name": "access",
           "type": "varchar(20)",
@@ -953,9 +959,110 @@
           "name": "chapters_position_check",
           "value": "\"chapters\".\"position\" > 0"
         },
+        "chapters_duration_check": {
+          "name": "chapters_duration_check",
+          "value": "\"chapters\".\"duration_minutes\" is null or \"chapters\".\"duration_minutes\" between 1 and 1440"
+        },
         "chapters_access_check": {
           "name": "chapters_access_check",
           "value": "\"chapters\".\"access\" in ('public', 'authenticated')"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.module_prerequisites": {
+      "name": "module_prerequisites",
+      "schema": "",
+      "columns": {
+        "module_id": {
+          "name": "module_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "prerequisite_id": {
+          "name": "prerequisite_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "position": {
+          "name": "position",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {
+        "module_prerequisites_position_unique": {
+          "name": "module_prerequisites_position_unique",
+          "columns": [
+            {
+              "expression": "module_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "position",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "module_prerequisites_module_id_modules_id_fk": {
+          "name": "module_prerequisites_module_id_modules_id_fk",
+          "tableFrom": "module_prerequisites",
+          "tableTo": "modules",
+          "columnsFrom": [
+            "module_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "module_prerequisites_prerequisite_id_modules_id_fk": {
+          "name": "module_prerequisites_prerequisite_id_modules_id_fk",
+          "tableFrom": "module_prerequisites",
+          "tableTo": "modules",
+          "columnsFrom": [
+            "prerequisite_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "module_prerequisites_module_id_prerequisite_id_pk": {
+          "name": "module_prerequisites_module_id_prerequisite_id_pk",
+          "columns": [
+            "module_id",
+            "prerequisite_id"
+          ]
+        }
+      },
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "module_prerequisites_self_check": {
+          "name": "module_prerequisites_self_check",
+          "value": "\"module_prerequisites\".\"module_id\" <> \"module_prerequisites\".\"prerequisite_id\""
+        },
+        "module_prerequisites_position_check": {
+          "name": "module_prerequisites_position_check",
+          "value": "\"module_prerequisites\".\"position\" > 0"
         }
       },
       "isRLSEnabled": false
@@ -996,6 +1103,13 @@
           "primaryKey": false,
           "notNull": true,
           "default": "''"
+        },
+        "learning_outcomes": {
+          "name": "learning_outcomes",
+          "type": "text[]",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'{}'::text[]"
         },
         "difficulty": {
           "name": "difficulty",
