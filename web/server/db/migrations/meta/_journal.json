@@ -15,6 +15,13 @@
       "when": 1792704610757,
       "tag": "0001_yummy_trauma",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1792744206817,
+      "tag": "0002_mixed_juggernaut",
+      "breakpoints": true
     }
   ]
 }

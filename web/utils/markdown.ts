@@ -87,7 +87,7 @@ export function createMarkdownRenderer() {
   md.renderer.rules.link_open = function (tokens, idx, options, env, self) {
     const hrefIndex = tokens[idx].attrIndex('href')
     if (hrefIndex >= 0) {
-      const href = tokens[idx].attrs![hrefIndex][1]
+      const href = String(tokens[idx].attrs![hrefIndex][1])
       const isSafe = /^https?:\/\//i.test(href) || /^mailto:/i.test(href) || /^#/i.test(href) || /^\//i.test(href)
       if (!isSafe) {
         tokens[idx].attrs![hrefIndex][1] = '#unsafe-link-blocked'

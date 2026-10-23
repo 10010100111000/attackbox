@@ -2,6 +2,7 @@
 import { ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { useFetch, useHead } from '#imports'
+import type { AdminModuleListItem } from '~/shared/content'
 
 definePageMeta({
   layout: 'admin'
@@ -11,32 +12,7 @@ useHead({
   title: '学习模块管理 — AttackBox'
 })
 
-interface AdminModuleItem {
-  id: string
-  slug: string
-  createdAt: string
-  archivedAt: string | null
-  draft: {
-    id: string
-    revisionNo: number
-    title: string
-    summary: string
-    difficulty: 'beginner' | 'intermediate' | 'advanced'
-    lockVersion: number
-    updatedAt: string
-  } | null
-  published: {
-    id: string
-    revisionNo: number
-    title: string
-    summary: string
-    difficulty: 'beginner' | 'intermediate' | 'advanced'
-    publishedAt: string
-  } | null
-  isPublished: boolean
-  hasDraft: boolean
-  chapterCount: number
-}
+type AdminModuleItem = AdminModuleListItem
 
 const router = useRouter()
 const { data: response, pending, error, refresh } = await useFetch<{ ok: boolean; data: AdminModuleItem[] }>(
@@ -71,65 +47,10 @@ const filteredModules = computed(() => {
   return list
 })
 
-// 新建模块弹窗
-const isCreateModalOpen = ref(false)
-const isSubmitting = ref(false)
-const createError = ref('')
-
-const newModuleForm = ref({
-  title: '',
-  slug: '',
-  summary: '',
-  difficulty: 'beginner' as 'beginner' | 'intermediate' | 'advanced'
-})
-
-function generateSlug(text: string): string {
-  return text
-    .toLowerCase()
-    .trim()
-    .replace(/[^\w\s-]/g, '')
-    .replace(/[\s_-]+/g, '-')
-    .replace(/^-+|-+$/g, '')
-}
-
-function handleTitleChange() {
-  if (!newModuleForm.value.slug) {
-    newModuleForm.value.slug = generateSlug(newModuleForm.value.title)
-  }
-}
-
-async function handleCreateModule() {
-  createError.value = ''
-  const title = newModuleForm.value.title.trim()
-  if (!title) {
-    createError.value = '请输入模块名称'
-    return
-  }
-
-  isSubmitting.value = true
-  try {
-    const res = await $fetch<{ ok: boolean; data: { module: { id: string } } }>('/api/admin/modules', {
-      method: 'POST',
-      body: {
-        title,
-        slug: newModuleForm.value.slug.trim() || undefined,
-        summary: newModuleForm.value.summary.trim() || undefined,
-        difficulty: newModuleForm.value.difficulty
-      }
-    })
-
-    if (res?.data?.module?.id) {
-      isCreateModalOpen.value = false
-      router.push(`/admin/modules/${res.data.module.id}`)
-    } else {
-      await refresh()
-      isCreateModalOpen.value = false
-    }
-  } catch (err: any) {
-    createError.value = err?.data?.statusMessage || err?.data?.message || err?.message || '创建模块失败'
-  } finally {
-    isSubmitting.value = false
-  }
+async function deleteModule(id: string) {
+  if (!confirm('删除该模块？模块将从管理列表和学习页移除，历史内容保留。')) return
+  try { await $fetch(`/api/admin/modules/${id}`, { method: 'DELETE' }); await refresh() }
+  catch (error: any) { alert(error?.data?.message || '删除失败') }
 }
 </script>
 
@@ -140,7 +61,7 @@ async function handleCreateModule() {
         <h1 class="page-title">学习模块</h1>
         <p class="page-desc">管理章节、Markdown 来源与章节练习。</p>
       </div>
-      <button type="button" class="btn-create" @click="isCreateModalOpen = true">
+      <button type="button" class="btn-create" @click="router.push('/admin/modules/new')">
         ＋ 新建模块
       </button>
     </div>
@@ -188,7 +109,7 @@ async function handleCreateModule() {
             <th>模块名称 / 访问标识</th>
             <th>状态</th>
             <th>章节数量</th>
-            <th>难度</th>
+            <th>内容分类 / 难度</th>
             <th class="text-right">操作</th>
           </tr>
         </thead>
@@ -211,13 +132,14 @@ async function handleCreateModule() {
             </td>
             <td>{{ m.chapterCount }} 章节</td>
             <td>
-              <span class="diff-tag">{{ m.draft?.difficulty || m.published?.difficulty || 'beginner' }}</span>
+              <span>{{ m.category?.name || '未分类' }}</span> · <span class="diff-tag">{{ m.draft?.difficulty || m.published?.difficulty || 'beginner' }}</span>
             </td>
             <td class="text-right">
               <div class="action-cell">
                 <NuxtLink :to="`/admin/modules/${m.id}`" class="action-btn edit-btn">
                   编辑内容
                 </NuxtLink>
+                <button class="action-btn" type="button" @click="deleteModule(m.id)">删除</button>
                 <NuxtLink
                   v-if="m.isPublished"
                   :to="`/learn/modules/${m.slug}`"
@@ -241,84 +163,6 @@ async function handleCreateModule() {
 
     <p class="footnote">已发布模块的修改先保留为草稿，重新发布后才替换线上版本。</p>
 
-    <!-- 新建模块弹窗 -->
-    <div v-if="isCreateModalOpen" class="modal-backdrop" @click.self="isCreateModalOpen = false">
-      <div class="modal-card">
-        <div class="modal-header">
-          <h2>新建学习模块</h2>
-          <button type="button" class="close-btn" @click="isCreateModalOpen = false">✕</button>
-        </div>
-
-        <form @submit.prevent="handleCreateModule">
-          <div class="form-field">
-            <label for="new-title">模块名称 *</label>
-            <input
-              id="new-title"
-              v-model="newModuleForm.title"
-              type="text"
-              class="form-input"
-              placeholder="例如：Linux 基础入门"
-              required
-              @blur="handleTitleChange"
-            />
-          </div>
-
-          <div class="form-field">
-            <label for="new-slug">访问标识 Slug（留空自动生成）</label>
-            <input
-              id="new-slug"
-              v-model="newModuleForm.slug"
-              type="text"
-              class="form-input"
-              placeholder="例如：linux-basics"
-            />
-            <span class="field-hint">仅限字母、数字与连字符，用于访问地址。</span>
-          </div>
-
-          <div class="form-field">
-            <label for="new-desc">模块简介</label>
-            <textarea
-              id="new-desc"
-              v-model="newModuleForm.summary"
-              class="form-input"
-              rows="3"
-              placeholder="简要描述本模块的核心学习目标与内容…"
-            ></textarea>
-          </div>
-
-          <div class="form-field">
-            <label for="new-diff">难度级别</label>
-            <select id="new-diff" v-model="newModuleForm.difficulty" class="form-input">
-              <option value="beginner">基础入门 (Beginner)</option>
-              <option value="intermediate">中级进阶 (Intermediate)</option>
-              <option value="advanced">高阶实战 (Advanced)</option>
-            </select>
-          </div>
-
-          <div v-if="createError" class="form-error">
-            {{ createError }}
-          </div>
-
-          <div class="modal-footer">
-            <button
-              type="button"
-              class="btn-cancel"
-              :disabled="isSubmitting"
-              @click="isCreateModalOpen = false"
-            >
-              取消
-            </button>
-            <button
-              type="submit"
-              class="btn-submit"
-              :disabled="isSubmitting"
-            >
-              {{ isSubmitting ? '创建中…' : '创建并进入编辑器' }}
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
   </div>
 </template>
 
@@ -552,121 +396,4 @@ async function handleCreateModule() {
   margin-top: 16px;
 }
 
-/* Modal */
-.modal-backdrop {
-  position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.5);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 100;
-  padding: 16px;
-}
-
-.modal-card {
-  max-width: 520px;
-  width: 100%;
-  background: var(--paper);
-  border: 1px solid var(--line);
-  border-radius: 12px;
-  padding: 24px;
-  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.25);
-}
-
-.modal-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 20px;
-}
-
-.modal-header h2 {
-  font-size: 18px;
-  font-weight: 700;
-  margin: 0;
-  color: var(--ink);
-}
-
-.close-btn {
-  background: transparent;
-  border: none;
-  font-size: 16px;
-  color: var(--muted);
-  cursor: pointer;
-}
-
-.form-field {
-  margin-bottom: 16px;
-}
-
-.form-field label {
-  display: block;
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--ink);
-  margin-bottom: 6px;
-}
-
-.form-input {
-  width: 100%;
-  padding: 8px 12px;
-  border: 1px solid var(--line);
-  border-radius: 6px;
-  background: var(--bg);
-  color: var(--ink);
-  font-size: 13px;
-  box-sizing: border-box;
-}
-
-.form-input:focus {
-  outline: 2px solid var(--green);
-}
-
-.field-hint {
-  font-size: 11px;
-  color: var(--muted);
-  margin-top: 4px;
-  display: block;
-}
-
-.form-error {
-  font-size: 12px;
-  color: var(--color-error);
-  margin-bottom: 14px;
-}
-
-.modal-footer {
-  display: flex;
-  justify-content: flex-end;
-  gap: 10px;
-  margin-top: 24px;
-}
-
-.btn-cancel {
-  padding: 8px 16px;
-  border: 1px solid var(--line);
-  border-radius: 6px;
-  background: transparent;
-  color: var(--ink);
-  cursor: pointer;
-  font-size: 13px;
-}
-
-.btn-submit {
-  padding: 8px 18px;
-  border-radius: 6px;
-  background: var(--green);
-  color: var(--on-accent);
-  border: none;
-  cursor: pointer;
-  font-size: 13px;
-  font-weight: 600;
-}
-
-.btn-submit:disabled,
-.btn-cancel:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
-}
 </style>

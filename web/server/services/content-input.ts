@@ -1,0 +1,35 @@
+import { createError } from 'h3'
+import { randomUUID } from 'node:crypto'
+import { normalizations, difficulties, type QuestionInput, type ModuleInput } from '../../shared/content'
+import { hashQuizAnswer } from '../utils/quiz'
+import type { chapterQuestions } from '../db/schema/content'
+export function fail(message: string, statusCode = 400): never { throw createError({ statusCode, message }) }
+export function slugFor(value: unknown, prefix: string) {
+  const valueString = typeof value === 'string' ? value.trim().toLowerCase() : ''
+  const result = valueString || `${prefix}-${randomUUID().slice(0, 8)}`
+  if (result.length > 100 || !/^[a-z0-9]+(-[a-z0-9]+)*$/.test(result)) fail('访问标识仅支持小写字母、数字和短横线')
+  return result
+}
+export function validateModule(input: ModuleInput) {
+  if (input.difficulty !== undefined && !difficulties.includes(input.difficulty)) fail('无效难度')
+  if (input.title !== undefined && (typeof input.title !== 'string' || !input.title.trim() || input.title.length > 160)) fail('模块名称不能为空，且不能超过 160 字')
+  if (input.summary !== undefined && (typeof input.summary !== 'string' || input.summary.length > 500)) fail('模块简介不能超过 500 字')
+}
+export function questionSnapshot(input: QuestionInput, old?: typeof chapterQuestions.$inferSelect) {
+  if (!normalizations.includes(input.normalization)) fail('无效答案规则，仅支持 exact、trim、trim_casefold')
+  if (typeof input.promptMarkdown !== 'string') fail('题目必须是文本')
+  const replacing = typeof input.answer === 'string' && input.answer.length > 0
+  if (old?.answerHmac && old.normalization !== input.normalization && !replacing && !input.clearAnswer) fail('修改答案规则时必须重新填写标准答案')
+  if (input.clearAnswer && replacing) fail('不能同时清除和替换答案')
+  return {
+    questionKey: old?.questionKey || input.questionKey || randomUUID(),
+    promptMarkdown: input.promptMarkdown,
+    errorHint: input.errorHint || null,
+    normalization: input.normalization,
+    answerHmac: input.clearAnswer ? null : replacing ? hashQuizAnswer(input.answer!, input.normalization) : old?.answerHmac ?? null,
+    answerKeyVersion: replacing ? 1 : old?.answerKeyVersion ?? 1,
+  }
+}
+export function validateOrder(ids: string[], existing: string[]) {
+  if (!Array.isArray(ids) || ids.length !== existing.length || new Set(ids).size !== ids.length || ids.some(id => !existing.includes(id))) fail('排序必须完整包含当前章节，不能重复或遗漏')
+}

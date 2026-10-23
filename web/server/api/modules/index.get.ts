@@ -1,6 +1,6 @@
 import { defineEventHandler } from 'h3';
 import { db } from '../../db';
-import { modules, moduleRevisions, moduleRevisionChapters } from '../../db/schema';
+import { modules, moduleRevisions, moduleRevisionChapters, contentCategories } from '../../db/schema';
 import { eq, isNotNull, isNull, and, desc, sql } from 'drizzle-orm';
 
 export default defineEventHandler(async () => {
@@ -14,11 +14,15 @@ export default defineEventHandler(async () => {
       title: moduleRevisions.title,
       summary: moduleRevisions.summary,
       difficulty: moduleRevisions.difficulty,
+      categoryId: moduleRevisions.categoryId,
+      categorySlug: contentCategories.slug,
+      categoryName: contentCategories.name,
       coverAssetId: moduleRevisions.coverAssetId,
       publishedAt: moduleRevisions.publishedAt,
     })
     .from(modules)
     .innerJoin(moduleRevisions, eq(modules.publishedRevisionId, moduleRevisions.id))
+    .leftJoin(contentCategories, eq(moduleRevisions.categoryId, contentCategories.id))
     .where(
       and(
         isNotNull(modules.publishedRevisionId),
@@ -43,6 +47,8 @@ export default defineEventHandler(async () => {
       title: mod.title,
       summary: mod.summary,
       difficulty: mod.difficulty,
+      categoryId: mod.categoryId,
+      category: mod.categoryId ? { id: mod.categoryId, slug: mod.categorySlug, name: mod.categoryName } : null,
       coverAssetId: mod.coverAssetId,
       publishedAt: mod.publishedAt,
       chapterCount: Number(cnt?.count || 0),

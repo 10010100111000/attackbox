@@ -1,344 +1,123 @@
 <script setup lang="ts">
-import { ref, computed, watch } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
+import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue'
+import { useRoute, useRouter, onBeforeRouteLeave } from 'vue-router'
 import { useFetch, useHead } from '#imports'
 import MarkdownView from '~/components/ui/MarkdownView.vue'
-
-definePageMeta({
-  layout: 'admin'
-})
-
-interface QuestionDraft {
-  id?: string
-  position?: number
-  promptMarkdown: string
-  answer: string
-  errorHint: string
-  normalization: 'trim' | 'collapse_whitespace' | 'lowercase' | 'number'
-}
-
-interface ChapterDraft {
-  chapterId: string
-  slug: string
-  position: number
-  title: string
-  access: 'public' | 'authenticated'
-  bodyMarkdown: string
-  isSealed: boolean
-  questions: QuestionDraft[]
-}
-
-interface ModuleDraftData {
-  module: {
-    id: string
-    slug: string
-    publishedRevisionId: string | null
-    createdAt: string
-    archivedAt: string | null
-  }
-  draft: {
-    id: string
-    moduleId: string
-    revisionNo: number
-    title: string
-    summary: string
-    descriptionMarkdown: string
-    difficulty: 'beginner' | 'intermediate' | 'advanced'
-    lockVersion: number
-    state: 'draft'
-  } | null
-  published: {
-    id: string
-    revisionNo: number
-    title: string
-    summary: string
-    difficulty: 'beginner' | 'intermediate' | 'advanced'
-    publishedAt: string
-  } | null
-  chapters: Array<{
-    chapterId: string
-    slug: string
-    position: number
-    draftRevisionId: string
-    title: string
-    access: 'public' | 'authenticated'
-    bodyMarkdown: string
-    isSealed: boolean
-    questions: Array<{
-      id: string
-      position: number
-      promptMarkdown: string
-      errorHint: string | null
-      normalization: string | null
-      hasAnswer: boolean
-    }>
-  }>
-}
-
-const route = useRoute()
-const router = useRouter()
+import type { Normalization, ContentCategory, AdminModuleDetail, Difficulty } from '~/shared/content'
+definePageMeta({ layout: 'admin' })
+interface QuestionDraft { id?: string; questionKey?: string; position?: number; promptMarkdown: string; answer: string; hasAnswer?: boolean; clearAnswer?: boolean; errorHint: string; normalization: Normalization }
+interface ChapterDraft { chapterId: string; slug: string; position: number; title: string; access: 'public' | 'authenticated'; bodyMarkdown: string; isSealed: boolean; questions: QuestionDraft[] }
+const route = useRoute(), router = useRouter()
 const moduleId = computed(() => String(route.params.id || ''))
+const isNew = computed(() => moduleId.value === 'new')
+const { data: response, pending, error, refresh } = await useFetch<{ ok: boolean; data: AdminModuleDetail }>(() => `/api/admin/modules/${moduleId.value}`, { immediate: !isNew.value, watch: false })
+const { data: categoryResponse, refresh: refreshCategories } = await useFetch<{ data: ContentCategory[] }>('/api/categories')
+const categories = computed(() => categoryResponse.value?.data || [])
+const isAddingCategory = ref(false), newCategoryName = ref(''), categorySaving = ref(false)
+async function addCategory() {
+  if (categorySaving.value || !newCategoryName.value.trim()) return
+  categorySaving.value = true
+  try {
+    const response = await $fetch<{ data: ContentCategory }>('/api/admin/categories', { method: 'POST', body: { name: newCategoryName.value } })
+    await refreshCategories(); localModuleForm.value.categoryId = response.data.id
+    isAddingCategory.value = false; newCategoryName.value = ''; markDirty()
+  } catch (err) { showToast(message(err)) } finally { categorySaving.value = false }
+}
+function localId() { return globalThis.crypto?.randomUUID?.() || `${Date.now().toString(36)}-${Math.random().toString(36).slice(2,10)}` }
 
-const { data: response, pending, error, refresh } = await useFetch<{ ok: boolean; data: ModuleDraftData }>(
-  () => `/api/admin/modules/${moduleId.value}`
-)
-
-const moduleData = computed<ModuleDraftData | null>(() => {
-  return response.value?.data || null
-})
-
-// 当前编辑的 Tab：chapters (章节内容) / basic (模块设置)
-const activeTab = ref<'chapters' | 'basic'>('chapters')
-
-// 当前选中的章节 ID
+const moduleData = computed<AdminModuleDetail | null>(() => isNew.value ? { module: { id: 'new', slug: '', publishedRevisionId: null, createdAt: '', archivedAt: null }, draft: null, published: null, editable: null, category: null, isPublished: false, hasDraft: false, chapterCount: 0, baseRevisionId: null, lockVersion: 0, chapters: [] } : response.value?.data || null)
+const activeTab = ref<'chapters' | 'basic'>(isNew.value ? 'basic' : 'chapters')
 const selectedChapterId = ref<string | null>(null)
-
-// 章节编辑器子 Tab：markdown / questions / preview
 const chapterEditorTab = ref<'markdown' | 'questions' | 'preview'>('markdown')
-
-// 本地草稿状态
 const localChapters = ref<ChapterDraft[]>([])
-const localModuleForm = ref({
-  title: '',
-  summary: '',
-  difficulty: 'beginner' as 'beginner' | 'intermediate' | 'advanced',
-  lockVersion: 0
-})
-
-const isDirty = ref(false)
-const isSaving = ref(false)
-const isPublishing = ref(false)
-const toastMessage = ref('')
-let toastTimer: any = null
-
-function showToast(msg: string) {
-  toastMessage.value = msg
-  clearTimeout(toastTimer)
-  toastTimer = setTimeout(() => {
-    toastMessage.value = ''
-  }, 3000)
+const localModuleForm = ref({ title: '', slug: '', summary: '', descriptionMarkdown: '', difficulty: 'beginner' as Difficulty, categoryId: null as string | null, lockVersion: 0 })
+const isDirty = ref(false), isSaving = ref(false), isPublishing = ref(false), isMutating = ref(false), toastMessage = ref('')
+const busy = computed(() => isSaving.value || isPublishing.value || isMutating.value)
+let toastTimer: ReturnType<typeof setTimeout> | undefined
+const isPreviewModalOpen = ref(false), publishErrors = ref<string[]>([]), isPublishErrorModalOpen = ref(false)
+function showToast(msg: string) { toastMessage.value = msg; clearTimeout(toastTimer); toastTimer = setTimeout(() => toastMessage.value = '', 4000) }
+function message(err: any) { return err?.data?.message || err?.data?.statusMessage || err?.message || '操作失败' }
+watch(response, val => {
+  if (!val?.data || isNew.value) return
+  const data = val.data, d = data.editable || data.draft || data.published
+  const previousSlug = localChapters.value.find(c => c.chapterId === selectedChapterId.value)?.slug
+  localModuleForm.value = { title: d?.title || '', slug: data.module.slug, summary: d?.summary || '', descriptionMarkdown: d?.descriptionMarkdown || '', difficulty: d?.difficulty || 'beginner', categoryId: d?.categoryId || null, lockVersion: data.lockVersion ?? data.draft?.lockVersion ?? 0 }
+  localChapters.value = (data.chapters || []).map((ch) => ({ ...ch, questions: (ch.questions || []).map((q) => ({ ...q, answer: '', clearAnswer: false, errorHint: q.errorHint || '' })) }))
+  if (!localChapters.value.some(c => c.chapterId === selectedChapterId.value)) selectedChapterId.value = localChapters.value.find(c => c.slug === previousSlug)?.chapterId || localChapters.value[0]?.chapterId || null
+}, { immediate: true })
+const activeChapter = computed(() => localChapters.value.find(c => c.chapterId === selectedChapterId.value) || null)
+function markDirty() { isDirty.value = true }
+function handleAddChapter() {
+  const id = `local-${localId()}`
+  localChapters.value.push({ chapterId: id, slug: `chapter-${localId().slice(0,8)}`, position: localChapters.value.length + 1, title: `新建章节 ${localChapters.value.length + 1}`, access: 'public', bodyMarkdown: '', isSealed: false, questions: [] })
+  selectedChapterId.value = id; activeTab.value = 'chapters'; markDirty()
 }
-
-// 预览 Modal 状态
-const isPreviewModalOpen = ref(false)
-const publishErrors = ref<string[]>([])
-const isPublishErrorModalOpen = ref(false)
-
-// 同步服务器数据到本地草稿
-watch(
-  moduleData,
-  (val) => {
-    if (!val) return
-    const d = val.draft || val.published
-    localModuleForm.value = {
-      title: d?.title || '',
-      summary: d?.summary || '',
-      difficulty: d?.difficulty || 'beginner',
-      lockVersion: val.draft?.lockVersion || 0
-    }
-
-    localChapters.value = (val.chapters || []).map((ch) => ({
-      chapterId: ch.chapterId,
-      slug: ch.slug,
-      position: ch.position,
-      title: ch.title,
-      access: ch.access,
-      bodyMarkdown: ch.bodyMarkdown || '',
-      isSealed: ch.isSealed,
-      questions: (ch.questions || []).map((q) => ({
-        id: q.id,
-        position: q.position,
-        promptMarkdown: q.promptMarkdown,
-        answer: '', // 原始答案由服务端散列存储，修改时填入新答案
-        errorHint: q.errorHint || '',
-        normalization: (q.normalization as any) || 'trim'
-      }))
-    }))
-
-    if (!selectedChapterId.value && localChapters.value.length > 0) {
-      selectedChapterId.value = localChapters.value[0].chapterId
-    }
-  },
-  { immediate: true }
-)
-
-const activeChapter = computed(() => {
-  return localChapters.value.find((c) => c.chapterId === selectedChapterId.value) || null
-})
-
-function markDirty() {
-  isDirty.value = true
+function handleMoveChapter(index: number, delta: number) {
+  const target = index + delta
+  if (target < 0 || target >= localChapters.value.length) return
+  const copy = [...localChapters.value], [chapter] = copy.splice(index, 1)
+  copy.splice(target, 0, chapter); copy.forEach((ch,i) => ch.position = i+1); localChapters.value = copy; markDirty()
 }
-
-// 添加新章节
-async function handleAddChapter() {
-  try {
-    const res = await $fetch<{ ok: boolean; data: { chapter: { id: string } } }>(
-      `/api/admin/modules/${moduleId.value}/chapters`,
-      {
-        method: 'POST',
-        body: {
-          title: `新建章节 ${localChapters.value.length + 1}`,
-          access: 'public',
-          bodyMarkdown: '## 章节导语\n\n在此开始撰写本章的学习内容与实操指导。'
-        }
-      }
-    )
-    await refresh()
-    if (res?.data?.chapter?.id) {
-      selectedChapterId.value = res.data.chapter.id
-    }
-    showToast('章节已添加')
-  } catch (err: any) {
-    showToast(err?.data?.message || '添加章节失败')
-  }
-}
-
-// 章节上下重排序
-async function handleMoveChapter(index: number, delta: number) {
-  const targetIndex = index + delta
-  if (targetIndex < 0 || targetIndex >= localChapters.value.length) return
-
-  const copy = [...localChapters.value]
-  const [removed] = copy.splice(index, 1)
-  copy.splice(targetIndex, 0, removed)
-  localChapters.value = copy
-
-  const orderedChapterIds = copy.map((c) => c.chapterId)
-
-  try {
-    await $fetch(`/api/admin/modules/${moduleId.value}/chapters/reorder`, {
-      method: 'PUT',
-      body: { orderedChapterIds }
-    })
-    await refresh()
-    showToast('章节排序已更新')
-  } catch (err: any) {
-    showToast(err?.data?.message || '更新排序失败')
-    await refresh()
-  }
-}
-
-// 添加练习题
-function handleAddQuestion() {
-  if (!activeChapter.value) return
-  activeChapter.value.questions.push({
-    promptMarkdown: '输入命令或答案以验证理解：',
-    answer: '',
-    errorHint: '请仔细核对语法与拼写',
-    normalization: 'trim'
-  })
-  markDirty()
-}
-
-// 移除练习题
-function handleRemoveQuestion(index: number) {
-  if (!activeChapter.value) return
-  activeChapter.value.questions.splice(index, 1)
-  markDirty()
-}
-
-// 保存草稿
-async function handleSaveDraft() {
+function handleAddQuestion() { activeChapter.value?.questions.push({ promptMarkdown: '', answer: '', errorHint: '', normalization: 'trim', hasAnswer: false }); markDirty() }
+function handleRemoveQuestion(index: number) { activeChapter.value?.questions.splice(index, 1); markDirty() }
+async function handleSaveDraft(): Promise<boolean> {
+  if (isSaving.value) return false
+  if (!localModuleForm.value.title.trim()) { activeTab.value = 'basic'; showToast('请填写模块名称'); return false }
   isSaving.value = true
   try {
-    // 1. 保存模块基本信息
-    await $fetch(`/api/admin/modules/${moduleId.value}/draft`, {
-      method: 'PUT',
-      body: {
-        title: localModuleForm.value.title,
-        summary: localModuleForm.value.summary,
-        difficulty: localModuleForm.value.difficulty,
-        lockVersion: localModuleForm.value.lockVersion
-      }
-    })
-
-    // 2. 如果当前有选中的章节，保存当前章节草稿
-    if (activeChapter.value) {
-      const ch = activeChapter.value
-      await $fetch(`/api/admin/chapters/${ch.chapterId}/draft`, {
-        method: 'PUT',
-        body: {
-          moduleId: moduleId.value,
-          title: ch.title,
-          access: ch.access,
-          bodyMarkdown: ch.bodyMarkdown,
-          questions: ch.questions.map((q) => ({
-            promptMarkdown: q.promptMarkdown,
-            answer: q.answer ? q.answer : undefined,
-            errorHint: q.errorHint,
-            normalization: q.normalization
-          }))
-        }
-      })
-    }
-
-    await refresh()
-    isDirty.value = false
-    showToast('草稿已保存，线上版本未改变')
-  } catch (err: any) {
-    if (err?.statusCode === 409) {
-      showToast('保存冲突：内容已被其他管理员修改，请刷新后重试')
-    } else {
-      showToast(err?.data?.message || err?.message || '保存草稿失败')
-    }
-  } finally {
-    isSaving.value = false
-  }
+    const payload = { ...localModuleForm.value,
+      baseRevisionId: isNew.value ? undefined : response.value?.data?.baseRevisionId,
+      lockVersion: isNew.value ? undefined : localModuleForm.value.lockVersion,
+      chapters: localChapters.value.map(ch => ({
+        chapterId: ch.chapterId.startsWith('local-') ? undefined : ch.chapterId,
+        slug: ch.slug, title: ch.title, access: ch.access, bodyMarkdown: ch.bodyMarkdown,
+        questions: ch.questions.map(q => ({ id: q.id, questionKey: q.questionKey, promptMarkdown: q.promptMarkdown,
+          answer: q.answer.length ? q.answer : undefined, clearAnswer: q.clearAnswer || false, errorHint: q.errorHint, normalization: q.normalization }))
+      })) }
+    if (isNew.value) {
+      const res = await $fetch<any>('/api/admin/modules', { method: 'POST', body: payload })
+      isDirty.value = false
+      await router.replace(`/admin/modules/${res.data.module.id}`)
+    } else await $fetch(`/api/admin/modules/${moduleId.value}/draft`, { method: 'PUT', body: payload })
+    await refresh(); isDirty.value = false; showToast('全部草稿已保存，线上版本未改变'); return true
+  } catch (err) { showToast(message(err)); return false }
+  finally { isSaving.value = false }
 }
-
-// 发布模块
 async function handlePublish() {
-  isPublishing.value = true
-  publishErrors.value = []
-
+  if (busy.value) return
+  isPublishing.value = true; publishErrors.value = []
   try {
-    // 先保存最新修改
-    if (isDirty.value) {
-      await handleSaveDraft()
-    }
-
-    await $fetch(`/api/admin/modules/${moduleId.value}/publish`, {
-      method: 'POST'
-    })
-
-    await refresh()
-    showToast('模块已成功公开发布！')
-  } catch (err: any) {
-    const errorData = err?.data?.data || []
-    if (Array.isArray(errorData) && errorData.length > 0) {
-      publishErrors.value = errorData
-      isPublishErrorModalOpen.value = true
-    } else {
-      showToast(err?.data?.message || '发布校验失败，请检查章节与答案设置')
-    }
-  } finally {
-    isPublishing.value = false
-  }
+    if ((isNew.value || isDirty.value || !moduleData.value?.draft) && !(await handleSaveDraft())) return
+    await $fetch(`/api/admin/modules/${moduleId.value}/publish`, { method: 'POST', body: { lockVersion: localModuleForm.value.lockVersion, baseRevisionId: response.value?.data?.baseRevisionId } })
+    await refresh(); isDirty.value = false; showToast('模块已发布')
+  } catch (err) { showToast(message(err)) }
+  finally { isPublishing.value = false }
 }
-
-// 下架模块
 async function handleUnpublish() {
-  if (!confirm('确认下架该模块？下架后前台学员将无法继续访问，已有历史进度与章节数据将完整保留。')) {
-    return
-  }
-
-  try {
-    await $fetch(`/api/admin/modules/${moduleId.value}/unpublish`, {
-      method: 'POST'
-    })
-    await refresh()
-    showToast('模块已下架')
-  } catch (err: any) {
-    showToast(err?.data?.message || '下架失败')
-  }
+  if (busy.value || !confirm('确认下架？章节与历史版本会完整保留。')) return
+  if (isDirty.value && !confirm('继续将放弃未保存的本地修改，是否继续？')) return
+  isMutating.value = true
+  try { await $fetch(`/api/admin/modules/${moduleId.value}/unpublish`, { method: 'POST' }); await refresh(); isDirty.value = false; showToast('已下架，内容已保留为草稿') }
+  catch (err) { showToast(message(err)) } finally { isMutating.value = false }
 }
-
-useHead({
-  title: computed(() => `编辑模块：${localModuleForm.value.title || '草稿'} — AttackBox`)
-})
+async function handleDiscardDraft() {
+  if (busy.value || !confirm('移除保存的草稿并放弃本地修改？历史发布版本不会删除。')) return
+  isMutating.value = true
+  try { await $fetch(`/api/admin/modules/${moduleId.value}/draft`, { method: 'DELETE', body: { baseRevisionId: response.value?.data?.baseRevisionId, lockVersion: localModuleForm.value.lockVersion } }); await refresh(); isDirty.value = false; showToast('草稿已移除，已回到历史发布内容') }
+  catch (err) { showToast(message(err)) } finally { isMutating.value = false }
+}
+async function handleDeleteModule() {
+  if (busy.value || !confirm(isNew.value ? '放弃未保存内容并取消新建？' : '删除该模块？它将从学习页和管理列表移除，历史内容保留。')) return
+  isMutating.value = true
+  try { if (!isNew.value) await $fetch(`/api/admin/modules/${moduleId.value}`, { method: 'DELETE' }); isDirty.value = false; await router.push('/admin/modules') }
+  catch (err) { showToast(message(err)) } finally { isMutating.value = false }
+}
+function beforeUnload(event: BeforeUnloadEvent) { if (isDirty.value) { event.preventDefault(); event.returnValue = '' } }
+onMounted(() => window.addEventListener('beforeunload', beforeUnload))
+onBeforeUnmount(() => { clearTimeout(toastTimer); window.removeEventListener('beforeunload', beforeUnload) })
+onBeforeRouteLeave(() => !isDirty.value || confirm('有未保存修改，确认离开？'))
+useHead({ title: computed(() => `${isNew.value ? '新建' : '编辑'}模块：${localModuleForm.value.title || '草稿'} — AttackBox`) })
 </script>
-
 <template>
   <div class="module-editor-page">
     <!-- 全局 Toast 提示 -->
@@ -347,7 +126,7 @@ useHead({
     </div>
 
     <!-- 加载中 -->
-    <div v-if="pending" class="state-panel">
+    <div v-if="pending && !isNew" class="state-panel">
       正在加载模块详情与修订历史…
     </div>
 
@@ -373,8 +152,10 @@ useHead({
         </div>
 
         <div class="action-buttons">
+          <button v-if="!isNew && moduleData.draft && (moduleData.published || moduleData.editable?.revisionNo > 1)" type="button" class="btn secondary" :disabled="busy" @click="handleDiscardDraft">移除草稿</button>
+          <button type="button" class="btn danger-outline" :disabled="busy" @click="handleDeleteModule">{{ isNew ? '取消新建' : '删除模块' }}</button>
           <span class="save-status-text" :class="{ dirty: isDirty }">
-            {{ isDirty ? '● 有未保存修改' : '✓ 草稿已保存' }}
+            {{ isNew ? '首次保存后创建模块' : isDirty ? '● 有未保存修改' : '✓ 已保存' }}
           </span>
 
           <button
@@ -388,7 +169,7 @@ useHead({
           <button
             type="button"
             class="btn secondary"
-            :disabled="isSaving"
+            :disabled="busy"
             @click="handleSaveDraft"
           >
             {{ isSaving ? '保存中…' : '保存草稿' }}
@@ -397,7 +178,7 @@ useHead({
           <button
             type="button"
             class="btn primary"
-            :disabled="isPublishing"
+            :disabled="busy"
             @click="handlePublish"
           >
             {{ isPublishing ? '发布中…' : (moduleData.module.publishedRevisionId ? '发布更新' : '发布模块') }}
@@ -414,6 +195,7 @@ useHead({
         </div>
       </div>
 
+      <fieldset :disabled="busy" class="editor-content">
       <!-- 选项卡切换 -->
       <div class="tabs-bar">
         <button
@@ -469,7 +251,7 @@ useHead({
               <div class="reorder-btns">
                 <button
                   type="button"
-                  :disabled="idx === 0"
+                  :disabled="busy || idx === 0"
                   aria-label="上移"
                   @click="handleMoveChapter(idx, -1)"
                 >
@@ -477,7 +259,7 @@ useHead({
                 </button>
                 <button
                   type="button"
-                  :disabled="idx === localChapters.length - 1"
+                  :disabled="busy || idx === localChapters.length - 1"
                   aria-label="下移"
                   @click="handleMoveChapter(idx, 1)"
                 >
@@ -595,12 +377,13 @@ useHead({
 
                 <div class="field-grid">
                   <div class="form-field">
-                    <label>标准答案 * (用于服务端判题比对)</label>
+                    <label>标准答案 * (用于服务端判题比对)</label><small v-if="q.hasAnswer">已设置；留空保留。更换规则时需重填。</small><label v-if="q.hasAnswer"><input v-model="q.clearAnswer" type="checkbox" @change="q.answer = ''; markDirty()" /> 清除已保存答案</label>
                     <input
                       v-model="q.answer"
+                      :disabled="q.clearAnswer"
                       type="text"
                       class="form-input mono"
-                      placeholder="例如：pwd"
+                      :placeholder="q.hasAnswer ? '已设置，留空保留原答案' : '填写标准答案'"
                       @input="markDirty"
                     />
                   </div>
@@ -613,9 +396,8 @@ useHead({
                       @change="markDirty"
                     >
                       <option value="trim">去除首尾空格 (trim)</option>
-                      <option value="collapse_whitespace">合并多余空白 (collapse_whitespace)</option>
-                      <option value="lowercase">忽略大小写 (lowercase)</option>
-                      <option value="number">纯数字比对 (number)</option>
+                      <option value="exact">精确匹配 (exact)</option>
+                      <option value="trim_casefold">去首尾空格并忽略大小写 (trim_casefold)</option>
                     </select>
                   </div>
                 </div>
@@ -656,9 +438,15 @@ useHead({
 
       <!-- 2. 模块设置 Tab -->
       <div v-else class="basic-settings-panel">
-        <div class="form-field">
-          <label>模块名称</label>
+        <div class="form-field"><label for="module-category">内容分类（与难度独立）</label><select id="module-category" v-model="localModuleForm.categoryId" class="form-input" @change="markDirty"><option :value="null">未分类</option><option v-for="category in categories" :key="category.id" :value="category.id">{{ category.name }}</option></select>
+            <button v-if="!isAddingCategory" type="button" class="btn secondary" @click="isAddingCategory = true">＋ 新建分类</button>
+            <div v-else class="category-create"><input v-model="newCategoryName" class="form-input" placeholder="分类名称，例如 Web 安全" @keydown.enter.prevent="addCategory" /><button type="button" class="btn secondary" :disabled="categorySaving" @click="addCategory">添加分类</button><button type="button" class="btn secondary" @click="isAddingCategory = false">取消</button></div>
+          </div>
+          <div v-if="isNew" class="form-field"><label>访问标识（留空自动生成）</label><input v-model="localModuleForm.slug" class="form-input" placeholder="例如 web-security" @input="markDirty" /></div>
+          <div class="form-field">
+          <label for="module-title">模块名称</label>
           <input
+            id="module-title"
             v-model="localModuleForm.title"
             type="text"
             class="form-input"
@@ -666,7 +454,7 @@ useHead({
           />
         </div>
 
-        <div class="form-field">
+        <div v-if="!isNew" class="form-field">
           <label>模块访问标识 (Slug)</label>
           <input
             :value="moduleData.module.slug"
@@ -678,8 +466,9 @@ useHead({
         </div>
 
         <div class="form-field">
-          <label>模块简介</label>
+          <label for="module-summary">模块简介</label>
           <textarea
+            id="module-summary"
             v-model="localModuleForm.summary"
             class="form-input"
             rows="4"
@@ -688,8 +477,9 @@ useHead({
         </div>
 
         <div class="form-field">
-          <label>难度等级</label>
+          <label for="module-difficulty">难度等级</label>
           <select
+            id="module-difficulty"
             v-model="localModuleForm.difficulty"
             class="form-input"
             @change="markDirty"
@@ -704,13 +494,14 @@ useHead({
           <button
             type="button"
             class="btn primary"
-            :disabled="isSaving"
+            :disabled="busy"
             @click="handleSaveDraft"
           >
             {{ isSaving ? '保存中…' : '保存模块设置' }}
           </button>
         </div>
       </div>
+      </fieldset>
     </div>
 
     <!-- 预览 Modal -->
@@ -765,6 +556,7 @@ useHead({
 </template>
 
 <style scoped>
+.editor-content { border: 0; padding: 0; margin: 0; min-width: 0; }
 .module-editor-page {
   max-width: 1200px;
 }

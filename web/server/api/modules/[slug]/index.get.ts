@@ -57,6 +57,7 @@ export default defineEventHandler(async (event) => {
       summary: moduleRevisions.summary,
       descriptionMarkdown: moduleRevisions.descriptionMarkdown,
       difficulty: moduleRevisions.difficulty,
+      categoryId: moduleRevisions.categoryId,
       coverAssetId: moduleRevisions.coverAssetId,
       publishedAt: moduleRevisions.publishedAt,
     })
@@ -111,6 +112,7 @@ export default defineEventHandler(async (event) => {
         summary: pubRev.summary,
         descriptionMarkdown: pubRev.descriptionMarkdown,
         difficulty: pubRev.difficulty,
+        categoryId: pubRev.categoryId,
         coverAssetId: pubRev.coverAssetId,
         publishedAt: pubRev.publishedAt,
       },

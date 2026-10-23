@@ -33,6 +33,7 @@ erDiagram
     users ||--o{ auth_sessions : owns
     users ||--o{ email_tokens : receives
     users ||--o{ auth_identities : links
+    content_categories ||--o{ module_revisions : categorizes
     modules ||--o{ module_revisions : versions
     modules ||--o{ chapters : owns
     chapters ||--o{ chapter_revisions : versions
@@ -121,9 +122,15 @@ Session 为高熵不透明随机串；数据库仅存 SHA-256 摘要（32 字节
 
 slug 用小写字母、数字和短横线，首次发布后固定；需要改地址时未来增加重定向表。未发布模块对普通用户不可见，标题等展示字段不放在此表，防止草稿泄漏。
 
+### content_categories：内容归类（已补充）
+
+`id uuid PK`、`slug varchar(100) UNIQUE`、`name varchar(80) UNIQUE`、`position integer`。
+
+例如 Web 安全、Linux 基础、云原生安全；与难度独立。第一版每个模块版本一个主分类，可为空表示未分类；公开列表读取当前发布版本分类，后台可新建分类。实际迁移与修复说明见 [生命周期修复](content-lifecycle-repairs.md)。
+
 ### module_revisions：模块草稿与发布记录
 
-`id uuid PK`、`module_id FK modules`、`revision_no integer`、`state`（`draft` / `published`）、`title varchar(160)`、`summary varchar(500)`、`description_markdown text`、`cover_asset_id FK assets?`、`difficulty`（`beginner` / `intermediate` / `advanced`）、`lock_version integer`、`created_by FK users`、`created_at`、`updated_at`、`published_at?`。
+`id uuid PK`、`module_id FK modules`、`revision_no integer`、`state`（`draft` / `published`）、`title varchar(160)`、`summary varchar(500)`、`description_markdown text`、`cover_asset_id FK assets?`、`category_id FK content_categories?`、`difficulty`（`beginner` / `intermediate` / `advanced`）、`lock_version integer`、`created_by FK users`、`created_at`、`updated_at`、`published_at?`。
 
 - 唯一 `(module_id, revision_no)`；每模块至多一个 draft，使用部分唯一索引。
 - `published_revision_id` 必须指向同模块的 published 修订。复合外键保证归属，状态由发布事务检查。

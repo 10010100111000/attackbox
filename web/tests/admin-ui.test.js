@@ -32,13 +32,13 @@ test('layouts/admin.vue defines admin shell, navigation groups, and permission c
   assert.ok(content.includes('admin-denied'));
 });
 
-test('pages/admin/modules/index.vue defines module list, status filters, and create modal', () => {
+test('pages/admin/modules/index.vue defines module list, status filters, and unsaved creation route', () => {
   const content = fs.readFileSync(path.join(webDir, 'pages/admin/modules/index.vue'), 'utf-8');
   assert.ok(content.includes("layout: 'admin'"));
   assert.ok(content.includes('/api/admin/modules'));
   assert.ok(content.includes('module-table'));
-  assert.ok(content.includes('modal-card'));
-  assert.ok(content.includes('新建学习模块'));
+  assert.ok(content.includes('/admin/modules/new'));
+  assert.ok(!content.includes('handleCreateModule'));
   assert.ok(content.includes('filters-tabs'));
 });
 
@@ -46,7 +46,10 @@ test('pages/admin/modules/[id].vue defines editor tabs, draft saving, publish, a
   const content = fs.readFileSync(path.join(webDir, 'pages/admin/modules/[id].vue'), 'utf-8');
   assert.ok(content.includes("layout: 'admin'"));
   assert.ok(content.includes('/api/admin/modules/'));
-  assert.ok(content.includes('/api/admin/chapters/'));
+  assert.ok(content.includes('baseRevisionId'));
+  assert.ok(content.includes('chapters: localChapters.value.map'));
+  assert.ok(content.includes('handleDiscardDraft'));
+  assert.ok(content.includes('handleDeleteModule'));
   assert.ok(content.includes('editor-double-layout'));
   assert.ok(content.includes('MarkdownView'));
   assert.ok(content.includes('handlePublish'));

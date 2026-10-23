@@ -1,4 +1,4 @@
-import { hash, verify, Algorithm } from '@node-rs/argon2';
+import { hash, verify } from '@node-rs/argon2';
 import crypto from 'node:crypto';
 import { type H3Event, getCookie, setCookie, deleteCookie, getRequestIP, getRequestHeader } from 'h3';
 
@@ -9,7 +9,7 @@ export const SESSION_COOKIE_NAME = 'attackbox_session';
  */
 export async function hashPassword(password: string): Promise<string> {
   return hash(password, {
-    algorithm: Algorithm.Argon2id,
+    algorithm: 2, // Argon2id; const enum cannot be imported under verbatimModuleSyntax.
     memoryCost: 65536, // 64 MB
     timeCost: 3,
     parallelism: 1,
@@ -47,7 +47,9 @@ export function hashToken(token: string): Buffer {
 export function setSessionCookie(event: H3Event, token: string, rememberMe: boolean = false): void {
   // 常规 24 小时，记住我 30 天
   const maxAge = rememberMe ? 86400 * 30 : 86400;
-  const proto = getRequestHeader(event, 'x-forwarded-proto') || (event.node?.req?.socket?.encrypted ? 'https' : 'http');
+  const socket = event.node?.req?.socket;
+  const encrypted = socket && 'encrypted' in socket && socket.encrypted === true;
+  const proto = getRequestHeader(event, 'x-forwarded-proto') || (encrypted ? 'https' : 'http');
   const isSecure = proto === 'https';
 
   setCookie(event, SESSION_COOKIE_NAME, token, {

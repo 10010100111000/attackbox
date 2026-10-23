@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useFetch, useHead } from '#imports'
+import type { ContentCategory } from '~/shared/content'
 
 definePageMeta({
   layout: 'learning'
@@ -19,6 +20,8 @@ interface ModuleItem {
   title: string
   summary: string
   difficulty: 'beginner' | 'intermediate' | 'advanced'
+  categoryId: string | null
+  category: ContentCategory | null
   coverAssetId: string | null
   publishedAt: string
   chapterCount: number
@@ -100,7 +103,8 @@ const activeTab = ref<'modules' | 'paths'>('modules')
 const selectedCategory = ref('全部模块')
 const searchQuery = ref('')
 
-const categories = ['全部模块', '基础入门', 'Web 安全', '网络基础']
+const { data: categoryResponse } = await useFetch<{ data: ContentCategory[] }>('/api/categories')
+const categories = computed(() => ['全部模块', ...(categoryResponse.value?.data || []).map(category => category.name)])
 
 function difficultyToLabel(diff: string): string {
   switch (diff) {
@@ -116,8 +120,7 @@ const filteredModules = computed(() => {
 
   if (selectedCategory.value !== '全部模块') {
     list = list.filter(m => {
-      const label = difficultyToLabel(m.difficulty)
-      return label === selectedCategory.value || m.title.includes(selectedCategory.value)
+      return m.category?.name === selectedCategory.value
     })
   }
 

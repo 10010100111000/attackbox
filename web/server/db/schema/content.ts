@@ -18,6 +18,8 @@ import { sql } from 'drizzle-orm';
 import { bytea } from './types';
 import { users } from './auth';
 import { assets } from './assets';
+import { contentCategories } from './categories';
+import type { Normalization, Difficulty } from '../../../shared/content';
 
 export const modules = pgTable(
   'modules',
@@ -51,7 +53,8 @@ export const moduleRevisions = pgTable(
     summary: varchar('summary', { length: 500 }),
     descriptionMarkdown: text('description_markdown'),
     coverAssetId: uuid('cover_asset_id').references(() => assets.id, { onDelete: 'set null' }),
-    difficulty: varchar('difficulty', { length: 20 }).notNull().default('beginner'),
+    categoryId: uuid('category_id').references(() => contentCategories.id, { onDelete: 'restrict' }),
+    difficulty: varchar('difficulty', { length: 20 }).$type<Difficulty>().notNull().default('beginner'),
     lockVersion: integer('lock_version').notNull().default(1),
     createdBy: uuid('created_by')
       .notNull()
@@ -99,7 +102,7 @@ export const chapterRevisions = pgTable(
       .notNull()
       .references(() => chapters.id, { onDelete: 'cascade' }),
     title: varchar('title', { length: 160 }).notNull(),
-    access: varchar('access', { length: 20 }).notNull().default('public'),
+    access: varchar('access', { length: 20 }).$type<'public' | 'authenticated'>().notNull().default('public'),
     bodyMarkdown: text('body_markdown').notNull().default(''),
     sourceKind: varchar('source_kind', { length: 20 }).notNull().default('editor'),
     sourceUrl: text('source_url'),
@@ -174,7 +177,7 @@ export const chapterQuestions = pgTable(
     position: integer('position').notNull(),
     promptMarkdown: text('prompt_markdown').notNull(),
     errorHint: text('error_hint'),
-    normalization: varchar('normalization', { length: 20 }).notNull().default('trim'),
+    normalization: varchar('normalization', { length: 20 }).$type<Normalization>().notNull().default('trim'),
     answerHmac: bytea('answer_hmac'),
     answerKeyVersion: smallint('answer_key_version').notNull().default(1),
   },

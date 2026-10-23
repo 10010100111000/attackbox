@@ -3,3 +3,5 @@ export * from './auth';
 export * from './audit';
 export * from './assets';
 export * from './content';
+
+export * from './categories';
