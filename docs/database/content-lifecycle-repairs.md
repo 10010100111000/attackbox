@@ -1,14 +1,18 @@
-# 直接编辑模型与全新启动
+# 学习平台直接编辑模型与部署验证
 
-本次移除 `module_revisions`、`chapter_revisions`、`module_revision_chapters`、`chapter_revision_assets`，以及发布指针、封存标记、章节来源版本字段。当前结构与接口见 [数据模型](learning-platform-v1.md) 和 [接口契约](learning-platform-v1-flows.md)。
+当前系统采用直接编辑模型。数据结构与接口规范请参阅 [数据模型规范](learning-platform-v1.md) 与 [接口与事务契约](learning-platform-v1-flows.md)。
 
-后台只区分未发布和已发布。编辑先留在浏览器，点击保存后提交；已发布内容保存后立即生效。不保留草稿副本或历史正文。删除真实删除内容；操作审计继续保留。
+## 架构原则
 
-## 启动
+1. **直接编辑与实时生效**：后台内容只区分未发布（`unpublished`）和已发布（`published`）。编辑保留在前端表单，保存后原子写入数据库；已发布内容修改后立即对学员生效。
+2. **单一记录与乐观锁**：不保留草稿副本或历史版本表。通过 `lock_version` 递增进行并发冲突检测，避免后提交覆盖。
+3. **真实删除与安全审计**：删除模块或题目执行物理删除；关键变更记录于 `audit_logs`。
 
-迁移历史已重建为 `web/server/db/migrations/0000_simple_platform.sql`，不支持在旧表上执行升级。应创建空数据库，或停止应用后重置已有数据库。
+## 初始化与启动流程
 
-在 `web/` 源码目录安装依赖并设置实际数据库连接：
+迁移基线位于 `web/server/db/migrations/0000_simple_platform.sql`，适用于全新数据库部署。
+
+在 `web/` 目录下配置实际数据库连接并执行部署：
 
 ```bash
 export DATABASE_URL='postgres://USER:PASSWORD@HOST:5432/DATABASE'
@@ -19,30 +23,33 @@ npm run build
 node .output/server/index.mjs
 ```
 
-`db:migrate` 可重复执行，使用 Drizzle 标准迁移记录，默认分类随基线插入。遇到旧内容表或旧迁移记录会拒绝执行，不会自动删除数据库。
+- `npm run db:migrate`：安全应用 Drizzle 迁移，幂等执行，内置初始化分类。
+- `npm run admin:init`：初始化管理员账号（角色设为 `admin`，状态设为 `active`）。
 
-如需清空已有数据库，先停止连接该库的应用，再显式指定待清空数据库名称：
+## 重置数据库
+
+如需在全新部署或开发环境中彻底清空已有数据：
 
 ```bash
 RESET_DATABASE='DATABASE' npm run db:reset
 npm run admin:init -- 'admin@example.com' 'YOUR_PASSWORD'
 ```
 
-该操作删除目标库的 `public` 和 `drizzle` schema，重建全部账号、内容和迁移记录。数据库用户需拥有相应权限。也可在 VPS 指定 `WEB_DIR` 后运行 `scripts/reset_db_remote.sh`；脚本不自动停止或启动服务。
+该操作将清理 `public` 与 `drizzle` schema，并基于最新基线全量重建所有表结构与分类种子。
 
-本次代码修改不执行线上数据库清理或部署。
+## 验证与测试套件
 
-## 验证
+### 1. 本地单元测试
+
+在 `web/` 目录下执行前端与服务端逻辑单元测试：
 
 ```bash
 npm test
-npx tsc --noEmit -p tsconfig.json
-npm run build
 ```
 
-不要在构建期间同时执行 TypeScript 检查，Nuxt 会重建 `.nuxt/tsconfig.json`。
+### 2. 数据库迁移与内容生命周期测试
 
-隔离的本地测试库迁移并启动应用后：
+使用隔离的本地测试数据库验证迁移基线与直接编辑生命周期：
 
 ```bash
 CONTENT_MIGRATION_TEST_DATABASE_URL='postgres://postgres@127.0.0.1:55440/attackbox_schema_test' \
@@ -50,6 +57,14 @@ CONTENT_TEST_DATABASE_URL='postgres://postgres@127.0.0.1:55440/attackbox_content
 CONTENT_TEST_BASE_URL='http://127.0.0.1:18884' npm run test:content
 ```
 
-测试仅接受本机地址和以 `_test` 结尾的数据库名称。迁移测试检查空库基线、重放、分类种子以及旧表消失；生命周期测试覆盖权限、答案保留、规范化、并发冲突、原子回滚、直接更新、排序、新增与删除章节、下架、重新发布和真实删除。
+测试覆盖范围：
+- 空库基线迁移、重放幂等性、默认分类种子插入。
+- 权限隔离、答案 HMAC 计算与存储、输入规范化。
+- `lock_version` 并发冲突拒绝、事务原子回滚。
+- 章节排序编排、新增/删除章节、发布完整性校验、下架与物理删除。
 
-原先针对草稿与修订历史的远程脚本测试已删除，由本地回归覆盖，避免误连远程数据库执行旧结构操作。
+### 3. 生产环境端到端认证测试
+
+```bash
+REMOTE_BASE_URL='http://77.67.1.106' node web/tests/auth-remote-e2e.mjs
+```
