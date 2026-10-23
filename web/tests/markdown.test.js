@@ -35,6 +35,8 @@ test('renderMarkdown generates code blocks with highlight and copy data attribut
   assert.ok(result.html.includes('class="copy-code-btn"'), 'Should include copy button');
   assert.ok(result.html.includes('BASH'), 'Should display language');
   assert.ok(result.html.includes('pwd'));
+  assert.equal((result.html.match(/<pre(?:\s|>)/g) || []).length, 1, 'code card must have a single pre element');
+  assert.ok(result.html.startsWith('<div class="code-block">'), 'code card must not be nested inside an extra pre');
 });
 
 test('renderMarkdown renders callout containers for blockquotes with type tags', () => {
@@ -45,4 +47,10 @@ test('renderMarkdown renders callout containers for blockquotes with type tags',
   assert.ok(result.html.includes('本章学习目标'));
   assert.ok(result.html.includes('class="callout callout-tip"'), 'Should render tip callout');
   assert.ok(result.html.includes('停下来，想一想'));
+});
+
+test('fenced language labels escape HTML and attribute delimiters', () => {
+  const result = renderMarkdown('```unknown"onclick="alert(1)\nhello\n```');
+  assert.ok(!result.html.includes('unknown"onclick='));
+  assert.ok(result.html.includes('&quot;'));
 });

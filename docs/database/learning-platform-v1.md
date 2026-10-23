@@ -14,7 +14,7 @@
 | modules | 模块元信息、公开状态、并发修改计数 |
 | chapters | 模块的有序章节、Markdown 正文、访问权限和预计时长 |
 | module_prerequisites | 模块之间的有序前置学习建议 |
-| chapter_questions | 章节题目、判题规则和标准答案 HMAC |
+| chapter_questions | 章节题目、判题规则、可编辑标准答案及判题 HMAC |
 | assets | 文件存储索引与资源属性 |
 | chapter_assets | 章节与附件的关联 |
 
@@ -35,13 +35,13 @@
 
 `chapters` 直接属于模块，保存 `position`、`title`、`slug`、`access`、`body_markdown`、`duration_minutes`。时长为可选的 1–1440 分钟整数，空值不展示；只有所有章节都填写时才汇总预计总时长。模块内访问标识与位置分别唯一，位置为正整数。
 
-`chapter_questions` 直接属于章节，保存稳定的 `id`、`position`、`prompt_markdown`、`error_hint`、`normalization`、`answer_hmac`、`answer_key_version`。
+`chapter_questions` 直接属于章节，保存稳定的 `id`、`position`、`prompt_markdown`、`error_hint`、`normalization`、`answer`、`answer_hmac`、`answer_key_version`。
 
 - 普通编辑与排序保留章节和题目 ID，不复制记录。
 - 新建题目产生新 ID；删除题目真实删除记录。
-- 答案仅存 HMAC。编辑器读取 `hasAnswer`；留空表示保留，明确勾选清除才删除答案。
-- 规则支持 `exact`、`trim`、`trim_casefold`。更改已有答案的规则需要重新输入答案。
-- 公开接口通过字段白名单返回数据，不返回答案摘要或内部管理字段。
+- 标准答案原文仅通过管理员详情接口返回，编辑器直接回显、修改。发送空字符串清空答案；省略字段保留原值。判题 HMAC 随答案或匹配方式自动更新，不保存历史答案。旧题仅有 HMAC 时仍可判题，补填一次后支持回显。
+- 规则支持 `exact`、`trim`、`trim_casefold`。已有答案原文时，更改规则会自动重新计算判题摘要，无需重填。
+- 公开接口通过字段白名单返回数据，不返回答案原文、摘要或内部管理字段。
 
 ## 公开与鉴权
 

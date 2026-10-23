@@ -8,6 +8,13 @@
       "when": 1792769850919,
       "tag": "0000_simple_platform",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1792774485063,
+      "tag": "0001_editable_question_answers",
+      "breakpoints": true
     }
   ]
 }

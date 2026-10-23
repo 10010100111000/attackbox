@@ -8,11 +8,11 @@
 2. **单一记录与乐观锁**：不保留草稿副本或历史版本表。通过 `lock_version` 递增进行并发冲突检测，避免后提交覆盖。
 3. **真实删除与安全审计**：删除模块或题目执行物理删除；关键变更记录于 `audit_logs`。
 
-增量迁移 `0002_module_prerequisites_duration.sql` 添加前置模块关系和章节预计时长，已有内容保留；执行 `npm run db:migrate` 即可。
+当前基线已经包含学习目标、前置模块关系和章节预计时长。增量迁移 `0001_editable_question_answers.sql` 新增标准答案原文字段，支持管理员直接回显和修改；不会还原旧的 HMAC 摘要。已有题目继续可判题，管理员补填一次后即可直接编辑。
 
 ## 初始化与启动流程
 
-增量迁移 `0001_module_outcomes.sql` 添加学习目标数组，默认空数组，保留已有内容。已有当前基线数据库只需执行 `npm run db:migrate`，无需重置。
+已有当前基线数据库只需执行 `npm run db:migrate`，无需重置。迁移必须在启动新版本应用前执行。
 
 迁移基线位于 `web/server/db/migrations/0000_simple_platform.sql`，适用于全新数据库部署。
 

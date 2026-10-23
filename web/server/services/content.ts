@@ -157,7 +157,7 @@ export async function getModuleDetail(id: string): Promise<AdminModuleDetail> {
     for (const ch of list) {
       const qs = await tx.select({ id: chapterQuestions.id, position: chapterQuestions.position,
         promptMarkdown: chapterQuestions.promptMarkdown, errorHint: chapterQuestions.errorHint,
-        normalization: chapterQuestions.normalization, hasAnswer: sql<boolean>`${chapterQuestions.answerHmac} is not null`,
+        answer: chapterQuestions.answer, normalization: chapterQuestions.normalization, hasAnswer: sql<boolean>`${chapterQuestions.answerHmac} is not null`,
       }).from(chapterQuestions).where(eq(chapterQuestions.chapterId, ch.id)).orderBy(asc(chapterQuestions.position))
       chapterList.push({ chapterId: ch.id, slug: ch.slug, position: ch.position, title: ch.title, access: ch.access, bodyMarkdown: ch.bodyMarkdown, durationMinutes: ch.durationMinutes, questions: qs })
     }

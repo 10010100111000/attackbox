@@ -1,9 +1,12 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, watch, onMounted, onBeforeUnmount, nextTick } from 'vue'
 import { useRoute, useFetch, useHead } from '#imports'
-import { ArrowLeft, ArrowRight, LockKeyhole, PanelLeft, Clock3 } from 'lucide-vue-next'
+import { ArrowLeft, ArrowRight, LockKeyhole, PanelLeft, Clock3, Terminal, Monitor, ChevronUp, CheckCircle2, CircleAlert, LoaderCircle, BookOpen } from 'lucide-vue-next'
+import { DialogRoot, DialogTrigger, DialogPortal, DialogOverlay, DialogContent, DialogTitle, DialogDescription } from 'reka-ui'
+import ChapterOutline from '~/components/learning/ChapterOutline.vue'
+import PracticeDock from '~/components/learning/PracticeDock.vue'
 import MarkdownView from '~/components/ui/MarkdownView.vue'
-import { renderMarkdown, type MarkdownHeading } from '~/utils/markdown'
+import { renderMarkdown } from '~/utils/markdown'
 
 definePageMeta({
   layout: 'learning'
@@ -94,16 +97,41 @@ const moduleData = computed<ModuleOutline | null>(() => {
   return { ...data.module, chapters: data.chapters }
 })
 
-const isSidebarOpen = ref(false)
-const headings = ref<MarkdownHeading[]>([])
-
-// 练习题输入与反馈状态
-const userAnswers = ref<Record<string, string>>({})
-const answerFeedbacks = ref<Record<string, { status: 'idle' | 'success' | 'error'; message: string }>>({})
-
-function onHeadingsLoaded(extractedHeadings: MarkdownHeading[]) {
-  headings.value = extractedHeadings
+const sidebarCollapsed = ref(false)
+const mobileOutlineOpen = ref(false)
+const scrollElement = ref<HTMLElement | null>(null)
+const practiceMode = ref<'cli' | 'gui'>('cli')
+const practiceVisible = ref(false), practiceMinimized = ref(false), practiceExpanded = ref(false)
+const dockHeight = ref(310), viewportHeight = ref(900)
+const maxDockHeight = computed(() => Math.max(180, viewportHeight.value - 220))
+function updateViewport() {
+  viewportHeight.value = window.innerHeight
+  dockHeight.value = Math.min(dockHeight.value, maxDockHeight.value)
+  if (window.innerWidth > 900) mobileOutlineOpen.value = false
 }
+function toggleSidebar() {
+  sidebarCollapsed.value = !sidebarCollapsed.value
+  try { localStorage.setItem('attackbox-reader-outline-collapsed', String(sidebarCollapsed.value)) } catch {}
+}
+function openPractice(mode: 'cli' | 'gui') {
+  practiceMode.value = mode; practiceVisible.value = true; practiceMinimized.value = false
+}
+function closePractice() { practiceVisible.value = false; practiceExpanded.value = false }
+function minimizePractice() { practiceMinimized.value = true; practiceExpanded.value = false }
+onMounted(() => {
+  try { sidebarCollapsed.value = localStorage.getItem('attackbox-reader-outline-collapsed') === 'true' } catch {}
+  updateViewport(); window.addEventListener('resize', updateViewport)
+})
+onBeforeUnmount(() => window.removeEventListener('resize', updateViewport))
+
+const userAnswers = ref<Record<string, string>>({})
+const answerFeedbacks = ref<Record<string, { status: 'checking' | 'success' | 'error'; message: string }>>({})
+const allAnswersCorrect = computed(() => !!chapterData.value?.questions.length && chapterData.value.questions.every(q => answerFeedbacks.value[q.id]?.status === 'success'))
+let chapterGeneration = 0
+watch([moduleSlug, chapterSlug], async () => {
+  chapterGeneration++; userAnswers.value = {}; answerFeedbacks.value = {}; mobileOutlineOpen.value = false
+  await nextTick(); scrollElement.value?.scrollTo({ top: 0 })
+})
 
 const chapterIndex = computed(() => {
   if (!moduleData.value || !chapterData.value) return 0
@@ -124,20 +152,15 @@ const nextChapter = computed(() => {
   return idx < chapters.length - 1 ? chapters[idx + 1] : null
 })
 
-function scrollToSection(id: string) {
-  const el = document.getElementById(id)
-  if (el) {
-    el.scrollIntoView({ behavior: 'smooth' })
-  }
-}
-
 function renderPrompt(markdown: string): string {
   return renderMarkdown(markdown || '').html
 }
 
 async function handleCheckAnswer(q: QuestionItem) {
-  const input = (userAnswers.value[q.id] || '').trim()
-  if (!input) {
+  if (answerFeedbacks.value[q.id]?.status === 'checking') return
+  const generation = chapterGeneration
+  const input = userAnswers.value[q.id] || ''
+  if (!input.trim()) {
     answerFeedbacks.value[q.id] = {
       status: 'error',
       message: '请输入你的答案后再进行校验。'
@@ -145,20 +168,22 @@ async function handleCheckAnswer(q: QuestionItem) {
     return
   }
 
-  answerFeedbacks.value[q.id] = { status: 'idle', message: '正在校验...' }
+  answerFeedbacks.value[q.id] = { status: 'checking', message: '正在校验…' }
   try {
     const res = await $fetch<{ ok: boolean; data: { correct: boolean; errorHint: string | null } }>(
       `/api/modules/${moduleSlug.value}/chapters/${chapterSlug.value}/attempt`,
       { method: 'POST', body: { questionId: q.id, answer: input } }
     )
+    if (generation !== chapterGeneration) return
     const result = res.data
     answerFeedbacks.value[q.id] = result.correct
       ? { status: 'success', message: '回答正确' }
       : {
           status: 'error',
-          message: result.errorHint ? `Incorrect. Hint: ${result.errorHint}` : '✗ 答案不正确,请再试一次。'
+          message: result.errorHint || '答案不正确，请再试一次。'
         }
   } catch (error: any) {
+    if (generation !== chapterGeneration) return
     answerFeedbacks.value[q.id] = {
       status: 'error',
       message: error?.data?.message || '校验失败,请稍后重试。'
@@ -171,760 +196,169 @@ useHead({
     if (chapterData.value && moduleData.value) {
       return `${chapterData.value.title} — ${moduleData.value.title}`
     }
-    return 'Chapter — AttackBox'
+    return '学习章节 — AttackBox'
   })
 })
 </script>
 
 <template>
   <div class="reading-page">
-    <!-- 401 权限拦截提示 -->
-    <div v-if="chapterError && chapterError.statusCode === 401" class="auth-gate-container">
-      <div class="auth-gate-card">
-        <div class="gate-icon"><LockKeyhole :size="28" aria-hidden="true" /></div>
-        <h2>受限学习内容</h2>
-        <p>当前章节为受限内容，需要登录账号后继续学习。</p>
-        <div class="gate-actions">
-          <NuxtLink
-            :to="'/auth?returnTo=' + encodeURIComponent(route.fullPath)"
-            class="gate-btn primary"
-          >
-            登录账号并继续
-          </NuxtLink>
-          <NuxtLink :to="`/learn/modules/${moduleSlug}`" class="gate-btn secondary">
-            回顾模块概览
-          </NuxtLink>
-        </div>
-      </div>
+    <div v-if="chapterError || (!chapterPending && !chapterData)" class="auth-gate-container">
+      <section class="auth-gate-card">
+        <LockKeyhole v-if="chapterError?.statusCode === 401" :size="28" aria-hidden="true" /><BookOpen v-else :size="28" aria-hidden="true" />
+        <h1>{{ chapterError?.statusCode === 401 ? '登录后继续学习' : '章节暂不可用' }}</h1>
+        <p>{{ chapterError?.statusCode === 401 ? '当前章节需要登录账号后阅读。' : '该章节可能已更新或下架。' }}</p>
+        <NuxtLink v-if="chapterError?.statusCode === 401" :to="'/auth?returnTo=' + encodeURIComponent(route.fullPath)" class="gate-btn primary">登录并继续</NuxtLink>
+        <NuxtLink :to="`/learn/modules/${moduleSlug}`" class="gate-btn secondary">返回模块</NuxtLink>
+      </section>
     </div>
-
-    <!-- 404 或其他异常 -->
-    <div v-else-if="chapterError || (!chapterPending && !chapterData)" class="auth-gate-container">
-      <div class="auth-gate-card">
-        <div class="gate-icon">⚠️</div>
-        <h2>章节不存在或尚未公开发布</h2>
-        <p>找不到该章节，可能已被更新或下架。</p>
-        <NuxtLink :to="`/learn/modules/${moduleSlug}`" class="gate-btn secondary">
-          回顾模块概览
-        </NuxtLink>
-      </div>
-    </div>
-
-    <!-- 正常双栏阅读结构 -->
-    <div v-else-if="chapterData" class="learn-shell">
-      <!-- 移动端抽屉遮罩 -->
-      <div
-        v-if="isSidebarOpen"
-        class="sidebar-backdrop"
-        @click="isSidebarOpen = false"
-      />
-
-      <!-- 左侧目录侧边栏 -->
-      <aside class="reading-sidebar" :class="{ 'drawer-open': isSidebarOpen }">
-        <NuxtLink :to="`/learn/modules/${moduleSlug}`" class="back-link">
-          <ArrowLeft :size="15" aria-hidden="true" /> 回顾模块概览
-        </NuxtLink>
-
-        <div class="sidebar-module-title">
-          <span class="module-eyebrow">MODULE OUTLINE</span>
-          <h3>{{ moduleData?.title || '学习模块' }}</h3>
-        </div>
-
-        <div class="side-label">章节内容</div>
-
-        <nav class="sidebar-chapters" aria-label="章节导航">
-          <NuxtLink
-            v-for="(ch, idx) in moduleData?.chapters || []"
-            :key="ch.id"
-            :to="ch.isLocked ? undefined : `/learn/modules/${moduleSlug}/${ch.slug}`"
-            class="chapter-nav-btn"
-            :class="{
-              selected: ch.slug === chapterSlug,
-              locked: ch.isLocked
-            }"
-            @click="isSidebarOpen = false"
-          >
-            <span class="chapter-nav-num">{{ idx + 1 }}</span>
-            <span class="chapter-nav-text">{{ ch.title }}</span>
-            <LockKeyhole v-if="ch.isLocked" :size="13" class="chapter-nav-lock" aria-label="需登录" />
-          </NuxtLink>
-        </nav>
+    <div v-else-if="chapterData" class="learn-shell" :class="{ 'outline-collapsed': sidebarCollapsed }">
+      <aside class="reading-sidebar" aria-label="模块目录">
+        <ChapterOutline :module-slug="moduleSlug" :module-title="moduleData?.title || '学习模块'" :current-slug="chapterSlug" :chapters="moduleData?.chapters || []" :collapsed="sidebarCollapsed" @toggle="toggleSidebar" />
       </aside>
-
-      <!-- 中间正文与右侧 TOC -->
-      <main class="reading-main">
+      <div class="reading-main">
         <div class="reading-top-bar">
-          <div class="top-bar-left">
-            <button
-              type="button"
-              class="mobile-menu-btn"
-              aria-label="展开目录"
-              @click="isSidebarOpen = !isSidebarOpen"
-            >
-              <PanelLeft :size="16" aria-hidden="true" /> 目录
-            </button>
-            <span class="breadcrumb-trail">
-              <NuxtLink :to="`/learn/modules/${moduleSlug}`">{{ moduleData?.title }}</NuxtLink>
-              <span>/</span>
-              <span>第 {{ chapterIndex + 1 }} 章</span>
-            </span>
+          <div class="toolbar-left">
+            <DialogRoot v-model:open="mobileOutlineOpen">
+              <DialogTrigger class="mobile-menu-btn" aria-label="打开模块目录"><PanelLeft :size="16" aria-hidden="true" /></DialogTrigger>
+              <DialogPortal>
+                <DialogOverlay class="outline-overlay" />
+                <DialogContent class="mobile-outline">
+                  <DialogTitle class="sr-only">模块目录</DialogTitle><DialogDescription class="sr-only">选择章节，或关闭目录以继续阅读。</DialogDescription>
+                  <ChapterOutline :module-slug="moduleSlug" :module-title="moduleData?.title || '学习模块'" :current-slug="chapterSlug" :chapters="moduleData?.chapters || []" @toggle="mobileOutlineOpen = false" @navigate="mobileOutlineOpen = false" />
+                </DialogContent>
+              </DialogPortal>
+            </DialogRoot>
+            <NuxtLink :to="`/learn/modules/${moduleSlug}`" class="module-return"><ArrowLeft :size="14" aria-hidden="true" />返回模块</NuxtLink>
           </div>
-          <div class="top-bar-right">
-            <span>第 {{ chapterIndex + 1 }} / {{ moduleData?.chapters.length || 1 }} 章</span>
+          <div class="toolbar-tools" role="group" aria-label="练习环境">
+            <button type="button" :aria-pressed="practiceVisible && !practiceMinimized && practiceMode === 'cli'" @click="openPractice('cli')"><Terminal :size="15" aria-hidden="true" /><span>CLI</span><span class="tool-word">终端</span></button>
+            <button type="button" :aria-pressed="practiceVisible && !practiceMinimized && practiceMode === 'gui'" @click="openPractice('gui')"><Monitor :size="15" aria-hidden="true" /><span>GUI</span><span class="tool-word">桌面</span></button>
           </div>
         </div>
-
-        <div class="article-layout-grid">
-          <!-- 正文文章区 -->
+        <div ref="scrollElement" class="reading-scroll" :inert="practiceVisible && !practiceMinimized && practiceExpanded" tabindex="0" aria-label="章节正文">
           <article class="article-body">
-            <div class="chapter-eyebrow">
-              CHAPTER {{ String(chapterIndex + 1).padStart(2, '0') }}
-            </div>
+            <div class="chapter-meta"><span>第 {{ chapterIndex + 1 }} / {{ moduleData?.chapters.length || 1 }} 章</span><span v-if="chapterData.durationMinutes"><Clock3 :size="13" aria-hidden="true" />约 {{ chapterData.durationMinutes }} 分钟</span></div>
             <h1 class="chapter-main-title">{{ chapterData.title }}</h1>
-            <p v-if="chapterData.durationMinutes" class="chapter-duration"><Clock3 :size="14" aria-hidden="true" /> 预计 {{ chapterData.durationMinutes }} 分钟</p>
+            <MarkdownView :content="chapterData.bodyMarkdown" />
 
-            <!-- Markdown 正文渲染 -->
-            <MarkdownView
-              :content="chapterData.bodyMarkdown"
-              @headings-loaded="onHeadingsLoaded"
-            />
-
-            <!-- 章节练习测验区域 -->
-            <section v-if="chapterData.questions && chapterData.questions.length > 0" id="quiz" class="quiz-card">
-              <div class="quiz-head">
-                <div>
-                  <div class="quiz-eyebrow">CHECK YOUR UNDERSTANDING</div>
-                  <h2 class="quiz-title">章节实操练习</h2>
-                </div>
-                <span class="quiz-badge">
-                  {{ chapterData.questions.length }} 道练习
-                </span>
-              </div>
-
-
-              <div
-                v-for="(q, qIndex) in chapterData.questions"
-                :key="q.id"
-                class="question-item"
-              >
-                <div class="question-label">
-                  <span class="q-num">{{ qIndex + 1 }}.</span>
-                  <div class="q-prompt" v-html="renderPrompt(q.promptMarkdown)"></div>
-                </div>
-
+            <section v-if="chapterData.questions.length" id="quiz" class="quiz-card" aria-labelledby="quiz-title">
+              <div class="quiz-head"><h2 id="quiz-title">章节练习</h2><span class="quiz-badge" :class="{ passed: allAnswersCorrect }"><CheckCircle2 v-if="allAnswersCorrect" :size="14" aria-hidden="true" />{{ allAnswersCorrect ? '全部通过' : `${chapterData.questions.length} 道题` }}</span></div>
+              <form v-for="(q, qIndex) in chapterData.questions" :key="q.id" class="question-item" @submit.prevent="handleCheckAnswer(q)">
+                <div :id="`question-${q.id}`" class="question-label"><span class="q-num">{{ qIndex + 1 }}.</span><div class="q-prompt" v-html="renderPrompt(q.promptMarkdown)" /></div>
                 <div class="answer-line">
-                  <input
-                    v-model="userAnswers[q.id]"
-                    type="text"
-                    class="answer-input"
-                    placeholder="输入命令或答案…"
-                    autocomplete="off"
-                    autocapitalize="off"
-                    spellcheck="false"
-                    @keyup.enter="handleCheckAnswer(q)"
-                  />
-                  <button
-                    type="button"
-                    class="answer-check-btn"
-                    @click="handleCheckAnswer(q)"
-                  >
-                    校验
-                  </button>
+                  <input :id="`answer-${q.id}`" v-model="userAnswers[q.id]" type="text" class="answer-input" placeholder="输入你的答案" maxlength="2000" autocomplete="off" autocapitalize="off" spellcheck="false" :aria-labelledby="`question-${q.id}`" :aria-describedby="`feedback-${q.id}`" :aria-invalid="answerFeedbacks[q.id]?.status === 'error'" :disabled="answerFeedbacks[q.id]?.status === 'checking'" @input="delete answerFeedbacks[q.id]" />
+                  <button type="submit" class="answer-check-btn" :disabled="answerFeedbacks[q.id]?.status === 'checking'"><LoaderCircle v-if="answerFeedbacks[q.id]?.status === 'checking'" :size="14" class="spinning" aria-hidden="true" />{{ answerFeedbacks[q.id]?.status === 'checking' ? '校验中' : '校验答案' }}</button>
                 </div>
-
-                <div
-                  v-if="answerFeedbacks[q.id]"
-                  class="answer-feedback"
-                  :class="answerFeedbacks[q.id].status"
-                >
-                  {{ answerFeedbacks[q.id].message }}
-                </div>
-                <div v-else-if="q.errorHint" class="answer-hint">
-                  提示：{{ q.errorHint }}
-                </div>
-              </div>
+                <div :id="`feedback-${q.id}`" class="answer-feedback" :class="answerFeedbacks[q.id]?.status" role="status" aria-live="polite"><template v-if="answerFeedbacks[q.id]"><CheckCircle2 v-if="answerFeedbacks[q.id].status === 'success'" :size="14" aria-hidden="true" /><CircleAlert v-else-if="answerFeedbacks[q.id].status === 'error'" :size="14" aria-hidden="true" />{{ answerFeedbacks[q.id].message }}</template></div>
+              </form>
             </section>
 
-            <!-- 底部翻页导航 -->
-            <div class="next-row">
-              <NuxtLink
-                v-if="prevChapter"
-                :to="`/learn/modules/${moduleSlug}/${prevChapter.slug}`"
-                class="btn-nav prev-btn"
-              >
-                <ArrowLeft :size="15" aria-hidden="true" /> 上一章：{{ prevChapter.title }}
-              </NuxtLink>
-              <NuxtLink
-                v-else
-                :to="`/learn/modules/${moduleSlug}`"
-                class="btn-nav prev-btn"
-              >
-                <ArrowLeft :size="15" aria-hidden="true" /> 回顾模块概览
-              </NuxtLink>
-
-              <NuxtLink
-                v-if="nextChapter && !nextChapter.isLocked"
-                :to="`/learn/modules/${moduleSlug}/${nextChapter.slug}`"
-                class="btn-nav next-btn"
-              >
-                下一章：{{ nextChapter.title }} <ArrowRight :size="15" aria-hidden="true" />
-              </NuxtLink>
-              <NuxtLink
-                v-else-if="!nextChapter"
-                :to="`/learn/modules/${moduleSlug}`"
-                class="btn-nav next-btn finished-btn"
-              >
-                回顾模块概览
-              </NuxtLink>
-            </div>
-          </article>
-
-          <!-- 右侧小节目录 TOC -->
-          <aside class="toc-sidebar">
-            <div class="toc-title">本章内容</div>
-            <nav class="toc-nav" aria-label="本章内容">
-              <a
-                v-for="h in headings"
-                :key="h.id"
-                :href="`#${h.id}`"
-                class="toc-link"
-                :class="{ sub: h.level > 2 }"
-                @click.prevent="scrollToSection(h.id)"
-              >
-                {{ h.text }}
-              </a>
-              <a
-                v-if="chapterData.questions && chapterData.questions.length > 0"
-                href="#quiz"
-                class="toc-link quiz-toc-link"
-                @click.prevent="scrollToSection('quiz')"
-              >
-                章节实操练习
-              </a>
+            <nav class="next-row" aria-label="章节翻页">
+              <NuxtLink v-if="prevChapter" :to="prevChapter.isLocked ? `/auth?returnTo=${encodeURIComponent(`/learn/modules/${moduleSlug}/${prevChapter.slug}`)}` : `/learn/modules/${moduleSlug}/${prevChapter.slug}`" class="btn-nav prev-btn"><ArrowLeft :size="15" aria-hidden="true" /><span>上一章<span class="nav-title">{{ prevChapter.title }}</span></span></NuxtLink><span v-else />
+              <NuxtLink v-if="nextChapter" :to="nextChapter.isLocked ? `/auth?returnTo=${encodeURIComponent(`/learn/modules/${moduleSlug}/${nextChapter.slug}`)}` : `/learn/modules/${moduleSlug}/${nextChapter.slug}`" class="btn-nav next-btn"><span>{{ nextChapter.isLocked ? '登录后继续' : '下一章' }}<span class="nav-title">{{ nextChapter.title }}</span></span><LockKeyhole v-if="nextChapter.isLocked" :size="15" aria-hidden="true" /><ArrowRight v-else :size="15" aria-hidden="true" /></NuxtLink><span v-else class="last-chapter">本模块最后一章</span>
             </nav>
-          </aside>
+          </article>
         </div>
-      </main>
+        <PracticeDock v-if="practiceVisible && !practiceMinimized" v-model:height="dockHeight" v-model:expanded="practiceExpanded" :mode="practiceMode" :max-height="maxDockHeight" @minimize="minimizePractice" @close="closePractice" />
+        <button v-else-if="practiceVisible" type="button" class="dock-restore" aria-label="恢复练习面板" @click="practiceMinimized = false"><Terminal v-if="practiceMode === 'cli'" :size="14" aria-hidden="true" /><Monitor v-else :size="14" aria-hidden="true" />{{ practiceMode === 'cli' ? '终端' : '桌面' }}<ChevronUp :size="15" aria-hidden="true" /></button>
+      </div>
     </div>
+    <div v-else class="reading-loading" role="status">正在加载章节…</div>
   </div>
 </template>
 
 <style scoped>
-.chapter-duration { color: var(--muted); font-size: 13px; margin: -10px 0 28px; }
-svg { display: inline-block; vertical-align: middle; flex-shrink: 0; }
-
-.reading-page {
-  min-height: calc(100vh - 68px);
-  background: var(--bg);
-}
-
-/* 权限拦截与异常状态 */
-.auth-gate-container {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  min-height: calc(100vh - 120px);
-  padding: 32px 16px;
-}
-
-.auth-gate-card {
-  max-width: 460px;
-  width: 100%;
-  background: var(--paper);
-  border: 1px solid var(--line);
-  border-radius: 14px;
-  padding: 40px 32px;
-  text-align: center;
-}
-
-.gate-icon {
-  font-size: 40px;
-  margin-bottom: 16px;
-}
-
-.auth-gate-card h2 {
-  font-size: 20px;
-  font-weight: 700;
-  margin: 0 0 10px;
-  color: var(--ink);
-}
-
-.auth-gate-card p {
-  font-size: 14px;
-  color: var(--muted);
-  line-height: 1.6;
-  margin: 0 0 24px;
-}
-
-.gate-actions {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
-.gate-btn {
-  display: block;
-  padding: 10px 16px;
-  border-radius: 8px;
-  font-size: 13px;
-  font-weight: 600;
-  text-decoration: none;
-  text-align: center;
-  transition: opacity 0.15s ease;
-}
-
-.gate-btn.primary {
-  background: var(--ink);
-  color: var(--paper);
-}
-
-.gate-btn.secondary {
-  border: 1px solid var(--line);
-  color: var(--ink);
-}
-
-/* 双栏阅读布局 */
-.learn-shell {
-  display: grid;
-  grid-template-columns: 260px minmax(0, 1fr);
-  min-height: calc(100vh - 68px);
-}
-
-/* 左侧目录 */
-.reading-sidebar {
-  background: var(--paper);
-  border-right: 1px solid var(--line);
-  padding: 28px 20px;
-  position: sticky;
-  top: 68px;
-  height: calc(100vh - 68px);
-  overflow-y: auto;
-  display: flex;
-  flex-direction: column;
-}
-
-.back-link {
-  font-size: 12px;
-  color: var(--muted);
-  text-decoration: none;
-  margin-bottom: 20px;
-  display: inline-block;
-  transition: color 0.15s ease;
-}
-
-.back-link:hover {
-  color: var(--green);
-}
-
-.sidebar-module-title {
-  margin-bottom: 24px;
-}
-
-.module-eyebrow {
-  font-family: monospace;
-  font-size: 10px;
-  letter-spacing: 1.5px;
-  color: var(--muted);
-}
-
-.sidebar-module-title h3 {
-  font-size: 16px;
-  font-weight: 700;
-  margin: 4px 0 0;
-  color: var(--ink);
-}
-
-.side-label {
-  font-size: 11px;
-  color: var(--muted);
-  letter-spacing: 1.5px;
-  text-transform: uppercase;
-  margin-bottom: 12px;
-}
-
-.sidebar-chapters {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  flex: 1;
-}
-
-.chapter-nav-btn {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 10px 12px;
-  border-radius: 7px;
-  font-size: 13px;
-  color: var(--muted);
-  text-decoration: none;
-  transition: all 0.15s ease;
-}
-
-.chapter-nav-btn:hover {
-  background: var(--soft);
-  color: var(--ink);
-}
-
-.chapter-nav-btn.selected {
-  background: var(--mint);
-  color: var(--green);
-  font-weight: 600;
-}
-
-.chapter-nav-btn.locked {
-  opacity: 0.6;
-  cursor: not-allowed;
-}
-
-.chapter-nav-num {
-  font-family: monospace;
-  font-size: 11px;
-  width: 18px;
-  text-align: center;
-}
-
-.chapter-nav-text {
-  flex: 1;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.chapter-nav-lock {
-  font-size: 12px;
-}
-
-/* 中间主内容区 */
-.reading-main {
-  max-width: 1110px;
-  width: 100%;
-  margin: 0 auto;
-  padding: 24px 48px 70px;
-}
-
-.reading-top-bar {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  border-bottom: 1px solid var(--line);
-  padding-bottom: 16px;
-  margin-bottom: 32px;
-  font-size: 13px;
-  color: var(--muted);
-}
-
-.top-bar-left {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-}
-
-.mobile-menu-btn {
-  display: none;
-  background: var(--paper);
-  border: 1px solid var(--line);
-  border-radius: 6px;
-  padding: 4px 10px;
-  font-size: 12px;
-  color: var(--ink);
-  cursor: pointer;
-}
-
-.breadcrumb-trail {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.breadcrumb-trail a {
-  color: var(--muted);
-  text-decoration: none;
-}
-
-.breadcrumb-trail a:hover {
-  color: var(--green);
-}
-
-.article-layout-grid {
-  display: grid;
-  grid-template-columns: minmax(0, 720px) 160px;
-  gap: 48px;
-}
-
-.chapter-eyebrow {
-  font-family: monospace;
-  font-size: 11px;
-  letter-spacing: 2px;
-  color: var(--green);
-  margin-bottom: 6px;
-}
-
-.chapter-main-title {
-  font-size: 32px;
-  font-weight: 750;
-  letter-spacing: -0.6px;
-  margin: 0 0 24px;
-  color: var(--ink);
-}
-
-/* 练习题卡片 */
-.quiz-card {
-  background: var(--paper);
-  border: 1px solid var(--line);
-  border-radius: 12px;
-  padding: 28px;
-  margin-top: 48px;
-  scroll-margin-top: 90px;
-}
-
-.quiz-head {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  margin-bottom: 8px;
-}
-
-.quiz-eyebrow {
-  font-family: monospace;
-  font-size: 10px;
-  letter-spacing: 1.5px;
-  color: var(--green);
-}
-
-.quiz-title {
-  font-size: 20px;
-  font-weight: 700;
-  margin: 4px 0 0;
-  color: var(--ink);
-}
-
-.quiz-badge {
-  font-size: 11px;
-  padding: 3px 8px;
-  border-radius: 4px;
-  background: var(--soft);
-  color: var(--muted);
-}
-
-.quiz-desc {
-  font-size: 14px;
-  color: var(--muted);
-  margin: 0 0 24px;
-}
-
-.question-item {
-  padding: 18px 0;
-  border-top: 1px solid var(--line);
-}
-
-.question-label {
-  display: flex;
-  gap: 8px;
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--ink);
-  margin-bottom: 12px;
-}
-
-.q-num {
-  color: var(--green);
-}
-
-.q-prompt {
-  line-height: 1.6;
-}
-
-.answer-line {
-  display: flex;
-  gap: 10px;
-  align-items: center;
-}
-
-.answer-input {
-  flex: 1;
-  max-width: 520px;
-  background: var(--bg);
-  border: 1px solid var(--line);
-  border-radius: 6px;
-  padding: 10px 14px;
-  font-family: monospace;
-  font-size: 13px;
-  color: var(--ink);
-  outline: none;
-  transition: border-color 0.15s ease;
-}
-
-.answer-input:focus {
-  border-color: var(--green);
-}
-
-.answer-check-btn {
-  padding: 9px 18px;
-  background: var(--paper);
-  border: 1px solid var(--line);
-  border-radius: 6px;
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--ink);
-  cursor: pointer;
-  transition: all 0.15s ease;
-}
-
-.answer-check-btn:hover {
-  background: var(--soft);
-  border-color: var(--focus);
-}
-
-.answer-feedback {
-  font-size: 12px;
-  margin-top: 8px;
-}
-
-.answer-feedback.success {
-  color: var(--success-ink);
-}
-
-.answer-feedback.error {
-  color: var(--color-error);
-}
-
-.answer-hint {
-  font-size: 12px;
-  color: var(--muted);
-  margin-top: 6px;
-}
-
-/* 翻页行 */
-.next-row {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 16px;
-  margin-top: 48px;
-  padding-top: 24px;
-  border-top: 1px solid var(--line);
-  flex-wrap: wrap;
-}
-
-.btn-nav {
-  padding: 10px 18px;
-  border-radius: 8px;
-  font-size: 13px;
-  font-weight: 600;
-  text-decoration: none;
-  transition: opacity 0.15s ease;
-}
-
-.prev-btn {
-  color: var(--muted);
-}
-
-.prev-btn:hover {
-  color: var(--ink);
-}
-
-.next-btn {
-  background: var(--green);
-  color: var(--on-accent);
-}
-
-.next-btn:hover {
-  opacity: 0.9;
-}
-
-.finished-btn {
-  background: var(--ink);
-  color: var(--paper);
-}
-
-/* 右侧 TOC */
-.toc-sidebar {
-  position: sticky;
-  top: 96px;
-  align-self: start;
-}
-
-.toc-title {
-  font-size: 11px;
-  letter-spacing: 1px;
-  font-weight: 700;
-  color: var(--muted);
-  text-transform: uppercase;
-  margin-bottom: 12px;
-}
-
-.toc-nav {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.toc-link {
-  font-size: 12px;
-  color: var(--muted);
-  text-decoration: none;
-  line-height: 1.4;
-  transition: color 0.15s ease;
-}
-
-.toc-link:hover {
-  color: var(--ink);
-}
-
-.toc-link.sub {
-  padding-left: 10px;
-  font-size: 11px;
-}
-
-.quiz-toc-link {
-  color: var(--green);
-  font-weight: 600;
-  margin-top: 4px;
-}
-
-@media (max-width: 960px) {
-  .learn-shell {
-    grid-template-columns: 1fr;
-  }
-  .reading-sidebar {
-    position: fixed;
-    left: -280px;
-    top: 68px;
-    width: 260px;
-    z-index: 100;
-    transition: left 0.25s ease;
-  }
-  .reading-sidebar.drawer-open {
-    left: 0;
-  }
-  .sidebar-backdrop {
-    position: fixed;
-    inset: 0;
-    background: rgba(0, 0, 0, 0.4);
-    z-index: 90;
-  }
-  .mobile-menu-btn {
-    display: inline-block;
-  }
-  .article-layout-grid {
-    grid-template-columns: 1fr;
-  }
-  .toc-sidebar {
-    display: none;
-  }
-}
-
-@media (max-width: 640px) {
-  .reading-main {
-    padding: 20px 16px 50px;
-  }
-  .next-row {
-    flex-direction: column;
-    align-items: stretch;
-  }
-  .next-row .btn-nav {
-    text-align: center;
-  }
-}
+.reading-page { background: var(--bg); color: var(--ink); }
+.learn-shell { display: grid; grid-template-columns: 248px minmax(0, 1fr); height: calc(100dvh - 68px); min-height: 320px; }
+.learn-shell.outline-collapsed { grid-template-columns: 56px minmax(0, 1fr); }
+.reading-sidebar { min-height: 0; background: var(--paper); border-right: 1px solid var(--line); }
+.reading-main { min-width: 0; min-height: 0; display: flex; flex-direction: column; position: relative; }
+.reading-top-bar { display: flex; align-items: center; justify-content: space-between; gap: 16px; height: 45px; flex-shrink: 0; padding: 0 24px; border-bottom: 1px solid var(--line); background: var(--bg); }
+.toolbar-left, .toolbar-tools { display: flex; align-items: center; gap: 12px; }
+.module-return { display: inline-flex; align-items: center; gap: 7px; font-size: 11px; text-decoration: none; color: var(--muted); }
+.module-return:hover { color: var(--ink); }
+.toolbar-tools { gap: 5px; }
+.toolbar-tools button { display: inline-flex; align-items: center; gap: 6px; padding: 6px 9px; border: 1px solid transparent; border-radius: 5px; background: transparent; font-size: 11px; color: var(--muted); cursor: pointer; }
+.toolbar-tools button:hover { background: var(--soft); color: var(--ink); }
+.toolbar-tools button[aria-pressed='true'] { border-color: var(--line); background: var(--paper); color: var(--ink); }
+.reading-scroll { flex: 1; overflow: auto; min-height: 0; overscroll-behavior: contain; scroll-padding-top: 24px; }
+.article-body { max-width: 1120px; width: 100%; margin: 0 auto; padding: 30px 48px 64px; }
+.chapter-meta { display: flex; flex-wrap: wrap; gap: 16px; font-size: 11px; color: var(--muted); margin-bottom: 12px; }
+.chapter-meta > span { display: inline-flex; align-items: center; gap: 5px; }
+.chapter-main-title { font-size: clamp(26px, 2.7vw, 32px); font-weight: 700; line-height: 1.4; letter-spacing: -.6px; margin: 0 0 20px; overflow-wrap: anywhere; }
+.article-body :deep(.markdown-body) { color: var(--body); font-size: 15px; line-height: 1.95; }
+.article-body :deep(.markdown-body p) { color: var(--body); opacity: 1; }
+.article-body :deep(.markdown-body h2) { font-size: 22px; margin-top: 1.6em; border: 0; padding-bottom: 0; color: var(--ink); }
+.article-body :deep(.markdown-body h3) { color: var(--ink); }
+.article-body :deep(.markdown-body a) { color: var(--green); }
+.article-body :deep(.markdown-body :not(pre) > code) { color: var(--ink); }
+.article-body :deep(.markdown-body blockquote) { border-left-color: var(--focus); background: var(--soft); }
+.article-body :deep(.markdown-body table) { display: block; max-width: 100%; overflow-x: auto; }
+.article-body :deep(.markdown-body img) { max-width: 100%; height: auto; }
+.quiz-card { width: 100%; margin-top: 44px; padding-top: 30px; border-top: 1px solid var(--line); }
+.quiz-head { display: flex; justify-content: space-between; align-items: center; gap: 14px; margin-bottom: 22px; }
+.quiz-head h2 { font-size: 22px; font-weight: 650; margin: 0; letter-spacing: -.4px; }
+.quiz-badge { display: inline-flex; align-items: center; gap: 5px; font-size: 11px; color: var(--muted); }
+.quiz-badge.passed { color: var(--success-ink); }
+.question-item { width: 100%; margin: 0; }
+.question-item + .question-item { padding-top: 24px; margin-top: 20px; border-top: 1px solid var(--line); }
+.question-label { display: flex; align-items: baseline; gap: 8px; font-size: 15px; line-height: 1.9; color: var(--ink); margin-bottom: 12px; }
+.q-num { flex-shrink: 0; color: var(--muted); font-size: 12px; font-family: monospace; }
+.q-prompt { min-width: 0; overflow-wrap: anywhere; }
+.q-prompt :deep(p) { margin: 0; }
+.q-prompt :deep(pre) { overflow-x: auto; }
+.answer-line { display: flex; align-items: stretch; gap: 10px; width: 100%; }
+.answer-input { flex: 1 1 0; width: 0; min-width: 0; padding: 11px 13px; border: 1px solid var(--line); border-radius: 6px; background: var(--paper); color: var(--ink); font: 13px/1.6 monospace; }
+.answer-input[aria-invalid='true'] { border-color: var(--error-ink); }
+.answer-check-btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; flex-shrink: 0; padding: 10px 16px; border: 1px solid var(--line); border-radius: 6px; background: var(--paper); color: var(--ink); font-size: 12px; cursor: pointer; }
+.answer-check-btn:hover:not(:disabled) { background: var(--soft); }
+.answer-check-btn:disabled, .answer-input:disabled { opacity: .65; cursor: wait; }
+.answer-feedback { display: flex; align-items: baseline; gap: 6px; font-size: 12px; line-height: 1.7; min-height: 20px; margin-top: 8px; }
+.answer-feedback svg { align-self: center; flex-shrink: 0; }
+.answer-feedback.success { color: var(--success-ink); }
+.answer-feedback.error { color: var(--error-ink); }
+.answer-feedback.checking { color: var(--muted); }
+.next-row { display: flex; justify-content: space-between; align-items: center; gap: 24px; margin-top: 36px; padding-top: 24px; border-top: 1px solid var(--line); }
+.btn-nav { display: inline-flex; align-items: center; gap: 12px; min-width: 0; max-width: 48%; padding: 8px 0; font-size: 11px; line-height: 1.7; color: var(--muted); text-decoration: none; }
+.btn-nav:hover { color: var(--green); }
+.nav-title { display: block; color: var(--ink); font-size: 12px; overflow-wrap: anywhere; }
+.next-btn { text-align: right; }
+.last-chapter { color: var(--muted); font-size: 11px; }
+.dock-restore { display: flex; align-items: center; justify-content: center; gap: 8px; min-height: 35px; flex-shrink: 0; background: var(--paper); color: var(--muted); border: 0; border-top: 1px solid var(--line); cursor: pointer; font-size: 11px; }
+.mobile-menu-btn { display: none; }
+.auth-gate-container, .reading-loading { display: grid; place-items: center; min-height: calc(100dvh - 68px); padding: 24px; color: var(--muted); font-size: 13px; }
+.auth-gate-card { width: 100%; max-width: 420px; padding: 36px; border: 1px solid var(--line); border-radius: 12px; text-align: center; background: var(--paper); }
+.auth-gate-card > svg { margin: 0 auto 18px; color: var(--muted); }
+.auth-gate-card h1 { font-size: 21px; font-weight: 650; margin: 0 0 10px; color: var(--ink); }
+.auth-gate-card p { font-size: 13px; line-height: 1.8; margin: 0 0 24px; }
+.gate-btn { display: block; padding: 10px 14px; font-size: 12px; border-radius: 6px; text-decoration: none; }
+.gate-btn.primary { background: var(--green); color: var(--on-accent); margin-bottom: 10px; }
+.gate-btn.secondary { border: 1px solid var(--line); color: var(--ink); }
+svg { flex-shrink: 0; }
+a:focus-visible, button:focus-visible, input:focus-visible { outline: 2px solid var(--focus); outline-offset: 3px; }
+.reading-scroll:focus-visible { outline: 2px solid var(--focus); outline-offset: -2px; }
+.spinning { animation: spin 1s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+@media (max-width: 900px) {
+  .learn-shell, .learn-shell.outline-collapsed { grid-template-columns: minmax(0, 1fr); }
+  .reading-sidebar { display: none; }
+  .mobile-menu-btn { display: grid; place-items: center; padding: 5px; border: 0; border-radius: 5px; background: transparent; color: var(--muted); cursor: pointer; }
+  .article-body { padding: 30px 32px 48px; }
+}
+@media (max-width: 600px) {
+  .reading-top-bar { padding: 0 14px; gap: 10px; }
+  .toolbar-left { gap: 8px; }
+  .tool-word { display: none; }
+  .article-body { padding: 26px 20px 40px; }
+  .answer-check-btn { padding: 10px 12px; }
+  .next-row { gap: 16px; }
+}
+@media (prefers-reduced-motion: reduce) { .spinning { animation: none; } }
+</style>
+
+<style>
+/* Portalled mobile outline stays in the platform theme and traps focus. */
+.outline-overlay { position: fixed; inset: 0; background: #0006; z-index: 80; }
+.mobile-outline { position: fixed; top: 0; left: 0; bottom: 0; width: min(300px, 85vw); background: var(--paper); color: var(--ink); border-right: 1px solid var(--line); z-index: 81; }
 </style>

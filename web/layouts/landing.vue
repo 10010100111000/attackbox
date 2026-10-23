@@ -3,7 +3,7 @@ import { ArrowRight } from 'lucide-vue-next'
 </script>
 
 <template>
-  <div class="landing-layout">
+  <div class="landing-layout" data-theme="midnight">
     <div class="wrap">
       <header class="header">
         <NuxtLink to="/" class="brand">
@@ -35,6 +35,9 @@ import { ArrowRight } from 'lucide-vue-next'
 <style>
 /* Landing Page Styles scoped to .landing-layout */
 .landing-layout {
+  min-height: 100vh;
+  background: var(--bg-app);
+  color: var(--text-main);
   overflow-x: clip;
 
   .wrap {

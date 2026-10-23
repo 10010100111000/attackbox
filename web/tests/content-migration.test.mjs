@@ -32,5 +32,7 @@ test('fresh baseline has direct content records, seeded categories and no revisi
     assert.ok(chapterColumns.includes('duration_minutes'))
     assert.ok(chapterColumns.includes('body_markdown'))
     assert.ok(chapterColumns.includes('position'))
+    const questionColumns = (await client`SELECT column_name FROM information_schema.columns WHERE table_name='chapter_questions' AND table_schema='public'`).map(c => c.column_name)
+    assert.ok(questionColumns.includes('answer'))
   } finally { await client.end() }
 })

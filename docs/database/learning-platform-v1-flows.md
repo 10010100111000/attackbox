@@ -1,6 +1,6 @@
 # 内容接口与事务
 
-数据结构见 [数据模型](learning-platform-v1.md)。所有管理接口要求 active 管理员；公开接口不返回标准答案摘要。
+数据结构见 [数据模型](learning-platform-v1.md)。所有管理接口要求 active 管理员；公开接口不返回标准答案原文或摘要。
 
 ## 管理接口
 
@@ -8,7 +8,7 @@
 | --- | --- | --- |
 | GET | /api/admin/modules | 列表：直接返回标题、状态、章节数、分类、难度、lockVersion |
 | POST | /api/admin/modules | 首次保存并创建模块，返回 `{ module }` |
-| GET | /api/admin/modules/:id | 返回 `{ module, category, chapters }` |
+| GET | /api/admin/modules/:id | 返回 `{ module, category, chapters, prerequisites }` |
 | PUT | /api/admin/modules/:id | 保存元信息及完整章节清单，返回 `{ module }` |
 | POST | /api/admin/modules/:id/publish | 校验完整性后发布 |
 | POST | /api/admin/modules/:id/unpublish | 隐藏模块，保留内容 |
@@ -42,7 +42,7 @@
           "id": "已有题目 ID，新题省略",
           "promptMarkdown": "查看当前用户的命令？",
           "normalization": "trim",
-          "answer": "仅新增或更换答案时传入"
+          "answer": "whoami"
         }
       ]
     }
@@ -57,7 +57,7 @@
 - `chapters` 数组顺序就是章节顺序；完整数组中省略的已有章节会被删除。
 - 整个 `chapters` 字段省略表示不改章节。
 - 章节的 `questions` 字段省略表示不改题目；空数组表示移除全部题目。
-- `answer` 省略或空字符串保留已有答案；`clearAnswer: true` 明确清除。
+- 管理详情返回 `answer` 原文，管理员可直接修改；`answer` 省略时保留原值，空字符串表示清空。修改匹配方式自动使用现有答案重新计算判题摘要。`clearAnswer: true` 仅保留为旧客户端兼容参数，编辑器不再使用。
 - ID 必须属于当前模块/章节，不能引用其他模块的内容。
 
 ### 保存事务
@@ -75,7 +75,7 @@
 | --- | --- | --- |
 | GET | /api/categories | 分类清单 |
 | GET | /api/modules | 已发布模块列表 |
-| GET | /api/modules/:slug | `{ module, chapters }`，目录包含登录锁提示 |
+| GET | /api/modules/:slug | `{ module, chapters, prerequisites }`，目录包含登录锁提示 |
 | GET | /api/modules/:slug/chapters/:chapterSlug | `{ chapter, questions }`，服务端检查章节访问权限 |
 | POST | /api/modules/:slug/chapters/:chapterSlug/attempt | 提交 `{ questionId, answer }`，返回 `{ correct, errorHint }` |
 

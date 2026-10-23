@@ -62,7 +62,7 @@ export function createMarkdownRenderer() {
     typographer: true,
     highlight: (str: string, lang: string): string => {
       const langName = (lang || '').trim().toLowerCase()
-      const displayLang = langName ? langName.toUpperCase() : 'CODE'
+      const displayLang = md.utils.escapeHtml(langName ? langName.toUpperCase() : 'CODE')
       let highlighted = ''
       if (langName && hljs.getLanguage(langName)) {
         try {
@@ -73,9 +73,17 @@ export function createMarkdownRenderer() {
       } else {
         highlighted = md.utils.escapeHtml(str)
       }
-      return `<div class="code-block"><div class="code-top"><span>${displayLang}</span><button type="button" class="copy-code-btn" data-code="${encodeURIComponent(str)}">复制代码</button></div><pre><code class="hljs ${langName ? 'language-' + langName : ''}">${highlighted}</code></pre></div>`
+      return `<div class="code-block"><div class="code-top"><span>${displayLang}</span><button type="button" class="copy-code-btn" data-code="${encodeURIComponent(str)}">复制代码</button></div><pre><code class="hljs ${langName ? 'language-' + md.utils.escapeHtml(langName) : ''}">${highlighted}</code></pre></div>`
     },
   })
+
+  // The highlighter already returns the complete code card. Avoid MarkdownIt's
+  // default extra <pre><code> wrapper, which indents and narrows the card.
+  md.renderer.rules.fence = (tokens, idx, options) => {
+    const token = tokens[idx]!
+    const language = token.info.trim().split(/\s+/)[0] || ''
+    return options.highlight ? `${options.highlight(token.content, language, '')}\n` : ''
+  }
 
   // 严格链接协议校验：仅允许 http, https, mailto 或相对链接锚点
   const defaultRenderLink =

@@ -7,7 +7,7 @@ import CategorySelect from '~/components/admin/CategorySelect.vue'
 import MarkdownView from '~/components/ui/MarkdownView.vue'
 import type { Normalization, AdminModuleDetail, AdminModuleListItem, Difficulty } from '~/shared/content'
 definePageMeta({ layout: 'admin' })
-interface QuestionDraft { id?: string; position?: number; promptMarkdown: string; answer: string; hasAnswer?: boolean; clearAnswer?: boolean; errorHint: string; normalization: Normalization }
+interface QuestionDraft { id?: string; position?: number; promptMarkdown: string; answer?: string; hasAnswer?: boolean; errorHint: string; normalization: Normalization }
 interface ChapterDraft { chapterId: string; slug: string; position: number; title: string; access: 'public' | 'authenticated'; bodyMarkdown: string; durationMinutes: number | null | ''; questions: QuestionDraft[] }
 const route = useRoute(), router = useRouter()
 const moduleId = computed(() => String(route.params.id || ''))
@@ -50,7 +50,7 @@ watch(response, val => {
   prerequisiteIds.value = data.prerequisites.map(m => m.id)
   const previousSlug = localChapters.value.find(c => c.chapterId === selectedChapterId.value)?.slug
   localModuleForm.value = { title: d?.title || '', slug: data.module.slug, summary: d?.summary || '', descriptionMarkdown: d?.descriptionMarkdown || '', difficulty: d?.difficulty || 'beginner', categoryId: d?.categoryId || null, learningOutcomes: d.learningOutcomes.join('\n'), lockVersion: d.lockVersion }
-  localChapters.value = (data.chapters || []).map((ch) => ({ ...ch, questions: (ch.questions || []).map((q) => ({ ...q, answer: '', clearAnswer: false, errorHint: q.errorHint || '' })) }))
+  localChapters.value = (data.chapters || []).map((ch) => ({ ...ch, questions: (ch.questions || []).map((q) => ({ ...q, answer: q.answer ?? undefined, errorHint: q.errorHint || '' })) }))
   if (!localChapters.value.some(c => c.chapterId === selectedChapterId.value)) selectedChapterId.value = localChapters.value.find(c => c.slug === previousSlug)?.chapterId || localChapters.value[0]?.chapterId || null
 }, { immediate: true })
 const activeChapter = computed(() => localChapters.value.find(c => c.chapterId === selectedChapterId.value) || null)
@@ -92,7 +92,7 @@ async function handleSave(intent: 'draft' | 'publish'): Promise<boolean> {
         chapterId: ch.chapterId.startsWith('local-') ? undefined : ch.chapterId,
         slug: ch.slug, title: ch.title, access: ch.access, bodyMarkdown: ch.bodyMarkdown, durationMinutes: ch.durationMinutes === '' ? null : ch.durationMinutes,
         questions: ch.questions.map(q => ({ id: q.id, promptMarkdown: q.promptMarkdown,
-          answer: q.answer.length ? q.answer : undefined, clearAnswer: q.clearAnswer || false, errorHint: q.errorHint, normalization: q.normalization }))
+          answer: q.answer, errorHint: q.errorHint, normalization: q.normalization }))
       })) }
     if (isNew.value) {
       const res = await $fetch<any>('/api/admin/modules', { method: 'POST', body: payload })
@@ -367,27 +367,29 @@ useHead({ title: computed(() => `${isNew.value ? '新建' : '编辑'}模块：${
 
                 <div class="field-grid">
                   <div class="form-field">
-                    <label>标准答案 * (用于服务端判题比对)</label><small v-if="q.hasAnswer">已设置；留空保留。更换规则时需重填。</small><label v-if="q.hasAnswer"><input v-model="q.clearAnswer" type="checkbox" @change="q.answer = ''; markDirty()" /> 清除已保存答案</label>
+                    <label :for="`question-answer-${qIndex}`">标准答案</label>
                     <input
                       v-model="q.answer"
-                      :disabled="q.clearAnswer"
+                      :id="`question-answer-${qIndex}`"
+                      maxlength="2000"
                       type="text"
                       class="form-input mono"
-                      :placeholder="q.hasAnswer ? '已设置，留空保留原答案' : '填写标准答案'"
+                      placeholder="填写标准答案"
                       @input="markDirty"
                     />
+                    <p v-if="q.hasAnswer && q.answer === undefined" class="field-hint">旧答案无法回显；补填一次后即可直接编辑。</p>
                   </div>
 
                   <div class="form-field">
-                    <label>答案规范化规则</label>
+                    <label>匹配方式</label>
                     <select
                       v-model="q.normalization"
                       class="form-input"
                       @change="markDirty"
                     >
-                      <option value="trim">去除首尾空格 (trim)</option>
-                      <option value="exact">精确匹配 (exact)</option>
-                      <option value="trim_casefold">去首尾空格并忽略大小写 (trim_casefold)</option>
+                      <option value="trim">忽略首尾空格</option>
+                      <option value="exact">完全一致</option>
+                      <option value="trim_casefold">忽略首尾空格和大小写</option>
                     </select>
                   </div>
                 </div>
@@ -436,12 +438,19 @@ useHead({ title: computed(() => `${isNew.value ? '新建' : '编辑'}模块：${
               <div class="form-field"><label for="module-category">内容分类</label><CategorySelect v-model="localModuleForm.categoryId" :disabled="busy" @update:model-value="markDirty" /></div>
               <div class="form-field"><span id="difficulty-label" class="control-label">学习难度</span><div class="difficulty-segment" role="group" aria-labelledby="difficulty-label"><button v-for="option in ([{ value: 'beginner', label: '基础' }, { value: 'intermediate', label: '进阶' }, { value: 'advanced', label: '高级' }] as const)" :key="option.value" type="button" :aria-pressed="localModuleForm.difficulty === option.value" @click="localModuleForm.difficulty = option.value; markDirty()">{{ option.label }}</button></div></div>
             </div>
-            <div class="form-field summary-field"><label for="module-summary">模块简介 <span class="optional-label">可选</span></label><textarea id="module-summary" v-model="localModuleForm.summary" class="form-input" rows="2" maxlength="500" placeholder="用一两句话说明模块内容，展示在列表与详情页顶部。" @input="markDirty"></textarea></div>
+            <div class="form-field summary-field"><label for="module-summary">模块简介 <span class="optional-label">可选</span></label><textarea id="module-summary" v-model="localModuleForm.summary" class="form-input" rows="2" maxlength="500" placeholder="用一两句话说明模块内容，展示在学习模块列表中。" @input="markDirty"></textarea></div>
           </div>
         </section>
-        <section class="settings-section goals-section" aria-labelledby="goals-heading">
-          <header class="section-label"><h2 id="goals-heading">学习目标</h2><span>可选</span></header>
-          <div class="section-fields"><label class="sr-only" for="module-outcomes">学完后，你将能够</label><textarea id="module-outcomes" v-model="localModuleForm.learningOutcomes" class="form-input" rows="3" placeholder="每行一项，例如：&#10;识别文件权限与用户身份&#10;排查常见访问权限问题" @input="markDirty"></textarea><p class="field-hint">对应详情页的“目标”。每行一项，最多 12 项，留空不展示。</p></div>
+        <section class="settings-section details-section" aria-labelledby="details-settings-heading">
+          <header class="section-label"><h2 id="details-settings-heading">模块详情</h2><span>可选 · 详情页展示</span></header>
+          <div class="section-fields detail-fields">
+            <div class="form-field">
+              <div class="field-label-row"><label for="module-description">详细介绍 <span class="optional-label">Markdown</span></label><button class="text-action" type="button" :aria-pressed="descriptionPreview" @click="descriptionPreview = !descriptionPreview">{{ descriptionPreview ? '返回编辑' : '预览' }}</button></div>
+              <div v-if="descriptionPreview" class="description-preview"><MarkdownView :content="localModuleForm.descriptionMarkdown" /><p v-if="!localModuleForm.descriptionMarkdown" class="field-hint">尚未填写详细介绍。</p></div>
+              <textarea v-else id="module-description" v-model="localModuleForm.descriptionMarkdown" class="form-input description-editor" rows="9" placeholder="介绍模块的内容范围、适用人群与练习场景。" @input="markDirty"></textarea>
+            </div>
+            <div class="form-field goals-field"><label for="module-outcomes">学习目标</label><textarea id="module-outcomes" v-model="localModuleForm.learningOutcomes" class="form-input" rows="5" placeholder="每行一项，例如：&#10;识别文件权限与用户身份&#10;排查常见访问权限问题" @input="markDirty"></textarea><p class="field-hint">每行一项，最多 12 项。留空时不展示目标。</p></div>
+          </div>
         </section>
         <section class="settings-section prerequisites-card" aria-labelledby="prerequisites-heading">
           <header class="section-label"><h2 id="prerequisites-heading">前置学习模块</h2><span>可选</span></header><div class="section-fields prerequisite-fields">
@@ -461,10 +470,6 @@ useHead({ title: computed(() => `${isNew.value ? '新建' : '编辑'}模块：${
           <span class="field-hint prerequisite-note">选填，按推荐顺序展示，不限制进入本模块。</span>
           </div>
         </section>
-        <details class="settings-disclosure">
-          <summary><span>详细介绍 <span class="optional-label">可选 · Markdown</span></span><ChevronDown :size="16" aria-hidden="true" /></summary>
-          <div class="disclosure-content"><div class="field-label-row"><label for="module-description">模块介绍</label><button class="text-action" type="button" :aria-pressed="descriptionPreview" @click="descriptionPreview = !descriptionPreview">{{ descriptionPreview ? '返回编辑' : '预览' }}</button></div><div v-if="descriptionPreview" class="description-preview"><MarkdownView :content="localModuleForm.descriptionMarkdown" /><p v-if="!localModuleForm.descriptionMarkdown" class="field-hint">尚未填写模块介绍。</p></div><textarea v-else id="module-description" v-model="localModuleForm.descriptionMarkdown" class="form-input description-editor" rows="8" placeholder="补充适用人群、所需基础或练习环境。" @input="markDirty"></textarea></div>
-        </details>
         <details class="settings-disclosure link-disclosure">
           <summary><span>链接设置 <span class="optional-label">{{ isNew ? '自动生成，可自定义' : '创建后固定' }}</span></span><ChevronDown :size="16" aria-hidden="true" /></summary>
           <div class="disclosure-content"><template v-if="isNew"><label for="module-slug" class="control-label">Slug</label><input id="module-slug" v-model="localModuleForm.slug" class="form-input slug-input" placeholder="留空自动生成" @input="markDirty" /><p class="field-hint">仅支持小写字母、数字和短横线。</p></template><div v-else class="module-link"><Link2 :size="15" aria-hidden="true" /><code>/learn/modules/{{ localModuleForm.slug }}</code><button type="button" class="icon-action" aria-label="复制模块链接" @click="copyModuleLink"><Copy :size="15" /></button></div></div>
@@ -477,13 +482,13 @@ useHead({ title: computed(() => `${isNew.value ? '新建' : '编辑'}模块：${
 </template>
 
 <style scoped>
-.settings-stack { max-width: 940px; background: var(--paper); border: 1px solid var(--line); border-radius: 10px; padding: 4px 28px; }
+.settings-stack { width: 100%; background: var(--paper); border: 1px solid var(--line); border-radius: 10px; padding: 4px 28px; }
 .settings-section { display: grid; grid-template-columns: 120px minmax(0, 1fr); gap: 28px; padding: 26px 0; border-bottom: 1px solid var(--line); }
 .section-label h2 { font-size: 14px; color: var(--ink); font-weight: 650; margin: 0; }
 .section-label > span { display: block; font-size: 11px; color: var(--muted); margin-top: 6px; }
-.section-fields { min-width: 0; max-width: 610px; }
+.section-fields { min-width: 0; width: 100%; }
 .section-fields .form-field:last-child { margin-bottom: 0; }
-.title-field { max-width: 520px; }
+.title-field, .summary-field { max-width: 680px; }
 .classification-row { display: flex; align-items: start; flex-wrap: wrap; gap: 16px 24px; }
 .control-label { display: block; font-size: 12px; font-weight: 600; color: var(--ink); margin-bottom: 6px; }
 .difficulty-segment { display: inline-flex; gap: 3px; border: 1px solid var(--line); background: var(--bg); padding: 3px; border-radius: 7px; height: 38px; }
@@ -494,9 +499,15 @@ useHead({ title: computed(() => `${isNew.value ? '新建' : '编辑'}模块：${
 .required-label { color: var(--green); }
 .field-label-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 8px; font-size: 12px; color: var(--ink); }
 .text-action { display: inline-flex; align-items: center; gap: 3px; font-size: 12px; color: var(--green); background: transparent; border: 0; cursor: pointer; padding: 0; }
-.prerequisite-fields { max-width: 520px; }
+.prerequisite-fields { max-width: 680px; }
+.detail-fields { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(260px, 1fr); gap: 28px; align-items: start; }
+.detail-fields .form-field { margin: 0; }
+.detail-fields .form-field > label, .detail-fields .field-label-row { min-height: 20px; margin-bottom: 8px; }
+.detail-fields textarea { min-height: 252px; resize: vertical; }
+.detail-fields .field-label-row label { margin: 0; }
+.goals-field { padding-left: 28px; border-left: 1px solid var(--line); }
 .description-editor { font-family: monospace; line-height: 1.8; }
-.description-preview { min-height: 120px; border: 1px solid var(--line); border-radius: 6px; padding: 12px; }
+.description-preview { min-height: 252px; border: 1px solid var(--line); border-radius: 6px; padding: 12px; }
 .settings-disclosure { border-bottom: 1px solid var(--line); }
 .settings-disclosure:last-child { border: 0; }
 .settings-disclosure > summary { display: flex; align-items: center; justify-content: space-between; padding: 20px 0; font-size: 13px; font-weight: 600; color: var(--ink); cursor: pointer; list-style: none; }
@@ -507,7 +518,7 @@ useHead({ title: computed(() => `${isNew.value ? '新建' : '编辑'}模块：${
 .slug-input { max-width: 320px; }
 .module-link { display: flex; align-items: center; gap: 10px; color: var(--muted); font-size: 12px; }
 .module-link code { overflow-wrap: anywhere; min-width: 0; }
-@media (max-width: 900px) { .settings-stack { padding: 0 20px; } .settings-section { grid-template-columns: 1fr; gap: 14px; } .section-label { display: flex; align-items: baseline; gap: 10px; } .section-label > span { margin: 0; } .disclosure-content { padding-left: 0; } }
+
 .prerequisite-list { list-style: none; margin: 0 0 14px; padding: 0; display: grid; gap: 10px; }
 .prerequisite-item { display: flex; align-items: center; gap: 8px; padding-bottom: 12px; border-bottom: 1px solid var(--line); }
 .prerequisite-index { font-family: monospace; color: var(--muted); font-size: 11px; }

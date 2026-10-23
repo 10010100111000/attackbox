@@ -1,7 +1,7 @@
 import { createError } from 'h3'
 import { randomUUID } from 'node:crypto'
 import { normalizations, difficulties, type QuestionInput, type ModuleInput } from '../../shared/content'
-import { hashQuizAnswer } from '../utils/quiz'
+import { hashQuizAnswer, normalizeAnswer } from '../utils/quiz'
 import type { chapterQuestions } from '../db/schema/content'
 export function fail(message: string, statusCode = 400): never { throw createError({ statusCode, message }) }
 export function slugFor(value: unknown, prefix: string) {
@@ -24,14 +24,18 @@ export function validateModule(input: ModuleInput) {
 export function questionValues(input: QuestionInput, old?: typeof chapterQuestions.$inferSelect) {
   if (!normalizations.includes(input.normalization)) fail('无效答案规则，仅支持 exact、trim、trim_casefold')
   if (typeof input.promptMarkdown !== 'string') fail('题目必须是文本')
-  const replacing = typeof input.answer === 'string' && input.answer.length > 0
-  if (old?.answerHmac && old.normalization !== input.normalization && !replacing && !input.clearAnswer) fail('修改答案规则时必须重新填写标准答案')
-  if (input.clearAnswer && replacing) fail('不能同时清除和替换答案')
+  if (input.answer != null && (typeof input.answer !== 'string' || input.answer.length > 2000)) fail('标准答案必须是文本，且不能超过 2000 字')
+  const answer = input.clearAnswer ? null : typeof input.answer === 'string' ? input.answer : old?.answer ?? null
+  const hasAnswer = answer !== null && normalizeAnswer(answer, input.normalization).length > 0
+  const preserveLegacy = answer === null && !input.clearAnswer && input.answer == null && !!old?.answerHmac
+  if (preserveLegacy && old.normalization !== input.normalization) fail('这道旧题只保存了答案摘要，请补填一次标准答案后再修改匹配方式')
+
   return {
     promptMarkdown: input.promptMarkdown,
     errorHint: input.errorHint || null,
     normalization: input.normalization,
-    answerHmac: input.clearAnswer ? null : replacing ? hashQuizAnswer(input.answer!, input.normalization) : old?.answerHmac ?? null,
-    answerKeyVersion: replacing ? 1 : old?.answerKeyVersion ?? 1,
+    answer: hasAnswer ? answer : null,
+    answerHmac: hasAnswer ? hashQuizAnswer(answer!, input.normalization) : preserveLegacy ? old!.answerHmac : null,
+    answerKeyVersion: hasAnswer ? 1 : old?.answerKeyVersion ?? 1,
   }
 }

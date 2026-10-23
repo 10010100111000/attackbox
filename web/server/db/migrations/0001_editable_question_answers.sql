@@ -1,0 +1,1 @@
+ALTER TABLE "chapter_questions" ADD COLUMN "answer" text;

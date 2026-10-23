@@ -8,6 +8,8 @@
 - [接口与事务契约](learning-platform-v1-flows.md)：管理后台与学习端 API 规范、请求响应结构与事务原子性约定。
 - [部署与验证运维指南](content-lifecycle-repairs.md)：数据库初始化、重置、迁移与自动化测试执行流程。
 
+- [下一阶段实施计划](../implementation/next-stage.md)：学习进度、顺序解锁、继续学习与后续沙箱接入。
+
 ## 迁移与启动基线
 
 迁移基线为 `web/server/db/migrations/0000_simple_platform.sql`，仅用于空数据库。新环境部署直接执行 `npm run db:migrate` 与 `npm run admin:init` 初始化。之后的增量迁移也由 `npm run db:migrate` 执行。

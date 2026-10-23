@@ -58,6 +58,7 @@ export const chapterQuestions = pgTable('chapter_questions', {
   promptMarkdown: text('prompt_markdown').notNull(),
   errorHint: text('error_hint'),
   normalization: varchar('normalization', { length: 20 }).$type<Normalization>().notNull().default('trim'),
+  answer: text('answer'),
   answerHmac: bytea('answer_hmac'),
   answerKeyVersion: smallint('answer_key_version').notNull().default(1),
 }, table => [
