@@ -1,7 +1,8 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref, watch } from 'vue'
+import MarkdownIt from 'markdown-it'
 import { useRoute, useFetch, useHead } from '#imports'
-import { ArrowLeft, ArrowRight, BookOpen, Check, ChevronRight, LockKeyhole, Clock3 } from 'lucide-vue-next'
+import { ArrowLeft, Check, LockKeyhole, Clock3 } from 'lucide-vue-next'
 import MarkdownView from '~/components/ui/MarkdownView.vue'
 import type { ContentCategory, Difficulty, PrerequisiteModule } from '~/shared/content'
 
@@ -23,6 +24,15 @@ const moduleData = computed(() => {
   const data = response.value?.data
   return data ? { ...data.module, chapters: data.chapters, prerequisites: data.prerequisites } : null
 })
+const descriptionExpanded = ref(false)
+watch(slug, () => { descriptionExpanded.value = false })
+const descriptionParser = new MarkdownIt({ html: false })
+const descriptionTokens = computed(() => descriptionParser.parse(moduleData.value?.descriptionMarkdown || '', {}))
+const descriptionText = computed(() => descriptionTokens.value.filter(token => token.type === 'inline')
+  .map(token => (token.children || []).map(child => ['text', 'code_inline'].includes(child.type) ? child.content : ['softbreak', 'hardbreak'].includes(child.type) ? ' ' : '').join('')).join(' ').trim())
+const descriptionNeedsExpansion = computed(() => descriptionText.value.length > 120 || descriptionTokens.value.some(token => ['fence', 'code_block', 'table_open'].includes(token.type)))
+const descriptionPreview = computed(() => descriptionText.value.length > 160 ? `${descriptionText.value.slice(0, 160)}…` : descriptionText.value)
+const hasSidebar = computed(() => !!moduleData.value && (Boolean(moduleData.value.descriptionMarkdown.trim()) || moduleData.value.learningOutcomes.length > 0 || moduleData.value.prerequisites.length > 0))
 const firstChapter = computed(() => moduleData.value?.chapters[0])
 const totalMinutes = computed(() => {
   const list = moduleData.value?.chapters || []
@@ -41,10 +51,8 @@ useHead({
 
 <template>
   <div class="module-page">
-    <nav class="crumb" aria-label="面包屑">
-      <NuxtLink to="/learn"><ArrowLeft :size="15" aria-hidden="true" />学习模块</NuxtLink>
-      <ChevronRight :size="13" aria-hidden="true" />
-      <span>{{ moduleData?.title || slug }}</span>
+    <nav class="module-back" aria-label="返回学习模块">
+      <NuxtLink to="/learn"><ArrowLeft :size="15" aria-hidden="true" />全部模块</NuxtLink>
     </nav>
     <div v-if="pending" class="state-box" role="status">正在加载模块详情…</div>
     <div v-else-if="error || !moduleData" class="state-box">
@@ -54,61 +62,63 @@ useHead({
     <template v-else>
       <header class="hero-section">
         <div class="hero-content">
+          <h1>{{ moduleData.title }}</h1>
           <div class="module-meta">
             <span v-if="moduleData.category" class="category-tag">{{ moduleData.category.name }}</span>
             <span>{{ difficultyLabels[moduleData.difficulty] }}</span>
-            <span class="chapter-count"><BookOpen :size="15" aria-hidden="true" />{{ moduleData.chapters.length }} 章节</span>
-            <span v-if="totalMinutes" class="chapter-count"><Clock3 :size="15" aria-hidden="true" />约 {{ totalMinutes }} 分钟</span>
+            <span>{{ moduleData.chapters.length }} 章节</span>
+            <span v-if="totalMinutes">约 {{ totalMinutes }} 分钟</span>
           </div>
-          <h1>{{ moduleData.title }}</h1>
-          <p v-if="moduleData.summary" class="hero-desc">{{ moduleData.summary }}</p>
         </div>
         <NuxtLink v-if="firstChapter" :to="chapterLink(firstChapter)" class="start-learning-btn">
-          {{ firstChapter.isLocked ? '登录后学习' : '开始学习' }}<ArrowRight :size="17" aria-hidden="true" />
+          {{ firstChapter.isLocked ? '登录后学习' : '开始学习' }}
         </NuxtLink>
       </header>
 
-      <div class="module-content" :class="{ 'with-outcomes': moduleData.learningOutcomes.length || moduleData.prerequisites.length }">
-        <div class="main-content">
-          <section v-if="moduleData.descriptionMarkdown.trim()" class="module-description" aria-label="模块介绍">
-            <MarkdownView :content="moduleData.descriptionMarkdown" />
-          </section>
-          <section class="chapters-section" aria-labelledby="chapters-heading">
-            <h2 id="chapters-heading">章节内容</h2>
-            <div class="chapter-list">
-              <NuxtLink v-for="(chapter, index) in moduleData.chapters" :key="chapter.id"
-                :to="chapterLink(chapter)" class="chapter-row">
-                <span class="chapter-number">{{ String(index + 1).padStart(2, '0') }}</span>
-                <div class="chapter-info">
-                  <h3>{{ chapter.title }}</h3>
-                  <div v-if="chapter.questionsCount || chapter.isLocked || chapter.durationMinutes" class="chapter-meta">
-                    <span v-if="chapter.durationMinutes" class="access-label"><Clock3 :size="13" aria-hidden="true" />{{ chapter.durationMinutes }} 分钟</span>
-                    <span v-if="chapter.questionsCount">{{ chapter.questionsCount }} 道练习</span>
-                    <span v-if="chapter.isLocked" class="access-label"><LockKeyhole :size="13" aria-hidden="true" />需登录</span>
-                  </div>
+      <div class="module-content" :class="{ 'with-sidebar': hasSidebar }">
+        <section class="chapters-section" aria-labelledby="chapters-heading">
+          <header class="chapters-header"><h2 id="chapters-heading">章节</h2></header>
+          <div class="chapter-list">
+            <NuxtLink v-for="(chapter, index) in moduleData.chapters" :key="chapter.id"
+              :to="chapterLink(chapter)" class="chapter-row">
+              <span class="chapter-number">{{ String(index + 1).padStart(2, '0') }}</span>
+              <div class="chapter-info">
+                <h3>{{ chapter.title }}</h3>
+                <div v-if="chapter.questionsCount || chapter.isLocked || chapter.durationMinutes" class="chapter-meta">
+                  <span v-if="chapter.durationMinutes" class="access-label"><Clock3 :size="13" aria-hidden="true" />{{ chapter.durationMinutes }} 分钟</span>
+                  <span v-if="chapter.questionsCount">{{ chapter.questionsCount }} 道练习</span>
+                  <span v-if="chapter.isLocked" class="access-label"><LockKeyhole :size="13" aria-hidden="true" />需登录</span>
                 </div>
-                <ChevronRight :size="18" class="chapter-arrow" aria-hidden="true" />
-              </NuxtLink>
+              </div>
+            </NuxtLink>
+          </div>
+        </section>
+
+        <aside v-if="hasSidebar" class="module-sidebar" aria-label="模块信息">
+          <section v-if="moduleData.descriptionMarkdown.trim()" class="support-section module-description" aria-labelledby="details-heading">
+            <h2 id="details-heading">详情</h2>
+            <div id="module-description-content">
+              <p v-if="descriptionNeedsExpansion && !descriptionExpanded && descriptionPreview" class="description-excerpt">{{ descriptionPreview }}</p>
+              <MarkdownView v-else-if="!descriptionNeedsExpansion || descriptionExpanded" :content="moduleData.descriptionMarkdown" />
             </div>
+            <button v-if="descriptionNeedsExpansion" type="button" class="description-toggle" :aria-expanded="descriptionExpanded" aria-controls="module-description-content" @click="descriptionExpanded = !descriptionExpanded">{{ descriptionExpanded ? '收起详情' : '展开详情' }}</button>
           </section>
-        </div>
-        <aside v-if="moduleData.learningOutcomes.length || moduleData.prerequisites.length" class="module-sidebar">
-        <section v-if="moduleData.learningOutcomes.length" class="outcomes" aria-labelledby="outcomes-heading">
-          <h2 id="outcomes-heading">学完后，你将能够</h2>
-          <ul>
-            <li v-for="(outcome, index) in moduleData.learningOutcomes" :key="index">
-              <Check :size="16" aria-hidden="true" /><span>{{ outcome }}</span>
-            </li>
-          </ul>
-        </section>
-        <section v-if="moduleData.prerequisites.length" class="prerequisites" aria-labelledby="prerequisites-heading">
-          <h2 id="prerequisites-heading">前置学习模块</h2>
-          <ol class="prerequisite-chain">
-            <li v-for="(prerequisite, index) in moduleData.prerequisites" :key="prerequisite.id">
-              <NuxtLink :to="`/learn/modules/${prerequisite.slug}`"><span class="chain-number">{{ index + 1 }}</span><span>{{ prerequisite.title }}</span><ChevronRight :size="14" aria-hidden="true" /></NuxtLink>
-            </li>
-          </ol>
-        </section>
+          <section v-if="moduleData.learningOutcomes.length" class="support-section outcomes" aria-labelledby="outcomes-heading">
+            <h2 id="outcomes-heading">目标</h2>
+            <ul>
+              <li v-for="(outcome, index) in moduleData.learningOutcomes" :key="index">
+                <Check :size="15" aria-hidden="true" /><span>{{ outcome }}</span>
+              </li>
+            </ul>
+          </section>
+          <section v-if="moduleData.prerequisites.length" class="support-section prerequisites" aria-labelledby="prerequisites-heading">
+            <h2 id="prerequisites-heading">前置模块</h2>
+            <ol class="prerequisite-chain">
+              <li v-for="(prerequisite, index) in moduleData.prerequisites" :key="prerequisite.id">
+                <NuxtLink :to="`/learn/modules/${prerequisite.slug}`"><span class="chain-number">{{ index + 1 }}</span><span>{{ prerequisite.title }}</span></NuxtLink>
+              </li>
+            </ol>
+          </section>
         </aside>
       </div>
     </template>
@@ -116,56 +126,81 @@ useHead({
 </template>
 
 <style scoped>
-.module-page { width: 100%; max-width: 1150px; margin: 0 auto; padding: 32px 32px 80px; color: var(--ink); }
-.crumb { display: flex; align-items: center; gap: 10px; color: var(--muted); font-size: 13px; margin-bottom: 48px; }
-.crumb a { display: inline-flex; align-items: center; gap: 8px; color: inherit; text-decoration: none; white-space: nowrap; }
-.crumb > span { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
-.crumb a:hover { color: var(--green); }
-.hero-section { display: flex; align-items: center; justify-content: space-between; gap: 40px; padding-bottom: 36px; border-bottom: 1px solid var(--line); }
-.hero-content { max-width: 740px; min-width: 0; }
-.module-meta { display: flex; gap: 18px; align-items: center; flex-wrap: wrap; color: var(--muted); font-size: 13px; margin-bottom: 18px; }
-.category-tag { color: var(--green); }
-.chapter-count { display: inline-flex; align-items: center; gap: 7px; }
-h1 { font-size: clamp(28px, 4vw, 40px); line-height: 1.25; letter-spacing: -.7px; margin: 0; overflow-wrap: anywhere; }
-.hero-desc { color: var(--muted); font-size: 15px; line-height: 1.8; margin: 16px 0 0; white-space: pre-line; }
-.start-learning-btn { display: inline-flex; align-items: center; justify-content: center; gap: 16px; flex-shrink: 0; padding: 13px 22px; background: var(--green); color: var(--on-accent); border-radius: 8px; font-size: 14px; font-weight: 600; text-decoration: none; transition: opacity .15s; }
+.module-page { width: 100%; max-width: 1200px; margin: 0 auto; padding: 28px 32px 80px; color: var(--ink); }
+.module-back { margin-bottom: 36px; }
+.module-back a { display: inline-flex; align-items: center; gap: 8px; color: var(--muted); font-size: 13px; text-decoration: none; }
+.module-back a:hover { color: var(--ink); }
+.hero-section { display: flex; align-items: center; justify-content: space-between; gap: 36px; padding-bottom: 32px; border-bottom: 1px solid var(--line); }
+.hero-content { min-width: 0; }
+h1 { font-size: clamp(28px, 3.3vw, 38px); font-weight: 700; line-height: 1.3; letter-spacing: -.7px; margin: 0; overflow-wrap: anywhere; }
+.module-meta { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 0; color: var(--muted); font-size: 12px; margin-top: 18px; line-height: 1.5; }
+.module-meta > span { display: inline-flex; align-items: center; }
+.module-meta > span + span::before { content: ''; width: 3px; height: 3px; margin: 0 13px; border-radius: 50%; background: var(--muted); opacity: .45; }
+.module-meta .category-tag { color: var(--ink); }
+.start-learning-btn { display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; min-height: 44px; padding: 12px 26px; background: var(--ink); color: var(--paper); border: 1px solid var(--ink); border-radius: 8px; font-size: 13px; font-weight: 600; text-decoration: none; transition: opacity .15s; }
 .start-learning-btn:hover { opacity: .85; }
-.module-content { padding-top: 36px; }
-.module-content.with-outcomes { display: grid; grid-template-columns: minmax(0, 1fr) 280px; gap: 56px; align-items: start; }
-.main-content { min-width: 0; }
-.module-description { margin-bottom: 36px; }
-h2 { font-size: 17px; margin: 0 0 20px; font-weight: 650; }
-.chapter-list { border-top: 1px solid var(--line); }
-.chapter-row { display: flex; align-items: center; gap: 22px; padding: 22px 12px; border-bottom: 1px solid var(--line); text-decoration: none; color: inherit; transition: background .15s; border-radius: 4px; }
-.chapter-row:hover { background: var(--soft); }
-.chapter-number { font-family: monospace; color: var(--muted); font-size: 13px; flex-shrink: 0; }
+.module-content { padding-top: 32px; }
+.module-content.with-sidebar { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 40px; align-items: start; }
+.chapters-section { min-width: 0; }
+.chapters-header { padding: 0 0 16px; border-bottom: 1px solid var(--line); }
+.chapters-header h2 { font-size: 19px; font-weight: 650; margin: 0; letter-spacing: -.2px; }
+.chapter-list { padding: 0; }
+.chapter-row { display: flex; align-items: flex-start; gap: 18px; padding: 16px 0; border-bottom: 1px solid var(--line); text-decoration: none; color: inherit; position: relative; }
+.chapter-row:last-child { border-bottom: 0; }
+.chapter-row::before { content: ''; position: absolute; inset: 3px -10px; border-radius: 7px; background: var(--soft); opacity: 0; transition: opacity .15s; }
+.chapter-row:hover::before { opacity: 1; }
+.chapter-row > * { position: relative; }
+.chapter-number { font-family: monospace; color: var(--muted); font-size: 12px; flex-shrink: 0; line-height: 24px; }
 .chapter-info { flex: 1; min-width: 0; }
 h3 { font-size: 15px; line-height: 1.5; margin: 0; font-weight: 550; overflow-wrap: anywhere; }
-.chapter-meta { display: flex; gap: 16px; color: var(--muted); font-size: 12px; margin-top: 7px; }
+.chapter-row:hover h3 { color: var(--green); }
+.chapter-meta { display: flex; flex-wrap: wrap; gap: 6px 16px; color: var(--muted); font-size: 12px; margin-top: 6px; line-height: 1.6; }
 .access-label { display: inline-flex; align-items: center; gap: 5px; }
-.chapter-arrow { color: var(--muted); flex-shrink: 0; }
-.module-sidebar { padding: 0 0 0 24px; border-left: 1px solid var(--line); }
-.module-sidebar h2 { font-size: 15px; }
-.outcomes ul { list-style: none; padding: 0; margin: 0; display: grid; gap: 16px; }
-.outcomes li { display: flex; align-items: flex-start; gap: 10px; font-size: 13px; line-height: 1.8; color: var(--muted); overflow-wrap: anywhere; }
+.module-sidebar { min-width: 0; padding: 4px 0; }
+.support-section + .support-section { margin-top: 24px; }
+.support-section h2 { font-size: 14px; font-weight: 650; margin: 0 0 14px; }
+.module-description h2 { color: var(--muted); font-size: 13px; }
+.description-excerpt { color: var(--muted); font-size: 13px; line-height: 1.85; margin: 0; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 4; overflow: hidden; overflow-wrap: anywhere; }
+.description-toggle { display: inline-block; margin-top: 10px; padding: 2px 0; border: 0; border-bottom: 1px solid var(--line); background: transparent; color: var(--ink); font-size: 12px; cursor: pointer; }
+.description-toggle:hover { border-bottom-color: var(--ink); }
+.description-toggle:focus-visible { outline: 2px solid var(--green); outline-offset: 4px; }
+.module-description :deep(.markdown-body) { font-size: 13px; line-height: 1.85; color: var(--muted); }
+.module-description :deep(.markdown-body > :first-child) { margin-top: 0; }
+.module-description :deep(.markdown-body > :last-child) { margin-bottom: 0; }
+.module-description :deep(.markdown-body p) { color: var(--muted); opacity: 1; }
+.module-description :deep(.markdown-body h1), .module-description :deep(.markdown-body h2), .module-description :deep(.markdown-body h3) { font-size: 14px; margin: 18px 0 8px; padding: 0; border: 0; }
+.module-description :deep(.markdown-body pre) { font-size: 12px; padding: 12px; }
+.module-description :deep(.markdown-body .code-block) { margin: 14px 0; }
+.module-description :deep(.markdown-body .code-top) { padding: 7px 10px; }
+.module-description :deep(.markdown-body table) { display: block; overflow-x: auto; max-width: 100%; }
+.outcomes { padding: 18px 20px; background: var(--paper); border: 1px solid var(--line); border-radius: 9px; }
+.outcomes h2 { font-size: 15px; margin-bottom: 12px; }
+.outcomes ul { list-style: none; padding: 0; margin: 0; display: grid; gap: 10px; }
+.outcomes li { display: flex; align-items: flex-start; gap: 9px; font-size: 13px; line-height: 1.75; color: var(--ink); overflow-wrap: anywhere; }
 .outcomes li svg { flex-shrink: 0; margin-top: 4px; color: var(--green); }
-.prerequisites:not(:first-child) { margin-top: 32px; }
+.prerequisites { padding-top: 20px; border-top: 1px solid var(--line); }
+.prerequisites:first-child { padding-top: 0; border-top: 0; }
+.prerequisites h2 { font-size: 13px; color: var(--muted); margin-bottom: 10px; }
 .prerequisite-chain { list-style: none; padding: 0; margin: 0; }
-.prerequisite-chain li { position: relative; padding-bottom: 16px; }
+.prerequisite-chain li { position: relative; padding-bottom: 8px; }
 .prerequisite-chain li:last-child { padding-bottom: 0; }
-.prerequisite-chain li:not(:last-child)::after { content: ''; position: absolute; left: 12px; top: 27px; bottom: 3px; border-left: 1px solid var(--line); }
-.prerequisite-chain a { display: flex; align-items: center; gap: 11px; text-decoration: none; color: var(--muted); font-size: 13px; line-height: 1.6; }
+.prerequisite-chain a { display: flex; align-items: center; gap: 10px; text-decoration: none; color: var(--muted); font-size: 13px; line-height: 1.6; }
 .prerequisite-chain a:hover { color: var(--green); }
-.chain-number { display: grid; place-items: center; width: 25px; height: 25px; flex-shrink: 0; border: 1px solid var(--line); border-radius: 50%; font-size: 11px; font-family: monospace; }
-.prerequisite-chain a > span:nth-child(2) { flex: 1; overflow-wrap: anywhere; }
+.prerequisite-chain a:hover > span:last-child { text-decoration: underline; text-underline-offset: 3px; }
+.chain-number { display: grid; place-items: center; width: 14px; height: 20px; flex-shrink: 0; color: var(--muted); font-size: 11px; font-family: monospace; }
+.prerequisite-chain a > span:last-child { overflow-wrap: anywhere; }
 .state-box { padding: 60px 0; color: var(--muted); }
 .state-box a { color: var(--green); }
-a:focus-visible { outline: 2px solid var(--green); outline-offset: 4px; }
+a:focus-visible { outline: 2px solid var(--green); outline-offset: 4px; border-radius: 5px; }
+.chapter-row:focus-visible { outline-offset: -3px; }
 @media (max-width: 800px) {
   .module-page { padding: 24px 20px 56px; }
-  .crumb { margin-bottom: 32px; }
-  .hero-section { flex-direction: column; align-items: flex-start; gap: 24px; }
-  .module-content.with-outcomes { grid-template-columns: 1fr; gap: 32px; }
-  .module-sidebar { padding: 24px 0 0; border-left: 0; border-top: 1px solid var(--line); }
+  .module-back { margin-bottom: 28px; }
+  .hero-section { flex-direction: column; align-items: flex-start; gap: 22px; padding-bottom: 26px; }
+  .module-meta { margin-top: 14px; }
+  .module-content.with-sidebar { grid-template-columns: 1fr; gap: 30px; }
+  .chapters-header { padding: 0 0 16px; }
+  .chapter-row { gap: 15px; padding: 16px 0; }
+  .module-sidebar { padding: 0 4px; }
 }
 </style>

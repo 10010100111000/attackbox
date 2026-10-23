@@ -441,7 +441,7 @@ useHead({ title: computed(() => `${isNew.value ? '新建' : '编辑'}模块：${
         </section>
         <section class="settings-section goals-section" aria-labelledby="goals-heading">
           <header class="section-label"><h2 id="goals-heading">学习目标</h2><span>可选</span></header>
-          <div class="section-fields"><label class="sr-only" for="module-outcomes">学完后，你将能够</label><textarea id="module-outcomes" v-model="localModuleForm.learningOutcomes" class="form-input" rows="3" placeholder="每行一项，例如：&#10;识别文件权限与用户身份&#10;排查常见访问权限问题" @input="markDirty"></textarea><p class="field-hint">对应详情页的“学完后，你将能够”。最多 12 项，留空不展示。</p></div>
+          <div class="section-fields"><label class="sr-only" for="module-outcomes">学完后，你将能够</label><textarea id="module-outcomes" v-model="localModuleForm.learningOutcomes" class="form-input" rows="3" placeholder="每行一项，例如：&#10;识别文件权限与用户身份&#10;排查常见访问权限问题" @input="markDirty"></textarea><p class="field-hint">对应详情页的“目标”。每行一项，最多 12 项，留空不展示。</p></div>
         </section>
         <section class="settings-section prerequisites-card" aria-labelledby="prerequisites-heading">
           <header class="section-label"><h2 id="prerequisites-heading">前置学习模块</h2><span>可选</span></header><div class="section-fields prerequisite-fields">
