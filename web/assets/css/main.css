@@ -2,7 +2,8 @@
 @tailwind components;
 @tailwind utilities;
 
-:root {
+:root,
+[data-theme='midnight'] {
   color-scheme: dark;
 
   /* 深海暗色默认 */
@@ -12,6 +13,32 @@
   --text-main: #f2f0ed;
   --text-muted: #96939d;
   --border-line: rgba(255, 255, 255, 0.07);
+
+  /* 原型设计 Token 映射 (深海) */
+  --bg: #12171c;
+  --paper: #191f26;
+  --ink: #e7ecef;
+  --muted: #a0acb6;
+  --body: #bbc5ce;
+  --line: #303a44;
+  --green: #8ed6bd;
+  --mint: #253b36;
+  --soft: #242d35;
+  --hover: #202a32;
+  --on-accent: #112a22;
+  --focus: #8ed6bd;
+  --art: #263b38;
+  --art2: #293645;
+  --art3: #3b3430;
+  --art-ink: #8ca9a0;
+  --code: #0e1318;
+  --code-ink: #e0e9ee;
+  --code-muted: #93a6b7;
+  --code-highlight: #a6e0c5;
+  --success-bg: #233b30;
+  --success-ink: #a2dbb5;
+  --error-bg: #402d25;
+  --error-ink: #f1bd95;
 
   /* 品牌高亮与交互态 */
   --accent-coral: #ffaf88;
@@ -31,7 +58,8 @@
   --radius-xl: 18px;
 }
 
-[data-theme='light'] {
+[data-theme='light'],
+[data-theme='graphite'] {
   color-scheme: light;
   --bg-app: #f9f8f6;
   --bg-card: #ffffff;
@@ -41,6 +69,32 @@
   --border-line: rgba(0, 0, 0, 0.08);
   --text-on-accent: #271a15;
   --color-error: #c53030;
+
+  /* 原型设计 Token 映射 (石墨) */
+  --bg: #f7f7f8;
+  --paper: #ffffff;
+  --ink: #202127;
+  --muted: #666872;
+  --body: #454751;
+  --line: #e2e2e7;
+  --green: #30323a;
+  --mint: #ebebef;
+  --soft: #f0f0f3;
+  --hover: #f6f6f8;
+  --on-accent: #ffffff;
+  --focus: #7f8394;
+  --art: #e9eaef;
+  --art2: #e7ebef;
+  --art3: #eeebe8;
+  --art-ink: #707585;
+  --code: #22242c;
+  --code-ink: #e4e5ec;
+  --code-muted: #a1a6b8;
+  --code-highlight: #c0c9ff;
+  --success-bg: #eaf3ed;
+  --success-ink: #2e6242;
+  --error-bg: #fff0e5;
+  --error-ink: #8c491e;
 }
 
 body {

@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, watch, nextTick } from 'vue'
+import { useRouter } from 'vue-router'
 import { ArrowRight, ArrowLeft } from 'lucide-vue-next'
 import Button from '~/components/ui/Button.vue'
 import Input from '~/components/ui/Input.vue'
@@ -17,9 +18,12 @@ const emit = defineEmits<{
   (e: 'switch-mode', mode: 'login'): void
 }>()
 
+const router = useRouter()
 const email = ref(props.modelValueEmail)
 const password = ref('')
 const busy = ref(false)
+const isSuccessPreview = ref(false)
+const generatedToken = ref('')
 const emailError = ref('')
 const passwordError = ref('')
 const statusMessage = ref('')
@@ -90,22 +94,67 @@ async function handleSubmit() {
   try {
     const res = await register(cleanEmail, password.value)
     password.value = ''
-    statusMessage.value = res?.message || '邮箱验证邮件已发送，请查收邮件以完成账号激活。'
+    if (res?.verifyToken) {
+      generatedToken.value = res.verifyToken
+      isSuccessPreview.value = true
+    } else {
+      statusMessage.value = res?.message || '邮箱验证邮件已发送，请查收邮件以完成账号激活。'
+    }
   } catch (err: any) {
     statusMessage.value = err?.data?.statusMessage || err?.message || '注册失败，请稍后重试'
   } finally {
     busy.value = false
   }
 }
+
+function handleActivateNow() {
+  router.push({
+    path: '/auth',
+    query: {
+      mode: 'verify',
+      token: generatedToken.value,
+      email: email.value
+    }
+  })
+}
 </script>
 
 <template>
   <div class="auth-form-wrapper">
-    <div class="eyebrow">ATTACKBOX ACCOUNT</div>
-    <h1 id="form-title">从这里，开始。</h1>
-    <p class="intro">创建账号，开始你的下一次探索。</p>
+    <!-- 注册成功后的凭据与激活视图 -->
+    <div v-if="isSuccessPreview" class="success-content">
+      <div class="success-icon" aria-hidden="true">✓</div>
+      <div class="eyebrow">REGISTRATION SUCCESS</div>
+      <h1 id="form-title" tabindex="-1">账号创建成功</h1>
+      <p class="intro">
+        账号注册已提交，激活凭据已生成。<br />
+        点击下方按钮立即完成邮箱验证并激活账号。
+      </p>
+      <Button
+        variant="primary"
+        class="submit w-full h-[46px] text-xs font-semibold rounded-md gap-4"
+        @click="handleActivateNow"
+      >
+        <span>一键激活并登录</span>
+        <ArrowRight class="w-4 h-4" />
+      </Button>
+      <button
+        type="button"
+        class="back-button"
+        @click="$emit('switch-mode', 'login')"
+      >
+        <ArrowLeft class="w-3.5 h-3.5 inline mr-1" />
+        <span>返回登录</span>
+      </button>
+    </div>
 
-    <form id="auth-form" novalidate @submit.prevent="handleSubmit">
+    <!-- 正常注册表单 -->
+    <div v-else>
+      <div class="eyebrow">ATTACKBOX ACCOUNT</div>
+      <h1 id="form-title">从这里，开始。</h1>
+      <p class="intro">创建账号，开始你的下一次探索。</p>
+
+      <form id="auth-form" novalidate @submit.prevent="handleSubmit">
       <!-- 邮箱字段 -->
       <div class="field">
         <div class="field-head">
@@ -181,10 +230,23 @@ async function handleSubmit() {
 
     <!-- 提示语 -->
     <p class="hint">下一步验证邮箱，完成账号创建。</p>
+    </div>
   </div>
 </template>
 
 <style scoped>
+.success-icon {
+  width: 42px;
+  height: 42px;
+  border: 1px solid rgba(188, 163, 131, 0.25);
+  border-radius: 12px;
+  display: grid;
+  place-items: center;
+  color: #8ed6bd;
+  background: rgba(142, 214, 189, 0.1);
+  font-size: 20px;
+  margin-bottom: 23px;
+}
 .eyebrow {
   font: 9px "SFMono-Regular", Consolas, monospace;
   color: #9c8275;

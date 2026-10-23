@@ -1,0 +1,56 @@
+// web/tests/admin-ui.test.js
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import path from 'node:path';
+
+const webDir = path.resolve(import.meta.dirname, '..');
+
+test('admin layout and page templates exist', () => {
+  const files = [
+    'layouts/admin.vue',
+    'pages/admin/modules/index.vue',
+    'pages/admin/modules/[id].vue',
+  ];
+
+  for (const f of files) {
+    const fullPath = path.join(webDir, f);
+    assert.ok(fs.existsSync(fullPath), `File should exist: ${f}`);
+  }
+});
+
+test('layouts/admin.vue defines admin shell, navigation groups, and permission check', () => {
+  const content = fs.readFileSync(path.join(webDir, 'layouts/admin.vue'), 'utf-8');
+  assert.ok(content.includes('admin-shell'));
+  assert.ok(content.includes('src="/logo.png"'));
+  assert.ok(content.includes('AttackBox Admin'));
+  assert.ok(content.includes('内容管理'));
+  assert.ok(content.includes('账户管理'));
+  assert.ok(content.includes('环境管理'));
+  assert.ok(content.includes('系统管理'));
+  assert.ok(content.includes("role === 'admin'"));
+  assert.ok(content.includes('admin-denied'));
+});
+
+test('pages/admin/modules/index.vue defines module list, status filters, and create modal', () => {
+  const content = fs.readFileSync(path.join(webDir, 'pages/admin/modules/index.vue'), 'utf-8');
+  assert.ok(content.includes("layout: 'admin'"));
+  assert.ok(content.includes('/api/admin/modules'));
+  assert.ok(content.includes('module-table'));
+  assert.ok(content.includes('modal-card'));
+  assert.ok(content.includes('新建学习模块'));
+  assert.ok(content.includes('filters-tabs'));
+});
+
+test('pages/admin/modules/[id].vue defines editor tabs, draft saving, publish, and reorder', () => {
+  const content = fs.readFileSync(path.join(webDir, 'pages/admin/modules/[id].vue'), 'utf-8');
+  assert.ok(content.includes("layout: 'admin'"));
+  assert.ok(content.includes('/api/admin/modules/'));
+  assert.ok(content.includes('/api/admin/chapters/'));
+  assert.ok(content.includes('editor-double-layout'));
+  assert.ok(content.includes('MarkdownView'));
+  assert.ok(content.includes('handlePublish'));
+  assert.ok(content.includes('handleSaveDraft'));
+  assert.ok(content.includes('handleMoveChapter'));
+  assert.ok(content.includes('handleAddQuestion'));
+});

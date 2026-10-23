@@ -5,6 +5,7 @@ import AuthVisualAside from '~/components/auth/AuthVisualAside.vue'
 import LoginForm from '~/components/auth/LoginForm.vue'
 import RegisterForm from '~/components/auth/RegisterForm.vue'
 import RecoverForm from '~/components/auth/RecoverForm.vue'
+import VerifyView from '~/components/auth/VerifyView.vue'
 
 definePageMeta({
   layout: 'auth'
@@ -12,9 +13,9 @@ definePageMeta({
 
 const route = useRoute()
 
-const currentMode = computed<'login' | 'register' | 'recover'>(() => {
+const currentMode = computed<'login' | 'register' | 'recover' | 'verify'>(() => {
   const mode = route.query.mode
-  if (mode === 'register' || mode === 'recover') {
+  if (mode === 'register' || mode === 'recover' || mode === 'verify') {
     return mode
   }
   return 'login'
@@ -22,16 +23,18 @@ const currentMode = computed<'login' | 'register' | 'recover'>(() => {
 
 const sharedEmail = ref(typeof route.query.email === 'string' ? route.query.email : '')
 
-const titles: Record<'login' | 'register' | 'recover', string> = {
+const titles: Record<'login' | 'register' | 'recover' | 'verify', string> = {
   login: '登录 — AttackBox',
   register: '注册 — AttackBox',
-  recover: '找回密码 — AttackBox'
+  recover: '找回密码 — AttackBox',
+  verify: '验证并激活账号 — AttackBox'
 }
 
-const descriptions: Record<'login' | 'register' | 'recover', string> = {
+const descriptions: Record<'login' | 'register' | 'recover' | 'verify', string> = {
   login: '登录 AttackBox，继续你的安全学习与实践。',
   register: '创建 AttackBox 账号，开启你的安全学习之旅。',
-  recover: '找回你的 AttackBox 账号密码。'
+  recover: '找回你的 AttackBox 账号密码。',
+  verify: '验证你的邮箱地址以激活 AttackBox 账号。'
 }
 
 useHead({
@@ -44,7 +47,7 @@ useHead({
   ]
 })
 
-function handleSwitchMode(targetMode: 'login' | 'register' | 'recover') {
+function handleSwitchMode(targetMode: 'login' | 'register' | 'recover' | 'verify') {
   navigateTo(
     {
       query: {
@@ -94,6 +97,11 @@ watch(currentMode, () => {
       <RecoverForm
         v-else-if="currentMode === 'recover'"
         v-model:model-value-email="sharedEmail"
+        @switch-mode="handleSwitchMode"
+      />
+
+      <VerifyView
+        v-else-if="currentMode === 'verify'"
         @switch-mode="handleSwitchMode"
       />
     </section>

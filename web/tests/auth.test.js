@@ -13,6 +13,7 @@ test('auth components, layout, and page files exist', () => {
     'components/auth/LoginForm.vue',
     'components/auth/RegisterForm.vue',
     'components/auth/RecoverForm.vue',
+    'components/auth/VerifyView.vue',
     'layouts/auth.vue',
     'pages/auth.vue'
   ]
@@ -170,4 +171,16 @@ test('pages/auth.vue binds auth layout, handles mode query and title, and syncs 
   // Mode switching & state synchronization
   assert.ok(content.includes('navigateTo'))
   assert.ok(content.includes('route.query.mode') || content.includes('query'))
+  assert.ok(content.includes('VerifyView'))
+})
+
+test('VerifyView.vue defines pending, success, and error states for email activation', () => {
+  const content = readFileSync(resolve(rootDir, 'components/auth/VerifyView.vue'), 'utf-8')
+
+  assert.ok(content.includes('verifyEmail'))
+  assert.ok(content.includes('ACCOUNT ACTIVATION'))
+  assert.ok(content.includes('ACTIVATION SUCCESS'))
+  assert.ok(content.includes('邮箱验证成功！'))
+  assert.ok(content.includes('立即前往登录'))
+  assert.ok(content.includes('ACTIVATION FAILED'))
 })

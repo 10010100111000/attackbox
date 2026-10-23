@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { ref, watch, nextTick } from 'vue'
+import { ref, computed, watch, nextTick } from 'vue'
+import { useRoute } from 'vue-router'
 import { ArrowRight, ArrowLeft } from 'lucide-vue-next'
 import Button from '~/components/ui/Button.vue'
 import Input from '~/components/ui/Input.vue'
@@ -18,6 +19,15 @@ const emit = defineEmits<{
   (e: 'update:modelValueEmail', value: string): void
   (e: 'switch-mode', mode: 'register' | 'recover'): void
 }>()
+
+const route = useRoute()
+const returnTarget = computed(() => {
+  const returnTo = route?.query?.returnTo
+  if (typeof returnTo === 'string' && returnTo.startsWith('/') && !returnTo.startsWith('//')) {
+    return returnTo
+  }
+  return '/learn'
+})
 
 const email = ref(props.modelValueEmail)
 const password = ref('')
@@ -129,7 +139,7 @@ function resetToLogin() {
       <p>登录成功。<br>准备进入学习控制台与实验靶场。</p>
       <Button
         as="NuxtLink"
-        to="/"
+        :to="returnTarget"
         variant="primary"
         class="submit w-full h-[46px] text-xs font-semibold rounded-md gap-4"
       >
