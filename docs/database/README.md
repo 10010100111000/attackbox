@@ -4,7 +4,7 @@
 
 ## 核心文档导航
 
-- [数据模型规范](learning-platform-v1.md)：11 张核心数据表结构、字段约束与设计原理。
+- [数据模型规范](learning-platform-v1.md)：13 张核心数据表结构、字段约束与设计原理。
 - [接口与事务契约](learning-platform-v1-flows.md)：管理后台与学习端 API 规范、请求响应结构与事务原子性约定。
 - [部署与验证运维指南](content-lifecycle-repairs.md)：数据库初始化、重置、迁移与自动化测试执行流程。
 

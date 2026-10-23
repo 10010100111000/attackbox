@@ -5,3 +5,4 @@ export * from './assets';
 export * from './content';
 
 export * from './categories';
+export * from './learning';

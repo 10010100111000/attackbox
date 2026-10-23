@@ -1,8 +1,10 @@
 <script setup lang="ts">
-import { LockKeyhole, PanelLeftClose, PanelLeftOpen } from 'lucide-vue-next'
+import { NuxtLink } from '#components'
+import type { LearningChapter } from '~/shared/learning'
+import { LockKeyhole, PanelLeftClose, PanelLeftOpen, CheckCircle2 } from 'lucide-vue-next'
 defineProps<{
   moduleSlug: string; moduleTitle: string; currentSlug: string; collapsed?: boolean
-  chapters: { id: string; slug: string; title: string; isLocked: boolean }[]
+  chapters: Pick<LearningChapter, 'id' | 'slug' | 'title' | 'isLocked' | 'lockReason' | 'completedAt'>[]
 }>()
 const emit = defineEmits<{ toggle: []; navigate: [] }>()
 </script>
@@ -17,16 +19,16 @@ const emit = defineEmits<{ toggle: []; navigate: [] }>()
     </div>
     <h2 v-if="!collapsed">{{ moduleTitle }}</h2>
     <nav aria-label="章节导航">
-      <NuxtLink v-for="(chapter, index) in chapters" :key="chapter.id"
-        :to="chapter.isLocked ? `/auth?returnTo=${encodeURIComponent(`/learn/modules/${moduleSlug}/${chapter.slug}`)}` : `/learn/modules/${moduleSlug}/${chapter.slug}`"
+      <component :is="chapter.lockReason === 'prerequisite' ? 'button' : NuxtLink" :disabled="chapter.lockReason === 'prerequisite' || undefined" :type="chapter.lockReason === 'prerequisite' ? 'button' : undefined" v-for="(chapter, index) in chapters" :key="chapter.id"
+        :to="chapter.lockReason === 'prerequisite' ? undefined : chapter.lockReason === 'login' ? `/auth?returnTo=${encodeURIComponent(`/learn/modules/${moduleSlug}/${chapter.slug}`)}` : `/learn/modules/${moduleSlug}/${chapter.slug}`"
         class="chapter-nav-btn" :class="{ selected: chapter.slug === currentSlug }"
         :aria-current="chapter.slug === currentSlug ? 'page' : undefined"
-        :aria-label="collapsed ? `${index + 1}. ${chapter.title}${chapter.isLocked ? '，需登录' : ''}` : undefined"
-        :title="collapsed ? chapter.title : undefined" @click="emit('navigate')">
+        :aria-label="collapsed ? `${index + 1}. ${chapter.title}${chapter.lockReason === 'login' ? '，需登录' : chapter.lockReason === 'prerequisite' ? '，需先完成前面的章节' : ''}` : undefined"
+        :aria-disabled="chapter.lockReason === 'prerequisite' || undefined" :title="chapter.lockReason === 'prerequisite' ? '需先完成前面的章节' : collapsed ? chapter.title : undefined" @click="chapter.lockReason === 'prerequisite' ? $event.preventDefault() : emit('navigate')">
         <span class="chapter-nav-num">{{ String(index + 1).padStart(2, '0') }}</span>
-        <span v-if="!collapsed" class="chapter-nav-text">{{ chapter.title }}<span>{{ chapter.slug === currentSlug ? '正在阅读' : chapter.isLocked ? '需登录' : '可阅读' }}</span></span>
-        <LockKeyhole v-if="chapter.isLocked && !collapsed" :size="13" aria-hidden="true" />
-      </NuxtLink>
+        <span v-if="!collapsed" class="chapter-nav-text">{{ chapter.title }}<span>{{ chapter.completedAt ? '已完成' : chapter.slug === currentSlug ? '正在阅读' : chapter.lockReason === 'login' ? '需登录' : chapter.lockReason === 'prerequisite' ? '需先完成前章' : '可阅读' }}</span></span>
+        <CheckCircle2 v-if="chapter.completedAt && !collapsed" :size="14" class="chapter-done" aria-label="已完成" /><LockKeyhole v-else-if="chapter.isLocked && !collapsed" :size="13" aria-hidden="true" />
+      </component>
     </nav>
   </div>
 </template>
@@ -38,13 +40,15 @@ const emit = defineEmits<{ toggle: []; navigate: [] }>()
 .outline-toggle:hover { color: var(--ink); background: var(--soft); }
 h2 { font-size: 15px; line-height: 1.6; font-weight: 650; margin: 0 10px 22px; overflow-wrap: anywhere; }
 nav { display: grid; gap: 5px; }
-.chapter-nav-btn { display: flex; align-items: center; gap: 10px; padding: 12px 10px; border-radius: 7px; text-decoration: none; color: var(--muted); }
+.chapter-nav-btn { width: 100%; border: 0; background: transparent; text-align: left; cursor: pointer; display: flex; align-items: center; gap: 10px; padding: 12px 10px; border-radius: 7px; text-decoration: none; color: var(--muted); }
 .chapter-nav-btn:hover { background: var(--hover); color: var(--ink); }
 .chapter-nav-btn.selected { background: var(--mint); color: var(--green); }
 .chapter-nav-num { font: 11px monospace; flex-shrink: 0; width: 20px; text-align: center; }
 .chapter-nav-text { flex: 1; min-width: 0; overflow-wrap: anywhere; font-size: 12px; font-weight: 550; line-height: 1.6; }
 .chapter-nav-text > span { display: block; font-size: 10px; font-weight: 400; opacity: .75; margin-top: 3px; }
 svg { flex-shrink: 0; }
+.chapter-done { color: var(--success-ink); }
+.chapter-nav-btn[aria-disabled="true"] { opacity: .6; cursor: not-allowed; }
 .collapsed { padding: 16px 8px; }
 .collapsed .outline-controls { justify-content: center; margin: -16px -8px 24px; padding: 0; }
 .collapsed .chapter-nav-btn { justify-content: center; padding: 12px 0; }

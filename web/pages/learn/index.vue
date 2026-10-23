@@ -1,5 +1,8 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { ArrowRight, BookOpen } from 'lucide-vue-next'
+import { useAuth } from '~/composables/useAuth'
+import type { LearningHistoryItem } from '~/shared/learning'
+import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import { useFetch, useHead } from '#imports'
 import type { ContentCategory } from '~/shared/content'
 
@@ -27,6 +30,10 @@ interface ModuleItem {
   chapterCount: number
 }
 
+const { currentUser } = useAuth()
+const learnerId = computed(() => currentUser.value?.id || '')
+const { data: historyResponse } = await useFetch<{ data: LearningHistoryItem[] }>('/api/me/learning', { key: 'learning:history', watch: [learnerId], immediate: !!learnerId.value })
+const recentLearning = computed(() => learnerId.value ? historyResponse.value?.data?.find(item => !item.progress.isCompleted) || null : null)
 const { data: response, pending, error, refresh } = await useFetch<{ ok: boolean; data: ModuleItem[] }>('/api/modules')
 
 const modules = computed<ModuleItem[]>(() => {
@@ -34,42 +41,22 @@ const modules = computed<ModuleItem[]>(() => {
 })
 
 // 轮播内容数据 (完全忠于原型，去除多余验证性控制按钮)
-const featureSlides = [
-  {
-    label: '本期精选',
-    title: '从理解原理，到独立解决问题。',
-    description: '先建立基础，再进入靶场。挑选适合自己的起点，按自己的节奏探索。',
-    cta: '探索入门路线',
-    href: '/learn/modules/linux-basics',
-    command: '$ start learning',
-    caption: 'read → practice → understand'
-  },
-  {
-    label: '动手挑战',
-    title: '把刚学会的知识，带进靶场。',
-    description: '从 Linux 权限到 Web 安全，在独立的练习环境中验证你的理解。',
-    cta: '浏览挑战',
-    href: '/challenges',
-    command: '$ enter challenge',
-    caption: 'explore → test → discover'
-  },
-  {
-    label: '模块推荐',
-    title: '从第一条 Linux 命令开始。',
-    description: '认识 Shell、探索目录、理解权限，用三个章节打好命令行基础。',
-    cta: '查看 Linux 入门',
-    href: '/learn/modules/linux-basics',
-    command: '$ pwd',
-    caption: '/home/box'
-  }
-]
+const featureSlides = computed(() => {
+  const picks = modules.value.slice(0, 3)
+  return picks.length ? picks.map((module, index) => ({
+    label: index === 0 ? '本期精选' : '模块推荐', title: module.title,
+    description: module.summary, cta: '查看模块', href: `/learn/modules/${module.slug}`,
+    command: '$ explore', caption: module.category?.name || 'AttackBox Learning',
+  })) : [{ label: '开始探索', title: '从理解原理，到独立解决问题。', description: '浏览已发布的学习模块，选择自己的起点。', cta: '浏览学习模块', href: '#module-list', command: '$ explore', caption: 'AttackBox Learning' }]
+})
+watch(() => featureSlides.value.length, length => { if (carouselIndex.value >= length) carouselIndex.value = 0 })
 
 const carouselIndex = ref(0)
 const isPaused = ref(false)
 let carouselTimer: ReturnType<typeof setInterval> | null = null
 
 function nextSlide() {
-  carouselIndex.value = (carouselIndex.value + 1) % featureSlides.length
+  carouselIndex.value = (carouselIndex.value + 1) % featureSlides.value.length
 }
 
 function selectSlide(i: number) {
@@ -171,18 +158,6 @@ function getModuleTheme(index: number) {
   return artThemes[index % artThemes.length]
 }
 
-// 模拟路线数据（严格还原原型结构）
-const pathsList = [
-  {
-    id: 'linux-security-basics',
-    title: 'Linux 与安全基础',
-    desc: '从命令行操作到 Web 安全，建立完整的入门知识体系。',
-    nodes: ['Linux 入门', '网络基础', 'Web 安全基础'],
-    meta: '3 个模块 · 入门',
-    status: '0 / 3 模块已完成',
-    targetSlug: 'linux-basics'
-  }
-]
 </script>
 
 <template>
@@ -231,6 +206,9 @@ const pathsList = [
         </div>
       </section>
 
+      <NuxtLink v-if="recentLearning && activeTab === 'modules'" :to="`/learn/modules/${recentLearning.slug}/${recentLearning.progress.resumeChapterSlug}`" class="recent-learning">
+        <div class="recent-copy"><span class="recent-label">继续学习</span><h2>{{ recentLearning.title }}</h2><p>{{ recentLearning.chapterTitle }}</p><div class="recent-progress" :aria-label="`已完成 ${recentLearning.progress.completedChapters} / ${recentLearning.progress.totalChapters} 章节`"><span :style="{ width: `${recentLearning.progress.percent}%` }" /></div><span class="recent-count">已完成 {{ recentLearning.progress.completedChapters }} / {{ recentLearning.progress.totalChapters }} 章节</span></div><ArrowRight :size="20" aria-hidden="true" />
+      </NuxtLink>
       <!-- 二级标签栏 (学习模块 / 学习路线) -->
       <div class="page-tabs" role="tablist" aria-label="学习导航">
         <button
@@ -252,7 +230,7 @@ const pathsList = [
       </div>
 
       <!-- Tab 1: 学习模块 -->
-      <div v-if="activeTab === 'modules'" class="tab-content">
+      <div v-if="activeTab === 'modules'" id="module-list" class="tab-content">
         <!-- 筛选与搜索工具栏 -->
         <div class="toolbar">
           <div class="filters" role="tablist" aria-label="分类过滤">
@@ -346,12 +324,11 @@ const pathsList = [
             <div class="card-body">
               <span class="tag">{{ difficultyToLabel(mod.difficulty) }}</span>
               <h2 class="card-title">{{ mod.title }}</h2>
-              <p class="card-desc">{{ mod.summary || '包含原理讲解与交互式实操测验。' }}</p>
+              <p v-if="mod.summary" class="card-desc">{{ mod.summary }}</p>
 
               <div class="card-meta">
                 <span>{{ mod.chapterCount }} 章节</span>
-                <span>约 {{ Math.max(15, mod.chapterCount * 12) }} 分钟</span>
-                <span>含交互练习</span>
+                <span v-if="mod.category">{{ mod.category.name }}</span>
               </div>
 
               <!-- 卡片底栏 (保持克制，去除多余 ↗ 箭头) -->
@@ -371,33 +348,7 @@ const pathsList = [
 
       <!-- Tab 2: 学习路线 -->
       <div v-else class="tab-content">
-        <div class="paths-list">
-          <NuxtLink
-            v-for="p in pathsList"
-            :key="p.id"
-            :to="`/learn/modules/${p.targetSlug}`"
-            class="path-card"
-          >
-            <div class="path-header">
-              <h2 class="path-title">{{ p.title }}</h2>
-              <span class="path-action">查看路线</span>
-            </div>
-            <p class="path-desc">{{ p.desc }}</p>
-
-            <!-- 路线拓扑节点 -->
-            <div class="mini-route" aria-label="路线包含的模块">
-              <template v-for="(node, i) in p.nodes" :key="node">
-                <span class="route-node">{{ node }}</span>
-                <span v-if="i < p.nodes.length - 1" class="route-divider">→</span>
-              </template>
-            </div>
-
-            <div class="path-footer">
-              <span>{{ p.meta }}</span>
-              <span>{{ p.status }}</span>
-            </div>
-          </NuxtLink>
-        </div>
+        <div class="empty-notice"><BookOpen :size="24" aria-hidden="true" /><p>学习路线尚未开放，可先选择学习模块。</p><button type="button" class="btn secondary" @click="activeTab = 'modules'">浏览模块</button></div>
       </div>
 
       <!-- 底部理念标语 (与原型一致) -->
@@ -409,6 +360,15 @@ const pathsList = [
 </template>
 
 <style scoped>
+.recent-learning { display: flex; align-items: center; justify-content: space-between; gap: 24px; padding: 24px 28px; margin-bottom: 24px; border: 1px solid var(--line); border-radius: 10px; background: var(--mint); color: var(--ink); text-decoration: none; }
+.recent-copy { flex: 1; min-width: 0; }
+.recent-label { font-size: 11px; color: var(--muted); }
+.recent-learning h2 { font-size: 20px; margin: 6px 0; font-weight: 650; }
+.recent-learning p { font-size: 12px; color: var(--muted); margin: 0 0 14px; }
+.recent-progress { height: 4px; width: min(100%, 320px); border-radius: 4px; background: var(--line); overflow: hidden; }
+.recent-progress span { display: block; height: 100%; background: var(--green); }
+.recent-count { display: block; margin-top: 8px; font-size: 11px; color: var(--muted); }
+
 .learn-page {
   width: 100%;
   min-height: calc(100vh - 68px);

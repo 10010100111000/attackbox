@@ -75,8 +75,17 @@
 | --- | --- | --- |
 | GET | /api/categories | 分类清单 |
 | GET | /api/modules | 已发布模块列表 |
-| GET | /api/modules/:slug | `{ module, chapters, prerequisites }`，目录包含登录锁提示 |
-| GET | /api/modules/:slug/chapters/:chapterSlug | `{ chapter, questions }`，服务端检查章节访问权限 |
-| POST | /api/modules/:slug/chapters/:chapterSlug/attempt | 提交 `{ questionId, answer }`，返回 `{ correct, errorHint }` |
+| GET | /api/modules/:slug | `{ module, chapters, prerequisites, progress }`，目录包含 lockReason 与完成时间 |
+| GET | /api/modules/:slug/chapters/:chapterSlug | `{ chapter, questions, progress }`，服务端检查章节访问权限 |
+| POST | /api/modules/:slug/chapters/:chapterSlug/attempt | 提交 `{ questionId, answer }`，返回 `{ correct, errorHint, progress }` |
+| POST | /api/modules/:slug/chapters/:chapterSlug/visit | 登录后记录最近访问，不返回正文 |
+| POST | /api/modules/:slug/chapters/:chapterSlug/complete | 登录后完成章节；有题章节仍需全部通过 |
+| GET | /api/me/learning | 当前用户最近 20 个已访问且仍发布的模块及实时进度 |
 
-答题按当前题目判定。题目已删除或模块已下架时返回 404，学习者需要刷新页面；并不维持旧题目快照。当前答题仅校验答案，不代表已实现学习完成记录和顺序解锁。
+目录的 `lockReason` 为 `login`、`prerequisite` 或 null；`isLocked` 与之保持一致。需要登录返回 401，未完成前章返回 403；题目已删除或模块下架返回 404。公开预览不受顺序限制，已完成章节可回顾。
+
+章节 GET 和 attempt 响应中的 `progress` 为 `{ completedAt, passedQuestionIds, isSaved }`。访客返回空通过记录、`isSaved: false`；已登录用户的数据来自自己的记录。答对会幂等写入题目通过记录，全部题目答对时自动完成。显式 complete 不接受客户端传入的已通过状态；未通过全部练习返回 409。无题章节可直接 complete。
+
+模块 progress 为 `{ completedChapters, totalChapters, percent, isCompleted, resumeChapterSlug }`，访客为 null。继续学习优先返回最近访问的可读未完成章节，否则选择第一个可读未完成章节；全部完成则返回回顾入口。
+
+读取接口不写进度。前端打开已登录用户的可读章节后发送 visit；写入失败显示重试入口。响应均禁止共享缓存；SSR 保持公开目录和权限提示，不输出受限正文或标准答案。

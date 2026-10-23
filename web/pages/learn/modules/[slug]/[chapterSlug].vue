@@ -6,6 +6,8 @@ import { DialogRoot, DialogTrigger, DialogPortal, DialogOverlay, DialogContent, 
 import ChapterOutline from '~/components/learning/ChapterOutline.vue'
 import PracticeDock from '~/components/learning/PracticeDock.vue'
 import MarkdownView from '~/components/ui/MarkdownView.vue'
+import { useAuth } from '~/composables/useAuth'
+import type { ChapterProgress, LearningChapter } from '~/shared/learning'
 import { renderMarkdown } from '~/utils/markdown'
 
 definePageMeta({
@@ -38,15 +40,7 @@ interface ChapterDetail {
   questions: QuestionItem[]
 }
 
-interface ModuleOutlineChapter {
-  id: string
-  slug: string
-  title: string
-  access: 'public' | 'authenticated'
-  position: number
-  questionsCount: number
-  isLocked: boolean
-}
+type ModuleOutlineChapter = LearningChapter
 
 interface ModuleOutline {
   id: string
@@ -57,6 +51,8 @@ interface ModuleOutline {
 }
 
 const route = useRoute()
+const { currentUser } = useAuth()
+const learnerId = computed(() => currentUser.value?.id || '')
 const moduleSlug = computed(() => String(route.params.slug || ''))
 const chapterSlug = computed(() => String(route.params.chapterSlug || ''))
 
@@ -67,17 +63,19 @@ const {
   error: chapterError
 } = await useFetch<{
   ok: boolean
-  data: { chapter: ChapterInfo; questions: QuestionItem[] }
+  data: { chapter: ChapterInfo; questions: QuestionItem[]; progress: ChapterProgress }
 }>(
-  () => `/api/modules/${moduleSlug.value}/chapters/${chapterSlug.value}`
+  () => `/api/modules/${moduleSlug.value}/chapters/${chapterSlug.value}`,
+  { key: `learning:chapter:${moduleSlug.value}:${chapterSlug.value}`, watch: [learnerId] }
 )
 
 // 2. 获取所属模块完整大纲
-const { data: moduleResponse } = await useFetch<{
+const { data: moduleResponse, refresh: refreshModule } = await useFetch<{
   ok: boolean
   data: { module: Omit<ModuleOutline, 'chapters'>; chapters: ModuleOutlineChapter[] }
 }>(
-  () => `/api/modules/${moduleSlug.value}`
+  () => `/api/modules/${moduleSlug.value}`,
+  { key: `learning:outline:${moduleSlug.value}`, watch: [learnerId] }
 )
 
 const chapterData = computed<ChapterDetail | null>(() => {
@@ -119,6 +117,7 @@ function openPractice(mode: 'cli' | 'gui') {
 function closePractice() { practiceVisible.value = false; practiceExpanded.value = false }
 function minimizePractice() { practiceMinimized.value = true; practiceExpanded.value = false }
 onMounted(() => {
+  readerMounted.value = true; recordVisit()
   try { sidebarCollapsed.value = localStorage.getItem('attackbox-reader-outline-collapsed') === 'true' } catch {}
   updateViewport(); window.addEventListener('resize', updateViewport)
 })
@@ -126,12 +125,48 @@ onBeforeUnmount(() => window.removeEventListener('resize', updateViewport))
 
 const userAnswers = ref<Record<string, string>>({})
 const answerFeedbacks = ref<Record<string, { status: 'checking' | 'success' | 'error'; message: string }>>({})
-const allAnswersCorrect = computed(() => !!chapterData.value?.questions.length && chapterData.value.questions.every(q => answerFeedbacks.value[q.id]?.status === 'success'))
-let chapterGeneration = 0
-watch([moduleSlug, chapterSlug], async () => {
-  chapterGeneration++; userAnswers.value = {}; answerFeedbacks.value = {}; mobileOutlineOpen.value = false
+const savedProgress = ref<ChapterProgress>({ completedAt: null, passedQuestionIds: [], isSaved: false })
+const completing = ref(false), progressNotice = ref(''), completionError = ref(''), readerMounted = ref(false)
+function applySavedProgress(progress: ChapterProgress) {
+  // Success records are monotonic: a slower earlier answer must not undo completion.
+  savedProgress.value = { ...progress, completedAt: savedProgress.value.completedAt || progress.completedAt,
+    passedQuestionIds: [...new Set([...savedProgress.value.passedQuestionIds, ...progress.passedQuestionIds])] }
+}
+let lastVisitKey = '', chapterGeneration = 0
+const allAnswersCorrect = computed(() => !!chapterData.value?.questions.length && chapterData.value.questions.every(q => savedProgress.value.passedQuestionIds.includes(q.id) || answerFeedbacks.value[q.id]?.status === 'success'))
+watch(() => chapterResponse.value?.data, data => {
+  if (data?.chapter.slug === chapterSlug.value) savedProgress.value = data.progress
+}, { immediate: true })
+watch([moduleSlug, chapterSlug, learnerId], async () => {
+  chapterGeneration++; completing.value = false; userAnswers.value = {}; answerFeedbacks.value = {}; mobileOutlineOpen.value = false
+  savedProgress.value = { completedAt: null, passedQuestionIds: [], isSaved: false }; progressNotice.value = ''; completionError.value = ''; lastVisitKey = ''
   await nextTick(); scrollElement.value?.scrollTo({ top: 0 })
 })
+async function recordVisit() {
+  const data = chapterResponse.value?.data
+  if (!readerMounted.value || !learnerId.value || chapterError.value || !data || data.chapter.slug !== chapterSlug.value) return
+  const key = `${learnerId.value}:${data.chapter.id}`
+  if (lastVisitKey === key) return
+  lastVisitKey = key
+  const generation = chapterGeneration
+  try {
+    await $fetch(`/api/modules/${moduleSlug.value}/chapters/${chapterSlug.value}/visit`, { method: 'POST' })
+    if (generation === chapterGeneration) progressNotice.value = ''
+  } catch { if (generation === chapterGeneration) { lastVisitKey = ''; progressNotice.value = '阅读记录暂未保存，请重试。' } }
+}
+watch([() => chapterResponse.value?.data.chapter.id, learnerId], recordVisit, { flush: 'post' })
+async function completeChapter() {
+  if (completing.value) return
+  const generation = chapterGeneration
+  completing.value = true; completionError.value = ''
+  try {
+    const result = await $fetch<{ data: { progress: ChapterProgress } }>(`/api/modules/${moduleSlug.value}/chapters/${chapterSlug.value}/complete`, { method: 'POST' })
+    if (generation !== chapterGeneration) return
+    applySavedProgress(result.data.progress)
+    await refreshModule()
+  } catch (error: any) { if (generation === chapterGeneration) completionError.value = error?.data?.message || '保存失败，请重试。' }
+  finally { if (generation === chapterGeneration) completing.value = false }
+}
 
 const chapterIndex = computed(() => {
   if (!moduleData.value || !chapterData.value) return 0
@@ -160,7 +195,7 @@ async function handleCheckAnswer(q: QuestionItem) {
   if (answerFeedbacks.value[q.id]?.status === 'checking') return
   const generation = chapterGeneration
   const input = userAnswers.value[q.id] || ''
-  if (!input.trim()) {
+  if (!input.length) {
     answerFeedbacks.value[q.id] = {
       status: 'error',
       message: '请输入你的答案后再进行校验。'
@@ -170,18 +205,20 @@ async function handleCheckAnswer(q: QuestionItem) {
 
   answerFeedbacks.value[q.id] = { status: 'checking', message: '正在校验…' }
   try {
-    const res = await $fetch<{ ok: boolean; data: { correct: boolean; errorHint: string | null } }>(
+    const res = await $fetch<{ ok: boolean; data: { correct: boolean; errorHint: string | null; progress: ChapterProgress } }>(
       `/api/modules/${moduleSlug.value}/chapters/${chapterSlug.value}/attempt`,
       { method: 'POST', body: { questionId: q.id, answer: input } }
     )
     if (generation !== chapterGeneration) return
     const result = res.data
+    applySavedProgress(result.progress)
     answerFeedbacks.value[q.id] = result.correct
       ? { status: 'success', message: '回答正确' }
       : {
           status: 'error',
           message: result.errorHint || '答案不正确，请再试一次。'
         }
+    if (learnerId.value) await refreshModule()
   } catch (error: any) {
     if (generation !== chapterGeneration) return
     answerFeedbacks.value[q.id] = {
@@ -206,8 +243,8 @@ useHead({
     <div v-if="chapterError || (!chapterPending && !chapterData)" class="auth-gate-container">
       <section class="auth-gate-card">
         <LockKeyhole v-if="chapterError?.statusCode === 401" :size="28" aria-hidden="true" /><BookOpen v-else :size="28" aria-hidden="true" />
-        <h1>{{ chapterError?.statusCode === 401 ? '登录后继续学习' : '章节暂不可用' }}</h1>
-        <p>{{ chapterError?.statusCode === 401 ? '当前章节需要登录账号后阅读。' : '该章节可能已更新或下架。' }}</p>
+        <h1>{{ chapterError?.statusCode === 401 ? '登录后继续学习' : chapterError?.statusCode === 403 ? '先完成前面的章节' : '章节暂不可用' }}</h1>
+        <p>{{ chapterError?.statusCode === 401 ? '当前章节需要登录账号后阅读。' : chapterError?.statusCode === 403 ? '返回模块，继续尚未完成的章节。' : '该章节可能已更新或下架。' }}</p>
         <NuxtLink v-if="chapterError?.statusCode === 401" :to="'/auth?returnTo=' + encodeURIComponent(route.fullPath)" class="gate-btn primary">登录并继续</NuxtLink>
         <NuxtLink :to="`/learn/modules/${moduleSlug}`" class="gate-btn secondary">返回模块</NuxtLink>
       </section>
@@ -243,20 +280,28 @@ useHead({
             <MarkdownView :content="chapterData.bodyMarkdown" />
 
             <section v-if="chapterData.questions.length" id="quiz" class="quiz-card" aria-labelledby="quiz-title">
-              <div class="quiz-head"><h2 id="quiz-title">章节练习</h2><span class="quiz-badge" :class="{ passed: allAnswersCorrect }"><CheckCircle2 v-if="allAnswersCorrect" :size="14" aria-hidden="true" />{{ allAnswersCorrect ? '全部通过' : `${chapterData.questions.length} 道题` }}</span></div>
+              <div class="quiz-head"><h2 id="quiz-title">章节练习</h2><span class="quiz-badge" :class="{ passed: allAnswersCorrect || savedProgress.completedAt }"><CheckCircle2 v-if="allAnswersCorrect || savedProgress.completedAt" :size="14" aria-hidden="true" />{{ savedProgress.completedAt ? '已完成' : allAnswersCorrect ? '全部通过' : `${chapterData.questions.length} 道题` }}</span></div>
               <form v-for="(q, qIndex) in chapterData.questions" :key="q.id" class="question-item" @submit.prevent="handleCheckAnswer(q)">
                 <div :id="`question-${q.id}`" class="question-label"><span class="q-num">{{ qIndex + 1 }}.</span><div class="q-prompt" v-html="renderPrompt(q.promptMarkdown)" /></div>
                 <div class="answer-line">
                   <input :id="`answer-${q.id}`" v-model="userAnswers[q.id]" type="text" class="answer-input" placeholder="输入你的答案" maxlength="2000" autocomplete="off" autocapitalize="off" spellcheck="false" :aria-labelledby="`question-${q.id}`" :aria-describedby="`feedback-${q.id}`" :aria-invalid="answerFeedbacks[q.id]?.status === 'error'" :disabled="answerFeedbacks[q.id]?.status === 'checking'" @input="delete answerFeedbacks[q.id]" />
                   <button type="submit" class="answer-check-btn" :disabled="answerFeedbacks[q.id]?.status === 'checking'"><LoaderCircle v-if="answerFeedbacks[q.id]?.status === 'checking'" :size="14" class="spinning" aria-hidden="true" />{{ answerFeedbacks[q.id]?.status === 'checking' ? '校验中' : '校验答案' }}</button>
                 </div>
-                <div :id="`feedback-${q.id}`" class="answer-feedback" :class="answerFeedbacks[q.id]?.status" role="status" aria-live="polite"><template v-if="answerFeedbacks[q.id]"><CheckCircle2 v-if="answerFeedbacks[q.id].status === 'success'" :size="14" aria-hidden="true" /><CircleAlert v-else-if="answerFeedbacks[q.id].status === 'error'" :size="14" aria-hidden="true" />{{ answerFeedbacks[q.id].message }}</template></div>
+                <div :id="`feedback-${q.id}`" class="answer-feedback" :class="answerFeedbacks[q.id]?.status || (savedProgress.passedQuestionIds.includes(q.id) ? 'success' : undefined)" role="status" aria-live="polite"><template v-if="answerFeedbacks[q.id]"><CheckCircle2 v-if="answerFeedbacks[q.id].status === 'success'" :size="14" aria-hidden="true" /><CircleAlert v-else-if="answerFeedbacks[q.id].status === 'error'" :size="14" aria-hidden="true" />{{ answerFeedbacks[q.id].message }}</template><template v-else-if="savedProgress.passedQuestionIds.includes(q.id)"><CheckCircle2 :size="14" aria-hidden="true" />已通过</template></div>
               </form>
             </section>
 
+            <div v-if="!chapterData.questions.length" class="chapter-completion">
+              <span v-if="savedProgress.completedAt" class="completion-saved"><CheckCircle2 :size="16" aria-hidden="true" />本章已完成</span>
+              <button v-else-if="learnerId" type="button" class="complete-chapter-btn" :disabled="completing" @click="completeChapter">{{ completing ? '正在保存…' : '完成本章' }}</button>
+              <NuxtLink v-else :to="'/auth?returnTo=' + encodeURIComponent(route.fullPath)" class="completion-login">登录后保存学习进度</NuxtLink>
+            </div>
+            <p v-else-if="!learnerId && allAnswersCorrect" class="guest-progress">本次练习已通过。<NuxtLink :to="'/auth?returnTo=' + encodeURIComponent(route.fullPath)">登录后可保存学习进度</NuxtLink></p>
+            <p v-if="completionError" class="progress-notice" role="alert">{{ completionError }} <button type="button" @click="completeChapter">重试保存</button></p>
+            <p v-if="progressNotice" class="progress-notice" role="alert">{{ progressNotice }} <button type="button" @click="recordVisit">重试记录</button></p>
             <nav class="next-row" aria-label="章节翻页">
-              <NuxtLink v-if="prevChapter" :to="prevChapter.isLocked ? `/auth?returnTo=${encodeURIComponent(`/learn/modules/${moduleSlug}/${prevChapter.slug}`)}` : `/learn/modules/${moduleSlug}/${prevChapter.slug}`" class="btn-nav prev-btn"><ArrowLeft :size="15" aria-hidden="true" /><span>上一章<span class="nav-title">{{ prevChapter.title }}</span></span></NuxtLink><span v-else />
-              <NuxtLink v-if="nextChapter" :to="nextChapter.isLocked ? `/auth?returnTo=${encodeURIComponent(`/learn/modules/${moduleSlug}/${nextChapter.slug}`)}` : `/learn/modules/${moduleSlug}/${nextChapter.slug}`" class="btn-nav next-btn"><span>{{ nextChapter.isLocked ? '登录后继续' : '下一章' }}<span class="nav-title">{{ nextChapter.title }}</span></span><LockKeyhole v-if="nextChapter.isLocked" :size="15" aria-hidden="true" /><ArrowRight v-else :size="15" aria-hidden="true" /></NuxtLink><span v-else class="last-chapter">本模块最后一章</span>
+              <NuxtLink v-if="prevChapter && prevChapter.lockReason !== 'prerequisite'" :to="prevChapter.lockReason === 'login' ? `/auth?returnTo=${encodeURIComponent(`/learn/modules/${moduleSlug}/${prevChapter.slug}`)}` : `/learn/modules/${moduleSlug}/${prevChapter.slug}`" class="btn-nav prev-btn"><ArrowLeft :size="15" aria-hidden="true" /><span>上一章<span class="nav-title">{{ prevChapter.title }}</span></span></NuxtLink><span v-else />
+              <button v-if="nextChapter?.lockReason === 'prerequisite'" type="button" class="btn-nav next-locked" disabled>完成前面的章节后继续</button><NuxtLink v-else-if="nextChapter" :to="nextChapter.lockReason === 'login' ? `/auth?returnTo=${encodeURIComponent(`/learn/modules/${moduleSlug}/${nextChapter.slug}`)}` : `/learn/modules/${moduleSlug}/${nextChapter.slug}`" class="btn-nav next-btn"><span>{{ nextChapter.lockReason === 'login' ? '登录后继续' : '下一章' }}<span class="nav-title">{{ nextChapter.title }}</span></span><LockKeyhole v-if="nextChapter.isLocked" :size="15" aria-hidden="true" /><ArrowRight v-else :size="15" aria-hidden="true" /></NuxtLink><span v-else class="last-chapter">本模块最后一章</span>
             </nav>
           </article>
         </div>
@@ -269,6 +314,15 @@ useHead({
 </template>
 
 <style scoped>
+.chapter-completion { margin-top: 32px; display: flex; justify-content: flex-end; }
+.complete-chapter-btn { border: 0; border-radius: 6px; padding: 11px 18px; background: var(--green); color: var(--on-accent); font-size: 12px; cursor: pointer; }
+.complete-chapter-btn:disabled { opacity: .6; cursor: wait; }
+.completion-saved { display: inline-flex; align-items: center; gap: 7px; font-size: 12px; color: var(--success-ink); }
+.completion-login, .guest-progress, .progress-notice { font-size: 12px; color: var(--muted); margin-top: 18px; }
+.guest-progress a, .progress-notice button { color: var(--green); text-decoration: underline; }
+.progress-notice button { border: 0; background: transparent; cursor: pointer; }
+.next-locked { border: 0; background: transparent; cursor: not-allowed; text-align: right; }
+
 .reading-page { background: var(--bg); color: var(--ink); }
 .learn-shell { display: grid; grid-template-columns: 248px minmax(0, 1fr); height: calc(100dvh - 68px); min-height: 320px; }
 .learn-shell.outline-collapsed { grid-template-columns: 56px minmax(0, 1fr); }

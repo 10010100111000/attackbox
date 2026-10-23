@@ -1,28 +1,30 @@
 <script setup lang="ts">
+import { NuxtLink } from '#components'
 import { computed, ref, watch } from 'vue'
 import MarkdownIt from 'markdown-it'
 import { useRoute, useFetch, useHead } from '#imports'
-import { ArrowLeft, Check, LockKeyhole, Clock3 } from 'lucide-vue-next'
+import { ArrowLeft, Check, LockKeyhole, Clock3, CheckCircle2 } from 'lucide-vue-next'
 import MarkdownView from '~/components/ui/MarkdownView.vue'
+import { useAuth } from '~/composables/useAuth'
+import type { LearningChapter, ModuleProgress } from '~/shared/learning'
 import type { ContentCategory, Difficulty, PrerequisiteModule } from '~/shared/content'
 
 definePageMeta({ layout: 'learning' })
-interface ChapterItem {
-  id: string; slug: string; title: string; access: 'public' | 'authenticated'
-  position: number; durationMinutes: number | null; questionsCount: number; isLocked: boolean
-}
+type ChapterItem = LearningChapter
 interface ModuleInfo {
   id: string; slug: string; title: string; summary: string; descriptionMarkdown: string
   difficulty: Difficulty; category: ContentCategory | null; learningOutcomes: string[]
 }
 const route = useRoute()
+const { currentUser } = useAuth()
+const learnerId = computed(() => currentUser.value?.id || '')
 const slug = computed(() => String(route.params.slug || ''))
 const { data: response, pending, error } = await useFetch<{
-  ok: boolean; data: { module: ModuleInfo; chapters: ChapterItem[]; prerequisites: Omit<PrerequisiteModule, 'status'>[] }
-}>(() => `/api/modules/${slug.value}`)
+  ok: boolean; data: { module: ModuleInfo; chapters: ChapterItem[]; prerequisites: Omit<PrerequisiteModule, 'status'>[]; progress: ModuleProgress | null }
+}>(() => `/api/modules/${slug.value}`, { key: `learning:module:${slug.value}`, watch: [learnerId] })
 const moduleData = computed(() => {
   const data = response.value?.data
-  return data ? { ...data.module, chapters: data.chapters, prerequisites: data.prerequisites } : null
+  return data ? { ...data.module, chapters: data.chapters, prerequisites: data.prerequisites, progress: data.progress } : null
 })
 const descriptionExpanded = ref(false)
 watch(slug, () => { descriptionExpanded.value = false })
@@ -33,7 +35,8 @@ const descriptionText = computed(() => descriptionTokens.value.filter(token => t
 const descriptionNeedsExpansion = computed(() => descriptionText.value.length > 120 || descriptionTokens.value.some(token => ['fence', 'code_block', 'table_open'].includes(token.type)))
 const descriptionPreview = computed(() => descriptionText.value.length > 160 ? `${descriptionText.value.slice(0, 160)}…` : descriptionText.value)
 const hasSidebar = computed(() => !!moduleData.value && (Boolean(moduleData.value.descriptionMarkdown.trim()) || moduleData.value.learningOutcomes.length > 0 || moduleData.value.prerequisites.length > 0))
-const firstChapter = computed(() => moduleData.value?.chapters[0])
+const firstChapter = computed(() => moduleData.value?.chapters.find(c => c.slug === moduleData.value?.progress?.resumeChapterSlug) || moduleData.value?.chapters[0])
+const started = computed(() => moduleData.value?.chapters.some(c => c.lastVisitedAt || c.completedAt))
 const totalMinutes = computed(() => {
   const list = moduleData.value?.chapters || []
   return list.length && list.every(ch => ch.durationMinutes !== null) ? list.reduce((total, ch) => total + ch.durationMinutes!, 0) : null
@@ -41,7 +44,7 @@ const totalMinutes = computed(() => {
 const difficultyLabels = { beginner: '基础入门', intermediate: '中级进阶', advanced: '高阶实战' }
 function chapterLink(chapter: ChapterItem) {
   const path = `/learn/modules/${slug.value}/${chapter.slug}`
-  return chapter.isLocked ? `/auth?returnTo=${encodeURIComponent(path)}` : path
+  return chapter.lockReason === 'login' ? `/auth?returnTo=${encodeURIComponent(path)}` : path
 }
 useHead({
   title: computed(() => moduleData.value ? `${moduleData.value.title} — AttackBox` : '学习模块 — AttackBox'),
@@ -69,9 +72,10 @@ useHead({
             <span>{{ moduleData.chapters.length }} 章节</span>
             <span v-if="totalMinutes">约 {{ totalMinutes }} 分钟</span>
           </div>
+          <p v-if="moduleData.progress && started" class="module-progress-status"><CheckCircle2 :size="14" aria-hidden="true" />已完成 {{ moduleData.progress.completedChapters }} / {{ moduleData.progress.totalChapters }} 章节</p>
         </div>
         <NuxtLink v-if="firstChapter" :to="chapterLink(firstChapter)" class="start-learning-btn">
-          {{ firstChapter.isLocked ? '登录后学习' : '开始学习' }}
+          {{ moduleData.progress?.isCompleted ? '回顾模块' : started ? '继续学习' : firstChapter.lockReason === 'login' ? '登录后学习' : '开始学习' }}
         </NuxtLink>
       </header>
 
@@ -79,18 +83,18 @@ useHead({
         <section class="chapters-section" aria-labelledby="chapters-heading">
           <header class="chapters-header"><h2 id="chapters-heading">章节</h2></header>
           <div class="chapter-list">
-            <NuxtLink v-for="(chapter, index) in moduleData.chapters" :key="chapter.id"
-              :to="chapterLink(chapter)" class="chapter-row">
+            <component :is="chapter.lockReason === 'prerequisite' ? 'button' : NuxtLink" :disabled="chapter.lockReason === 'prerequisite' || undefined" :type="chapter.lockReason === 'prerequisite' ? 'button' : undefined" v-for="(chapter, index) in moduleData.chapters" :key="chapter.id"
+              :to="chapter.lockReason === 'prerequisite' ? undefined : chapterLink(chapter)" class="chapter-row" :aria-disabled="chapter.lockReason === 'prerequisite' || undefined" @click="chapter.lockReason === 'prerequisite' && $event.preventDefault()">
               <span class="chapter-number">{{ String(index + 1).padStart(2, '0') }}</span>
               <div class="chapter-info">
                 <h3>{{ chapter.title }}</h3>
-                <div v-if="chapter.questionsCount || chapter.isLocked || chapter.durationMinutes" class="chapter-meta">
+                <div v-if="chapter.questionsCount || chapter.isLocked || chapter.durationMinutes || chapter.completedAt" class="chapter-meta">
                   <span v-if="chapter.durationMinutes" class="access-label"><Clock3 :size="13" aria-hidden="true" />{{ chapter.durationMinutes }} 分钟</span>
                   <span v-if="chapter.questionsCount">{{ chapter.questionsCount }} 道练习</span>
-                  <span v-if="chapter.isLocked" class="access-label"><LockKeyhole :size="13" aria-hidden="true" />需登录</span>
+                  <span v-if="chapter.isLocked" class="access-label"><LockKeyhole :size="13" aria-hidden="true" />{{ chapter.lockReason === 'login' ? '需登录' : '需先完成前章' }}</span><span v-if="chapter.completedAt" class="access-label chapter-completed"><CheckCircle2 :size="13" aria-hidden="true" />已完成</span>
                 </div>
               </div>
-            </NuxtLink>
+            </component>
           </div>
         </section>
 
@@ -126,6 +130,9 @@ useHead({
 </template>
 
 <style scoped>
+.module-progress-status { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--muted); margin: 14px 0 0; }
+.chapter-completed { color: var(--success-ink); }
+.chapter-row[aria-disabled="true"] { opacity: .6; cursor: not-allowed; }
 .module-page { width: 100%; max-width: 1200px; margin: 0 auto; padding: 28px 32px 80px; color: var(--ink); }
 .module-back { margin-bottom: 36px; }
 .module-back a { display: inline-flex; align-items: center; gap: 8px; color: var(--muted); font-size: 13px; text-decoration: none; }
@@ -145,7 +152,7 @@ h1 { font-size: clamp(28px, 3.3vw, 38px); font-weight: 700; line-height: 1.3; le
 .chapters-header { padding: 0 0 16px; border-bottom: 1px solid var(--line); }
 .chapters-header h2 { font-size: 19px; font-weight: 650; margin: 0; letter-spacing: -.2px; }
 .chapter-list { padding: 0; }
-.chapter-row { display: flex; align-items: flex-start; gap: 18px; padding: 16px 0; border-bottom: 1px solid var(--line); text-decoration: none; color: inherit; position: relative; }
+.chapter-row { width: 100%; background: transparent; border: 0; text-align: left; cursor: pointer; display: flex; align-items: flex-start; gap: 18px; padding: 16px 0; border-bottom: 1px solid var(--line); text-decoration: none; color: inherit; position: relative; }
 .chapter-row:last-child { border-bottom: 0; }
 .chapter-row::before { content: ''; position: absolute; inset: 3px -10px; border-radius: 7px; background: var(--soft); opacity: 0; transition: opacity .15s; }
 .chapter-row:hover::before { opacity: 1; }

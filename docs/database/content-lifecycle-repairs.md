@@ -10,6 +10,8 @@
 
 当前基线已经包含学习目标、前置模块关系和章节预计时长。增量迁移 `0001_editable_question_answers.sql` 新增标准答案原文字段，支持管理员直接回显和修改；不会还原旧的 HMAC 摘要。已有题目继续可判题，管理员补填一次后即可直接编辑。
 
+增量迁移 `0002_learning_progress.sql` 新增章节进度和题目通过记录，不改变已有内容与答案。
+
 ## 初始化与启动流程
 
 已有当前基线数据库只需执行 `npm run db:migrate`，无需重置。迁移必须在启动新版本应用前执行。
@@ -72,3 +74,16 @@ CONTENT_TEST_BASE_URL='http://127.0.0.1:18884' npm run test:content
 ```bash
 REMOTE_BASE_URL='http://77.67.1.106' node web/tests/auth-remote-e2e.mjs
 ```
+
+## 学习进度浏览器验收
+
+使用同一套隔离的本地测试数据库和已启动的应用：
+
+```bash
+CONTENT_TEST_DATABASE_URL='postgres://postgres@127.0.0.1:55440/attackbox_content_test' \
+CONTENT_TEST_BASE_URL='http://127.0.0.1:18884' npm run test:learning-browser
+```
+
+首次运行可执行 `npx playwright install chromium` 安装浏览器，或设置 `PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH` 指向系统 Chromium。测试只接受本地 `_test` 数据库，会创建并清理专用账号与模块，不应指向生产库。可设置 `LEARNING_SCREENSHOT_DIR` 保存验收截图。
+
+覆盖管理员发布、访客试答与登录返回、服务端通过记录、无题章节完成、刷新恢复、首页继续学习、同窗口切换账号和另一浏览器恢复进度。`npm run test:content` 另外覆盖进度接口权限、并发最后答题、幂等完成、内容更新/排序和删除级联。

@@ -7,13 +7,14 @@
     "generate": "nuxt generate",
     "dev": "nuxt dev",
     "preview": "nuxt preview",
-    "test": "node --experimental-strip-types --test tests/auth-crypto.test.js tests/composables.test.js tests/ui.test.js tests/landing.test.js tests/auth.test.js tests/markdown.test.js tests/learning-ui.test.js tests/admin-ui.test.js tests/quiz-crypto.test.js",
+    "test": "node --experimental-strip-types --test tests/auth-crypto.test.js tests/composables.test.js tests/ui.test.js tests/landing.test.js tests/auth.test.js tests/markdown.test.js tests/learning-ui.test.js tests/admin-ui.test.js tests/quiz-crypto.test.js tests/learning-access.test.js",
     "db:generate": "drizzle-kit generate",
     "admin:init": "node server/scripts/init-admin.mjs",
     "postinstall": "nuxt prepare",
-    "test:content": "node --test tests/content-migration.test.mjs tests/content-lifecycle.test.mjs",
+    "test:content": "node --test tests/content-migration.test.mjs tests/content-lifecycle.test.mjs tests/learning-progress.test.mjs",
     "db:migrate": "node server/scripts/apply-migrations.mjs",
-    "db:reset": "node server/scripts/reset-db.mjs"
+    "db:reset": "node server/scripts/reset-db.mjs",
+    "test:learning-browser": "node --test tests/learning-browser.test.mjs"
   },
   "dependencies": {
     "@node-rs/argon2": "^2.2.2",
@@ -36,6 +37,7 @@
     "@types/node": "^22.20.5",
     "drizzle-kit": "^0.31.11",
     "nuxt": "^3.15.4",
+    "playwright": "^1.62.1",
     "tailwindcss": "^3.4.17",
     "typescript": "^5.7.3"
   }

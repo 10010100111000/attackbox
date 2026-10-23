@@ -1,3 +1,4 @@
+import { clearNuxtData, useNuxtApp } from '#imports';
 export interface AuthUser {
   id: string;
   email: string;
@@ -7,15 +8,19 @@ export interface AuthUser {
 }
 
 export function useAuth() {
+  const nuxtApp = useNuxtApp();
+  function clearLearningData() { nuxtApp.runWithContext(() => clearNuxtData(key => key.startsWith('learning:'))); }
   const currentUser = useState<AuthUser | null>('auth_user', () => null);
   const isInitialized = useState<boolean>('auth_initialized', () => false);
 
   async function fetchMe(): Promise<AuthUser | null> {
     try {
       const data = await $fetch<{ user: AuthUser }>('/api/auth/me');
+      if (currentUser.value?.id !== data.user.id) clearLearningData();
       currentUser.value = data.user;
       return data.user;
     } catch {
+      if (currentUser.value) clearLearningData();
       currentUser.value = null;
       return null;
     } finally {
@@ -28,6 +33,7 @@ export function useAuth() {
       method: 'POST',
       body: { email, password, rememberMe },
     });
+    clearLearningData();
     currentUser.value = data.user;
     return data.user;
   }
@@ -50,6 +56,7 @@ export function useAuth() {
     try {
       await $fetch('/api/auth/logout', { method: 'POST' });
     } finally {
+      clearLearningData();
       currentUser.value = null;
     }
   }
