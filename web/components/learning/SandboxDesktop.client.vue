@@ -18,7 +18,13 @@ async function connect() {
       $fetch<{ data: SandboxTicket }>('/api/sandbox/ticket', { method: 'POST', body: { sandboxId: props.sandboxId, stream: 'gui' } })
     ])
     if (disposed || generation !== ownGeneration || !host.value) return
-    const url = new URL(response.data.url); url.searchParams.set('ticket', response.data.ticket)
+    const url = new URL(response.data.url)
+    if (typeof window !== 'undefined' && (url.hostname === '127.0.0.1' || url.hostname === 'localhost')) {
+      url.hostname = window.location.hostname
+      url.port = window.location.port || (window.location.protocol === 'https:' ? '443' : '80')
+      url.protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
+    }
+    url.searchParams.set('ticket', response.data.ticket)
     const connection = new Desktop(host.value, url.toString(), { shared: true }); viewer = connection
     connection.scaleViewport = fit.value; connection.resizeSession = false
     connectTimer = setTimeout(() => { if (viewer === connection) { state.value = '桌面连接超时'; connection.disconnect() } }, 35000)

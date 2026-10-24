@@ -18,7 +18,8 @@ watch(() => props.mode, mode => {
 const tabs = ref<{ id: string; label: string }[]>([]), selectedTab = ref('')
 let pollTimer: ReturnType<typeof setInterval> | undefined, disposed = false, refreshGeneration = 0
 function addTerminal() {
-  const tab = { id: crypto.randomUUID(), label: `终端 ${++terminalCount}` }
+  const id = globalThis.crypto?.randomUUID?.() || `term-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 9)}`
+  const tab = { id, label: `终端 ${++terminalCount}` }
   tabs.value.push(tab); selectedTab.value = tab.id
 }
 let terminalCount = 0
