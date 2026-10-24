@@ -6,20 +6,23 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/netip"
 	"os"
 	"os/exec"
 	"regexp"
 	"strconv"
 	"strings"
+	"time"
 )
 
 // NetworkConfig holds network virtualization settings for sandboxes.
 type NetworkConfig struct {
-	FirewallTable string `yaml:"firewall_table"`
-	BridgeName    string `yaml:"bridge_name"`
-	GatewayIP     string `yaml:"gateway_ip"`
-	SubnetCIDR    string `yaml:"subnet_cidr"`
-	Interface     string `yaml:"egress_interface"`
+	FirewallTable string                    `yaml:"firewall_table"`
+	BridgeName    string                    `yaml:"bridge_name"`
+	GatewayIP     string                    `yaml:"gateway_ip"`
+	SubnetCIDR    string                    `yaml:"subnet_cidr"`
+	Interface     string                    `yaml:"egress_interface"`
+	DockerTargets DockerTargetNetworkConfig `yaml:"docker_targets"`
 }
 
 // SandboxNetwork represents the network configuration of a single running sandbox.
@@ -33,6 +36,9 @@ type SandboxNetwork struct {
 
 // EnsureHostNetwork initializes the host bridge, IPv4 forwarding, NAT, and nftables containment baseline.
 func EnsureHostNetwork(cfg NetworkConfig) error {
+	if err := validateTargetNetwork(cfg); err != nil {
+		return err
+	}
 	table, err := firewallTableName(cfg.FirewallTable)
 	if err != nil {
 		return err
@@ -45,19 +51,57 @@ func EnsureHostNetwork(cfg NetworkConfig) error {
 	if gatewayIP == "" {
 		gatewayIP = "10.200.0.1"
 	}
-	bridgeCIDR := gatewayIP + "/16"
+	subnet, err := netip.ParsePrefix(cfg.SubnetCIDR)
+	if err != nil || !subnet.Addr().Is4() {
+		return fmt.Errorf("network subnet_cidr must be an IPv4 prefix")
+	}
+	gateway, err := netip.ParseAddr(gatewayIP)
+	if err != nil || !subnet.Contains(gateway) {
+		return fmt.Errorf("network gateway_ip must belong to subnet_cidr")
+	}
+	bridgeCIDR := fmt.Sprintf("%s/%d", gateway, subnet.Bits())
 
-	// 1. Enable IPv4 kernel forwarding
-	_ = os.WriteFile("/proc/sys/net/ipv4/ip_forward", []byte("1\n"), 0644)
-	_ = exec.Command("sysctl", "-w", "net.ipv4.ip_forward=1").Run()
+	// 1. Enable routing. Do not silently continue with an unusable host network.
+	if err := os.WriteFile("/proc/sys/net/ipv4/ip_forward", []byte("1\n"), 0644); err != nil {
+		return fmt.Errorf("enable IPv4 forwarding: %w", err)
+	}
 
-	// 2. Idempotently create bridge device
-	if err := exec.Command("ip", "link", "show", bridge).Run(); err != nil {
-		_ = exec.Command("ip", "link", "add", bridge, "type", "bridge").Run()
-		_ = exec.Command("ip", "addr", "add", bridgeCIDR, "dev", bridge).Run()
-		_ = exec.Command("ip", "link", "set", bridge, "up").Run()
+	// 2. Create our bridge, or verify the existing bridge has the configured address.
+	out, lookupErr := exec.Command("ip", "-j", "address", "show", "dev", bridge).Output()
+	if lookupErr != nil {
+		for _, args := range [][]string{
+			{"link", "add", bridge, "type", "bridge"},
+			{"addr", "add", bridgeCIDR, "dev", bridge},
+			{"link", "set", bridge, "up"},
+		} {
+			if out, err := exec.Command("ip", args...).CombinedOutput(); err != nil {
+				return fmt.Errorf("initialize sandbox bridge: %s: %w", strings.TrimSpace(string(out)), err)
+			}
+		}
 	} else {
-		_ = exec.Command("ip", "link", "set", bridge, "up").Run()
+		var links []struct {
+			Addresses []struct {
+				Local     string `json:"local"`
+				PrefixLen int    `json:"prefixlen"`
+			} `json:"addr_info"`
+		}
+		if err := json.Unmarshal(out, &links); err != nil {
+			return fmt.Errorf("inspect sandbox bridge: %w", err)
+		}
+		matches := false
+		for _, link := range links {
+			for _, address := range link.Addresses {
+				if address.Local == gatewayIP && address.PrefixLen == subnet.Bits() {
+					matches = true
+				}
+			}
+		}
+		if !matches {
+			return fmt.Errorf("existing sandbox bridge %s does not have configured address %s", bridge, bridgeCIDR)
+		}
+		if out, err := exec.Command("ip", "link", "set", bridge, "up").CombinedOutput(); err != nil {
+			return fmt.Errorf("activate sandbox bridge: %s: %w", strings.TrimSpace(string(out)), err)
+		}
 	}
 
 	// 3. Detect default WAN interface if not specified
@@ -76,9 +120,21 @@ func EnsureHostNetwork(cfg NetworkConfig) error {
 
 	// 5. Construct nftables fail-closed isolation rules:
 	// - input chain: Blocks sandboxes from accessing host control/SSH ports (allows only DNS and ping to gateway)
-	// - forward chain: Enforces strict inter-sandbox isolation and whitelisted internet egress
+	// - forward chain: Enforces same-bridge isolation and whitelisted internet egress
 	// - postrouting chain: Masquerades authorized egress to the external network
 	nftRules := renderFirewallRules(table, bridge, wanIF, portList)
+	if cfg.DockerTargets.Enabled {
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+		if err := ensureDockerTargetNetwork(ctx, cfg); err != nil {
+			return err
+		}
+		nftRules = renderTargetFirewallRules(table, bridge, wanIF, portList, cfg.SubnetCIDR, cfg.DockerTargets)
+	}
+	// Replace only our own table, atomically, without accumulating duplicate rules.
+	if exec.Command("nft", "list", "table", "inet", table).Run() == nil {
+		nftRules = "delete table inet " + table + "\n" + nftRules
+	}
 
 	cmd := exec.Command("nft", "-f", "-")
 	cmd.Stdin = bytes.NewReader([]byte(nftRules))
@@ -118,7 +174,7 @@ table inet %s {
         type filter hook forward priority 0; policy accept;
         ct state established,related accept
 
-        # Inter-sandbox isolation: reject any traffic between sandboxes
+        # Preserve sandbox peer isolation.
         iifname "%s" oifname "%s" drop
 
         # Controlled Internet Egress: Allow sandbox to reach WAN only on whitelisted ports
@@ -164,9 +220,16 @@ func VethNameForSandbox(slotIndex int, sandboxID string) (vethHost, vethGuest st
 	return vethHost, vethGuest
 }
 
-// SetupSandboxNetwork provisions an isolated veth pair, attaches to the bridge with port isolation,
-// and moves the guest interface into the sandbox's network namespace.
+// SetupSandboxNetwork uses the default lab subnet for compatibility.
+// New callers should use SetupSandboxNetworkWithConfig.
+
 func SetupSandboxNetwork(ctx context.Context, bridge string, slotIndex int, sandboxID string, targetNetns string) (*SandboxNetwork, error) {
+	return SetupSandboxNetworkWithConfig(ctx, NetworkConfig{BridgeName: bridge, GatewayIP: "10.200.0.1", SubnetCIDR: "10.200.0.0/16"}, slotIndex, sandboxID, targetNetns)
+}
+
+// SetupSandboxNetworkWithConfig attaches a sandbox to the shared lab bridge.
+func SetupSandboxNetworkWithConfig(ctx context.Context, cfg NetworkConfig, slotIndex int, sandboxID string, targetNetns string) (*SandboxNetwork, error) {
+	bridge := cfg.BridgeName
 	if bridge == "" {
 		bridge = "br-attackbox"
 	}
@@ -182,9 +245,10 @@ func SetupSandboxNetwork(ctx context.Context, bridge string, slotIndex int, sand
 	}
 
 	vethHost, vethGuest := VethNameForSandbox(slotIndex, sandboxID)
-	subnetOctet := (slotIndex - 1) / 240
-	hostOctet := 10 + ((slotIndex - 1) % 240)
-	boxIP := fmt.Sprintf("10.200.%d.%d/16", subnetOctet, hostOctet)
+	boxIP, err := sandboxAddress(cfg, slotIndex)
+	if err != nil {
+		return nil, err
+	}
 
 	// Clean up any stale interfaces for this specific instance
 	_ = exec.CommandContext(ctx, "ip", "link", "del", vethHost).Run()
@@ -200,7 +264,7 @@ func SetupSandboxNetwork(ctx context.Context, bridge string, slotIndex int, sand
 		return nil, fmt.Errorf("attach %s to bridge %s: %s (%w)", vethHost, bridge, strings.TrimSpace(string(out)), err)
 	}
 
-	// 3. Enable Bridge Port Isolation (prevents inter-sandbox ARP sniffing/spoofing on the same bridge)
+	// 3. Preserve isolation between sandbox bridge ports.
 	if out, err := exec.CommandContext(ctx, "ip", "link", "set", vethHost, "type", "bridge_slave", "isolated", "on").CombinedOutput(); err != nil {
 		_ = deleteSandboxInterface(ctx, vethHost)
 		return nil, fmt.Errorf("enable bridge isolation: %s: %w", out, err)
@@ -214,8 +278,8 @@ func SetupSandboxNetwork(ctx context.Context, bridge string, slotIndex int, sand
 
 	// 5-8. Configure guest interfaces in a single batched nsenter invocation (avoids fork storm)
 	script := fmt.Sprintf(
-		"ip link set %s name eth0 && ip addr add %s dev eth0 && ip link set eth0 up && ip link set lo up && ip route add default via 10.200.0.1",
-		vethGuest, boxIP,
+		"ip link set %s name eth0 && ip addr add %s dev eth0 && ip link set eth0 up && ip link set lo up && ip route add default via %s",
+		vethGuest, boxIP, cfg.GatewayIP,
 	)
 	cmdGuest := exec.CommandContext(ctx, "nsenter", "--net="+targetNetns, "sh", "-c", script)
 	if out, err := cmdGuest.CombinedOutput(); err != nil {
@@ -298,4 +362,30 @@ func detectDefaultWANInterface() string {
 		}
 	}
 	return "eth0"
+}
+
+// sandboxAddress preserves the existing 240 slots per /24 allocation. Slots
+// use offsets 10..249 and 266..275; Docker IPAM must not overlap them.
+func sandboxAddress(cfg NetworkConfig, slot int) (string, error) {
+	subnet, err := netip.ParsePrefix(cfg.SubnetCIDR)
+	if err != nil || !subnet.Addr().Is4() || subnet.Bits() > 23 {
+		return "", fmt.Errorf("sandbox subnet must be IPv4 /23 or larger")
+	}
+	subnet = subnet.Masked()
+	gateway, err := netip.ParseAddr(cfg.GatewayIP)
+	if err != nil || !subnet.Contains(gateway) {
+		return "", fmt.Errorf("invalid sandbox gateway")
+	}
+	if slot < 1 || slot > 250 {
+		return "", fmt.Errorf("sandbox slot must be between 1 and 250")
+	}
+	base := subnet.Addr().As4()
+	offset := uint32((slot-1)/240)*256 + uint32(10+(slot-1)%240)
+	raw := uint32(base[0])<<24 | uint32(base[1])<<16 | uint32(base[2])<<8 | uint32(base[3])
+	raw += offset
+	address := netip.AddrFrom4([4]byte{byte(raw >> 24), byte(raw >> 16), byte(raw >> 8), byte(raw)})
+	if address == gateway {
+		return "", fmt.Errorf("sandbox address conflicts with gateway")
+	}
+	return fmt.Sprintf("%s/%d", address, subnet.Bits()), nil
 }

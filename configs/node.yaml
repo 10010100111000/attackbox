@@ -33,3 +33,15 @@ network:
   gateway_ip: "10.200.0.1"
   subnet_cidr: "10.200.0.0/16"
   egress_interface: ""
+
+  # Worker creates an owned Docker bridge on a separate, non-overlapping subnet.
+  # Enable after Docker Engine 27.5+ (iptables backend) is installed.
+  docker_targets:
+    enabled: false
+    # Optional state_dir defaults to a sibling of runtime.instances_dir.
+    # Keep it outside the Btrfs instances tree.
+    socket_path: "/var/run/docker.sock"
+    name: "attackbox-targets"
+    bridge_name: "br-ab-targets"
+    subnet_cidr: "10.201.0.0/16"
+    gateway_ip: "10.201.0.1"

@@ -1,4 +1,4 @@
-﻿package node
+package node
 
 import (
 	rt "attackbox/node/runtime"
@@ -21,6 +21,18 @@ func (c *NodeControlClient) DispatchMessageForTest(msg *protocol.Message) {
 
 func (c *NodeControlClient) dispatchMessage(msg *protocol.Message) {
 	switch msg.Type {
+	case protocol.MsgTypeTargetStart, protocol.MsgTypeTargetInspect, protocol.MsgTypeTargetStop:
+		select {
+		case <-c.stopCh:
+			c.sendTargetResponse(msg, protocol.TargetResponse{Error: "worker_stopping"})
+		default:
+			select {
+			case c.targetQueue <- msg:
+			default:
+				c.sendTargetResponse(msg, protocol.TargetResponse{Error: "target_queue_full"})
+			}
+		}
+
 	case protocol.MsgTypeRegisterAck:
 		log.Printf("[CLUSTER] Registration acknowledged by Control Hub")
 		var resp protocol.RegisterResp

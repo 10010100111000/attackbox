@@ -31,3 +31,35 @@ func TestDedicatedFirewallTableAndForwardScope(t *testing.T) {
 		t.Fatal("rules modify unrelated host forwarding")
 	}
 }
+
+func TestSandboxAddressAllocation(t *testing.T) {
+	for _, tc := range []struct {
+		subnet, gateway string
+		slot            int
+		want            string
+	}{
+		{"10.200.0.0/16", "10.200.0.1", 1, "10.200.0.10/16"},
+		{"10.200.0.0/16", "10.200.0.1", 240, "10.200.0.249/16"},
+		{"10.200.0.0/16", "10.200.0.1", 250, "10.200.1.19/16"},
+		{"172.28.10.0/23", "172.28.10.1", 250, "172.28.11.19/23"},
+	} {
+		got, err := sandboxAddress(NetworkConfig{SubnetCIDR: tc.subnet, GatewayIP: tc.gateway}, tc.slot)
+		if err != nil || got != tc.want {
+			t.Fatalf("%+v: got %q, %v", tc, got, err)
+		}
+	}
+	for _, tc := range []struct {
+		subnet, gateway string
+		slot            int
+	}{
+		{"10.200.0.0/24", "10.200.0.1", 1},
+		{"10.200.0.0/16", "10.201.0.1", 1},
+		{"10.200.0.0/16", "10.200.0.10", 1},
+		{"10.200.0.0/16", "10.200.0.1", 251},
+		{"::/64", "::1", 1},
+	} {
+		if _, err := sandboxAddress(NetworkConfig{SubnetCIDR: tc.subnet, GatewayIP: tc.gateway}, tc.slot); err == nil {
+			t.Fatalf("accepted invalid allocation: %+v", tc)
+		}
+	}
+}

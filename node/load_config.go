@@ -1,4 +1,4 @@
-﻿package node
+package node
 
 import (
 	rt "attackbox/node/runtime"
@@ -59,10 +59,11 @@ func LoadNodeConfig(path string) (*NodeConfig, error) {
 			},
 		},
 		Network: NetworkConfig{
-			BridgeName: "br-attackbox",
-			GatewayIP:  "10.200.0.1",
-			SubnetCIDR: "10.200.0.0/16",
-			Interface:  "eth0",
+			DockerTargets: DockerTargetNetworkConfig{SocketPath: "/var/run/docker.sock", Name: "attackbox-targets", BridgeName: "br-ab-targets", SubnetCIDR: "10.201.0.0/16", GatewayIP: "10.201.0.1"},
+			BridgeName:    "br-attackbox",
+			GatewayIP:     "10.200.0.1",
+			SubnetCIDR:    "10.200.0.0/16",
+			Interface:     "eth0",
 		},
 	}
 
@@ -78,6 +79,9 @@ func LoadNodeConfig(path string) (*NodeConfig, error) {
 	decoder.KnownFields(true)
 	if err := decoder.Decode(cfg); err != nil {
 		return nil, fmt.Errorf("unmarshal config yaml: %w", err)
+	}
+	if err := validateTargetNetwork(cfg.Network); err != nil {
+		return nil, err
 	}
 	return cfg, nil
 }

@@ -77,3 +77,15 @@ test('registration and initial heartbeat deadlines are enforced; inventory does 
   assert.equal(f.node().sandboxes[0].guiRunning, true); assert.equal(f.hub.snapshot().schedulingEnabled, false)
   f.hub.shutdown(); assert.equal(f.node().state, 'offline')
 })
+
+test('target RPC correlates independent target identity and rejects generation changes', async () => {
+ const f=fixture();f.hub.open(f.a,'test-node');f.register();f.heartbeat(f.a,{docker_targets:{available:true,instances:[]}})
+ assert.ok(f.hub.targetNodes.has('test-node'))
+ const request=f.hub.targetRpc('test-node','boot-1','target_inspect',{target_id:'tgt_0123456789abcdef',owner_id:'user-1'})
+ const sent=f.a.sent.at(-1)
+ f.hub.message(f.a,JSON.stringify({id:sent.id,type:'target_inspect_resp',payload:{boot_id:'boot-1',target_id:'tgt_0123456789abcdef',success:true,instance:{target_id:'tgt_0123456789abcdef',owner_id:'user-1',state:'running',ready:false,readiness:'unverified'}}}))
+ assert.equal((await request).instance.state,'running')
+ const lost=f.hub.targetRpc('test-node','boot-1','target_stop',{target_id:'tgt_0123456789abcdef',owner_id:'user-1'})
+ f.hub.close(f.a);await assert.rejects(lost,/connection lost/);assert.ok(!f.hub.targetNodes.has('test-node'))
+ f.hub.shutdown()
+})

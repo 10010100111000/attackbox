@@ -1,4 +1,4 @@
-﻿package node
+package node
 
 import (
 	rt "attackbox/node/runtime"
@@ -22,24 +22,28 @@ import (
 )
 
 type NodeControlClient struct {
-	cfg         *NodeConfig
-	rtMgr       *rt.RuntimeManager
-	conn        *websocket.Conn
-	connMu      sync.Mutex
-	bootID      string
-	seq         uint64
-	stopCh      chan struct{}
-	wg          sync.WaitGroup
-	onKeySync   func(pubKey ed25519.PublicKey)
-	mailboxesMu sync.Mutex
-	mailboxes   map[string]*sandboxMailbox
+	targets         *DockerTargetManager
+	targetInitError string
+	targetQueue     chan *protocol.Message
+	targetsCancel   context.CancelFunc
+	cfg             *NodeConfig
+	rtMgr           *rt.RuntimeManager
+	conn            *websocket.Conn
+	connMu          sync.Mutex
+	bootID          string
+	seq             uint64
+	stopCh          chan struct{}
+	wg              sync.WaitGroup
+	onKeySync       func(pubKey ed25519.PublicKey)
+	mailboxesMu     sync.Mutex
+	mailboxes       map[string]*sandboxMailbox
 }
 
 func NewNodeControlClient(cfg *NodeConfig, rtMgr *rt.RuntimeManager, onKeySync func(pubKey ed25519.PublicKey)) *NodeControlClient {
 	b := make([]byte, 8)
 	_, _ = rand.Read(b)
 	bootID := hex.EncodeToString(b)
-	return &NodeControlClient{
+	client := &NodeControlClient{
 		cfg:       cfg,
 		rtMgr:     rtMgr,
 		bootID:    bootID,
@@ -47,9 +51,24 @@ func NewNodeControlClient(cfg *NodeConfig, rtMgr *rt.RuntimeManager, onKeySync f
 		onKeySync: onKeySync,
 		mailboxes: make(map[string]*sandboxMailbox),
 	}
+	client.targetQueue = make(chan *protocol.Message, 16)
+	if cfg.Network.DockerTargets.Enabled {
+		var err error
+		client.targets, err = newConfiguredTargetManager(cfg)
+		if err != nil {
+			client.targetInitError = err.Error()
+			log.Printf("[TARGET] %s", err)
+		}
+	}
+	return client
 }
 
 func (c *NodeControlClient) Start(ctx context.Context) {
+	targetCtx, cancel := context.WithCancel(ctx)
+	c.targetsCancel = cancel
+	c.wg.Add(1)
+	go func() { defer c.wg.Done(); c.targetCommandLoop(targetCtx) }()
+
 	c.wg.Add(1)
 	go func() {
 		defer c.wg.Done()
@@ -58,6 +77,9 @@ func (c *NodeControlClient) Start(ctx context.Context) {
 }
 
 func (c *NodeControlClient) Stop() {
+	if c.targetsCancel != nil {
+		c.targetsCancel()
+	}
 	select {
 	case <-c.stopCh:
 	default:
@@ -76,6 +98,9 @@ func (c *NodeControlClient) Stop() {
 	c.connMu.Unlock()
 
 	c.wg.Wait()
+	if c.targets != nil {
+		c.targets.Close()
+	}
 }
 
 func (c *NodeControlClient) connectLoop(ctx context.Context) {
@@ -252,7 +277,17 @@ func (c *NodeControlClient) heartbeatLoop(ctx context.Context) {
 	send := func() {
 		_, available := readSystemMemoryMB()
 		revision, inventory := c.rtMgr.Inventory()
-		hb, _ := protocol.NewMessage(protocol.MsgTypeHeartbeat, protocol.HeartbeatReq{NodeID: c.cfg.Node.NodeID, BootID: c.bootID, Seq: atomic.AddUint64(&c.seq, 1), InventoryRevision: revision, Timestamp: time.Now().Unix(), LoadAvg: readSystemLoadAvg(), MemAvailableMB: available, DiskFreeGB: c.rtMgr.DiskGuard().GetCurrentFreeMB() / 1024, ActiveSandboxes: len(inventory), Sandboxes: inventory})
+		var targets *protocol.TargetInventory
+		if c.cfg.Network.DockerTargets.Enabled {
+			snapshot := protocol.TargetInventory{Error: c.targetInitError, Instances: []protocol.TargetSummary{}}
+			if c.targets != nil {
+				inventoryCtx, cancel := context.WithTimeout(ctx, time.Second)
+				snapshot = c.targets.Inventory(inventoryCtx)
+				cancel()
+			}
+			targets = &snapshot
+		}
+		hb, _ := protocol.NewMessage(protocol.MsgTypeHeartbeat, protocol.HeartbeatReq{DockerTargets: targets, NodeID: c.cfg.Node.NodeID, BootID: c.bootID, Seq: atomic.AddUint64(&c.seq, 1), InventoryRevision: revision, Timestamp: time.Now().Unix(), LoadAvg: readSystemLoadAvg(), MemAvailableMB: available, DiskFreeGB: c.rtMgr.DiskGuard().GetCurrentFreeMB() / 1024, ActiveSandboxes: len(inventory), Sandboxes: inventory})
 		_ = c.sendMessage(hb)
 	}
 	send()

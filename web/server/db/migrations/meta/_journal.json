@@ -64,6 +64,13 @@
       "when": 1792829072158,
       "tag": "0008_challenges",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1792840547868,
+      "tag": "0009_target_instances",
+      "breakpoints": true
     }
   ]
 }

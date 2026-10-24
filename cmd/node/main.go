@@ -75,7 +75,7 @@ func main() {
 	rtMgr := runtime.NewRuntimeManager(cfg.Runtime)
 	rtMgr.SetNetworkLifecycle(
 		func(ctx context.Context, slotIndex int, id, netns string) (string, error) {
-			net, err := node.SetupSandboxNetwork(ctx, cfg.Network.BridgeName, slotIndex, id, netns)
+			net, err := node.SetupSandboxNetworkWithConfig(ctx, cfg.Network, slotIndex, id, netns)
 			if err != nil {
 				return "", err
 			}
