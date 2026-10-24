@@ -28,3 +28,11 @@ API：GET /api/targets 使用 kind=chapter、moduleSlug、chapterSlug，或 kind
 - 镜像不存在、UDP-only 无健康信号、节点离线时能保留可解释状态。
 
 本地通过：83 项 Node 测试、TypeScript、Nuxt 生产构建、Go 测试和真实 Docker 生命周期测试。数据库迁移／API／浏览器端到端与跨桥连通性尚未在真实部署验证，不将构建通过当作上述验收通过。
+
+## 收敛修复
+
+`missing` 保留原 ID 和 Worker 归属，重试时恢复同一生命周期。`target_not_found`（本地记录缺失）及 `target_already_stopped`（已有停止意图）均为 `unconfirmed`，不能代替容器删除确认；用户可明确停止并核对，确认 stopped 后才分配新 ID。
+
+同用户所有非 stopped 靶机和沙箱必须归属同一节点。两类启动使用相同的数据库用户锁；已有跨节点记录时返回冲突，先停止冲突实例，不静默选择其中一条。
+
+独立 `cmd/attackbox-enter` 已移除。CLI 统一重执行当前 Worker 的 `__enter__`，GUI 继续使用 `__enter_root__`；namespace、能力降权和 cgroup 机制继续保留。旧部署文档是历史记录，当前操作入口以 deploy.md 为准。

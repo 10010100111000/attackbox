@@ -89,3 +89,20 @@ test('target RPC correlates independent target identity and rejects generation c
  f.hub.close(f.a);await assert.rejects(lost,/connection lost/);assert.ok(!f.hub.targetNodes.has('test-node'))
  f.hub.shutdown()
 })
+
+test('learner experiments retain node affinity across scopes and reject split placement', async () => {
+ const {experimentNode}=await import('../shared/target-runtime.ts')
+ assert.equal(experimentNode(null,[]),null)
+ assert.equal(experimentNode(null,['a','a']),'a')
+ assert.equal(experimentNode('a',['a']),'a')
+ assert.throws(()=>experimentNode(null,['a','b']),/Conflicting/)
+ assert.throws(()=>experimentNode('b',['a']),/Conflicting/)
+})
+test('only a confirmed stopped summary releases a target lifecycle', async () => {
+ const {targetReplyState}=await import('../shared/target-runtime.ts')
+ assert.equal(targetReplyState('starting','inspect',{error:'target_not_found'}),'unconfirmed')
+ assert.equal(targetReplyState('running','start',{error:'target_already_stopped'}),'unconfirmed')
+ assert.equal(targetReplyState('running','stop',{}),'stopping')
+ assert.equal(targetReplyState('stopping','inspect',{instance:{state:'stopped'}}),'stopped')
+ assert.equal(targetReplyState('running','inspect',{instance:{state:'missing'}}),'missing')
+})

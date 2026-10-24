@@ -49,7 +49,7 @@ cd /home/laji/attackbox
 ./scripts/deploy.sh
 ```
 
-脚本按顺序:校验干净工作区 → `git pull --ff-only` → 编译 Worker 与 `attackbox-enter` → `npm ci && npm run build` → 安装 unit/nginx → 发布到 `/var/www/attackbox-web` → 重启 → 健康检查(3000 / 8443 / Worker 注册 / nginx)。
+脚本按顺序:校验干净工作区 → `git pull --ff-only` → 编译 Worker → `npm ci && npm run build` → 安装 unit/nginx → 发布到 `/var/www/attackbox-web` → 重启 → 健康检查(3000 / 8443 / Worker 注册 / nginx)。
 
 **注意:重启 Worker 会销毁正在运行的沙箱。** 部署应安排在维护窗口;`/var/www/attackbox-web.prev` 保留上一版,可手工回滚。
 
@@ -72,9 +72,10 @@ sudo systemctl start attackbox-web
 - `attackboxd.service`、`attackbox-fw.service`(后者会重建 `table inet attackbox`,可能清掉 Worker 的防火墙);
 - `/var/www/attackbox` 静态旧前端、`/usr/share/novnc`、`/usr/local/share/attackbox/xterm`。
 
-## 不要做的事
+## 当前部署边界
 
-- 不要把 `ws://<公网 IP>` 写进 `publicDataUrl`(控制器只允许 loopback 用 `ws://`);
-- 不要让 nginx 代理 `/ws/`;
-- 不要把 `/usr/local/bin/attackbox-enter` 删掉(宿主侧终端依赖它);
-- 不要用 `git pull` 覆盖脏工作区,`deploy.sh` 会直接拒绝。
+CLI 和 GUI 都通过 Worker 自身的 `__enter__`／`__enter_root__` 进入沙箱，不再构建、安装或查找独立 `attackbox-enter`。升级 Worker 后，旧 `/usr/local/bin/attackbox-enter` 不再被调用，可由管理员删除。
+
+当前示例使用浏览器直连 Worker 8443；HTTPS 站点需配置可访问的 WSS 地址，也可以正确配置反向代理。这是部署选择，不是永久禁止 nginx 代理的约束。
+
+部署前保留工作区修改；脚本仅接受干净工作区并执行快进更新。旧 `frontend/` 的构建产物和依赖不再参与部署，根目录已忽略这些本地残留，无需为其提交或清空工作区。

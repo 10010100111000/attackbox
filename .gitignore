@@ -44,3 +44,6 @@ test-*.webp
 .superpowers/
 
 backup
+
+# Retired SPA: local build/dependency leftovers are not deployment sources.
+/frontend/

@@ -220,9 +220,14 @@ func TestDockerNetworkConfigDefaultsAndEnabledValidation(t *testing.T) {
 		t.Fatal("overlapping configured network accepted")
 	}
 	cfg, err = LoadNodeConfig("../configs/node.yaml")
-	if err != nil || cfg.Network.DockerTargets.Enabled {
-		t.Fatalf("sample config should preserve disabled default: %v", err)
+	if err != nil || !cfg.Network.DockerTargets.Enabled {
+		t.Fatalf("deployment sample should enable Docker targets: %v", err)
 	}
+	defaults, err := LoadNodeConfig(t.TempDir() + "/missing.yaml")
+	if err != nil || defaults.Network.DockerTargets.Enabled {
+		t.Fatal("unconfigured Worker should not require Docker")
+	}
+
 }
 
 func TestTargetInternetBlockPrecedesEstablishedForwarding(t *testing.T) {

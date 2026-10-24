@@ -221,13 +221,6 @@ func VerifyCurrentThreadCapsDropped() error {
 	return nil
 }
 
-// ExecEnterTarget executes on the host as host root. It permanently strips dangerous capabilities
-// (CAP_SYS_BOOT, CAP_SYS_RAWIO, CAP_SYS_MODULE, CAP_MKNOD) from Effective, Permitted, and Bounding sets,
-// then invokes nsenter on the host to attach to targetPID's namespaces and switch to user 'box'.
-func ExecEnterTarget(targetPID int, targetArgs []string) error {
-	return execEnterTarget(targetPID, targetArgs, false)
-}
-
 // Both PTY and desktop entrypoints drop capabilities before executing any
 // sandbox binary. The root mode is for desktop setup inside the same sandbox.
 func execEnterTarget(targetPID int, targetArgs []string, asRoot bool) error {

@@ -1,4 +1,4 @@
-﻿package node
+package node
 
 import (
 	"fmt"
@@ -31,27 +31,10 @@ func StartPTY(targetPID int, cgroupPath string, rows, cols uint16) (*PTYSession,
 		exePath = "/proc/self/exe"
 	}
 
-	// 1. Locate trusted host-side privilege dropping wrapper:
-	// Priority 1: /usr/local/bin/attackbox-enter or PATH on host
-	// Priority 2: Currently running trusted host binary via __enter__ dispatcher
-	// NEVER execute any binary from container rootfs, and FAIL-CLOSED if wrapper is unavailable.
-	var enterCmd string
-	var cmdArgs []string
+	// Re-execute this Worker so CLI and GUI always use the same entry code.
+	// Never search PATH or execute a wrapper from the sandbox filesystem.
+	cmd := exec.Command(exePath, "__enter__", strconv.Itoa(targetPID))
 
-	if fallback, statErr := os.Stat("/usr/local/bin/attackbox-enter"); statErr == nil && !fallback.IsDir() {
-		enterCmd = "/usr/local/bin/attackbox-enter"
-		cmdArgs = []string{strconv.Itoa(targetPID)}
-	} else if lookPath, lookErr := exec.LookPath("attackbox-enter"); lookErr == nil {
-		enterCmd = lookPath
-		cmdArgs = []string{strconv.Itoa(targetPID)}
-	} else if exePath != "" {
-		enterCmd = exePath
-		cmdArgs = []string{"__enter__", strconv.Itoa(targetPID)}
-	} else {
-		return nil, fmt.Errorf("fail-closed: no trusted host attackbox-enter wrapper available")
-	}
-
-	cmd := exec.Command(enterCmd, cmdArgs...)
 	cmd.Env = []string{
 		"TERM=xterm-256color",
 		"LANG=en_US.UTF-8",

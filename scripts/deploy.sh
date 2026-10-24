@@ -26,11 +26,9 @@ log "sync $BRANCH"
 git fetch origin "$BRANCH"
 git merge --ff-only "origin/$BRANCH"
 
-log "build worker + host enter wrapper"
+log "build worker"
 mkdir -p bin
 go build -trimpath -o bin/node ./cmd/node
-go build -trimpath -o bin/attackbox-enter ./cmd/attackbox-enter
-sudo install -m 0755 bin/attackbox-enter /usr/local/bin/attackbox-enter
 
 log "build web"
 (cd web && npm ci --no-audit --no-fund && npm run build)

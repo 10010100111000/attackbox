@@ -1,3 +1,4 @@
+import { experimentNode, targetReplyState } from '../../shared/target-runtime'
 import { randomBytes } from 'node:crypto'
 import { and, eq, ne, sql } from 'drizzle-orm'
 import { createError } from 'h3'
@@ -85,7 +86,12 @@ export async function targetOperation(
     if (!template) {
       throw createError({ statusCode: 409, message: '靶机模板已停用' })
     }
-    if (existing && existing.state !== 'stopped' && existing.state !== 'missing') {
+    const attacker = sandboxController().status(user).instance
+    const activeTargets = await tx.select({nodeId:targetInstances.nodeId}).from(targetInstances).where(and(eq(targetInstances.userId,user),ne(targetInstances.state,'stopped')))
+    let preferredNodeId: string | null
+    try { preferredNodeId=experimentNode(attacker?.nodeId,activeTargets.map(t=>t.nodeId)) }
+    catch { throw createError({statusCode:409,message:'已有实验环境分布在不同节点，请先停止冲突的靶机'}) }
+    if (existing && existing.state !== 'stopped') {
       return existing
     }
     if (template.ports.length > 16) {
@@ -95,9 +101,6 @@ export async function targetOperation(
     const nodes = hub
       .snapshot()
       .nodes.filter(n => n.state === 'online' && !n.settings.draining && n.bootId && hub.targetNodes.has(n.id))
-    const attacker = sandboxController().status(user).instance
-    const activeTargetNode = existing && existing.state !== 'stopped' ? existing.nodeId : null
-    const preferredNodeId = attacker?.nodeId || activeTargetNode
     const eligible = preferredNodeId ? nodes.filter(n => n.id === preferredNodeId) : nodes
 
     if (!eligible.length) {
@@ -167,10 +170,7 @@ export async function targetOperation(
       }
     )
 
-    const convergedState =
-      result.error === 'target_not_found' || result.error === 'target_already_stopped'
-        ? 'stopped'
-        : result.instance?.state || (action === 'stop' ? 'stopping' : row.state)
+    const convergedState = targetReplyState(row.state, action, result)
 
     const [updated] = await db
       .update(targetInstances)
