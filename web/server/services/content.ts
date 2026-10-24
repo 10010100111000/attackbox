@@ -1,7 +1,7 @@
 import { eq, and, asc, sql, inArray } from 'drizzle-orm'
 import { db } from '../db'
-import { modules, chapters, chapterQuestions, auditLogs, contentCategories, assets, modulePrerequisites } from '../db/schema'
-import { fail, slugFor, validateModule, questionValues } from './content-input'
+import { modules, chapters, chapterQuestions, auditLogs, contentCategories, assets, modulePrerequisites, targetTemplates } from '../db/schema'
+import { fail, slugFor, validateModule, questionValues, validateTemplateId } from './content-input'
 import type { ModuleInput, ChapterInput, AdminModuleDetail } from '../../shared/content'
 type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0]
 
@@ -33,7 +33,14 @@ async function writeChapter(tx: Tx, moduleId: string, input: ChapterInput, posit
   const old = existing.find(c => c.id === input.chapterId)
   if (input.chapterId && !old) fail('章节不属于当前模块', 409)
   if (input.durationMinutes !== undefined && input.durationMinutes !== null && (!Number.isInteger(input.durationMinutes) || input.durationMinutes < 1 || input.durationMinutes > 1440)) fail('预计时长需为 1–1440 分钟的整数，或留空')
-  const values = { title: input.title.trim(), access: input.access, bodyMarkdown: input.bodyMarkdown, position, durationMinutes: input.durationMinutes === undefined ? old?.durationMinutes ?? null : input.durationMinutes }
+  const targetMode = input.targetMode ?? old?.targetMode ?? 'inherit'
+  if(!['inherit','none','custom'].includes(targetMode))fail('章节实验环境选项无效')
+  if(input.targetTemplateId!==undefined)validateTemplateId(input.targetTemplateId)
+  const targetTemplateId = targetMode==='custom' ? (input.targetTemplateId===undefined ? old?.targetTemplateId ?? null : input.targetTemplateId) : null
+  if(targetMode!=='custom'&&input.targetTemplateId)fail('仅另选模板时可以指定章节靶机')
+  if(targetMode==='custom'&&!targetTemplateId)fail('请为章节选择靶机模板')
+  await checkTargetTemplate(tx,targetTemplateId,old?.targetMode==='custom'?old.targetTemplateId:null)
+  const values = { targetMode, targetTemplateId, title: input.title.trim(), access: input.access, bodyMarkdown: input.bodyMarkdown, position, durationMinutes: input.durationMinutes === undefined ? old?.durationMinutes ?? null : input.durationMinutes }
   const [chapter] = old
     ? await tx.update(chapters).set(values).where(eq(chapters.id, old.id)).returning()
     : await tx.insert(chapters).values({ ...values, moduleId, slug: slugFor(input.slug, 'chapter') }).returning()
@@ -95,16 +102,18 @@ export async function saveModule(id: string | null, actor: string, input: Module
     await tx.execute(sql`select pg_advisory_xact_lock(72486211)`)
     await validateReferences(tx, input)
     const metadata: Partial<typeof modules.$inferInsert> = {}
-    for (const key of ['title', 'summary', 'descriptionMarkdown', 'difficulty', 'categoryId', 'coverAssetId', 'learningOutcomes'] as const)
+    for (const key of ['title', 'summary', 'descriptionMarkdown', 'difficulty', 'categoryId', 'coverAssetId', 'learningOutcomes', 'defaultTargetTemplateId'] as const)
       if (input[key] !== undefined) (metadata as any)[key] = input[key]
     if (metadata.title) metadata.title = metadata.title.trim()
     if (metadata.learningOutcomes) metadata.learningOutcomes = metadata.learningOutcomes.map(item => item.trim())
     let mod: typeof modules.$inferSelect
     if (id) {
       mod = await lockModule(tx, id, input)
+      if(input.defaultTargetTemplateId!==undefined)await checkTargetTemplate(tx,input.defaultTargetTemplateId,mod.defaultTargetTemplateId)
       if (input.slug !== undefined && slugFor(input.slug, 'module') !== mod.slug) fail('创建后不能修改访问标识')
       ;[mod] = await tx.update(modules).set({ ...metadata, lockVersion: mod.lockVersion + 1, updatedAt: new Date() }).where(eq(modules.id, id)).returning()
     } else {
+      await checkTargetTemplate(tx,input.defaultTargetTemplateId??null,null)
       const slug = slugFor(input.slug, 'module')
       ;[mod] = await tx.insert(modules).values({ ...metadata, title: input.title!.trim(), slug, createdBy: actor }).returning()
     }
@@ -163,10 +172,17 @@ export async function getModuleDetail(id: string): Promise<AdminModuleDetail> {
         promptMarkdown: chapterQuestions.promptMarkdown, errorHint: chapterQuestions.errorHint,
         answer: chapterQuestions.answer, normalization: chapterQuestions.normalization, hasAnswer: sql<boolean>`${chapterQuestions.answerHmac} is not null`,
       }).from(chapterQuestions).where(eq(chapterQuestions.chapterId, ch.id)).orderBy(asc(chapterQuestions.position))
-      chapterList.push({ chapterId: ch.id, slug: ch.slug, position: ch.position, title: ch.title, access: ch.access, bodyMarkdown: ch.bodyMarkdown, durationMinutes: ch.durationMinutes, questions: qs })
+      chapterList.push({ chapterId: ch.id, slug: ch.slug, position: ch.position, title: ch.title, access: ch.access, bodyMarkdown: ch.bodyMarkdown, targetMode:ch.targetMode, targetTemplateId:ch.targetTemplateId, durationMinutes: ch.durationMinutes, questions: qs })
     }
     const [category] = mod.categoryId ? await tx.select().from(contentCategories).where(eq(contentCategories.id, mod.categoryId)) : []
     const prerequisites = await tx.select({ id: modules.id, slug: modules.slug, title: modules.title, status: modules.status }).from(modulePrerequisites).innerJoin(modules, eq(modulePrerequisites.prerequisiteId, modules.id)).where(eq(modulePrerequisites.moduleId, id)).orderBy(asc(modulePrerequisites.position))
     return { prerequisites, module: { ...mod, createdAt: mod.createdAt.toISOString(), updatedAt: mod.updatedAt.toISOString(), publishedAt: mod.publishedAt?.toISOString() || null }, category: category || null, chapters: chapterList }
   }, { isolationLevel: 'repeatable read', accessMode: 'read only' })
+}
+
+async function checkTargetTemplate(tx:Tx,id:string|null,previous:string|null){
+ if(!id)return
+ const [template]=await tx.select({id:targetTemplates.id,enabled:targetTemplates.enabled}).from(targetTemplates).where(eq(targetTemplates.id,id)).for('share')
+ if(!template)fail('靶机模板不存在，请重新选择')
+ if(!template.enabled&&id.toLowerCase()!==previous?.toLowerCase())fail('该靶机模板已停用，请选择已启用模板')
 }

@@ -2,6 +2,7 @@ import { pgTable, uuid, varchar, text, integer, smallint, timestamp, uniqueIndex
 import { sql } from 'drizzle-orm'
 import { bytea } from './types'
 import { users } from './auth'
+import { targetTemplates } from './target-templates'
 import { assets } from './assets'
 import { contentCategories } from './categories'
 import type { Normalization, Difficulty } from '../../../shared/content'
@@ -11,6 +12,7 @@ export const modules = pgTable('modules', {
   id: uuid('id').primaryKey().defaultRandom(),
   slug: varchar('slug', { length: 100 }).notNull(),
   title: varchar('title', { length: 160 }).notNull(),
+  defaultTargetTemplateId: uuid('default_target_template_id').references(() => targetTemplates.id, { onDelete: 'restrict' }),
   summary: varchar('summary', { length: 500 }).notNull().default(''),
   descriptionMarkdown: text('description_markdown').notNull().default(''),
   learningOutcomes: text('learning_outcomes').array().notNull().default(sql`'{}'::text[]`),
@@ -39,6 +41,8 @@ export const chapters = pgTable('chapters', {
   position: integer('position').notNull(),
   title: varchar('title', { length: 160 }).notNull(),
   durationMinutes: integer('duration_minutes'),
+  targetMode: varchar('target_mode', {length:16}).$type<'inherit'|'none'|'custom'>().notNull().default('inherit'),
+  targetTemplateId: uuid('target_template_id').references(() => targetTemplates.id, {onDelete:'restrict'}),
   access: varchar('access', { length: 20 }).$type<'public' | 'authenticated'>().notNull().default('public'),
   bodyMarkdown: text('body_markdown').notNull().default(''),
   createdAt: timestamp('created_at', { withTimezone: true, mode: 'date' }).notNull().defaultNow(),
@@ -47,6 +51,7 @@ export const chapters = pgTable('chapters', {
   uniqueIndex('chapters_module_position_unique').on(table.moduleId, table.position),
   check('chapters_slug_check', sql`${table.slug} ~ '^[a-z0-9]+(-[a-z0-9]+)*$'`),
   check('chapters_position_check', sql`${table.position} > 0`),
+  check('chapters_target_check', sql`(${table.targetMode}='custom' and ${table.targetTemplateId} is not null) or (${table.targetMode} in ('inherit','none') and ${table.targetTemplateId} is null)`),
   check('chapters_duration_check', sql`${table.durationMinutes} is null or ${table.durationMinutes} between 1 and 1440`),
   check('chapters_access_check', sql`${table.access} in ('public', 'authenticated')`),
 ])

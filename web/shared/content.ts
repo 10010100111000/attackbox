@@ -1,3 +1,4 @@
+export type ChapterTargetMode = 'inherit' | 'none' | 'custom'
 export const normalizations = ['exact', 'trim', 'trim_casefold'] as const
 export type Normalization = typeof normalizations[number]
 export const difficulties = ['beginner', 'intermediate', 'advanced'] as const
@@ -10,12 +11,13 @@ export interface QuestionInput {
 }
 export interface ChapterInput {
   chapterId?: string; slug?: string; title: string; access: 'public' | 'authenticated'
-  bodyMarkdown: string; durationMinutes?: number | null; questions?: QuestionInput[]
+  bodyMarkdown: string; targetMode?: ChapterTargetMode; targetTemplateId?: string | null; durationMinutes?: number | null; questions?: QuestionInput[]
 }
 export interface ModuleInput {
   title?: string; slug?: string; summary?: string; descriptionMarkdown?: string
   difficulty?: Difficulty; coverAssetId?: string | null; categoryId?: string | null
   lockVersion?: number; chapters?: ChapterInput[]; learningOutcomes?: string[]
+  defaultTargetTemplateId?: string | null
   prerequisiteModuleIds?: string[]
   intent?: 'draft' | 'publish'
 }
@@ -25,11 +27,12 @@ export interface AdminQuestion {
 }
 export interface AdminChapter {
   chapterId: string; slug: string; position: number; title: string
-  access: 'public' | 'authenticated'; bodyMarkdown: string; durationMinutes: number | null; questions: AdminQuestion[]
+  access: 'public' | 'authenticated'; bodyMarkdown: string; targetMode: ChapterTargetMode; targetTemplateId: string | null; durationMinutes: number | null; questions: AdminQuestion[]
 }
 export interface AdminModule {
   id: string; slug: string; title: string; summary: string; descriptionMarkdown: string
   learningOutcomes: string[]
+  defaultTargetTemplateId: string | null
   difficulty: Difficulty; categoryId: string | null; coverAssetId: string | null
   status: ModuleStatus; lockVersion: number; createdAt: string; updatedAt: string; publishedAt: string | null
 }

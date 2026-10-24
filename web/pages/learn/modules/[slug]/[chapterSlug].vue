@@ -1,12 +1,13 @@
 <script setup lang="ts">
 import { ref, computed, watch, onMounted, onBeforeUnmount, nextTick } from 'vue'
 import { useRoute, useFetch, useHead } from '#imports'
-import { ArrowLeft, ArrowRight, LockKeyhole, PanelLeft, Clock3, Terminal, Monitor, ChevronUp, CheckCircle2, CircleAlert, LoaderCircle, BookOpen } from 'lucide-vue-next'
+import { Box, ArrowLeft, ArrowRight, LockKeyhole, PanelLeft, Clock3, Terminal, Monitor, ChevronUp, CheckCircle2, CircleAlert, LoaderCircle, BookOpen } from 'lucide-vue-next'
 import { DialogRoot, DialogTrigger, DialogPortal, DialogOverlay, DialogContent, DialogTitle, DialogDescription } from 'reka-ui'
 import ChapterOutline from '~/components/learning/ChapterOutline.vue'
 import PracticeDock from '~/components/learning/PracticeDock.vue'
 import MarkdownView from '~/components/ui/MarkdownView.vue'
 import { useAuth } from '~/composables/useAuth'
+import type { LearningTarget } from '~/shared/learning-target'
 import type { ChapterProgress, LearningChapter } from '~/shared/learning'
 import { renderMarkdown } from '~/utils/markdown'
 
@@ -63,7 +64,7 @@ const {
   error: chapterError
 } = await useFetch<{
   ok: boolean
-  data: { chapter: ChapterInfo; questions: QuestionItem[]; progress: ChapterProgress }
+  data: { chapter: ChapterInfo; questions: QuestionItem[]; progress: ChapterProgress; target:LearningTarget }
 }>(
   () => `/api/modules/${moduleSlug.value}/chapters/${chapterSlug.value}`,
   { key: `learning:chapter:${moduleSlug.value}:${chapterSlug.value}`, watch: [learnerId] }
@@ -279,6 +280,7 @@ useHead({
           <article class="article-body">
             <div class="chapter-meta"><span>第 {{ chapterIndex + 1 }} / {{ moduleData?.chapters.length || 1 }} 章</span><span v-if="chapterData.durationMinutes"><Clock3 :size="13" aria-hidden="true" />约 {{ chapterData.durationMinutes }} 分钟</span></div>
             <h1 class="chapter-main-title">{{ chapterData.title }}</h1>
+            <details v-if="chapterResponse?.data.target" class="learning-target"><summary><Box :size="17" aria-hidden="true"/><span>实验环境<span v-if="chapterResponse.data.target.status==='configured'"> · {{chapterResponse.data.target.name}}</span></span><small>{{chapterResponse.data.target.status==='configured'?'环境说明':'暂不可用'}}</small></summary><template v-if="chapterResponse.data.target.status==='configured'"><p class="target-scope">{{chapterResponse.data.target.scope==='module'?'模块默认模板':'本章指定模板'}} · 尚未开放在线启动</p><p v-if="chapterResponse.data.target.description">{{chapterResponse.data.target.description}}</p><p v-if="chapterResponse.data.target.ports.length">容器服务端口：{{chapterResponse.data.target.ports.map(p=>`${p.port}/${p.protocol.toUpperCase()}`).join('、')}}</p><p v-if="chapterResponse.data.target.accessInstructions" class="target-instructions">{{chapterResponse.data.target.accessInstructions}}</p></template><p v-else>关联的实验环境暂不可用，你可以继续阅读并完成章节练习。</p></details>
             <MarkdownView :content="chapterData.bodyMarkdown" />
 
             <section v-if="chapterData.questions.length" id="quiz" class="quiz-card" aria-labelledby="quiz-title">
@@ -420,3 +422,5 @@ a:focus-visible, button:focus-visible, input:focus-visible { outline: 2px solid 
 .outline-overlay { position: fixed; inset: 0; background: #0006; z-index: 80; }
 .mobile-outline { position: fixed; top: 0; left: 0; bottom: 0; width: min(300px, 85vw); background: var(--paper); color: var(--ink); border-right: 1px solid var(--line); z-index: 81; }
 </style>
+
+<style scoped>.learning-target{border:1px solid var(--line);border-radius:8px;background:var(--paper);padding:16px 20px;margin:0 0 28px;font-size:13px}.learning-target summary{display:flex;align-items:center;gap:10px;cursor:pointer;list-style:none}.learning-target summary>span{flex:1;font-weight:600}.learning-target small,.target-scope{color:var(--muted);font-size:12px}.learning-target p{font-size:13px;line-height:1.8;margin:14px 0 0}.target-instructions{white-space:pre-wrap;overflow-wrap:anywhere}</style>

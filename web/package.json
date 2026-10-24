@@ -20,7 +20,8 @@
     "test:sandbox-persistence": "node --test tests/sandbox-settings-persistence.test.mjs",
     "test:users": "node --test tests/admin-users.test.mjs",
     "test:routes": "node --test tests/routes.test.mjs tests/routes-migration.test.mjs",
-    "test:target-templates": "node --test tests/target-templates.test.mjs"
+    "test:target-templates": "node --test tests/target-templates.test.mjs",
+    "test:learning-targets": "node --test tests/learning-targets.test.mjs"
   },
   "dependencies": {
     "@node-rs/argon2": "^2.2.2",

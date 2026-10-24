@@ -6,7 +6,7 @@ import { requireAdmin } from '../../../utils/admin'
 export default defineEventHandler(async event => {
   requireAdmin(event)
   const records = await db.select({ id: modules.id, slug: modules.slug, title: modules.title,
-    summary: modules.summary, difficulty: modules.difficulty, categoryId: modules.categoryId,
+    summary: modules.summary, defaultTargetTemplateId:modules.defaultTargetTemplateId, difficulty: modules.difficulty, categoryId: modules.categoryId,
     coverAssetId: modules.coverAssetId, status: modules.status, lockVersion: modules.lockVersion,
     createdAt: modules.createdAt, updatedAt: modules.updatedAt, publishedAt: modules.publishedAt,
     chapterCount: sql<number>`(select count(*)::int from ${chapters} where ${chapters.moduleId} = ${modules.id})`,

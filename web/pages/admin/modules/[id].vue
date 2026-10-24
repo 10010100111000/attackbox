@@ -3,17 +3,20 @@ import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue'
 import { useRoute, useRouter, onBeforeRouteLeave } from 'vue-router'
 import { useFetch, useHead } from '#imports'
 import { Plus, ArrowUp, ArrowDown, X, Check, Circle, MoreHorizontal, Save, Send, ArrowLeft, Link2, ChevronDown, Copy } from 'lucide-vue-next'
+import TargetTemplateSelect from '~/components/admin/TargetTemplateSelect.vue'
 import CategorySelect from '~/components/admin/CategorySelect.vue'
 import MarkdownView from '~/components/ui/MarkdownView.vue'
 import type { Normalization, AdminModuleDetail, AdminModuleListItem, Difficulty } from '~/shared/content'
 definePageMeta({ layout: 'admin' })
 interface QuestionDraft { id?: string; position?: number; promptMarkdown: string; answer?: string; hasAnswer?: boolean; errorHint: string; normalization: Normalization }
-interface ChapterDraft { chapterId: string; slug: string; position: number; title: string; access: 'public' | 'authenticated'; bodyMarkdown: string; durationMinutes: number | null | ''; questions: QuestionDraft[] }
+interface ChapterDraft { targetMode:'inherit'|'none'|'custom'; targetTemplateId:string|null; chapterId: string; slug: string; position: number; title: string; access: 'public' | 'authenticated'; bodyMarkdown: string; durationMinutes: number | null | ''; questions: QuestionDraft[] }
 const route = useRoute(), router = useRouter()
+const editorReady=ref(false)
 const moduleId = computed(() => String(route.params.id || ''))
 const isNew = computed(() => moduleId.value === 'new')
 const { data: response, pending, error, refresh } = await useFetch<{ ok: boolean; data: AdminModuleDetail }>(() => `/api/admin/modules/${moduleId.value}`, { immediate: !isNew.value, watch: false })
 const { data: moduleOptions, error: moduleOptionsError, refresh: refreshModuleOptions } = await useFetch<{ data: AdminModuleListItem[] }>('/api/admin/modules')
+const {data:targetOptions,error:targetOptionsError,refresh:refreshTargetOptions}=await useFetch<{data:{id:string;name:string;enabled:boolean}[]}>('/api/admin/target-templates/options',{key:'admin:learning-target-options'})
 const prerequisiteIds = ref<string[]>([]), prerequisiteSearch = ref(''), prerequisitePickerOpen = ref(false)
 const prerequisiteCandidates = computed(() => (moduleOptions.value?.data || []).filter(m => m.id !== moduleId.value && !prerequisiteIds.value.includes(m.id) && `${m.title} ${m.slug}`.toLowerCase().includes(prerequisiteSearch.value.toLowerCase())).slice(0, 6))
 function prerequisiteInfo(id: string) { return moduleOptions.value?.data.find(m => m.id === id) || response.value?.data.prerequisites.find(m => m.id === id) }
@@ -38,7 +41,7 @@ const activeTab = ref<'chapters' | 'basic'>(route.query.tab === 'chapters' ? 'ch
 const selectedChapterId = ref<string | null>(null)
 const chapterEditorTab = ref<'markdown' | 'questions' | 'preview'>('markdown')
 const localChapters = ref<ChapterDraft[]>([])
-const localModuleForm = ref({ title: '', slug: '', summary: '', descriptionMarkdown: '', difficulty: 'beginner' as Difficulty, categoryId: null as string | null, learningOutcomes: '', lockVersion: 0 })
+const localModuleForm = ref({ title: '', slug: '', summary: '', descriptionMarkdown: '', difficulty: 'beginner' as Difficulty, defaultTargetTemplateId:null as string|null, categoryId: null as string | null, learningOutcomes: '', lockVersion: 0 })
 const isDirty = ref(false), isSaving = ref(false), saveIntent = ref<'draft' | 'publish' | null>(null), isMutating = ref(false), toastMessage = ref('')
 const busy = computed(() => isSaving.value || isMutating.value)
 let toastTimer: ReturnType<typeof setTimeout> | undefined
@@ -49,7 +52,7 @@ watch(response, val => {
   const data = val.data, d = data.module
   prerequisiteIds.value = data.prerequisites.map(m => m.id)
   const previousSlug = localChapters.value.find(c => c.chapterId === selectedChapterId.value)?.slug
-  localModuleForm.value = { title: d?.title || '', slug: data.module.slug, summary: d?.summary || '', descriptionMarkdown: d?.descriptionMarkdown || '', difficulty: d?.difficulty || 'beginner', categoryId: d?.categoryId || null, learningOutcomes: d.learningOutcomes.join('\n'), lockVersion: d.lockVersion }
+  localModuleForm.value = { title: d?.title || '', slug: data.module.slug, summary: d?.summary || '', descriptionMarkdown: d?.descriptionMarkdown || '', difficulty: d?.difficulty || 'beginner', defaultTargetTemplateId:d.defaultTargetTemplateId, categoryId: d?.categoryId || null, learningOutcomes: d.learningOutcomes.join('\n'), lockVersion: d.lockVersion }
   localChapters.value = (data.chapters || []).map((ch) => ({ ...ch, questions: (ch.questions || []).map((q) => ({ ...q, answer: q.answer ?? undefined, errorHint: q.errorHint || '' })) }))
   if (!localChapters.value.some(c => c.chapterId === selectedChapterId.value)) selectedChapterId.value = localChapters.value.find(c => c.slug === previousSlug)?.chapterId || localChapters.value[0]?.chapterId || null
 }, { immediate: true })
@@ -57,7 +60,7 @@ const activeChapter = computed(() => localChapters.value.find(c => c.chapterId =
 function markDirty() { isDirty.value = true }
 function handleAddChapter() {
   const id = `local-${localId()}`
-  localChapters.value.push({ chapterId: id, slug: `chapter-${localId().slice(0,8)}`, position: localChapters.value.length + 1, title: `新建章节 ${localChapters.value.length + 1}`, access: 'public', bodyMarkdown: '', durationMinutes: null, questions: [] })
+  localChapters.value.push({ chapterId: id, slug: `chapter-${localId().slice(0,8)}`, position: localChapters.value.length + 1, title: `新建章节 ${localChapters.value.length + 1}`, access: 'public', bodyMarkdown: '', targetMode:'inherit', targetTemplateId:null, durationMinutes: null, questions: [] })
   selectedChapterId.value = id; activeTab.value = 'chapters'; markDirty()
 }
 function handleRemoveChapter(index: number) {
@@ -90,7 +93,7 @@ async function handleSave(intent: 'draft' | 'publish'): Promise<boolean> {
       lockVersion: isNew.value ? undefined : localModuleForm.value.lockVersion,
       chapters: localChapters.value.map(ch => ({
         chapterId: ch.chapterId.startsWith('local-') ? undefined : ch.chapterId,
-        slug: ch.slug, title: ch.title, access: ch.access, bodyMarkdown: ch.bodyMarkdown, durationMinutes: ch.durationMinutes === '' ? null : ch.durationMinutes,
+        slug: ch.slug, title: ch.title, access: ch.access, targetMode:ch.targetMode,targetTemplateId:ch.targetMode==='custom'?ch.targetTemplateId:null, bodyMarkdown: ch.bodyMarkdown, durationMinutes: ch.durationMinutes === '' ? null : ch.durationMinutes,
         questions: ch.questions.map(q => ({ id: q.id, promptMarkdown: q.promptMarkdown,
           answer: q.answer, errorHint: q.errorHint, normalization: q.normalization }))
       })) }
@@ -110,7 +113,7 @@ async function handleDeleteModule() {
   catch (err) { showToast(message(err)) } finally { isMutating.value = false }
 }
 function beforeUnload(event: BeforeUnloadEvent) { if (isDirty.value) { event.preventDefault(); event.returnValue = '' } }
-onMounted(() => window.addEventListener('beforeunload', beforeUnload))
+onMounted(() => {editorReady.value=true;window.addEventListener('beforeunload', beforeUnload)})
 onBeforeUnmount(() => { clearTimeout(toastTimer); window.removeEventListener('beforeunload', beforeUnload) })
 onBeforeRouteLeave(() => !isDirty.value || confirm('有未保存修改，确认离开？'))
 useHead({ title: computed(() => `${isNew.value ? '新建' : '编辑'}模块：${localModuleForm.value.title || '未命名模块'} — AttackBox`) })
@@ -297,6 +300,12 @@ useHead({ title: computed(() => `${isNew.value ? '新建' : '编辑'}模块：${
               </div>
             </div>
 
+            <div class="chapter-target-settings">
+              <div class="form-field"><label for="chapter-target-mode">实验环境</label><select id="chapter-target-mode" :disabled="!editorReady" v-model="activeChapter.targetMode" class="form-input" @change="activeChapter.targetTemplateId=null;markDirty()"><option value="inherit">继承模块默认模板</option><option value="none">本章不使用实验环境</option><option value="custom">本章另选模板</option></select></div>
+              <div v-if="activeChapter.targetMode==='custom'" class="form-field"><label for="chapter-target-template">章节靶机模板</label><TargetTemplateSelect id="chapter-target-template" v-model="activeChapter.targetTemplateId" :options="targetOptions?.data||[]" :disabled="!!targetOptionsError||!editorReady" @update:model-value="markDirty"/></div>
+              <p class="field-hint" v-if="activeChapter.targetMode==='inherit'">{{localModuleForm.defaultTargetTemplateId?'使用模块设置中的默认模板。':'模块尚未关联默认模板，学习页不会显示实验环境。'}}</p>
+              <p v-if="targetOptionsError" role="alert" class="field-hint">模板列表加载失败，原配置已保留。<button type="button" class="text-action" @click="refreshTargetOptions()">重试</button></p>
+            </div>
             <!-- 子 Tab：Markdown / 练习题 / 预览 -->
             <div class="editor-sub-tabs">
               <button
@@ -452,6 +461,7 @@ useHead({ title: computed(() => `${isNew.value ? '新建' : '编辑'}模块：${
             <div class="form-field goals-field"><label for="module-outcomes">学习目标</label><textarea id="module-outcomes" v-model="localModuleForm.learningOutcomes" class="form-input" rows="5" placeholder="每行一项，例如：&#10;识别文件权限与用户身份&#10;排查常见访问权限问题" @input="markDirty"></textarea><p class="field-hint">每行一项，最多 12 项。留空时不展示目标。</p></div>
           </div>
         </section>
+        <section class="settings-section" aria-labelledby="module-target-heading"><header class="section-label"><h2 id="module-target-heading">实验环境</h2><span>可选</span></header><div class="section-fields"><div class="form-field"><label for="module-target-template">默认靶机模板</label><TargetTemplateSelect id="module-target-template" v-model="localModuleForm.defaultTargetTemplateId" :options="targetOptions?.data||[]" :disabled="!!targetOptionsError||!editorReady" @update:model-value="markDirty"/><p class="field-hint">章节默认继承此模板，也可单独关闭或另选。本轮只展示环境说明。</p><p v-if="targetOptionsError" role="alert" class="field-hint">模板列表加载失败，原配置已保留。<button type="button" class="text-action" @click="refreshTargetOptions()">重试</button></p><NuxtLink to="/admin/target-templates" target="_blank" class="text-action">管理靶机模板</NuxtLink></div></div></section>
         <section class="settings-section prerequisites-card" aria-labelledby="prerequisites-heading">
           <header class="section-label"><h2 id="prerequisites-heading">前置学习模块</h2><span>可选</span></header><div class="section-fields prerequisite-fields">
           <ol v-if="prerequisiteIds.length" class="prerequisite-list">
@@ -969,3 +979,5 @@ useHead({ title: computed(() => `${isNew.value ? '新建' : '编辑'}模块：${
   }
 }
 </style>
+
+<style scoped>.chapter-target-settings{padding:18px 24px;border-bottom:1px solid var(--line);background:var(--paper)}.chapter-target-settings .form-field{max-width:420px;margin-bottom:12px}</style>

@@ -2,6 +2,7 @@ import { defineEventHandler, getRouterParam } from 'h3'
 import { eq, asc } from 'drizzle-orm'
 import { db } from '../../../../db'
 import { chapters, chapterQuestions } from '../../../../db/schema'
+import { learningTarget } from '../../../../services/learning-target'
 import { activeLearner } from '../../../../utils/learner'
 import { chapterContext, savedChapterProgress } from '../../../../services/learning'
 export default defineEventHandler(async event => db.transaction(async tx => {
@@ -13,5 +14,5 @@ export default defineEventHandler(async event => db.transaction(async tx => {
   const questions = await tx.select({ id: chapterQuestions.id, position: chapterQuestions.position,
     promptMarkdown: chapterQuestions.promptMarkdown, errorHint: chapterQuestions.errorHint, normalization: chapterQuestions.normalization,
   }).from(chapterQuestions).where(eq(chapterQuestions.chapterId, chapter.id)).orderBy(asc(chapterQuestions.position))
-  return { ok: true, data: { chapter, questions, progress: await savedChapterProgress(tx, chapter.id, userId) } }
+  return { ok: true, data: { chapter, questions, target:await learningTarget(tx,chapter.id), progress: await savedChapterProgress(tx, chapter.id, userId) } }
 }, { isolationLevel: 'repeatable read', accessMode: 'read only' }))

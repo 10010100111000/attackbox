@@ -12,6 +12,7 @@ export function slugFor(value: unknown, prefix: string) {
 }
 export function validateModule(input: ModuleInput) {
   if (!input || typeof input !== 'object' || Array.isArray(input)) fail('模块格式无效')
+  if (input.defaultTargetTemplateId !== undefined) validateTemplateId(input.defaultTargetTemplateId)
   if (input.lockVersion !== undefined && (!Number.isInteger(input.lockVersion) || input.lockVersion < 1)) fail('无效的修改标识')
   if (input.descriptionMarkdown !== undefined && typeof input.descriptionMarkdown !== 'string') fail('模块介绍必须是文本')
   if (input.prerequisiteModuleIds !== undefined && (!Array.isArray(input.prerequisiteModuleIds) || input.prerequisiteModuleIds.length > 12 || new Set(input.prerequisiteModuleIds).size !== input.prerequisiteModuleIds.length || input.prerequisiteModuleIds.some(id => typeof id !== 'string' || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)))) fail('前置模块最多 12 个，不能重复或使用无效标识')
@@ -38,4 +39,8 @@ export function questionValues(input: QuestionInput, old?: typeof chapterQuestio
     answerHmac: hasAnswer ? hashQuizAnswer(answer!, input.normalization) : preserveLegacy ? old!.answerHmac : null,
     answerKeyVersion: hasAnswer ? 1 : old?.answerKeyVersion ?? 1,
   }
+}
+
+export function validateTemplateId(value: unknown) {
+ if(value!==null&&(typeof value!=='string'||!/^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/i.test(value)))fail('靶机模板标识无效')
 }
