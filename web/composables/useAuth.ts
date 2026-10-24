@@ -9,7 +9,7 @@ export interface AuthUser {
 
 export function useAuth() {
   const nuxtApp = useNuxtApp();
-  function clearLearningData() { nuxtApp.runWithContext(() => clearNuxtData(key => key.startsWith('learning:') || key.startsWith('admin:'))); }
+  function clearLearningData() { nuxtApp.runWithContext(() => clearNuxtData(key => key.startsWith('challenges:') || key.startsWith('learning:') || key.startsWith('admin:'))); }
   const currentUser = useState<AuthUser | null>('auth_user', () => null);
   const isInitialized = useState<boolean>('auth_initialized', () => false);
 

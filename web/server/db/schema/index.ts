@@ -9,3 +9,4 @@ export * from './learning';
 export * from './sandbox';
 export * from './routes';
 export * from './target-templates';
+export * from './challenges';

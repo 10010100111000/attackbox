@@ -28,6 +28,7 @@ const isAdmin = computed(() => {
 })
 
 const currentSection = computed(() => {
+  if (route.path.startsWith('/admin/challenges')) return 'challenges'
   if (route.path.startsWith('/admin/target-templates')) return 'target-templates'
   if (route.path.startsWith('/admin/instances')) return 'instances'
   if (route.path.startsWith('/admin/nodes')) return 'nodes'
@@ -76,6 +77,7 @@ async function handleLogout() {
 
         <nav class="admin-nav">
           <div class="nav-group-label">内容管理</div>
+          <NuxtLink to="/admin/challenges" class="admin-nav-link" :class="{active:currentSection === 'challenges'}"><Monitor :size="16"/><span>挑战管理</span></NuxtLink>
           <NuxtLink
             to="/admin/modules"
             class="admin-nav-link"
@@ -133,7 +135,7 @@ async function handleLogout() {
           <div class="topbar-crumb">
             <NuxtLink :to="currentSection === 'target-templates' ? '/admin/target-templates' : currentSection === 'users' ? '/admin/users' : currentSection === 'nodes' || currentSection === 'instances' ? '/admin/nodes' : '/admin/modules'">{{ currentSection === 'target-templates' ? '环境管理' : currentSection === 'users' ? '账户管理' : currentSection === 'nodes' || currentSection === 'instances' ? '环境管理' : '内容管理' }}</NuxtLink>
             <span>/</span>
-            <span class="crumb-active">{{ currentSection === 'target-templates' ? '靶机模板' : currentSection === 'routes' ? '学习路线' : currentSection === 'users' ? '用户管理' : currentSection === 'nodes' ? '节点管理' : currentSection === 'instances' ? '运行实例' : '学习模块' }}</span>
+            <span class="crumb-active">{{ currentSection === 'challenges' ? '挑战管理' : currentSection === 'target-templates' ? '靶机模板' : currentSection === 'routes' ? '学习路线' : currentSection === 'users' ? '用户管理' : currentSection === 'nodes' ? '节点管理' : currentSection === 'instances' ? '运行实例' : '学习模块' }}</span>
           </div>
 
           <div class="topbar-right">
