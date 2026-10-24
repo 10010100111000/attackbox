@@ -461,7 +461,7 @@ useHead({ title: computed(() => `${isNew.value ? '新建' : '编辑'}模块：${
             <div class="form-field goals-field"><label for="module-outcomes">学习目标</label><textarea id="module-outcomes" v-model="localModuleForm.learningOutcomes" class="form-input" rows="5" placeholder="每行一项，例如：&#10;识别文件权限与用户身份&#10;排查常见访问权限问题" @input="markDirty"></textarea><p class="field-hint">每行一项，最多 12 项。留空时不展示目标。</p></div>
           </div>
         </section>
-        <section class="settings-section" aria-labelledby="module-target-heading"><header class="section-label"><h2 id="module-target-heading">实验环境</h2><span>可选</span></header><div class="section-fields"><div class="form-field"><label for="module-target-template">默认靶机模板</label><TargetTemplateSelect id="module-target-template" v-model="localModuleForm.defaultTargetTemplateId" :options="targetOptions?.data||[]" :disabled="!!targetOptionsError||!editorReady" @update:model-value="markDirty"/><p class="field-hint">章节默认继承此模板，也可单独关闭或另选。本轮只展示环境说明。</p><p v-if="targetOptionsError" role="alert" class="field-hint">模板列表加载失败，原配置已保留。<button type="button" class="text-action" @click="refreshTargetOptions()">重试</button></p><NuxtLink to="/admin/target-templates" target="_blank" class="text-action">管理靶机模板</NuxtLink></div></div></section>
+        <section class="settings-section" aria-labelledby="module-target-heading"><header class="section-label"><h2 id="module-target-heading">实验环境</h2><span>可选</span></header><div class="section-fields"><div class="form-field"><label for="module-target-template">默认靶机模板</label><TargetTemplateSelect id="module-target-template" v-model="localModuleForm.defaultTargetTemplateId" :options="targetOptions?.data||[]" :disabled="!!targetOptionsError||!editorReady" @update:model-value="markDirty"/><p class="field-hint">章节默认继承此模板，也可单独关闭或另选。学习者可在章节页按需启动独享靶机。</p><p v-if="targetOptionsError" role="alert" class="field-hint">模板列表加载失败，原配置已保留。<button type="button" class="text-action" @click="refreshTargetOptions()">重试</button></p><NuxtLink to="/admin/target-templates" target="_blank" class="text-action">管理靶机模板</NuxtLink></div></div></section>
         <section class="settings-section prerequisites-card" aria-labelledby="prerequisites-heading">
           <header class="section-label"><h2 id="prerequisites-heading">前置学习模块</h2><span>可选</span></header><div class="section-fields prerequisite-fields">
           <ol v-if="prerequisiteIds.length" class="prerequisite-list">
@@ -660,12 +660,6 @@ useHead({ title: computed(() => `${isNew.value ? '新建' : '编辑'}模块：${
   background: var(--paper);
   border-color: var(--line);
   color: var(--ink);
-}
-
-.btn.danger-outline {
-  background: transparent;
-  border-color: var(--color-error);
-  color: var(--color-error);
 }
 
 /* 选项卡 */
@@ -978,6 +972,15 @@ useHead({ title: computed(() => `${isNew.value ? '新建' : '编辑'}模块：${
     grid-template-columns: 1fr;
   }
 }
-</style>
 
-<style scoped>.chapter-target-settings{padding:18px 24px;border-bottom:1px solid var(--line);background:var(--paper)}.chapter-target-settings .form-field{max-width:420px;margin-bottom:12px}</style>
+.chapter-target-settings {
+  padding: 16px 0 6px;
+  margin-bottom: 8px;
+  border-top: 1px solid var(--line);
+}
+
+.chapter-target-settings .form-field {
+  max-width: 420px;
+  margin-bottom: 12px;
+}
+</style>

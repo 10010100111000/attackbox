@@ -4,6 +4,7 @@ import { db } from '../db'
 import { users, authSessions, auditLogs } from '../db/schema'
 import { sandboxController } from '../sandbox'
 import { learningHistory } from './learning'
+import { stopUserTargets } from './target-runtime'
 
 const fields = { id: users.id, email: users.email, displayName: users.displayName, role: users.role, status: users.status, createdAt: users.createdAt, lastLoginAt: users.lastLoginAt, emailVerifiedAt: users.emailVerifiedAt }
 export function userId(value: unknown) {
@@ -61,8 +62,11 @@ export function changeUserStatus(actorId: string, id: string, suspended: boolean
     const instance = controller.status(id).instance
     // Start cleanup while serialized, but don't make every other account mutation
     // wait for a disconnected Worker to time out.
-    const cleanup = suspended && instance
-      ? controller.stopAdmin(instance.id).then(() => 'released' as const, () => 'pending' as const)
+    const cleanup = suspended
+      ? Promise.all([
+          instance ? controller.stopAdmin(instance.id).then(() => 'released' as const, () => 'pending' as const) : Promise.resolve('none' as const),
+          stopUserTargets(id)
+        ]).then(([sbxRes, tgtRes]) => (sbxRes === 'pending' || tgtRes === 'pending' ? 'pending' as const : sbxRes === 'released' || tgtRes === 'released' ? 'released' as const : 'none' as const))
       : Promise.resolve('none' as const)
     return { status, cleanup }
   })

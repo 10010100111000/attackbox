@@ -6,6 +6,7 @@ import LoginForm from '~/components/auth/LoginForm.vue'
 import RegisterForm from '~/components/auth/RegisterForm.vue'
 import RecoverForm from '~/components/auth/RecoverForm.vue'
 import VerifyView from '~/components/auth/VerifyView.vue'
+import ResetPasswordForm from '~/components/auth/ResetPasswordForm.vue'
 
 definePageMeta({
   layout: 'auth'
@@ -13,9 +14,9 @@ definePageMeta({
 
 const route = useRoute()
 
-const currentMode = computed<'login' | 'register' | 'recover' | 'verify'>(() => {
+const currentMode = computed<'login' | 'register' | 'recover' | 'verify' | 'reset'>(() => {
   const mode = route.query.mode
-  if (mode === 'register' || mode === 'recover' || mode === 'verify') {
+  if (mode === 'register' || mode === 'recover' || mode === 'verify' || mode === 'reset') {
     return mode
   }
   return 'login'
@@ -23,18 +24,20 @@ const currentMode = computed<'login' | 'register' | 'recover' | 'verify'>(() => 
 
 const sharedEmail = ref(typeof route.query.email === 'string' ? route.query.email : '')
 
-const titles: Record<'login' | 'register' | 'recover' | 'verify', string> = {
+const titles: Record<'login' | 'register' | 'recover' | 'verify' | 'reset', string> = {
   login: '登录 — AttackBox',
   register: '注册 — AttackBox',
   recover: '找回密码 — AttackBox',
-  verify: '验证并激活账号 — AttackBox'
+  verify: '验证并激活账号 — AttackBox',
+  reset: '重设密码 — AttackBox'
 }
 
-const descriptions: Record<'login' | 'register' | 'recover' | 'verify', string> = {
+const descriptions: Record<'login' | 'register' | 'recover' | 'verify' | 'reset', string> = {
   login: '登录 AttackBox，继续你的安全学习与实践。',
   register: '创建 AttackBox 账号，开启你的安全学习之旅。',
   recover: '找回你的 AttackBox 账号密码。',
-  verify: '验证你的邮箱地址以激活 AttackBox 账号。'
+  verify: '验证你的邮箱地址以激活 AttackBox 账号。',
+  reset: '设置你的 AttackBox 新密码。'
 }
 
 useHead({
@@ -102,6 +105,11 @@ watch(currentMode, () => {
 
       <VerifyView
         v-else-if="currentMode === 'verify'"
+        @switch-mode="handleSwitchMode"
+      />
+
+      <ResetPasswordForm
+        v-else-if="currentMode === 'reset'"
         @switch-mode="handleSwitchMode"
       />
     </section>

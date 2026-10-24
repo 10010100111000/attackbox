@@ -474,11 +474,6 @@ import { ArrowRight } from 'lucide-vue-next'
     font-size: 12px;
   }
 
-  .footer-links {
-    display: flex;
-    gap: 24px;
-  }
-
   @media (max-width: 1100px) {
     .wrap {
       width: calc(100% - 60px);
@@ -524,7 +519,7 @@ import { ArrowRight } from 'lucide-vue-next'
       font-size: 16px;
       gap: 7px;
     }
-    .brand-icon {
+    .brand-logo {
       height: 27px;
       width: 27px;
       font-size: 19px;

@@ -51,14 +51,16 @@ export class SandboxController {
     const reservedMemory = [...this.instances.values()].filter(r => r.nodeId === node.id && r.bootId === node.bootId && r.state === 'creating').reduce((sum, record) => sum + record.policy.resources.memory_max_mb, 0)
     return node.telemetry.availableMemoryMb - reservedMemory >= node.settings.memoryMb + 256
   }
-  async start(userId: string, workerUserId: number): Promise<SandboxInstance> {
+  async start(userId: string, workerUserId: number, preferredNodeId?: string | null): Promise<SandboxInstance> {
     if (this.blockedUsers.has(userId)) throw new SandboxError(403, '账号已停用')
     if (!this.enabled()) throw new SandboxError(503, '练习环境尚未开放')
     if (!Number.isSafeInteger(workerUserId) || workerUserId <= 0) throw new SandboxError(500, '沙箱身份无效')
     const previous = this.instances.get(this.byUser.get(userId) || '')
     if (previous) return this.view(previous)
     let selected: { node: SandboxNodeStatus; slot: number } | undefined
-    for (const node of this.nodes()) {
+    const candidateNodes = [...this.nodes()].sort((a, b) => (a.id === preferredNodeId ? -1 : b.id === preferredNodeId ? 1 : 0))
+    for (const node of candidateNodes) {
+      if (preferredNodeId && node.id !== preferredNodeId) continue
       if (!this.canSchedule(node)) continue
       const occupied = new Set([...this.instances.values()].filter(r => r.nodeId === node.id && r.bootId === node.bootId).map(r => r.slot))
       const limit = node.settings.maxSlots

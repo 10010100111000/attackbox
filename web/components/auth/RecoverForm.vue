@@ -179,16 +179,6 @@ h1 {
   color: #c2b9c5;
 }
 
-.arrow {
-  font-size: 15px;
-  display: inline-block;
-  transition: transform 0.2s;
-}
-
-.submit:hover .arrow {
-  transform: translate(2px, -2px);
-}
-
 .status {
   font-size: 11px;
   color: #c5aa97;

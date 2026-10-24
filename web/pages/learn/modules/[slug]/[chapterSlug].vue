@@ -416,12 +416,67 @@ a:focus-visible, button:focus-visible, input:focus-visible { outline: 2px solid 
   .next-row { gap: 16px; }
 }
 @media (prefers-reduced-motion: reduce) { .spinning { animation: none; } }
-</style>
 
-<style>
-/* Portalled mobile outline stays in the platform theme and traps focus. */
-.outline-overlay { position: fixed; inset: 0; background: #0006; z-index: 80; }
-.mobile-outline { position: fixed; top: 0; left: 0; bottom: 0; width: min(300px, 85vw); background: var(--paper); color: var(--ink); border-right: 1px solid var(--line); z-index: 81; }
-</style>
+.learning-target {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--paper);
+  padding: 16px 20px;
+  margin: 0 0 28px;
+  font-size: 13px;
+}
 
-<style scoped>.learning-target{border:1px solid var(--line);border-radius:8px;background:var(--paper);padding:16px 20px;margin:0 0 28px;font-size:13px}.learning-target summary{display:flex;align-items:center;gap:10px;cursor:pointer;list-style:none}.learning-target summary>span{flex:1;font-weight:600}.learning-target small,.target-scope{color:var(--muted);font-size:12px}.learning-target p{font-size:13px;line-height:1.8;margin:14px 0 0}.target-instructions{white-space:pre-wrap;overflow-wrap:anywhere}</style>
+.learning-target summary {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+  list-style: none;
+}
+
+.learning-target summary::-webkit-details-marker {
+  display: none;
+}
+
+.learning-target summary > span {
+  flex: 1;
+  font-weight: 600;
+}
+
+.learning-target small,
+.target-scope {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.learning-target p {
+  font-size: 13px;
+  line-height: 1.8;
+  margin: 14px 0 0;
+}
+
+.target-instructions {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+/* Global portalled mobile outline styles via :global */
+:global(.outline-overlay) {
+  position: fixed;
+  inset: 0;
+  background: #0006;
+  z-index: 80;
+}
+
+:global(.mobile-outline) {
+  position: fixed;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  width: min(300px, 85vw);
+  background: var(--paper);
+  color: var(--ink);
+  border-right: 1px solid var(--line);
+  z-index: 81;
+}
+</style>

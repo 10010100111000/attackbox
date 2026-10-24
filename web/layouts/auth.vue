@@ -92,11 +92,6 @@ import { ArrowLeft } from 'lucide-vue-next'
   flex-shrink: 0;
 }
 
-.footer-links {
-  display: flex;
-  gap: 18px;
-}
-
 @media (max-width: 1100px) {
   .shell {
     padding: 0 30px;
@@ -118,7 +113,7 @@ import { ArrowLeft } from 'lucide-vue-next'
     gap: 8px;
   }
 
-  .brand-icon {
+  .brand-logo {
     width: 28px;
     height: 28px;
     font-size: 19px;
@@ -135,9 +130,6 @@ import { ArrowLeft } from 'lucide-vue-next'
     font-size: 8px;
   }
 
-  .footer-links {
-    gap: 12px;
-  }
 }
 
 @media (max-height: 700px) and (min-width: 761px) {

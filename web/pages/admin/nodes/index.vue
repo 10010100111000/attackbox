@@ -121,7 +121,7 @@ fieldset { margin: 0; padding: 0; border: 0; min-width: 0; }
 h3 { font-size: 14px; font-weight: 600; margin: 0; }
 .draining-switch { display: inline-flex; align-items: center; gap: 7px; font-size: 12px; color: var(--muted); }
 .draining-switch input { accent-color: var(--green); }
-.settings-grid { display: grid; grid-template-columns: 280px 1fr 1fr; gap: 20px 28px; }
+.settings-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 20px 24px; }
 .settings-grid label { display: flex; flex-direction: column; gap: 8px; color: var(--muted); font-size: 11px; }
 .settings-grid input { width: 128px; padding: 8px 10px; color: var(--ink); background: var(--paper); border: 1px solid var(--line); border-radius: 5px; font-size: 13px; }
 .settings-grid .name-field input { width: 100%; }

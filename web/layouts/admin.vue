@@ -1,7 +1,19 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { BookOpen, Route, LayoutTemplate, Users, Server, Monitor, Settings, ExternalLink, LockKeyhole, Sun, Moon } from 'lucide-vue-next'
+import {
+  BookOpen,
+  Route,
+  LayoutTemplate,
+  Users,
+  Server,
+  Monitor,
+  Settings,
+  ExternalLink,
+  LockKeyhole,
+  Sun,
+  Moon,
+} from 'lucide-vue-next'
 import { useAuth } from '~/composables/useAuth'
 import { useTheme } from '~/composables/useTheme'
 
@@ -27,7 +39,16 @@ const isAdmin = computed(() => {
   return currentUser.value?.role === 'admin'
 })
 
-const currentSection = computed(() => {
+type AdminSectionKey =
+  | 'challenges'
+  | 'target-templates'
+  | 'instances'
+  | 'nodes'
+  | 'modules'
+  | 'routes'
+  | 'users'
+
+const currentSection = computed<AdminSectionKey>(() => {
   if (route.path.startsWith('/admin/challenges')) return 'challenges'
   if (route.path.startsWith('/admin/target-templates')) return 'target-templates'
   if (route.path.startsWith('/admin/instances')) return 'instances'
@@ -37,6 +58,18 @@ const currentSection = computed(() => {
   if (route.path.startsWith('/admin/users')) return 'users'
   return 'modules'
 })
+
+const sectionMeta: Record<AdminSectionKey, { groupLabel: string; groupHref: string; title: string }> = {
+  challenges: { groupLabel: '内容管理', groupHref: '/admin/challenges', title: '挑战管理' },
+  modules: { groupLabel: '内容管理', groupHref: '/admin/modules', title: '学习模块' },
+  routes: { groupLabel: '内容管理', groupHref: '/admin/routes', title: '学习路线' },
+  users: { groupLabel: '账户管理', groupHref: '/admin/users', title: '用户管理' },
+  'target-templates': { groupLabel: '环境管理', groupHref: '/admin/target-templates', title: '靶机模板' },
+  nodes: { groupLabel: '环境管理', groupHref: '/admin/nodes', title: '节点管理' },
+  instances: { groupLabel: '环境管理', groupHref: '/admin/instances', title: '运行实例' },
+}
+
+const currentBreadcrumb = computed(() => sectionMeta[currentSection.value])
 
 async function handleLogout() {
   await logout()
@@ -54,7 +87,9 @@ async function handleLogout() {
     <!-- 非管理员拦截提示 -->
     <div v-else-if="!isAdmin" class="admin-denied">
       <div class="denied-card">
-        <div class="denied-icon"><LockKeyhole :size="28" aria-hidden="true" /></div>
+        <div class="denied-icon">
+          <LockKeyhole :size="28" aria-hidden="true" />
+        </div>
         <h2>需要管理员权限</h2>
         <p>当前登录账号不是管理员，无法访问管理后台。</p>
         <div class="denied-actions">
@@ -77,7 +112,14 @@ async function handleLogout() {
 
         <nav class="admin-nav">
           <div class="nav-group-label">内容管理</div>
-          <NuxtLink to="/admin/challenges" class="admin-nav-link" :class="{active:currentSection === 'challenges'}"><Monitor :size="16"/><span>挑战管理</span></NuxtLink>
+          <NuxtLink
+            to="/admin/challenges"
+            class="admin-nav-link"
+            :class="{ active: currentSection === 'challenges' }"
+          >
+            <Monitor :size="16" class="nav-icon" aria-hidden="true" />
+            <span>挑战管理</span>
+          </NuxtLink>
           <NuxtLink
             to="/admin/modules"
             class="admin-nav-link"
@@ -86,7 +128,14 @@ async function handleLogout() {
             <BookOpen :size="16" class="nav-icon" aria-hidden="true" />
             <span>学习模块</span>
           </NuxtLink>
-          <NuxtLink to="/admin/routes" class="admin-nav-link" :class="{active:currentSection === 'routes'}"><Route :size="16" aria-hidden="true" /><span>学习路线</span></NuxtLink>
+          <NuxtLink
+            to="/admin/routes"
+            class="admin-nav-link"
+            :class="{ active: currentSection === 'routes' }"
+          >
+            <Route :size="16" class="nav-icon" aria-hidden="true" />
+            <span>学习路线</span>
+          </NuxtLink>
           <span class="admin-nav-link disabled" title="后续阶段接入">
             <LayoutTemplate :size="16" class="nav-icon" aria-hidden="true" />
             <span>首页管理</span>
@@ -94,18 +143,37 @@ async function handleLogout() {
           </span>
 
           <div class="nav-group-label">账户管理</div>
-          <NuxtLink to="/admin/users" class="admin-nav-link" :class="{ active: currentSection === 'users' }">
+          <NuxtLink
+            to="/admin/users"
+            class="admin-nav-link"
+            :class="{ active: currentSection === 'users' }"
+          >
             <Users :size="16" class="nav-icon" aria-hidden="true" />
             <span>用户管理</span>
           </NuxtLink>
 
           <div class="nav-group-label">环境管理</div>
-          <NuxtLink to="/admin/target-templates" class="admin-nav-link" :class="{active:currentSection === 'target-templates'}"><Monitor :size="16" aria-hidden="true"/><span>靶机模板</span></NuxtLink>
-          <NuxtLink to="/admin/nodes" class="admin-nav-link" :class="{ active: currentSection === 'nodes' }">
+          <NuxtLink
+            to="/admin/target-templates"
+            class="admin-nav-link"
+            :class="{ active: currentSection === 'target-templates' }"
+          >
+            <Monitor :size="16" class="nav-icon" aria-hidden="true" />
+            <span>靶机模板</span>
+          </NuxtLink>
+          <NuxtLink
+            to="/admin/nodes"
+            class="admin-nav-link"
+            :class="{ active: currentSection === 'nodes' }"
+          >
             <Server :size="16" class="nav-icon" aria-hidden="true" />
             <span>节点管理</span>
           </NuxtLink>
-          <NuxtLink to="/admin/instances" class="admin-nav-link" :class="{ active: currentSection === 'instances' }">
+          <NuxtLink
+            to="/admin/instances"
+            class="admin-nav-link"
+            :class="{ active: currentSection === 'instances' }"
+          >
             <Monitor :size="16" class="nav-icon" aria-hidden="true" />
             <span>运行实例</span>
           </NuxtLink>
@@ -120,7 +188,8 @@ async function handleLogout() {
 
         <div class="sidebar-bottom">
           <NuxtLink to="/learn" class="bottom-link" target="_blank">
-            <ExternalLink :size="14" aria-hidden="true" /><span>预览学习前台</span>
+            <ExternalLink :size="14" aria-hidden="true" />
+            <span>预览学习前台</span>
           </NuxtLink>
           <div class="admin-user-info">
             <span class="admin-email">{{ currentUser?.email }}</span>
@@ -133,9 +202,9 @@ async function handleLogout() {
       <div class="admin-main-wrap">
         <header class="admin-topbar">
           <div class="topbar-crumb">
-            <NuxtLink :to="currentSection === 'target-templates' ? '/admin/target-templates' : currentSection === 'users' ? '/admin/users' : currentSection === 'nodes' || currentSection === 'instances' ? '/admin/nodes' : '/admin/modules'">{{ currentSection === 'target-templates' ? '环境管理' : currentSection === 'users' ? '账户管理' : currentSection === 'nodes' || currentSection === 'instances' ? '环境管理' : '内容管理' }}</NuxtLink>
+            <NuxtLink :to="currentBreadcrumb.groupHref">{{ currentBreadcrumb.groupLabel }}</NuxtLink>
             <span>/</span>
-            <span class="crumb-active">{{ currentSection === 'challenges' ? '挑战管理' : currentSection === 'target-templates' ? '靶机模板' : currentSection === 'routes' ? '学习路线' : currentSection === 'users' ? '用户管理' : currentSection === 'nodes' ? '节点管理' : currentSection === 'instances' ? '运行实例' : '学习模块' }}</span>
+            <span class="crumb-active">{{ currentBreadcrumb.title }}</span>
           </div>
 
           <div class="topbar-right">
@@ -199,7 +268,8 @@ async function handleLogout() {
 }
 
 .denied-icon {
-  font-size: 36px;
+  display: flex;
+  justify-content: center;
   margin-bottom: 12px;
 }
 
@@ -326,7 +396,7 @@ async function handleLogout() {
 }
 
 .nav-icon {
-  font-size: 14px;
+  flex-shrink: 0;
 }
 
 .sidebar-bottom {
@@ -336,7 +406,10 @@ async function handleLogout() {
 }
 
 .bottom-link {
-  display: flex; align-items: center; gap: 6px;  font-size: 12px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
   color: var(--green);
   text-decoration: none;
   margin-bottom: 10px;
@@ -432,11 +505,14 @@ async function handleLogout() {
 .theme-switch-mini button {
   background: transparent;
   border: none;
-  padding: 3px 8px;
+  padding: 4px 8px;
   font-size: 12px;
   border-radius: 4px;
   cursor: pointer;
   color: var(--muted);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .theme-switch-mini button.active {
@@ -457,5 +533,24 @@ async function handleLogout() {
 .admin-content {
   flex: 1;
   padding: 32px;
+  min-width: 0;
+}
+
+@media (max-width: 900px) {
+  .admin-shell {
+    grid-template-columns: 1fr;
+  }
+  .admin-sidebar {
+    position: static;
+    height: auto;
+    border-right: 0;
+    border-bottom: 1px solid var(--line);
+  }
+  .admin-content {
+    padding: 20px 16px;
+  }
+  .admin-topbar {
+    padding: 0 16px;
+  }
 }
 </style>

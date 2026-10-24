@@ -115,8 +115,8 @@ async function handleSubmit() {
   }
 }
 
-function handleProvider(_providerName: string) {
-  // 单点登录与第三方入口当前点击静默不生效
+function handleProvider(providerName: string) {
+  statusMessage.value = `${providerName} 登录尚未在当前节点启用，请使用邮箱登录。`
 }
 
 function resetToLogin() {
@@ -350,16 +350,6 @@ h1 {
   margin: 2px 0 24px;
   cursor: pointer;
   user-select: none;
-}
-
-.arrow {
-  font-size: 15px;
-  display: inline-block;
-  transition: transform 0.2s;
-}
-
-.submit:hover .arrow {
-  transform: translate(2px, -2px);
 }
 
 .providers {

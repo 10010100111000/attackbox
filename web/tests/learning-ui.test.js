@@ -3,8 +3,9 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
-const webDir = path.resolve(import.meta.dirname, '..');
+const webDir = path.resolve(import.meta.dirname || path.dirname(fileURLToPath(import.meta.url)), '..');
 
 test('learning components, layouts, and page templates exist', () => {
   const files = [

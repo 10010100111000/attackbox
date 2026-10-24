@@ -781,88 +781,51 @@ function getModuleTheme(index: number) {
 }
 
 /* Tab 2: 路线列表 */
-.paths-list {
-  display: flex;
-  flex-direction: column;
-  gap: 18px;
+.published-routes {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 20px;
 }
 
-.path-card {
-  max-width: 720px;
+.published-route {
+  position: relative;
+  display: block;
+  padding: 28px;
   background: var(--paper);
   border: 1px solid var(--line);
-  border-radius: 11px;
-  padding: 24px;
-  text-decoration: none;
+  border-radius: 10px;
   color: var(--ink);
-  display: block;
+  text-decoration: none;
   transition: border-color 0.15s ease, transform 0.15s ease;
 }
 
-.path-card:hover {
+.published-route:hover {
   border-color: var(--focus);
   transform: translateY(-2px);
 }
 
-.path-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 8px;
-}
-
-.path-title {
-  font-size: 17px;
-  font-weight: 650;
-  margin: 0;
-  color: var(--ink);
-}
-
-.path-action {
+.published-route span {
+  color: var(--green);
   font-size: 12px;
-  color: var(--muted);
 }
 
-.path-card:hover .path-action {
-  color: var(--ink);
+.published-route > svg {
+  position: absolute;
+  right: 28px;
+  top: 28px;
 }
 
-.path-desc {
+.published-route h2 {
+  overflow-wrap: anywhere;
+  font-size: 22px;
+  margin: 14px 0;
+}
+
+.published-route p {
   font-size: 13px;
+  line-height: 1.7;
   color: var(--muted);
-  margin: 0 0 20px;
-  line-height: 1.6;
-}
-
-.mini-route {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  font-size: 12px;
-  color: var(--muted);
-  margin-bottom: 20px;
-  flex-wrap: wrap;
-}
-
-.route-node {
-  background: var(--soft);
-  padding: 3px 10px;
-  border-radius: 5px;
-  color: var(--ink);
-}
-
-.route-divider {
-  color: var(--muted);
-}
-
-.path-footer {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  border-top: 1px solid var(--line);
-  padding-top: 14px;
-  font-size: 12px;
-  color: var(--muted);
+  margin: 0;
 }
 
 /* 底部标语 */
@@ -905,8 +868,4 @@ function getModuleTheme(index: number) {
     width: 100%;
   }
 }
-</style>
-
-<style scoped>
-.published-routes{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:20px}.published-route{position:relative;display:block;padding:28px;background:var(--paper);border:1px solid var(--line);border-radius:10px;color:var(--ink);text-decoration:none}.published-route span{color:var(--green);font-size:12px}.published-route>svg{position:absolute;right:28px;top:28px}.published-route h2{overflow-wrap:anywhere;font-size:22px;margin:14px 0}.published-route p{font-size:13px;line-height:1.7;color:var(--muted)}
 </style>
