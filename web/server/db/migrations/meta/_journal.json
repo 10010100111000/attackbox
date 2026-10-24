@@ -43,6 +43,13 @@
       "when": 1792821176586,
       "tag": "0005_learning_routes",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1792825750045,
+      "tag": "0006_target_templates",
+      "breakpoints": true
     }
   ]
 }
