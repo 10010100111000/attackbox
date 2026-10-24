@@ -19,10 +19,9 @@ async function connect() {
     ])
     if (disposed || generation !== ownGeneration || !host.value) return
     const url = new URL(response.data.url)
+    // Same loopback rewrite as the CLI: keep the worker port, only swap the host.
     if (typeof window !== 'undefined' && (url.hostname === '127.0.0.1' || url.hostname === 'localhost')) {
       url.hostname = window.location.hostname
-      url.port = window.location.port || (window.location.protocol === 'https:' ? '443' : '80')
-      url.protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
     }
     url.searchParams.set('ticket', response.data.ticket)
     const connection = new Desktop(host.value, url.toString(), { shared: true }); viewer = connection
