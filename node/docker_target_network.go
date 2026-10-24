@@ -201,24 +201,10 @@ func ensureDockerTargetNetwork(ctx context.Context, cfg NetworkConfig) error {
 	}}
 	defer transport.CloseIdleConnections()
 	client := &http.Client{Transport: transport, Timeout: 10 * time.Second}
-	// Do not create a network if the host cannot support our firewall adapter.
-	if _, err := exec.LookPath("iptables"); err != nil {
-		return fmt.Errorf("Docker target networking requires iptables: %w", err)
-	}
-	out, err := runNetworkCommand(ctx, "iptables", "-w", "5", "-S", "FORWARD")
-	if err != nil || !strings.Contains(string(out), "-A FORWARD -j DOCKER-USER") {
-		return fmt.Errorf("Docker iptables DOCKER-USER forwarding hook is required")
-	}
+	// Check Docker's existing forwarding hook once and install the narrowly
+	// scoped exceptions. Do not change host routes or the global FORWARD policy.
 	if err := ensureDockerNetwork(ctx, client, cfg.DockerTargets); err != nil {
 		return err
 	}
 	return ensureTargetForwarding(ctx, cfg, runNetworkCommand)
-}
-
-func renderTargetFirewallRules(table, bridge, wanIF, portList, sandboxSubnet string, t DockerTargetNetworkConfig) string {
-	rules := renderFirewallRules(table, bridge, wanIF, portList)
-	input := fmt.Sprintf("        iifname %q drop\n", t.BridgeName)
-	rules = strings.Replace(rules, "        # Allow container", input+"\n        # Allow container", 1)
-	cross := fmt.Sprintf("        iifname %q oifname %q ip saddr %s ip daddr %s accept\n        iifname %q oifname %q ip saddr %s ip daddr %s accept\n        iifname %q drop\n        oifname %q drop\n", bridge, t.BridgeName, sandboxSubnet, t.SubnetCIDR, t.BridgeName, bridge, t.SubnetCIDR, sandboxSubnet, t.BridgeName, t.BridgeName)
-	return strings.Replace(rules, "        # Preserve sandbox", cross+"\n        # Preserve sandbox", 1)
 }

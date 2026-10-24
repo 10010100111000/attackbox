@@ -43,7 +43,7 @@ func TestTargetNetworkValidation(t *testing.T) {
 
 func TestTargetFirewallDirectionsAndIsolation(t *testing.T) {
 	cfg := targetTestConfig()
-	rules := renderTargetFirewallRules("attackbox", cfg.BridgeName, "eth0", "53, 80, 443", cfg.SubnetCIDR, cfg.DockerTargets)
+	rules := renderFirewallRules("attackbox", cfg.BridgeName, "eth0", "53, 80, 443", cfg)
 	for _, want := range []string{
 		`iifname "br-attackbox" oifname "br-ab-targets" ip saddr 10.200.0.0/16 ip daddr 10.201.0.0/16 accept`,
 		`iifname "br-ab-targets" oifname "br-attackbox" ip saddr 10.201.0.0/16 ip daddr 10.200.0.0/16 accept`,
@@ -222,5 +222,19 @@ func TestDockerNetworkConfigDefaultsAndEnabledValidation(t *testing.T) {
 	cfg, err = LoadNodeConfig("../configs/node.yaml")
 	if err != nil || cfg.Network.DockerTargets.Enabled {
 		t.Fatalf("sample config should preserve disabled default: %v", err)
+	}
+}
+
+func TestTargetInternetBlockPrecedesEstablishedForwarding(t *testing.T) {
+	cfg := targetTestConfig()
+	rules := renderFirewallRules("attackbox", cfg.BridgeName, "eth0", "53, 80, 443", cfg)
+	forward := strings.SplitN(rules, "chain forward {", 2)[1]
+	block := strings.Index(forward, `iifname "br-ab-targets" drop`)
+	established := strings.Index(forward, "ct state established,related accept")
+	if block < 0 || established < 0 || block > established {
+		t.Fatal("pre-existing connections can bypass target egress block")
+	}
+	if strings.Contains(rules, "flush ruleset") || strings.Contains(rules, "policy drop") {
+		t.Fatal("unrelated host forwarding changed")
 	}
 }

@@ -129,7 +129,7 @@ func EnsureHostNetwork(cfg NetworkConfig) error {
 		if err := ensureDockerTargetNetwork(ctx, cfg); err != nil {
 			return err
 		}
-		nftRules = renderTargetFirewallRules(table, bridge, wanIF, portList, cfg.SubnetCIDR, cfg.DockerTargets)
+		nftRules = renderFirewallRules(table, bridge, wanIF, portList, cfg)
 	}
 	// Replace only our own table, atomically, without accumulating duplicate rules.
 	if exec.Command("nft", "list", "table", "inet", table).Run() == nil {
@@ -154,13 +154,30 @@ func firewallTableName(value string) (string, error) {
 	return value, nil
 }
 
-func renderFirewallRules(table, bridge, wanIF, portList string) string {
+// One template owns the Worker firewall; Docker only needs matching exceptions
+// in its existing forwarding hook. No extra bridge or routing layer is created.
+func renderFirewallRules(table, bridge, wanIF, portList string, configs ...NetworkConfig) string {
+	targetInput, targetForward := "", ""
+	if len(configs) > 0 && configs[0].DockerTargets.Enabled {
+		cfg := configs[0]
+		t := cfg.DockerTargets
+		targetInput = fmt.Sprintf("        iifname %q drop\n", t.BridgeName)
+		targetForward = fmt.Sprintf(`        # Existing connected routes carry lab traffic; only unblock forwarding.
+        iifname %q oifname %q ip saddr %s ip daddr %s accept
+        iifname %q oifname %q ip saddr %s ip daddr %s accept
+        # Block target egress even for connections established before this policy.
+        iifname %q drop
+        oifname %q drop
+`, bridge, t.BridgeName, cfg.SubnetCIDR, t.SubnetCIDR, t.BridgeName, bridge, t.SubnetCIDR, cfg.SubnetCIDR, t.BridgeName, t.BridgeName)
+	}
+
 	return fmt.Sprintf(`
 table inet %s {
     chain input {
         type filter hook input priority 0; policy accept;
         ct state established,related accept
 
+%s
         # Allow container to query host gateway DNS (53) and ping (icmp echo-request)
         iifname "%s" udp dport 53 accept
         iifname "%s" tcp dport 53 accept
@@ -172,6 +189,7 @@ table inet %s {
 
     chain forward {
         type filter hook forward priority 0; policy accept;
+%s
         ct state established,related accept
 
         # Preserve sandbox peer isolation.
@@ -192,7 +210,7 @@ table inet %s {
         iifname "%s" oifname "%s" masquerade
     }
 }
-`, table, bridge, bridge, bridge, bridge, bridge, bridge, bridge, wanIF, portList, bridge, wanIF, bridge, bridge, bridge, wanIF)
+`, table, targetInput, bridge, bridge, bridge, bridge, targetForward, bridge, bridge, bridge, wanIF, portList, bridge, wanIF, bridge, bridge, bridge, wanIF)
 }
 
 // VethNameForSandbox generates deterministic, instance-bound veth device names <= 15 chars (Linux IFNAMSIZ).
