@@ -19,6 +19,7 @@ certs/
 *.crt
 
 # Deployment scripts & temp
+deploy/web.env
 deploy_remote.sh
 deploy_stage*.sh
 deploy_patch.sh
