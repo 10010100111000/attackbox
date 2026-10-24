@@ -1,11 +1,10 @@
-﻿package protocol
+package protocol
 
 import "time"
 
 // Network & Gateway Defaults
 const (
 	DefaultDataPort    = 8443
-	DefaultControlPort = 18080
 	DefaultGatewayPort = 18443
 	DefaultMaxSlots    = 250
 	DefaultBridgeName  = "br-attackbox"

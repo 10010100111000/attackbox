@@ -28,7 +28,7 @@ func LoadNodeConfig(path string) (*NodeConfig, error) {
 		Node: NodeInfoConfig{
 			NodeID:               "node-primary",
 			ClusterSecret:        "attackbox_cluster_secret_change_me_in_prod!",
-			ControlURL:           "ws://127.0.0.1:18080/api/agent/connect",
+			ControlURL:           "ws://127.0.0.1:3000/cluster/connect",
 			HeartbeatIntervalSec: 3,
 		},
 		Gateway: GatewayConfig{

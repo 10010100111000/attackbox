@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Canonical single-server deploy: Go worker + Nuxt web.
-# Retired and intentionally NOT built or installed: cmd/control, cmd/attackboxd,
-# control/, backup/.
+# Retired: the old Go control (cmd/control, control/, cmd/attackboxd) and the old
+# Vue SPA (frontend/) are archived under backup/, not built or installed.
 set -euo pipefail
 
 REPO="${REPO:-/home/laji/attackbox}"

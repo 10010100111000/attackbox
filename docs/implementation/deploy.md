@@ -1,6 +1,6 @@
 # 单机部署
 
-状态:唯一部署路径。Go control(`cmd/control`、`cmd/attackboxd`、`control/`、`backup/`)已退役,不再构建或安装。
+状态:唯一部署路径。Go control(`cmd/control`、`control/`、`cmd/attackboxd`)与旧 Vue SPA(`frontend/`)已退役并归档到 `backup/`,不再构建或安装。
 
 ## 拓扑
 
@@ -64,7 +64,10 @@ sudo systemctl start attackbox-web
 
 ## 已退役(不要部署)
 
-- `cmd/control`、`cmd/attackboxd`、`control/`、`backup/`、`frontend/`;
+- 旧 Vue SPA 与旧 Go control 已移入 `backup/`(git 忽略、仅本地归档,不在仓库中):
+  `backup/frontend-current/`(原 `frontend/`)、`backup/control/`、`backup/cmd/control/`、
+  `backup/scripts/apply_db_docs.sh`;
+- `cmd/attackboxd`(旧控制面)只在 `backup/cmd/attackboxd/` 中;
 - `/usr/local/bin/attackboxd*`、`/usr/local/sbin/attackbox-fw`、`/usr/local/sbin/attackbox-net.sh`、`/usr/local/sbin/attackbox-pool`、`/usr/local/bin/attackbox-user`;
 - `attackboxd.service`、`attackbox-fw.service`(后者会重建 `table inet attackbox`,可能清掉 Worker 的防火墙);
 - `/var/www/attackbox` 静态旧前端、`/usr/share/novnc`、`/usr/local/share/attackbox/xterm`。
