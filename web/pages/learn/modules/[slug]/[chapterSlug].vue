@@ -271,8 +271,8 @@ useHead({
             <NuxtLink :to="`/learn/modules/${moduleSlug}`" class="module-return"><ArrowLeft :size="14" aria-hidden="true" />返回模块</NuxtLink>
           </div>
           <div class="toolbar-tools" role="group" aria-label="练习环境">
-            <button type="button" :aria-pressed="practiceVisible && !practiceMinimized && practiceMode === 'cli'" @click="openPractice('cli')"><Terminal :size="15" aria-hidden="true" /><span>CLI</span><span class="tool-word">终端</span></button>
-            <button type="button" :aria-pressed="practiceVisible && !practiceMinimized && practiceMode === 'gui'" @click="openPractice('gui')"><Monitor :size="15" aria-hidden="true" /><span>GUI</span><span class="tool-word">桌面</span></button>
+            <button type="button" :disabled="!readerMounted" :aria-pressed="practiceVisible && !practiceMinimized && practiceMode === 'cli'" @click="openPractice('cli')"><Terminal :size="15" aria-hidden="true" /><span>CLI</span><span class="tool-word">终端</span></button>
+            <button type="button" :disabled="!readerMounted" :aria-pressed="practiceVisible && !practiceMinimized && practiceMode === 'gui'" @click="openPractice('gui')"><Monitor :size="15" aria-hidden="true" /><span>GUI</span><span class="tool-word">桌面</span></button>
           </div>
         </div>
         <div ref="scrollElement" class="reading-scroll" :inert="practiceVisible && !practiceMinimized && practiceExpanded" tabindex="0" aria-label="章节正文">

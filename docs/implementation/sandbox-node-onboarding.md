@@ -44,6 +44,8 @@ Worker 的 `control_url` 指向 `wss://platform.example.com/cluster/connect`。�
 
 部署要求单个常驻 Node/Nitro 进程。不要开启多进程轮询、水平副本或 Serverless；节点连接和 API 必须使用同一份控制状态。水平扩展需要后续独立控制服务或共享消息层。
 
+Worker 的 `network.firewall_table` 可配置独立 nftables 表名（默认 `attackbox`，最多 32 位字母、数字及下划线，首位为字母）。同机验收使用专用表和网桥；规则只约束对应网桥，不改变其他宿主转发的默认策略。真实单机验证见 [2026-10-24 验收记录](single-server-acceptance-2026-10-24.md)。
+
 ## 生命周期与恢复
 
 运行记录保持瞬态，存于当前控制进程内；数据库只保存用户身份映射。本项目沿用原有 Control 重启不保留实例的策略，不持久化 PID、槽位历史或运行快照。

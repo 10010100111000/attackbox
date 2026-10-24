@@ -40,6 +40,12 @@ export default defineEventHandler(async (event) => {
 
   // 单事务消费凭证并激活账号
   await db.transaction(async (tx) => {
+    const [user] = await tx.select().from(users).where(eq(users.id, tokenRecord.userId)).for('update');
+    if (!user || user.status !== 'pending' || user.email !== tokenRecord.targetEmail) {
+      throw createError({ statusCode: 403, statusMessage: '账号当前无法激活，请联系管理员' });
+    }
+    const [valid] = await tx.select().from(emailTokens).where(and(eq(emailTokens.id, tokenRecord.id), isNull(emailTokens.consumedAt), gt(emailTokens.expiresAt, new Date()))).for('update');
+    if (!valid) throw createError({ statusCode: 400, statusMessage: '无效或已过期的激活凭证' });
     await tx
       .update(users)
       .set({

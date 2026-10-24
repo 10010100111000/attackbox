@@ -1,0 +1,16 @@
+<script setup lang="ts">
+import {ArrowLeft,BookOpen,Clock3,CheckCircle2,ArrowRight} from 'lucide-vue-next'
+import type {LearningRoute} from '~/shared/routes'
+import {useAuth} from '~/composables/useAuth'
+definePageMeta({layout:'learning',key:route=>route.fullPath})
+const {currentUser}=useAuth(),learner=computed(()=>currentUser.value?.id||'')
+const routeId=String(useRoute().params.id)
+const {data,error}=await useFetch<{data:LearningRoute}>(`/api/routes/${routeId}`,{key:`learning:route:${routeId}`,watch:[learner]})
+const route=computed(()=>data.value?.data)
+const next=computed(()=>route.value?.modules?.find(m=>m.completedChapters<m.chapterCount)||route.value?.modules?.[0])
+useHead(()=>({title:route.value?`${route.value.title} — AttackBox`:'学习路线 — AttackBox',meta:[{name:'description',content:route.value?.summary||'按推荐顺序学习相关模块。'}]}))
+</script>
+<template><main class="route-page"><NuxtLink to="/learn?tab=routes" class="back"><ArrowLeft :size="14"/>学习路线</NuxtLink><p v-if="error" role="alert">路线不存在或暂不可用。</p><template v-else-if="route"><header><div class="eyebrow">学习路线</div><h1>{{route.title}}</h1><p>{{route.summary}}</p><div class="meta"><span><BookOpen :size="15"/>{{route.moduleCount}} 个模块 · {{route.chapterCount}} 章</span><span v-if="route.durationMinutes"><Clock3 :size="15"/>已配置时长 {{route.durationMinutes}} 分钟</span><span v-if="currentUser">已完成 {{route.completedChapters}} / {{route.chapterCount}} 章</span></div><NuxtLink v-if="next" :to="`/learn/modules/${next.slug}`" class="cta">{{route.chapterCount>0&&route.completedChapters===route.chapterCount?'回顾路线':route.completedChapters?'继续学习':'开始学习'}}<ArrowRight :size="16"/></NuxtLink></header><section aria-label="路线模块"><NuxtLink v-for="(item,index) in route.modules" :key="item.id" :to="`/learn/modules/${item.slug}`" class="route-module"><span class="number"><CheckCircle2 v-if="currentUser&&item.chapterCount>0&&item.completedChapters===item.chapterCount" :size="22"/><template v-else>{{String(index+1).padStart(2,'0')}}</template></span><div><h2>{{item.title}}</h2><p>{{item.summary}}</p><small>{{item.chapterCount}} 章<span v-if="currentUser"> · 已完成 {{item.completedChapters}} 章</span></small></div><ArrowRight :size="18"/></NuxtLink></section></template></main></template>
+<style scoped>
+.route-page{max-width:1000px;margin:0 auto;padding:42px 28px 80px;color:var(--ink)}a{text-decoration:none;color:inherit}.back{display:inline-flex;gap:7px;font-size:12px;align-items:center;color:var(--muted)}header{padding:44px 0 36px}.eyebrow{font-size:12px;color:var(--green);margin-bottom:12px}h1{font-size:36px;margin:0 0 18px}header p{max-width:700px;font-size:15px;line-height:1.8;color:var(--muted)}.meta{display:flex;flex-wrap:wrap;gap:24px;color:var(--muted);font-size:12px;margin:24px 0}.meta span,.cta{display:inline-flex;gap:8px;align-items:center}.cta{background:var(--ink);color:var(--paper);border-radius:6px;padding:12px 20px;font-size:13px}.route-module{display:flex;align-items:center;gap:24px;border-top:1px solid var(--line);padding:28px 4px}.route-module>div{flex:1}.number{width:42px;color:var(--green);font:22px ui-monospace,monospace}h2{font-size:19px;margin:0 0 10px}.route-module p{font-size:13px;line-height:1.7;color:var(--muted);margin:0 0 10px}small{color:var(--muted);font-size:12px}
+</style>

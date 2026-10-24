@@ -137,7 +137,11 @@ export async function lifecycle(id: string, actor: string, action: 'publish' | '
   return db.transaction(async tx => {
     await tx.execute(sql`select pg_advisory_xact_lock(72486211)`)
     const mod = await lockModule(tx, id, input)
-    if (action === 'delete') await tx.delete(modules).where(eq(modules.id, id))
+    if (action === 'delete') {
+      const refs = await tx.execute(sql`select 1 from learning_route_modules where module_id=${id} limit 1`)
+      if (refs.length) fail('请先从学习路线中移除此模块，再删除模块',409)
+      await tx.delete(modules).where(eq(modules.id, id))
+    }
     else {
       if (action === 'publish') await validatePublication(tx, id)
       await tx.update(modules).set({ status: action === 'publish' ? 'published' : 'unpublished',

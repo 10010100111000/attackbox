@@ -7,7 +7,7 @@ printf 'Kernel: '; uname -r
 printf 'Machine: '; uname -m
 printf '\nRuntime tools\n'
 for tool in node npm go btrfs ip nft nsenter sudo; do
-  if command -v "$tool" >/dev/null 2>&1; then printf '%s: available\n' "$tool"; else printf '%s: missing\n' "$tool"; fi
+  if command -v "$tool" >/dev/null 2>&1; then printf '%s: available\n' "$tool"; elif sudo -n sh -c 'command -v "$1" >/dev/null 2>&1' sh "$tool" 2>/dev/null; then printf '%s: available (sudo PATH)\n' "$tool"; else printf '%s: missing\n' "$tool"; fi
 done
 printf '\nNon-interactive sudo\n'
 if sudo -n true 2>/dev/null; then printf 'available\n'; else printf 'unavailable\n'; fi

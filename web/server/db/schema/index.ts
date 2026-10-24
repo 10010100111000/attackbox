@@ -7,3 +7,4 @@ export * from './content';
 export * from './categories';
 export * from './learning';
 export * from './sandbox';
+export * from './routes';

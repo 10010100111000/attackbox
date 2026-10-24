@@ -1,4 +1,4 @@
-﻿package node
+package node
 
 import (
 	"bytes"
@@ -8,16 +8,18 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"regexp"
 	"strconv"
 	"strings"
 )
 
 // NetworkConfig holds network virtualization settings for sandboxes.
 type NetworkConfig struct {
-	BridgeName string `yaml:"bridge_name"`
-	GatewayIP  string `yaml:"gateway_ip"`
-	SubnetCIDR string `yaml:"subnet_cidr"`
-	Interface  string `yaml:"egress_interface"`
+	FirewallTable string `yaml:"firewall_table"`
+	BridgeName    string `yaml:"bridge_name"`
+	GatewayIP     string `yaml:"gateway_ip"`
+	SubnetCIDR    string `yaml:"subnet_cidr"`
+	Interface     string `yaml:"egress_interface"`
 }
 
 // SandboxNetwork represents the network configuration of a single running sandbox.
@@ -31,6 +33,10 @@ type SandboxNetwork struct {
 
 // EnsureHostNetwork initializes the host bridge, IPv4 forwarding, NAT, and nftables containment baseline.
 func EnsureHostNetwork(cfg NetworkConfig) error {
+	table, err := firewallTableName(cfg.FirewallTable)
+	if err != nil {
+		return err
+	}
 	bridge := cfg.BridgeName
 	if bridge == "" {
 		bridge = "br-attackbox"
@@ -72,8 +78,29 @@ func EnsureHostNetwork(cfg NetworkConfig) error {
 	// - input chain: Blocks sandboxes from accessing host control/SSH ports (allows only DNS and ping to gateway)
 	// - forward chain: Enforces strict inter-sandbox isolation and whitelisted internet egress
 	// - postrouting chain: Masquerades authorized egress to the external network
-	nftRules := fmt.Sprintf(`
-table inet attackbox {
+	nftRules := renderFirewallRules(table, bridge, wanIF, portList)
+
+	cmd := exec.Command("nft", "-f", "-")
+	cmd.Stdin = bytes.NewReader([]byte(nftRules))
+	if out, err := cmd.CombinedOutput(); err != nil {
+		return fmt.Errorf("apply nftables baseline: %s (%w)", strings.TrimSpace(string(out)), err)
+	}
+	return nil
+}
+
+func firewallTableName(value string) (string, error) {
+	if value == "" {
+		return "attackbox", nil
+	}
+	if !regexp.MustCompile(`^[A-Za-z][A-Za-z0-9_]{0,31}$`).MatchString(value) {
+		return "", fmt.Errorf("invalid firewall table name")
+	}
+	return value, nil
+}
+
+func renderFirewallRules(table, bridge, wanIF, portList string) string {
+	return fmt.Sprintf(`
+table inet %s {
     chain input {
         type filter hook input priority 0; policy accept;
         ct state established,related accept
@@ -88,7 +115,7 @@ table inet attackbox {
     }
 
     chain forward {
-        type filter hook forward priority 0; policy drop;
+        type filter hook forward priority 0; policy accept;
         ct state established,related accept
 
         # Inter-sandbox isolation: reject any traffic between sandboxes
@@ -97,6 +124,10 @@ table inet attackbox {
         # Controlled Internet Egress: Allow sandbox to reach WAN only on whitelisted ports
         iifname "%s" oifname "%s" tcp dport { %s } accept
         iifname "%s" oifname "%s" udp dport { 53 } accept
+
+        # Contain this bridge without changing unrelated host forwarding.
+        iifname "%s" drop
+        oifname "%s" drop
     }
 
     chain postrouting {
@@ -105,15 +136,7 @@ table inet attackbox {
         iifname "%s" oifname "%s" masquerade
     }
 }
-`, bridge, bridge, bridge, bridge, bridge, bridge, bridge, wanIF, portList, bridge, wanIF, bridge, wanIF)
-
-	cmd := exec.Command("nft", "-f", "-")
-	cmd.Stdin = bytes.NewReader([]byte(nftRules))
-	if out, err := cmd.CombinedOutput(); err != nil {
-		return fmt.Errorf("apply nftables baseline: %s (%w)", strings.TrimSpace(string(out)), err)
-	}
-
-	return nil
+`, table, bridge, bridge, bridge, bridge, bridge, bridge, bridge, wanIF, portList, bridge, wanIF, bridge, bridge, bridge, wanIF)
 }
 
 // VethNameForSandbox generates deterministic, instance-bound veth device names <= 15 chars (Linux IFNAMSIZ).

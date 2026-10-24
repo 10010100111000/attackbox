@@ -4,7 +4,7 @@ import { verify, createPublicKey } from 'node:crypto'
 import { once } from 'node:events'
 import WebSocket, { WebSocketServer } from 'ws'
 import { testDesktop } from './rfb-desktop.mjs'
-export async function sandboxWorker(base, secret) {
+export async function sandboxWorker(base, secret, options = {}) {
   if (!['127.0.0.1', 'localhost'].includes(new URL(base).hostname)) throw new Error('Local test service required')
   const requests = [], tickets = [], terminals = [], desktops = [], desktopInputs = [], commands = [], boxes = new Map(), consumed = new Set()
   let key, publicKey, seq = 0, revision = 0
@@ -51,7 +51,11 @@ export async function sandboxWorker(base, secret) {
       requests.push(msg); boxes.set(msg.payload.sandbox_id, msg.payload); revision++
       send('create_box_resp', { success: true, boot_id: boot, sandbox_id: msg.payload.sandbox_id, inventory_revision: revision, expires_at: Math.floor(Date.now() / 1000) + msg.payload.ttl_seconds, sandbox_ip: `10.200.0.${msg.payload.slot_index + 1}` }, msg.id); heartbeat()
     } else if (msg.type === 'destroy_box') {
-      requests.push(msg); boxes.delete(msg.payload.sandbox_id); revision++
+      requests.push(msg)
+      if (options.failDestroy?.()) {
+        send('destroy_box_resp', { success: false, boot_id: boot, sandbox_id: msg.payload.sandbox_id, error: 'Fixture cleanup failure' }, msg.id); return
+      }
+      boxes.delete(msg.payload.sandbox_id); revision++
       for (const socket of [...terminals, ...desktops]) if (socket.box === msg.payload.sandbox_id) socket.close(1000, 'Sandbox released')
       send('destroy_box_resp', { success: true, boot_id: boot, sandbox_id: msg.payload.sandbox_id }, msg.id); heartbeat()
     }

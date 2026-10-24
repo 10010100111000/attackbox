@@ -67,19 +67,18 @@ export default defineEventHandler(async (event) => {
     now.getTime() + (rememberMe ? 30 * 24 * 60 * 60 * 1000 : 24 * 60 * 60 * 1000)
   );
 
-  await db.insert(authSessions).values({
-    userId: user.id,
-    tokenHash,
-    expiresAt,
-    ip: getEventIp(event),
-    userAgent: getRequestHeader(event, 'user-agent')?.slice(0, 512),
+  await db.transaction(async tx => {
+    // Password verification is asynchronous: lock and recheck before issuing a session.
+    const [current] = await tx.select().from(users).where(eq(users.id, user.id)).for('update');
+    if (!current || current.status !== 'active' || current.passwordHash !== user.passwordHash) {
+      throw createError({ statusCode: 403, statusMessage: '账号状态已变化，请重新登录' });
+    }
+    await tx.insert(authSessions).values({
+      userId: user.id, tokenHash, expiresAt, ip: getEventIp(event),
+      userAgent: getRequestHeader(event, 'user-agent')?.slice(0, 512),
+    });
+    await tx.update(users).set({ lastLoginAt: now }).where(eq(users.id, user.id));
   });
-
-  // 更新最后登录时间
-  await db
-    .update(users)
-    .set({ lastLoginAt: now })
-    .where(eq(users.id, user.id));
 
   // 写入 HttpOnly Cookie
   setSessionCookie(event, rawSessionToken, rememberMe);

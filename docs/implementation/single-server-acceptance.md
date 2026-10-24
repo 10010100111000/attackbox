@@ -1,21 +1,23 @@
 # 单机部署与真实沙箱验收
 
-目标服务器：`laji@77.67.1.106`。更新日期：2026-10-24。
+目标服务器：`laji@100.69.228.63`（Tailscale；公网地址 `77.67.1.106`）。更新日期：2026-10-24。
 
 ## 当前状态
 
 CLI、noVNC GUI、节点设置与运行实例管理已完成本地前后端协议联调。测试桌面通过真实 noVNC 客户端解码 RFB 画面并发送键鼠事件；服务端按现有 Go 协议处理生命周期和 Ticket。
 
-真实服务器验收尚未执行：当前云环境配置的 TCP CONNECT 代理拒绝连接，未能建立 SSH；环境中也没有可用 SSH agent。远端服务、数据库、Worker 和防火墙均未修改。公开 `/api/sandbox/status` 返回 404，不能据此认定新版已部署。
+2026-10-24 已通过 Tailscale SSH 建立连接，并完成独立 Nuxt、测试数据库和真实 Go Worker 的单机验收。CLI、多终端、MATE/noVNC 键鼠、同实例文件共享、控制与桌面重连、重启恢复、资源限制、TTL/Idle、Ticket 及主动释放均已验证。详细证据和复现入口见 [本次验收记录](single-server-acceptance-2026-10-24.md)。
 
-SSH 网络和凭据应通过执行环境配置提供，不写入仓库或聊天。访问恢复后按以下流程执行。
+没有切换公开站点或移除旧 Go Control。下文保留后续重现与正式部署前的检查流程；不要直接使用已有线上 Worker 运行验收。
+
+SSH 网络和凭据通过执行环境配置提供，不写入仓库。Tailscale SSH 的 check 检查需操作者完成浏览器认证；云执行器使用平台授权的 CONNECT 转发，不直接连接 VPN IP。
 
 ## 1. 只读预检
 
 在仓库根目录运行：
 
 ```bash
-ssh laji@77.67.1.106 'bash -s' < scripts/remote_sandbox_preflight.sh
+ssh laji@100.69.228.63 'bash -s' < scripts/remote_sandbox_preflight.sh
 ```
 
 脚本检查当前用户、非交互 sudo、内核、工具、Btrfs、Cgroup、服务和监听端口，不读取密钥、数据库连接串或服务 Environment，不安装软件或改变服务。
@@ -35,7 +37,7 @@ ssh laji@77.67.1.106 'bash -s' < scripts/remote_sandbox_preflight.sh
 从验收客户端建立 SSH 转发：
 
 ```bash
-ssh -N -L 3031:127.0.0.1:3031 -L 18443:127.0.0.1:18443 laji@77.67.1.106
+ssh -N -L 3031:127.0.0.1:3031 -L 18443:127.0.0.1:18443 laji@100.69.228.63
 ```
 
 浏览器访问 `http://127.0.0.1:3031`。这是 localhost 联调配置；公网正式访问按 [沙箱接入说明](sandbox-node-onboarding.md) 使用 HTTPS/WSS 和实际站点 Origin。

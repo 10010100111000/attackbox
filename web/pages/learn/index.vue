@@ -30,6 +30,7 @@ interface ModuleItem {
   chapterCount: number
 }
 
+const { data: routeResponse } = await useFetch<{data:{id:string;title:string;summary:string;moduleCount:number}[]}>('/api/routes')
 const { currentUser } = useAuth()
 const learnerId = computed(() => currentUser.value?.id || '')
 const { data: historyResponse } = await useFetch<{ data: LearningHistoryItem[] }>('/api/me/learning', { key: 'learning:history', watch: [learnerId], immediate: !!learnerId.value })
@@ -86,7 +87,7 @@ onUnmounted(() => {
   if (carouselTimer) clearInterval(carouselTimer)
 })
 
-const activeTab = ref<'modules' | 'paths'>('modules')
+const activeTab = ref<'modules' | 'paths'>(useRoute().query.tab === 'routes' ? 'paths' : 'modules')
 const selectedCategory = ref('全部模块')
 const searchQuery = ref('')
 
@@ -348,7 +349,7 @@ function getModuleTheme(index: number) {
 
       <!-- Tab 2: 学习路线 -->
       <div v-else class="tab-content">
-        <div class="empty-notice"><BookOpen :size="24" aria-hidden="true" /><p>学习路线尚未开放，可先选择学习模块。</p><button type="button" class="btn secondary" @click="activeTab = 'modules'">浏览模块</button></div>
+        <div v-if="routeResponse?.data.length" class="published-routes"><NuxtLink v-for="item in routeResponse.data" :key="item.id" :to="`/learn/routes/${item.id}`" class="published-route"><span>{{item.moduleCount}} 个模块</span><h2>{{item.title}}</h2><p>{{item.summary}}</p><ArrowRight :size="18" aria-hidden="true" /></NuxtLink></div><div v-else class="empty-notice"><BookOpen :size="24" aria-hidden="true"/><p>暂时没有已发布的路线。</p></div>
       </div>
 
       <!-- 底部理念标语 (与原型一致) -->
@@ -904,4 +905,8 @@ function getModuleTheme(index: number) {
     width: 100%;
   }
 }
+</style>
+
+<style scoped>
+.published-routes{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:20px}.published-route{position:relative;display:block;padding:28px;background:var(--paper);border:1px solid var(--line);border-radius:10px;color:var(--ink);text-decoration:none}.published-route span{color:var(--green);font-size:12px}.published-route>svg{position:absolute;right:28px;top:28px}.published-route h2{overflow-wrap:anywhere;font-size:22px;margin:14px 0}.published-route p{font-size:13px;line-height:1.7;color:var(--muted)}
 </style>

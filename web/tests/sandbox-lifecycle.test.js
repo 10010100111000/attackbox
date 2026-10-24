@@ -158,3 +158,16 @@ test('lowering concurrency prevents new allocations even when existing slots are
   f.hub.applySettings('test-node', { ...settings, maxSlots: 1, lockVersion: 2 })
   await assert.rejects(f.controller.start('eve', 4), { statusCode: 503 })
 })
+test('suspension blocks in-flight account starts and both ticket types until restored', async () => {
+  const f = fixture(), instance = await f.started('alice', 10)
+  f.controller.setUserBlocked('alice', true)
+  await assert.rejects(f.controller.start('alice', 10), { statusCode: 403 })
+  assert.throws(() => f.controller.ticket('alice', instance.id), { statusCode: 403 })
+  assert.throws(() => f.controller.ticket('alice', instance.id, 'gui'), { statusCode: 403 })
+  const release = f.controller.stopAdmin(instance.id)
+  f.respond(f.requests('destroy_box').at(-1)); await release
+  assert.equal(f.controller.status('alice').instance, null)
+  f.controller.setUserBlocked('alice', false)
+  assert.equal((await f.started('alice', 10)).state, 'running')
+  f.hub.shutdown()
+})

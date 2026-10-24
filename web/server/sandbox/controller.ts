@@ -8,6 +8,11 @@ export class SandboxError extends Error {
 }
 interface InstanceRecord extends Omit<SandboxInstance, 'connected'> { userId: string; workerUserId: number; bootId: string; confirmedRevision: number | null }
 export class SandboxController {
+  private blockedUsers = new Set<string>()
+  setUserBlocked(userId: string, blocked: boolean) {
+    if (blocked) this.blockedUsers.add(userId)
+    else this.blockedUsers.delete(userId)
+  }
   private instances = new Map<string, InstanceRecord>()
   private byUser = new Map<string, string>()
   private stopping = new Map<string, Promise<void>>()
@@ -47,6 +52,7 @@ export class SandboxController {
     return node.telemetry.availableMemoryMb - reservedMemory >= node.settings.memoryMb + 256
   }
   async start(userId: string, workerUserId: number): Promise<SandboxInstance> {
+    if (this.blockedUsers.has(userId)) throw new SandboxError(403, '账号已停用')
     if (!this.enabled()) throw new SandboxError(503, '练习环境尚未开放')
     if (!Number.isSafeInteger(workerUserId) || workerUserId <= 0) throw new SandboxError(500, '沙箱身份无效')
     const previous = this.instances.get(this.byUser.get(userId) || '')
@@ -145,6 +151,7 @@ export class SandboxController {
     for (const id of alive.keys()) this.cleanUnknown(node.id, node.bootId!, id)
   }
   ticket(userId: string, id: string, stream: 'cli' | 'gui' = 'cli'): SandboxTicket {
+    if (this.blockedUsers.has(userId)) throw new SandboxError(403, '账号已停用')
     const record = this.instances.get(id)
     if (!this.enabled() || !record || record.userId !== userId) throw new SandboxError(404, '实例不存在或已回收')
     const view = this.view(record)

@@ -83,11 +83,7 @@ async function handleLogout() {
             <BookOpen :size="16" class="nav-icon" aria-hidden="true" />
             <span>学习模块</span>
           </NuxtLink>
-          <span class="admin-nav-link disabled" title="后续阶段接入">
-            <Route :size="16" class="nav-icon" aria-hidden="true" />
-            <span>学习路线</span>
-            <span class="badge-plan">计划</span>
-          </span>
+          <NuxtLink to="/admin/routes" class="admin-nav-link" :class="{active:currentSection === 'routes'}"><Route :size="16" aria-hidden="true" /><span>学习路线</span></NuxtLink>
           <span class="admin-nav-link disabled" title="后续阶段接入">
             <LayoutTemplate :size="16" class="nav-icon" aria-hidden="true" />
             <span>首页管理</span>
@@ -95,11 +91,10 @@ async function handleLogout() {
           </span>
 
           <div class="nav-group-label">账户管理</div>
-          <span class="admin-nav-link disabled" title="后续阶段接入">
+          <NuxtLink to="/admin/users" class="admin-nav-link" :class="{ active: currentSection === 'users' }">
             <Users :size="16" class="nav-icon" aria-hidden="true" />
             <span>用户管理</span>
-            <span class="badge-plan">计划</span>
-          </span>
+          </NuxtLink>
 
           <div class="nav-group-label">环境管理</div>
           <NuxtLink to="/admin/nodes" class="admin-nav-link" :class="{ active: currentSection === 'nodes' }">
@@ -134,9 +129,9 @@ async function handleLogout() {
       <div class="admin-main-wrap">
         <header class="admin-topbar">
           <div class="topbar-crumb">
-            <NuxtLink :to="currentSection === 'nodes' || currentSection === 'instances' ? '/admin/nodes' : '/admin/modules'">{{ currentSection === 'nodes' || currentSection === 'instances' ? '环境管理' : '内容管理' }}</NuxtLink>
+            <NuxtLink :to="currentSection === 'users' ? '/admin/users' : currentSection === 'nodes' || currentSection === 'instances' ? '/admin/nodes' : '/admin/modules'">{{ currentSection === 'users' ? '账户管理' : currentSection === 'nodes' || currentSection === 'instances' ? '环境管理' : '内容管理' }}</NuxtLink>
             <span>/</span>
-            <span class="crumb-active">{{ currentSection === 'nodes' ? '节点管理' : currentSection === 'instances' ? '运行实例' : '学习模块' }}</span>
+            <span class="crumb-active">{{ currentSection === 'routes' ? '学习路线' : currentSection === 'users' ? '用户管理' : currentSection === 'nodes' ? '节点管理' : currentSection === 'instances' ? '运行实例' : '学习模块' }}</span>
           </div>
 
           <div class="topbar-right">
