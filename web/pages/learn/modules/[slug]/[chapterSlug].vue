@@ -132,6 +132,11 @@ onBeforeUnmount(() => window.removeEventListener('resize', updateViewport))
 const userAnswers = ref<Record<string, string>>({})
 const answerFeedbacks = ref<Record<string, { status: 'checking' | 'success' | 'error'; message: string }>>({})
 const savedProgress = ref<ChapterProgress>({ completedAt: null, passedQuestionIds: [], isSaved: false })
+const celebrationOpen = ref(false)
+const moduleCompleted = computed(() => !!moduleData.value?.chapters.length && moduleData.value.chapters.every(c => !!c.completedAt))
+function celebrateCompletion(wasCompleted: boolean, generation: number) {
+  if (generation === chapterGeneration && !wasCompleted && moduleCompleted.value) celebrationOpen.value = true
+}
 const completing = ref(false), progressNotice = ref(''), completionError = ref(''), readerMounted = ref(false)
 function applySavedProgress(progress: ChapterProgress) {
   // Success records are monotonic: a slower earlier answer must not undo completion.
@@ -144,7 +149,7 @@ watch(() => chapterResponse.value?.data, data => {
   if (data?.chapter.slug === chapterSlug.value) savedProgress.value = data.progress
 }, { immediate: true })
 watch([moduleSlug, chapterSlug, learnerId], async () => {
-  chapterGeneration++; completing.value = false; userAnswers.value = {}; answerFeedbacks.value = {}; mobileOutlineOpen.value = false
+  chapterGeneration++; celebrationOpen.value = false; completing.value = false; userAnswers.value = {}; answerFeedbacks.value = {}; mobileOutlineOpen.value = false
   savedProgress.value = { completedAt: null, passedQuestionIds: [], isSaved: false }; progressNotice.value = ''; completionError.value = ''; lastVisitKey = ''
   await nextTick(); scrollElement.value?.scrollTo({ top: 0 })
 })
@@ -164,12 +169,14 @@ watch([() => chapterResponse.value?.data.chapter.id, learnerId], recordVisit, { 
 async function completeChapter() {
   if (completing.value) return
   const generation = chapterGeneration
+  const wasModuleCompleted = moduleCompleted.value
   completing.value = true; completionError.value = ''
   try {
     const result = await $fetch<{ data: { progress: ChapterProgress } }>(`/api/modules/${moduleSlug.value}/chapters/${chapterSlug.value}/complete`, { method: 'POST' })
     if (generation !== chapterGeneration) return
     applySavedProgress(result.data.progress)
     await refreshModule()
+    celebrateCompletion(wasModuleCompleted, generation)
   } catch (error: any) { if (generation === chapterGeneration) completionError.value = error?.data?.message || '保存失败，请重试。' }
   finally { if (generation === chapterGeneration) completing.value = false }
 }
@@ -178,12 +185,6 @@ const chapterIndex = computed(() => {
   if (!moduleData.value || !chapterData.value) return 0
   const idx = moduleData.value.chapters.findIndex(c => c.slug === chapterSlug.value)
   return idx >= 0 ? idx : 0
-})
-
-const prevChapter = computed(() => {
-  if (!moduleData.value) return null
-  const idx = chapterIndex.value
-  return idx > 0 ? moduleData.value.chapters[idx - 1] : null
 })
 
 const nextChapter = computed(() => {
@@ -200,6 +201,7 @@ function renderPrompt(markdown: string): string {
 async function handleCheckAnswer(q: QuestionItem) {
   if (savedProgress.value.completedAt || answerFeedbacks.value[q.id]?.status === 'checking') return
   const generation = chapterGeneration
+  const wasModuleCompleted = moduleCompleted.value
   const input = userAnswers.value[q.id] || ''
   if (!input.length) {
     answerFeedbacks.value[q.id] = {
@@ -224,7 +226,7 @@ async function handleCheckAnswer(q: QuestionItem) {
           status: 'error',
           message: result.errorHint || '答案不正确，请再试一次。'
         }
-    if (learnerId.value) await refreshModule()
+    if (learnerId.value) { await refreshModule(); celebrateCompletion(wasModuleCompleted, generation) }
   } catch (error: any) {
     if (generation !== chapterGeneration) return
     answerFeedbacks.value[q.id] = {
@@ -276,8 +278,8 @@ useHead({
           </div>
           <div class="toolbar-tools" role="group" aria-label="练习环境">
             <LearningEnvironmentStatus />
-            <button v-if="environmentReady" type="button" :disabled="!readerMounted" :aria-pressed="practiceVisible && !practiceMinimized && practiceMode === 'cli'" @click="openPractice('cli')"><Terminal :size="15" aria-hidden="true" /><span>CLI</span><span class="tool-word">终端</span></button>
-            <button v-if="environmentReady" type="button" :disabled="!readerMounted" :aria-pressed="practiceVisible && !practiceMinimized && practiceMode === 'gui'" @click="openPractice('gui')"><Monitor :size="15" aria-hidden="true" /><span>GUI</span><span class="tool-word">桌面</span></button>
+            <button v-if="environmentReady" class="tool-launch" type="button" :disabled="!readerMounted" :aria-pressed="practiceVisible && !practiceMinimized && practiceMode === 'cli'" @click="openPractice('cli')"><Terminal :size="15" aria-hidden="true" /><span>CLI</span><span class="tool-word">终端</span></button>
+            <button v-if="environmentReady" class="tool-launch" type="button" :disabled="!readerMounted" :aria-pressed="practiceVisible && !practiceMinimized && practiceMode === 'gui'" @click="openPractice('gui')"><Monitor :size="15" aria-hidden="true" /><span>GUI</span><span class="tool-word">桌面</span></button>
           </div>
         </div>
         <div ref="scrollElement" class="reading-scroll" tabindex="0" aria-label="章节正文">
@@ -299,18 +301,22 @@ useHead({
               </form>
             </section>
 
-            <div v-if="!chapterData.questions.length" class="chapter-completion">
-              <span v-if="savedProgress.completedAt" class="completion-saved"><CheckCircle2 :size="16" aria-hidden="true" />本章已完成</span>
-              <button v-else-if="learnerId" type="button" class="complete-chapter-btn" :disabled="completing" @click="completeChapter">{{ completing ? '正在保存…' : '完成本章' }}</button>
-              <NuxtLink v-else :to="'/auth?returnTo=' + encodeURIComponent(route.fullPath)" class="completion-login">登录后保存学习进度</NuxtLink>
-            </div>
-            <p v-else-if="!learnerId && allAnswersCorrect" class="guest-progress">本次练习已通过。<NuxtLink :to="'/auth?returnTo=' + encodeURIComponent(route.fullPath)">登录后可保存学习进度</NuxtLink></p>
-            <p v-if="completionError" class="progress-notice" role="alert">{{ completionError }} <button type="button" @click="completeChapter">重试保存</button></p>
+            <p v-if="completionError" class="progress-notice" role="alert">{{ completionError }}</p>
             <p v-if="progressNotice" class="progress-notice" role="alert">{{ progressNotice }} <button type="button" @click="recordVisit">重试记录</button></p>
-            <nav class="next-row" aria-label="章节翻页">
-              <NuxtLink v-if="prevChapter && prevChapter.lockReason !== 'prerequisite'" :to="prevChapter.lockReason === 'login' ? `/auth?returnTo=${encodeURIComponent(`/learn/modules/${moduleSlug}/${prevChapter.slug}`)}` : `/learn/modules/${moduleSlug}/${prevChapter.slug}`" class="btn-nav prev-btn"><ArrowLeft :size="15" aria-hidden="true" /><span>上一章<span class="nav-title">{{ prevChapter.title }}</span></span></NuxtLink><span v-else />
-              <button v-if="nextChapter?.lockReason === 'prerequisite'" type="button" class="btn-nav next-locked" disabled>完成前面的章节后继续</button><NuxtLink v-else-if="nextChapter" :to="nextChapter.lockReason === 'login' ? `/auth?returnTo=${encodeURIComponent(`/learn/modules/${moduleSlug}/${nextChapter.slug}`)}` : `/learn/modules/${moduleSlug}/${nextChapter.slug}`" class="btn-nav next-btn"><span>{{ nextChapter.lockReason === 'login' ? '登录后继续' : '下一章' }}<span class="nav-title">{{ nextChapter.title }}</span></span><LockKeyhole v-if="nextChapter.isLocked" :size="15" aria-hidden="true" /><ArrowRight v-else :size="15" aria-hidden="true" /></NuxtLink><span v-else class="last-chapter">本模块最后一章</span>
-            </nav>
+            <footer class="chapter-action-row" aria-label="章节进度">
+              <template v-if="!savedProgress.completedAt">
+                <NuxtLink v-if="!learnerId" :to="'/auth?returnTo=' + encodeURIComponent(route.fullPath)" class="chapter-primary">{{ allAnswersCorrect ? '练习已通过 · 登录后保存进度' : '登录后保存进度' }}</NuxtLink>
+                <template v-else>
+                  <span v-if="chapterData.questions.length && !allAnswersCorrect" class="completion-hint">通过全部练习后完成本章</span>
+                  <button type="button" class="chapter-primary" :disabled="completing || (!!chapterData.questions.length && !allAnswersCorrect)" @click="completeChapter"><LoaderCircle v-if="completing" :size="16" class="spinning" aria-hidden="true"/><CheckCircle2 v-else :size="16" aria-hidden="true"/>{{ completing ? '正在保存…' : '完成本章' }}</button>
+                </template>
+              </template>
+              <template v-else>
+                <span class="completion-saved"><CheckCircle2 :size="16" aria-hidden="true"/>已完成</span>
+                <NuxtLink v-if="nextChapter && !nextChapter.isLocked" :to="`/learn/modules/${moduleSlug}/${nextChapter.slug}`" class="chapter-primary">{{nextChapter.title}}<ArrowRight :size="16" aria-hidden="true"/></NuxtLink>
+                <NuxtLink v-else-if="!nextChapter" :to="`/learn/modules/${moduleSlug}`" class="chapter-primary">返回模块<ArrowRight :size="16" aria-hidden="true"/></NuxtLink>
+              </template>
+            </footer>
           </article>
         </div>
         <PracticeDock v-if="practiceOpened" v-show="practiceVisible && !practiceMinimized" :key="learnerId" :active="practiceVisible && !practiceMinimized" v-model:height="dockHeight" :mode="practiceMode" :max-height="maxDockHeight" @minimize="minimizePractice" />
@@ -318,18 +324,18 @@ useHead({
       </div>
     </div>
     <div v-else class="reading-loading" role="status">正在加载章节…</div>
+    <LearningModuleCompletion v-model:open="celebrationOpen" :module-title="moduleData?.title || '学习模块'" :module-slug="moduleSlug" :chapter-count="moduleData?.chapters.length || 0" />
   </div>
 </template>
 
 <style scoped>
-.chapter-completion { margin-top: 32px; display: flex; justify-content: flex-end; }
-.complete-chapter-btn { border: 0; border-radius: 6px; padding: 11px 18px; background: var(--green); color: var(--on-accent); font-size: 12px; cursor: pointer; }
-.complete-chapter-btn:disabled { opacity: .6; cursor: wait; }
-.completion-saved { display: inline-flex; align-items: center; gap: 7px; font-size: 12px; color: var(--success-ink); }
-.completion-login, .guest-progress, .progress-notice { font-size: 12px; color: var(--muted); margin-top: 18px; }
-.guest-progress a, .progress-notice button { color: var(--green); text-decoration: underline; }
-.progress-notice button { border: 0; background: transparent; cursor: pointer; }
-.next-locked { border: 0; background: transparent; cursor: not-allowed; text-align: right; }
+.chapter-action-row { display:flex; justify-content:flex-end; align-items:center; flex-wrap:wrap; gap:16px; margin-top:36px; padding-top:24px; border-top:1px solid var(--line); }
+.chapter-primary { display:inline-flex; align-items:center; justify-content:center; gap:10px; max-width:100%; min-height:42px; padding:10px 18px; border:0; border-radius:7px; background:var(--green); color:var(--on-accent); font-size:13px; font-weight:550; text-decoration:none; cursor:pointer; }
+.chapter-primary:disabled { opacity:.45; cursor:not-allowed; }
+.completion-hint,.progress-notice { font-size:12px; color:var(--muted); }
+.completion-saved { display:inline-flex; align-items:center; gap:6px; margin-right:auto; color:var(--success-ink); font-size:12px; }
+.progress-notice { margin-top:18px; }
+.progress-notice button { background:transparent; border:0; color:var(--green); cursor:pointer; }
 
 .reading-page { background: var(--reader-bg); color: var(--ink); }
 .learn-shell { display: grid; grid-template-columns: 248px minmax(0, 1fr); height: calc(100dvh - 68px); min-height: 320px; }
@@ -340,10 +346,10 @@ useHead({
 .toolbar-left, .toolbar-tools { display: flex; align-items: center; gap: 12px; }
 .module-return { display: inline-flex; align-items: center; gap: 7px; font-size: 11px; text-decoration: none; color: var(--muted); }
 .module-return:hover { color: var(--ink); }
-.toolbar-tools { gap: 5px; }
-.toolbar-tools button { display: inline-flex; align-items: center; gap: 6px; padding: 6px 9px; border: 1px solid transparent; border-radius: 5px; background: transparent; font-size: 11px; color: var(--muted); cursor: pointer; }
-.toolbar-tools button:hover { background: var(--soft); color: var(--ink); }
-.toolbar-tools button[aria-pressed='true'] { border-color: var(--line); background: var(--paper); color: var(--ink); }
+.toolbar-tools { gap: 8px; min-height:32px; }
+.tool-launch { height:32px; box-sizing:border-box; display: inline-flex; align-items: center; justify-content:center; line-height:1; gap: 6px; padding: 6px 9px; border: 1px solid transparent; border-radius: 5px; background: transparent; font-size: 11px; color: var(--muted); cursor: pointer; }
+.tool-launch:hover { background: var(--soft); color: var(--ink); }
+.tool-launch[aria-pressed='true'] { border-color: var(--line); background: var(--paper); color: var(--ink); }
 .reading-scroll { flex: 1; overflow: auto; min-height: 0; overscroll-behavior: contain; scroll-padding-top: 24px; }
 .article-body { width: 100%; min-width: 0; padding: 36px clamp(32px, 4vw, 72px) 64px; overflow-wrap: anywhere; }
 .chapter-meta { display: flex; flex-wrap: wrap; gap: 16px; font-size: 11px; color: var(--muted); margin-bottom: 12px; }
@@ -383,12 +389,6 @@ useHead({
 .answer-feedback.success { color: var(--success-ink); }
 .answer-feedback.error { color: var(--error-ink); }
 .answer-feedback.checking { color: var(--muted); }
-.next-row { display: flex; justify-content: space-between; align-items: center; gap: 24px; margin-top: 36px; padding-top: 24px; border-top: 1px solid var(--line); }
-.btn-nav { display: inline-flex; align-items: center; gap: 12px; min-width: 0; max-width: 48%; padding: 8px 0; font-size: 11px; line-height: 1.7; color: var(--muted); text-decoration: none; }
-.btn-nav:hover { color: var(--green); }
-.nav-title { display: block; color: var(--ink); font-size: 12px; overflow-wrap: anywhere; }
-.next-btn { text-align: right; }
-.last-chapter { color: var(--muted); font-size: 11px; }
 .dock-restore { display: flex; align-items: center; justify-content: center; gap: 8px; min-height: 35px; flex-shrink: 0; background: var(--paper); color: var(--muted); border: 0; border-top: 1px solid var(--line); cursor: pointer; font-size: 11px; }
 .mobile-menu-btn { display: none; }
 .auth-gate-container, .reading-loading { display: grid; place-items: center; min-height: calc(100dvh - 68px); padding: 24px; color: var(--muted); font-size: 13px; }
@@ -416,7 +416,6 @@ a:focus-visible, button:focus-visible, input:focus-visible { outline: 2px solid 
   .tool-word { display: none; }
   .article-body { padding: 26px 20px 40px; }
   .answer-check-btn { padding: 10px 12px; }
-  .next-row { gap: 16px; }
 }
 @media (prefers-reduced-motion: reduce) { .spinning { animation: none; } }
 

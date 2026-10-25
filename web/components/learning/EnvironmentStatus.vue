@@ -30,15 +30,15 @@ function toggle(){if(instance.value)void release();else void start()}
  </div>
 </template>
 <style scoped>
-.environment-status{display:flex;align-items:center;gap:10px;min-width:0}
-.environment-toggle{display:inline-flex;align-items:center;justify-content:center;gap:7px;min-height:32px;padding:7px 12px;border:1px solid var(--green);border-radius:6px;background:var(--green);color:var(--on-accent);font-size:12px;font-weight:600;white-space:nowrap;cursor:pointer;text-decoration:none;transition:background .15s,border-color .15s}
+.environment-status{position:relative;min-height:32px;flex-shrink:0;display:flex;align-items:center;gap:10px;min-width:0}
+.environment-toggle{display:inline-flex;align-items:center;justify-content:center;gap:7px;height:32px;box-sizing:border-box;line-height:1;padding:7px 12px;border:1px solid var(--green);border-radius:6px;background:var(--green);color:var(--on-accent);font-size:12px;font-weight:600;white-space:nowrap;cursor:pointer;text-decoration:none;transition:background .15s,border-color .15s}
 .environment-toggle.running,.environment-toggle.cleanup{color:var(--environment-danger,#b42336);border-color:currentColor;background:var(--environment-danger-bg,#fff0f1)}
 :global([data-theme="midnight"]) .environment-toggle.running,:global([data-theme="midnight"]) .environment-toggle.cleanup{--environment-danger:#ff9da8;--environment-danger-bg:#39252c}
 .environment-toggle:hover:not(:disabled){filter:brightness(.94)}
 .environment-toggle:focus-visible{outline:2px solid var(--green);outline-offset:3px}
 .environment-toggle:disabled{cursor:default;opacity:.6}
 time{font-variant-numeric:tabular-nums;border-left:1px solid currentColor;padding-left:8px;font-weight:650}
-.environment-error{max-width:300px;color:var(--error-ink,#b42336);font-size:11px;line-height:1.5}
+.environment-error{position:absolute;top:calc(100% + 8px);right:0;z-index:20;width:max-content;max-width:300px;padding:10px 12px;border:1px solid var(--line);border-radius:6px;background:var(--paper);color:var(--error-ink,#b42336);font-size:11px;line-height:1.5}
 .spinning{animation:environment-spin 1s linear infinite}@keyframes environment-spin{to{transform:rotate(360deg)}}
 @media(prefers-reduced-motion:reduce){.spinning{animation:none}}
 </style>
