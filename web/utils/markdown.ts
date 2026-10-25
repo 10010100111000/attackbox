@@ -112,12 +112,18 @@ export function createMarkdownRenderer() {
   return md
 }
 
-export function renderMarkdown(content: string): MarkdownRenderResult {
+export function renderMarkdown(content: string, imageUrls: Record<string,string> = {}): MarkdownRenderResult {
   if (!content) {
     return { html: '', headings: [] }
   }
 
   const md = createMarkdownRenderer()
+  const renderImage = md.renderer.rules.image!
+  md.renderer.rules.image = (tokens, index, options, env, self) => {
+    const token = tokens[index]!, href = String(token.attrGet('src') || '')
+    if (Object.hasOwn(imageUrls, href)) token.attrSet('src', imageUrls[href]!)
+    return renderImage(tokens,index,options,env,self)
+  }
   const headings: MarkdownHeading[] = []
   const usedSlugs = new Map<string, number>()
 

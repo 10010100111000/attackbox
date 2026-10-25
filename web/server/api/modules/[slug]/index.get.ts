@@ -1,5 +1,6 @@
 import { defineEventHandler, getRouterParam, createError } from 'h3'
 import { eq, and, asc } from 'drizzle-orm'
+import {contentImageUrls} from '../../../services/content-images'
 import { learningOutline } from '../../../services/learning'
 import { activeLearner } from '../../../utils/learner'
 import { summarizeProgress } from '../../../../shared/learning'
@@ -17,5 +18,5 @@ export default defineEventHandler(async event => db.transaction(async tx => {
   const userId = activeLearner(event)
   const list = await learningOutline(tx, mod.id, userId)
   const prerequisites = await tx.select({ id: modules.id, slug: modules.slug, title: modules.title }).from(modulePrerequisites).innerJoin(modules, eq(modulePrerequisites.prerequisiteId, modules.id)).where(and(eq(modulePrerequisites.moduleId, mod.id), eq(modules.status, 'published'))).orderBy(asc(modulePrerequisites.position))
-  return { ok: true, data: { module: mod, prerequisites, chapters: list, progress: userId ? summarizeProgress(list) : null } }
+  return { ok: true, data: { module: mod, imageUrls:await contentImageUrls(tx,mod.id), prerequisites, chapters: list, progress: userId ? summarizeProgress(list) : null } }
 }, { isolationLevel: 'repeatable read', accessMode: 'read only' }))

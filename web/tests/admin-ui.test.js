@@ -33,38 +33,22 @@ test('layouts/admin.vue defines admin shell, navigation groups, and permission c
   assert.ok(content.includes('admin-denied'));
 });
 
-test('pages/admin/modules/index.vue defines module list, status filters, and unsaved creation route', () => {
+test('pages/admin/modules/index.vue defines module list, status filters, and manual Git entry', () => {
   const content = fs.readFileSync(path.join(webDir, 'pages/admin/modules/index.vue'), 'utf-8');
   assert.ok(content.includes("layout: 'admin'"));
   assert.ok(content.includes('/api/admin/modules'));
   assert.ok(content.includes('module-table'));
-  assert.ok(content.includes('/admin/modules/new'));
+  assert.ok(content.includes('/admin/content'));
+  assert.ok(content.includes('/api/admin/content/template'));
+  assert.ok(!content.includes('/admin/modules/new'));
   assert.ok(!content.includes('handleCreateModule'));
   assert.ok(content.includes('filters-tabs'));
 });
 
-test('pages/admin/modules/[id].vue defines editor tabs, direct saving, publish, and reorder', () => {
+test('module route selects Git details without mounting the legacy editor for managed content', () => {
   const content = fs.readFileSync(path.join(webDir, 'pages/admin/modules/[id].vue'), 'utf-8');
-  assert.ok(content.includes("layout: 'admin'"));
-  assert.ok(content.includes('/api/admin/modules/'));
-  assert.ok(content.includes('lockVersion'));
-  assert.ok(!content.includes('baseRevisionId'));
-  assert.ok(content.includes('chapters: localChapters.value.map'));
-  assert.ok(!content.includes('handleDiscardDraft'));
-  assert.ok(content.includes('保存为草稿'));
-  assert.ok(content.includes('保存并发布'));
-  assert.ok(content.includes('module-outcomes'));
-  assert.ok(content.includes('handleDeleteModule'));
-  assert.ok(content.includes('editor-double-layout'));
-  assert.ok(content.includes('MarkdownView'));
-  assert.ok(!content.includes('handlePublish'));
-  assert.ok(!content.includes('/publish`'));
-  assert.ok(content.includes('handleSave'));
-  assert.ok(content.includes('handleMoveChapter'));
-  assert.ok(content.includes('handleAddQuestion'));
-  assert.ok(content.includes('handleRemoveChapter'));
-  assert.ok(!content.includes('预览大纲'));
-  assert.ok(!content.includes('isPublishErrorModalOpen'));
-  assert.ok(content.indexOf("activeTab === 'basic'") < content.indexOf("activeTab === 'chapters'"));
-  assert.ok(content.includes('chapter-delete-btn'));
+  assert.ok(content.includes('detail?.source'));
+  assert.ok(content.includes('GitModuleDetail'));
+  assert.ok(content.includes('defineAsyncComponent'));
+  assert.ok(content.includes("navigateTo('/admin/content'"));
 });

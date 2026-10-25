@@ -47,3 +47,7 @@ backup
 
 # Retired SPA: local build/dependency leftovers are not deployment sources.
 /frontend/
+
+# Private tutorial snapshots and imported assets
+/data/content/
+/web/data/content/

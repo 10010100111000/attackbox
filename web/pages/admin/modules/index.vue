@@ -1,8 +1,7 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
-import { useRouter } from 'vue-router'
 import { useLazyFetch, useHead } from '#imports'
-import { Plus, ExternalLink } from 'lucide-vue-next'
+import { ExternalLink } from 'lucide-vue-next'
 import type { AdminModuleListItem } from '~/shared/content'
 
 definePageMeta({
@@ -16,16 +15,15 @@ useHead({
 type AdminModuleItem = AdminModuleListItem
 
 const difficultyLabels = { beginner: '基础入门', intermediate: '中级进阶', advanced: '高阶实战' }
-const router = useRouter()
 const { data: response, pending, error, refresh } = await useLazyFetch<{ ok: boolean; data: AdminModuleItem[] }>(
-  '/api/admin/modules'
+  '/api/admin/modules', {key:'admin:modules'}
 )
 
 const modules = computed<AdminModuleItem[]>(() => {
   return response.value?.data || []
 })
 
-const filterTab = ref<'全部' | '已发布' | '草稿'>('全部')
+const filterTab = ref<'全部' | '已发布' | '未发布'>('全部')
 const searchQuery = ref('')
 
 const filteredModules = computed(() => {
@@ -33,7 +31,7 @@ const filteredModules = computed(() => {
 
   if (filterTab.value === '已发布') {
     list = list.filter(m => m.status === 'published')
-  } else if (filterTab.value === '草稿') {
+  } else if (filterTab.value === '未发布') {
     list = list.filter(m => m.status === 'unpublished')
   }
 
@@ -61,17 +59,15 @@ async function deleteModule(id: string) {
     <div class="page-head">
       <div>
         <h1 class="page-title">学习模块</h1>
-        <p class="page-desc">管理章节、Markdown 来源与章节练习。</p>
+        <p class="page-desc">预览 Git 教程，管理发布状态与运行配置。</p>
       </div>
-      <button type="button" class="btn-create" @click="router.push('/admin/modules/new')">
-        <Plus :size="16" aria-hidden="true" /> 新建模块
-      </button>
+      <div class="module-source-actions"><a class="action-btn" href="/api/admin/content/template" download="教程模板.md">下载 MD 模板</a><NuxtLink class="btn-create" to="/admin/content">检查 Git 更新</NuxtLink></div>
     </div>
     <!-- 筛选与搜索工具条 -->
     <div class="filter-bar">
       <div class="filters-tabs" role="tablist">
         <button
-          v-for="tab in (['全部', '已发布', '草稿'] as const)"
+          v-for="tab in (['全部', '已发布', '未发布'] as const)"
           :key="tab"
           type="button"
           class="tab-btn"
@@ -119,13 +115,14 @@ async function deleteModule(id: string) {
                 <strong class="module-name">
                   {{ m.title }}
                 </strong>
+                <span v-if="m.source" class="module-slug">{{m.source.path}}</span>
                 <span class="module-slug">/learn/modules/{{ m.slug }}</span>
               </div>
             </td>
             <td>
               <div class="status-cell">
                 <span v-if="m.status === 'published'" class="badge-status published">已发布</span>
-                <span v-else class="badge-status unpublished">草稿</span>
+                <span v-else class="badge-status unpublished">未发布</span>
               </div>
             </td>
             <td>{{ m.chapterCount }} 章节</td>
@@ -135,9 +132,9 @@ async function deleteModule(id: string) {
             <td class="text-right">
               <div class="action-cell">
                 <NuxtLink :to="`/admin/modules/${m.id}`" class="action-btn edit-btn">
-                  编辑
+                  {{m.source ? '查看详情' : '编辑旧模块'}}
                 </NuxtLink>
-                <button class="action-btn delete-btn" type="button" @click="deleteModule(m.id)">删除</button>
+                <button v-if="!m.source" class="action-btn delete-btn" type="button" @click="deleteModule(m.id)">删除</button>
                 <NuxtLink
                   v-if="m.status === 'published'"
                   :to="`/learn/modules/${m.slug}`"
@@ -157,15 +154,16 @@ async function deleteModule(id: string) {
     <!-- 空列表 -->
     <div v-else class="empty-box">
       <p v-if="searchQuery">未找到与“{{ searchQuery }}”匹配的模块。</p>
-      <p v-else>暂无任何模块，点击上方按钮新建第一个模块。</p>
+      <p v-else>暂无模块。在 Git 仓库添加教程后，点击“检查 Git 更新”导入。</p>
     </div>
 
-    <p class="footnote">保存为草稿仅管理员可见，保存并发布后对学习者公开。</p>
+    <p class="footnote">新导入模块默认未发布；已有模块同步后保留发布状态。</p>
 
   </div>
 </template>
 
 <style scoped>
+.module-source-actions{display:flex;align-items:center;gap:14px}.module-source-actions a{text-decoration:none}
 
 .page-head {
   display: flex;

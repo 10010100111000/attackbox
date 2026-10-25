@@ -1,0 +1,5 @@
+import {createCipheriv,createDecipheriv,randomBytes} from 'node:crypto'
+import {createError} from 'h3'
+function key(){const value=process.env.CONTENT_CREDENTIALS_KEY;if(!value||! /^[a-f0-9]{64}$/i.test(value))throw createError({statusCode:503,message:'请先配置 CONTENT_CREDENTIALS_KEY（32 字节十六进制密钥）'});return Buffer.from(value,'hex')}
+export function encryptContentToken(token:string){const nonce=randomBytes(12),cipher=createCipheriv('aes-256-gcm',key(),nonce);cipher.setAAD(Buffer.from('attackbox:github-content:v1'));const body=Buffer.concat([cipher.update(token,'utf8'),cipher.final()]);return [nonce,cipher.getAuthTag(),body].map(b=>b.toString('base64url')).join('.')}
+export function decryptContentToken(value:string){try{const parts=value.split('.');if(parts.length!==3)throw Error();const [nonce,tag,body]=parts.map(p=>Buffer.from(p,'base64url'));const decipher=createDecipheriv('aes-256-gcm',key(),nonce!);decipher.setAAD(Buffer.from('attackbox:github-content:v1'));decipher.setAuthTag(tag!);return Buffer.concat([decipher.update(body!),decipher.final()]).toString('utf8')}catch{throw createError({statusCode:503,message:'仓库凭据无法解密，请检查环境密钥或重新设置 Token'})}}

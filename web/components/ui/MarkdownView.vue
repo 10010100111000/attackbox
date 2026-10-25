@@ -4,6 +4,7 @@ import { renderMarkdown, type MarkdownHeading } from '~/utils/markdown'
 
 interface Props {
   content?: string
+  imageUrls?: Record<string,string>
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -17,7 +18,7 @@ const emit = defineEmits<{
 const containerRef = ref<HTMLElement | null>(null)
 
 const parsed = computed(() => {
-  return renderMarkdown(props.content || '')
+  return renderMarkdown(props.content || '', props.imageUrls)
 })
 
 watch(

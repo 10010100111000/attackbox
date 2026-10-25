@@ -15,3 +15,7 @@
 其他阶段计划、概念原型和历史验收记录用于说明背景，不是现行开发限制。数据库当前结构以 `web/server/db/schema` 和迁移为准。后续实现变化应直接更新对应操作文档，避免继续叠加相互冲突的“禁止事项”。
 
 独立的 `attackbox-enter` 已合入 Worker 自身入口；进入 namespace、能力降权和 cgroup 归属是实际运行机制，仍需保留，不能作为旧规范删除。
+
+- [单文件教程作者模板](content-template/README.md)：Markdown 头、章节与练习约定，以及本地校验命令。
+
+- [手动 Git 教程同步使用说明](implementation/git-content-sync-usage.md)：仓库凭据、部署变量、导入流程与后台维护边界。

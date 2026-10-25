@@ -36,8 +36,10 @@ export interface AdminModule {
   difficulty: Difficulty; categoryId: string | null; coverAssetId: string | null
   status: ModuleStatus; lockVersion: number; createdAt: string; updatedAt: string; publishedAt: string | null
 }
-export type AdminModuleListItem = Omit<AdminModule, 'descriptionMarkdown' | 'learningOutcomes'> & { chapterCount: number; category: ContentCategory | null }
+export type AdminModuleListItem = Omit<AdminModule, 'descriptionMarkdown' | 'learningOutcomes'> & { source?:{path:string;commit:string|null}|null; chapterCount: number; category: ContentCategory | null }
 export interface AdminModuleDetail {
+  imageUrls?:Record<string,string>
+  source?: {path:string;commit:string|null;url?:string|null;syncedAt:string}|null
   module: AdminModule; category: ContentCategory | null; chapters: AdminChapter[]; prerequisites: PrerequisiteModule[]
 }
 

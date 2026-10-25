@@ -7,7 +7,7 @@
     "generate": "nuxt generate",
     "dev": "nuxt dev",
     "preview": "nuxt preview",
-    "test": "node --experimental-strip-types --test tests/auth-crypto.test.js tests/composables.test.js tests/ui.test.js tests/landing.test.js tests/auth.test.js tests/markdown.test.js tests/learning-ui.test.js tests/admin-ui.test.js tests/quiz-crypto.test.js tests/learning-access.test.js tests/sandbox-nodes.test.js tests/sandbox-lifecycle.test.js tests/sandbox-settings.test.js tests/target-templates-validation.test.js",
+    "test": "node --experimental-strip-types --test tests/auth-crypto.test.js tests/composables.test.js tests/ui.test.js tests/landing.test.js tests/auth.test.js tests/markdown.test.js tests/learning-ui.test.js tests/admin-ui.test.js tests/quiz-crypto.test.js tests/learning-access.test.js tests/sandbox-nodes.test.js tests/sandbox-lifecycle.test.js tests/sandbox-settings.test.js tests/target-templates-validation.test.js tests/content-parser.test.mjs tests/content-repository.test.mjs",
     "db:generate": "drizzle-kit generate",
     "admin:init": "node server/scripts/init-admin.mjs",
     "postinstall": "nuxt prepare",
@@ -26,7 +26,9 @@
     "test:target-leases": "node --test tests/target-leases.test.mjs",
     "test:workbench": "node --test tests/workbench-browser.test.mjs",
     "test:categories": "node --test tests/categories.test.mjs tests/categories-browser.test.mjs",
-    "test:challenges": "node --test tests/challenges.test.mjs"
+    "test:challenges": "node --test tests/challenges.test.mjs",
+    "content:check": "node --experimental-strip-types server/scripts/check-content.mjs",
+    "test:content-sync": "node --test tests/content-sync.test.mjs"
   },
   "dependencies": {
     "@node-rs/argon2": "^2.2.2",
@@ -43,7 +45,8 @@
     "postgres": "^3.4.9",
     "reka-ui": "^2.0.1",
     "tailwind-merge": "^3.7.0",
-    "vue": "^3.5.13"
+    "vue": "^3.5.13",
+    "yaml": "2.9.1"
   },
   "devDependencies": {
     "@nuxtjs/tailwindcss": "^6.13.1",
@@ -55,6 +58,7 @@
     "playwright": "^1.62.1",
     "tailwindcss": "^3.4.17",
     "typescript": "^5.7.3",
-    "ws": "^8.22.0"
+    "ws": "^8.22.0",
+    "jiti": "2.7.0"
   }
 }

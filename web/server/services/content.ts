@@ -1,6 +1,7 @@
 import { eq, and, asc, sql, inArray } from 'drizzle-orm'
 import { db } from '../db'
-import { modules, chapters, chapterQuestions, auditLogs, contentCategories, assets, modulePrerequisites, targetTemplates } from '../db/schema'
+import { modules, chapters, chapterQuestions, auditLogs, contentCategories, assets, modulePrerequisites, targetTemplates, moduleSources } from '../db/schema'
+import {contentImageUrls} from './content-images'
 import { fail, slugFor, validateModule, questionValues, validateTemplateId } from './content-input'
 import type { ModuleInput, ChapterInput, AdminModuleDetail } from '../../shared/content'
 type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0]
@@ -94,10 +95,9 @@ async function writePrerequisites(tx: Tx, moduleId: string, ids: string[]) {
   `)
   if (cycle.length) fail('前置模块形成循环，请调整学习顺序')
 }
-export async function saveModule(id: string | null, actor: string, input: ModuleInput) {
+export async function saveModuleInTransaction(tx: Tx, id: string | null, actor: string, input: ModuleInput) {
   validateModule(input)
   if (!id && !input.title?.trim()) fail('请填写模块名称')
-  return db.transaction(async tx => {
     // Order graph writes before module row locks, including deletes, to avoid cross-module deadlocks.
     await tx.execute(sql`select pg_advisory_xact_lock(72486211)`)
     await validateReferences(tx, input)
@@ -136,8 +136,14 @@ export async function saveModule(id: string | null, actor: string, input: Module
     }
     await audit(tx, actor, mod.id, id ? 'admin.module.save' : 'admin.module.create')
     return { module: mod }
+}
+export async function saveModule(id: string | null, actor: string, input: ModuleInput) {
+  return db.transaction(async tx => {
+    await tx.execute(sql`select pg_advisory_xact_lock(72486211)`)
+    if(id){const [source]=await tx.select().from(moduleSources).where(eq(moduleSources.moduleId,id));if(source)fail('Git 管理的教程只能通过同步更新，请使用运行配置接口',409)}
+    return saveModuleInTransaction(tx,id,actor,input)
   }).catch(error => {
-    if (error?.code === '23505' || error?.cause?.code === '23505') fail('模块或章节访问标识已存在', 409)
+    if (error?.code === '23505' || error?.cause?.code === '23505') fail('模块或章节访问标识已存在',409)
     throw error
   })
 }
@@ -147,6 +153,7 @@ export async function lifecycle(id: string, actor: string, action: 'publish' | '
     await tx.execute(sql`select pg_advisory_xact_lock(72486211)`)
     const mod = await lockModule(tx, id, input)
     if (action === 'delete') {
+      const [source]=await tx.select().from(moduleSources).where(eq(moduleSources.moduleId,id));if(source)fail('请先在 Git 中移除来源并完成影响确认；当前可下架模块',409)
       const refs = await tx.execute(sql`select 1 from learning_route_modules where module_id=${id} limit 1`)
       if (refs.length) fail('请先从学习路线中移除此模块，再删除模块',409)
       await tx.delete(modules).where(eq(modules.id, id))
@@ -176,7 +183,11 @@ export async function getModuleDetail(id: string): Promise<AdminModuleDetail> {
     }
     const [category] = mod.categoryId ? await tx.select().from(contentCategories).where(eq(contentCategories.id, mod.categoryId)) : []
     const prerequisites = await tx.select({ id: modules.id, slug: modules.slug, title: modules.title, status: modules.status }).from(modulePrerequisites).innerJoin(modules, eq(modulePrerequisites.prerequisiteId, modules.id)).where(eq(modulePrerequisites.moduleId, id)).orderBy(asc(modulePrerequisites.position))
-    return { prerequisites, module: { ...mod, createdAt: mod.createdAt.toISOString(), updatedAt: mod.updatedAt.toISOString(), publishedAt: mod.publishedAt?.toISOString() || null }, category: category || null, chapters: chapterList }
+    const [source]=await tx.select().from(moduleSources).where(eq(moduleSources.moduleId,id))
+    if(source)for(const chapter of chapterList)for(const question of chapter.questions)question.answer=null
+    const origin=source?.origin.match(/^github:([^:]+):(.*)$/)
+    const sourceUrl=origin&&source?.commit&&/^[a-f0-9]{40}$/.test(source.commit)?`https://github.com/${origin[1]}/blob/${source.commit}/${[origin[2],source.sourcePath].filter(Boolean).join('/').split('/').map(encodeURIComponent).join('/')}`:null
+    return { imageUrls:await contentImageUrls(tx,id,undefined,true), source: source ? {path:source.sourcePath,commit:source.commit,url:sourceUrl,syncedAt:source.syncedAt.toISOString()} : null, prerequisites, module: { ...mod, createdAt: mod.createdAt.toISOString(), updatedAt: mod.updatedAt.toISOString(), publishedAt: mod.publishedAt?.toISOString() || null }, category: category || null, chapters: chapterList }
   }, { isolationLevel: 'repeatable read', accessMode: 'read only' })
 }
 

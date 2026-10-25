@@ -20,7 +20,7 @@ const { currentUser } = useAuth()
 const learnerId = computed(() => currentUser.value?.id || '')
 const slug = computed(() => String(route.params.slug || ''))
 const { data: response, pending, error } = await useFetch<{
-  ok: boolean; data: { module: ModuleInfo; chapters: ChapterItem[]; prerequisites: Omit<PrerequisiteModule, 'status'>[]; progress: ModuleProgress | null }
+  ok: boolean; data: { imageUrls?:Record<string,string>; module: ModuleInfo; chapters: ChapterItem[]; prerequisites: Omit<PrerequisiteModule, 'status'>[]; progress: ModuleProgress | null }
 }>(() => `/api/modules/${slug.value}`, { key: `learning:module:${slug.value}`, watch: [learnerId] })
 const moduleData = computed(() => {
   const data = response.value?.data
@@ -103,7 +103,7 @@ useHead({
             <h2 id="details-heading">详情</h2>
             <div id="module-description-content">
               <p v-if="descriptionNeedsExpansion && !descriptionExpanded && descriptionPreview" class="description-excerpt">{{ descriptionPreview }}</p>
-              <MarkdownView v-else-if="!descriptionNeedsExpansion || descriptionExpanded" :content="moduleData.descriptionMarkdown" />
+              <MarkdownView v-else-if="!descriptionNeedsExpansion || descriptionExpanded" :content="moduleData.descriptionMarkdown" :image-urls="response?.data.imageUrls" />
             </div>
             <button v-if="descriptionNeedsExpansion" type="button" class="description-toggle" :aria-expanded="descriptionExpanded" aria-controls="module-description-content" @click="descriptionExpanded = !descriptionExpanded">{{ descriptionExpanded ? '收起详情' : '展开详情' }}</button>
           </section>

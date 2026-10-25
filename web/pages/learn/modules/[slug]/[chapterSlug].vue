@@ -64,7 +64,7 @@ const {
   error: chapterError
 } = await useFetch<{
   ok: boolean
-  data: { chapter: ChapterInfo; questions: QuestionItem[]; progress: ChapterProgress; target:LearningTarget }
+  data: { imageUrls?:Record<string,string>; chapter: ChapterInfo; questions: QuestionItem[]; progress: ChapterProgress; target:LearningTarget }
 }>(
   () => `/api/modules/${moduleSlug.value}/chapters/${chapterSlug.value}`,
   { key: `learning:chapter:${moduleSlug.value}:${chapterSlug.value}`, watch: [learnerId] }
@@ -195,7 +195,7 @@ const nextChapter = computed(() => {
 })
 
 function renderPrompt(markdown: string): string {
-  return renderMarkdown(markdown || '').html
+  return renderMarkdown(markdown || '', chapterResponse.value?.data.imageUrls).html
 }
 
 async function handleCheckAnswer(q: QuestionItem) {
@@ -286,7 +286,7 @@ useHead({
           <article class="article-body">
             <div class="chapter-meta"><span>第 {{ chapterIndex + 1 }} / {{ moduleData?.chapters.length || 1 }} 章</span><span v-if="chapterData.durationMinutes"><Clock3 :size="13" aria-hidden="true" />约 {{ chapterData.durationMinutes }} 分钟</span></div>
             <h1 class="chapter-main-title">{{ chapterData.title }}</h1>
-            <MarkdownView :content="chapterData.bodyMarkdown" />
+            <MarkdownView :content="chapterData.bodyMarkdown" :image-urls="chapterResponse?.data.imageUrls" />
             <TargetEnvironment v-if="chapterResponse?.data.target" :key="String(route.fullPath)" :target="chapterResponse.data.target" :context="{kind: 'chapter', moduleSlug: String(route.params.slug), chapterSlug: String(route.params.chapterSlug)}" />
 
             <section v-if="chapterData.questions.length" id="quiz" class="quiz-card" aria-labelledby="quiz-title">

@@ -12,3 +12,6 @@ export * from './target-templates';
 export * from './challenges';
 
 export * from './target-instances';
+
+export * from './content-sync';
+export * from './content-images';
