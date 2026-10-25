@@ -3,7 +3,7 @@ import { ArrowRight, BookOpen } from 'lucide-vue-next'
 import { useAuth } from '~/composables/useAuth'
 import type { LearningHistoryItem } from '~/shared/learning'
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
-import { useFetch, useHead } from '#imports'
+import { useLazyFetch, useHead } from '#imports'
 import type { ContentCategory } from '~/shared/content'
 
 definePageMeta({
@@ -30,12 +30,12 @@ interface ModuleItem {
   chapterCount: number
 }
 
-const { data: routeResponse } = await useFetch<{data:{id:string;title:string;summary:string;moduleCount:number}[]}>('/api/routes')
+const { data: routeResponse, pending: routesPending, error: routesError, refresh: refreshRoutes } = useLazyFetch<{data:{id:string;title:string;summary:string;moduleCount:number}[]}>('/api/routes')
 const { currentUser } = useAuth()
 const learnerId = computed(() => currentUser.value?.id || '')
-const { data: historyResponse } = await useFetch<{ data: LearningHistoryItem[] }>('/api/me/learning', { key: 'learning:history', watch: [learnerId], immediate: !!learnerId.value })
+const { data: historyResponse } = useLazyFetch<{ data: LearningHistoryItem[] }>('/api/me/learning', { key: 'learning:history', watch: [learnerId], immediate: !!learnerId.value })
 const recentLearning = computed(() => learnerId.value ? historyResponse.value?.data?.find(item => !item.progress.isCompleted) || null : null)
-const { data: response, pending, error, refresh } = await useFetch<{ ok: boolean; data: ModuleItem[] }>('/api/modules')
+const { data: response, pending, error, refresh } = useLazyFetch<{ ok: boolean; data: ModuleItem[] }>('/api/modules')
 
 const modules = computed<ModuleItem[]>(() => {
   return response.value?.data || []
@@ -91,7 +91,7 @@ const activeTab = ref<'modules' | 'paths'>(useRoute().query.tab === 'routes' ? '
 const selectedCategory = ref('全部模块')
 const searchQuery = ref('')
 
-const { data: categoryResponse } = await useFetch<{ data: ContentCategory[] }>('/api/categories', {key:'content:categories'})
+const { data: categoryResponse, pending: categoriesPending, error: categoriesError, refresh: refreshCategories } = useLazyFetch<{ data: ContentCategory[] }>('/api/categories', {key:'content:categories'})
 const categories = computed(() => ['全部模块', ...(categoryResponse.value?.data || []).map(category => category.name)])
 
 function difficultyToLabel(diff: string): string {
@@ -234,7 +234,9 @@ function getModuleTheme(index: number) {
       <div v-if="activeTab === 'modules'" id="module-list" class="tab-content">
         <!-- 筛选与搜索工具栏 -->
         <div class="toolbar">
-          <div class="filters" role="tablist" aria-label="分类过滤">
+          <div class="filters" role="tablist" aria-label="分类过滤" :aria-busy="categoriesPending">
+            <span v-if="categoriesPending" class="filter-status" role="status">正在加载分类…</span>
+            <button v-else-if="categoriesError" type="button" class="filter-btn" @click="() => refreshCategories()">重试加载分类</button>
             <button
               v-for="cat in categories"
               :key="cat"
@@ -256,7 +258,7 @@ function getModuleTheme(index: number) {
         </div>
 
         <!-- 加载状态 -->
-        <div v-if="pending" class="state-panel">
+        <div v-if="pending" class="state-panel" role="status" aria-live="polite">
           正在加载模块列表…
         </div>
 
@@ -349,7 +351,12 @@ function getModuleTheme(index: number) {
 
       <!-- Tab 2: 学习路线 -->
       <div v-else class="tab-content">
-        <div v-if="routeResponse?.data.length" class="published-routes"><NuxtLink v-for="item in routeResponse.data" :key="item.id" :to="`/learn/routes/${item.id}`" class="published-route"><span>{{item.moduleCount}} 个模块</span><h2>{{item.title}}</h2><p>{{item.summary}}</p><ArrowRight :size="18" aria-hidden="true" /></NuxtLink></div><div v-else class="empty-notice"><BookOpen :size="24" aria-hidden="true"/><p>暂时没有已发布的路线。</p></div>
+        <div v-if="routesPending" class="state-panel" role="status">正在加载学习路线…</div>
+        <div v-else-if="routesError" class="state-panel error">
+          <p>学习路线加载失败，请稍后重试。</p>
+          <button type="button" class="btn secondary" @click="() => refreshRoutes()">重新加载</button>
+        </div>
+        <div v-else-if="routeResponse?.data.length" class="published-routes"><NuxtLink v-for="item in routeResponse.data" :key="item.id" :to="`/learn/routes/${item.id}`" class="published-route"><span>{{item.moduleCount}} 个模块</span><h2>{{item.title}}</h2><p>{{item.summary}}</p><ArrowRight :size="18" aria-hidden="true" /></NuxtLink></div><div v-else class="empty-notice"><BookOpen :size="24" aria-hidden="true"/><p>暂时没有已发布的路线。</p></div>
       </div>
 
       <!-- 底部理念标语 (与原型一致) -->
@@ -591,6 +598,8 @@ function getModuleTheme(index: number) {
   gap: 8px;
   flex-wrap: wrap;
 }
+
+.filter-status { font-size: 12px; color: var(--muted); align-self: center; }
 
 .filter-btn {
   padding: 6px 14px;

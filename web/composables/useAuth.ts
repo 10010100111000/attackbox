@@ -13,18 +13,24 @@ export function useAuth() {
   const currentUser = useState<AuthUser | null>('auth_user', () => null);
   const isInitialized = useState<boolean>('auth_initialized', () => false);
 
+  // Session lookups may finish after login/logout; only the current identity may update state.
+  const identityVersion = useState<number>('auth_identity_version', () => 0);
+
   async function fetchMe(): Promise<AuthUser | null> {
+    const version = identityVersion.value;
     try {
       const data = await $fetch<{ user: AuthUser }>('/api/auth/me');
+      if (version !== identityVersion.value) return currentUser.value;
       if (currentUser.value?.id !== data.user.id) clearLearningData();
       currentUser.value = data.user;
       return data.user;
     } catch {
+      if (version !== identityVersion.value) return currentUser.value;
       if (currentUser.value) clearLearningData();
       currentUser.value = null;
       return null;
     } finally {
-      isInitialized.value = true;
+      if (version === identityVersion.value) isInitialized.value = true;
     }
   }
 
@@ -33,8 +39,10 @@ export function useAuth() {
       method: 'POST',
       body: { email, password, rememberMe },
     });
+    identityVersion.value++;
     clearLearningData();
     currentUser.value = data.user;
+    isInitialized.value = true;
     return data.user;
   }
 
@@ -56,8 +64,10 @@ export function useAuth() {
     try {
       await $fetch('/api/auth/logout', { method: 'POST' });
     } finally {
+      identityVersion.value++;
       clearLearningData();
       currentUser.value = null;
+      isInitialized.value = true;
     }
   }
 
