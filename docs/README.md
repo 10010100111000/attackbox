@@ -10,7 +10,7 @@
 - [CLI／GUI 工作台](implementation/environment-workbench.md)：独立页面、窗口操作及环境控制。
 - [内容分类](implementation/content-categories.md)：分类管理、删除语义与抽屉交互。
 - [前后端运行接入](implementation/target-runtime-integration.md)：使用与测试重点。
-- [Git 内容与靶机同步方案](implementation/git-content-sync-plan.md)：仓库规范、靶机预热、同步发布流与后台边界。
+- [单文件 Markdown 与 Git 内容同步](implementation/git-content-sync-plan.md)：教程格式、后台保留功能、身份映射与分轮实施计划。
 
 其他阶段计划、概念原型和历史验收记录用于说明背景，不是现行开发限制。数据库当前结构以 `web/server/db/schema` 和迁移为准。后续实现变化应直接更新对应操作文档，避免继续叠加相互冲突的“禁止事项”。
 
