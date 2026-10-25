@@ -185,7 +185,7 @@ export async function targetOperation(
 
     return {
       ...view(updated || row),
-      ...(!result.success && convergedState !== 'stopped' ? { error: result.error || 'Worker 操作失败' } : {}),
+      ...(!result.success && convergedState !== 'stopped' ? { error: result.error === 'target_image_not_prepared' ? '靶机镜像尚未准备，请联系管理员在模板管理中准备镜像' : result.error || 'Worker 操作失败' } : {}),
     }
   } catch {
     return {

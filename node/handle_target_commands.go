@@ -47,6 +47,16 @@ func (c *NodeControlClient) executeTargetCommand(ctx context.Context, msg *proto
 	var instance protocol.TargetSummary
 	var err error
 	switch msg.Type {
+	case protocol.MsgTypeTargetImagePrepare, protocol.MsgTypeTargetImageStatus:
+		if err := validateTargetRequest(req, true); err != nil {
+			resp.Error = err.Error()
+			return resp
+		}
+		if msg.Type == protocol.MsgTypeTargetImagePrepare && c.rtMgr != nil && c.rtMgr.DiskGuard().IsTripped() {
+			resp.Error = "worker_disk_pressure"
+			return resp
+		}
+		resp.ImageState, err = c.targets.ImageStatus(ctx, req.Image, msg.Type == protocol.MsgTypeTargetImagePrepare)
 	case protocol.MsgTypeTargetStart:
 		if c.rtMgr != nil && c.rtMgr.DiskGuard().IsTripped() {
 			resp.Error = "worker_disk_pressure"

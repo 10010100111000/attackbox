@@ -9,7 +9,7 @@ interface PendingRPC { peerId: string; nodeId: string; bootId: string; sandboxId
 const integer = (n: unknown, min = 0): n is number => Number.isSafeInteger(n) && (n as number) >= min
 const text = (s: unknown, max = 128): s is string => typeof s === 'string' && s.length > 0 && s.length <= max
 const timestamp = (n: unknown) => integer(n, 1) && n <= 8640000000000 ? new Date(n * 1000).toISOString() : null
-export interface TargetWorkerResult { success: boolean; boot_id: string; target_id: string; error?: string; instance?: { target_id: string; owner_id: string; state: string; ready: boolean; readiness: string; ip?: string; container_id?: string } }
+export interface TargetWorkerResult { image_state?: string; success: boolean; boot_id: string; target_id: string; error?: string; instance?: { target_id: string; owner_id: string; state: string; ready: boolean; readiness: string; ip?: string; container_id?: string } }
 interface TargetPending { ownerId: string; peerId: string; bootId: string; targetId: string; type: string; resolve: (value: TargetWorkerResult) => void; reject: (error: Error) => void; timer: ReturnType<typeof setTimeout> }
 export class SandboxHub {
   targetNodes = new Set<string>()
@@ -70,7 +70,7 @@ export class SandboxHub {
       catch { clearTimeout(timer); this.pending.delete(id); reject(new Error('Worker send failed')) }
     })
   }
-  targetRpc(nodeId: string, bootId: string, type: 'target_start' | 'target_inspect' | 'target_stop', payload: {target_id: string; owner_id: string; image?: string; ports?: {port: number; protocol: 'tcp' | 'udp'}[]}, timeoutMs = 125000): Promise<TargetWorkerResult> {
+  targetRpc(nodeId: string, bootId: string, type: 'target_start' | 'target_inspect' | 'target_stop' | 'target_image_prepare' | 'target_image_status', payload: {target_id: string; owner_id: string; image?: string; ports?: {port: number; protocol: 'tcp' | 'udp'}[]}, timeoutMs = 125000): Promise<TargetWorkerResult> {
     this.sweep()
     const record = this.records.get(nodeId)
     if (!record?.connection || record.status.state !== 'online' || record.status.bootId !== bootId) return Promise.reject(new Error('Worker unavailable'))
@@ -94,7 +94,7 @@ export class SandboxHub {
       if (Buffer.byteLength(raw) > 1024 * 1024) { this.reject(peer); return }
       const msg = JSON.parse(raw), p = msg?.payload
       if (!text(msg?.id) || !text(msg?.type) || !p || typeof p !== 'object' || Array.isArray(p)) { this.reject(peer); return }
-      if (['target_start_resp', 'target_inspect_resp', 'target_stop_resp'].includes(msg.type)) {
+      if (['target_image_prepare_resp', 'target_image_status_resp', 'target_start_resp', 'target_inspect_resp', 'target_stop_resp'].includes(msg.type)) {
         if (!connection.registered || typeof p.success !== 'boolean' || !text(p.target_id) || !text(p.boot_id)) { this.reject(peer); return }
         const pending = this.targetPending.get(msg.id)
         if (!pending) return // Late replies require persisted reconciliation, not speculative cleanup.

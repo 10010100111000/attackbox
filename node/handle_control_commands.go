@@ -21,7 +21,7 @@ func (c *NodeControlClient) DispatchMessageForTest(msg *protocol.Message) {
 
 func (c *NodeControlClient) dispatchMessage(msg *protocol.Message) {
 	switch msg.Type {
-	case protocol.MsgTypeTargetStart, protocol.MsgTypeTargetInspect, protocol.MsgTypeTargetStop:
+	case protocol.MsgTypeTargetImagePrepare, protocol.MsgTypeTargetImageStatus, protocol.MsgTypeTargetStart, protocol.MsgTypeTargetInspect, protocol.MsgTypeTargetStop:
 		select {
 		case <-c.stopCh:
 			c.sendTargetResponse(msg, protocol.TargetResponse{Error: "worker_stopping"})

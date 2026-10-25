@@ -186,13 +186,17 @@ func TestTargetPullAndCleanupFailuresRetainResponsibility(t *testing.T) {
 	ctx := context.Background()
 	f.imagePresent = false
 	f.failPull = true
-	if _, err := m.Start(ctx, req); err == nil || err.Error() != "image_pull_failed" {
+	if _, err := m.Start(ctx, req); err == nil || err.Error() != "target_image_not_prepared" {
 		t.Fatalf("pull failure not sanitized: %v", err)
 	}
 	if len(m.records) != 1 {
 		t.Fatal("failed operation lost its intent")
 	}
 	f.failPull = false
+	f.imagePresent = true
+	if f.pulls != 0 {
+		t.Fatal("learner start downloaded an image")
+	}
 	if _, err := m.Start(ctx, req); err != nil {
 		t.Fatal(err)
 	}
@@ -323,5 +327,91 @@ func TestStopBeforeStartBlocksDelayedCreation(t *testing.T) {
 	restarted.client = client
 	if _, err := restarted.Start(context.Background(), req); err == nil || f.creates != 0 {
 		t.Fatal("delayed start created a container after stop")
+	}
+}
+
+// A deliberately stalled registry must not block stop/inspect or enqueue a
+// second download. This exercises the separation rather than timing a fast pull.
+func TestImagePreparationDoesNotBlockLifecycle(t *testing.T) {
+	m, f, _ := newTargetEngineTest(t)
+	f.imagePresent = false
+	started, release := make(chan struct{}), make(chan struct{})
+	defer close(release)
+	original := m.client.Transport
+	m.client.Transport = targetBlockingPullTransport{original, started, release}
+	ctx := context.Background()
+	state, err := m.ImageStatus(ctx, targetTestRequest().Image, true)
+	if err != nil || state != "preparing" {
+		t.Fatalf("prepare: %s %v", state, err)
+	}
+	<-started
+	state, err = m.ImageStatus(ctx, targetTestRequest().Image, true)
+	if err != nil || state != "preparing" {
+		t.Fatalf("duplicate: %s %v", state, err)
+	}
+	done := make(chan error, 1)
+	go func() { _, err := m.Stop(ctx, targetTestRequest()); done <- err }()
+	select {
+	case err := <-done:
+		if err != nil {
+			t.Fatal(err)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("download blocked stop")
+	}
+}
+
+type targetBlockingPullTransport struct {
+	next    http.RoundTripper
+	started chan struct{}
+	release chan struct{}
+}
+
+func (t targetBlockingPullTransport) RoundTrip(r *http.Request) (*http.Response, error) {
+	if r.URL.Path == "/v1.47/images/create" {
+		close(t.started)
+		select {
+		case <-t.release:
+		case <-r.Context().Done():
+			return nil, r.Context().Err()
+		}
+	}
+	return t.next.RoundTrip(r)
+}
+
+func TestImagePreparationReportsOutcome(t *testing.T) {
+	for _, fail := range []bool{false, true} {
+		t.Run(fmt.Sprint(fail), func(t *testing.T) {
+			m, f, _ := newTargetEngineTest(t)
+			f.imagePresent = false
+			f.failPull = fail
+			if state, err := m.ImageStatus(context.Background(), targetTestRequest().Image, false); err != nil || state != "missing" {
+				t.Fatalf("initial %s %v", state, err)
+			}
+			if _, err := m.ImageStatus(context.Background(), targetTestRequest().Image, true); err != nil {
+				t.Fatal(err)
+			}
+			deadline := time.Now().Add(time.Second)
+			for {
+				state, err := m.ImageStatus(context.Background(), targetTestRequest().Image, false)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if state != "preparing" {
+					want := "ready"
+					if fail {
+						want = "failed"
+					}
+					if state != want {
+						t.Fatalf("want %s got %s", want, state)
+					}
+					break
+				}
+				if time.Now().After(deadline) {
+					t.Fatal("preparation did not finish")
+				}
+				time.Sleep(time.Millisecond)
+			}
+		})
 	}
 }

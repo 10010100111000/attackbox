@@ -57,6 +57,8 @@ type targetContainer struct {
 // Btrfs sandboxes. Neither disconnect nor process shutdown destroys containers.
 // Operations are serialized in this small single-node implementation.
 type DockerTargetManager struct {
+	imageMu          sync.Mutex
+	imageJobs        map[string]string
 	mu               sync.Mutex
 	cfg              DockerTargetNetworkConfig
 	nodeID, stateDir string
@@ -215,7 +217,9 @@ func (m *DockerTargetManager) ensureImage(ctx context.Context, image string) err
 	if err != nil {
 		return fmt.Errorf("image_pull_failed")
 	}
-	resp, err := m.client.Do(req)
+	downloadClient := *m.client
+	downloadClient.Timeout = 30 * time.Minute
+	resp, err := downloadClient.Do(req)
 	if err != nil {
 		return fmt.Errorf("image_pull_failed")
 	}
@@ -290,7 +294,7 @@ func (m *DockerTargetManager) Start(ctx context.Context, req protocol.TargetRequ
 		if err := checkTargetNetwork(network, m.cfg); err != nil {
 			return protocol.TargetSummary{}, fmt.Errorf("target_network_conflict")
 		}
-		if err := m.ensureImage(ctx, req.Image); err != nil {
+		if err := m.requireImage(ctx, req.Image); err != nil {
 			return protocol.TargetSummary{}, err
 		}
 		body := map[string]any{

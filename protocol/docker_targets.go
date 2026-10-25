@@ -1,9 +1,11 @@
 package protocol
 
 const (
-	MsgTypeTargetStart   = "target_start"
-	MsgTypeTargetInspect = "target_inspect"
-	MsgTypeTargetStop    = "target_stop"
+	MsgTypeTargetImagePrepare = "target_image_prepare"
+	MsgTypeTargetImageStatus  = "target_image_status"
+	MsgTypeTargetStart        = "target_start"
+	MsgTypeTargetInspect      = "target_inspect"
+	MsgTypeTargetStop         = "target_stop"
 )
 
 type TargetPort struct {
@@ -32,11 +34,12 @@ type TargetSummary struct {
 }
 
 type TargetResponse struct {
-	BootID   string         `json:"boot_id"`
-	TargetID string         `json:"target_id"`
-	Success  bool           `json:"success"`
-	Error    string         `json:"error,omitempty"`
-	Instance *TargetSummary `json:"instance,omitempty"`
+	ImageState string         `json:"image_state,omitempty"`
+	BootID     string         `json:"boot_id"`
+	TargetID   string         `json:"target_id"`
+	Success    bool           `json:"success"`
+	Error      string         `json:"error,omitempty"`
+	Instance   *TargetSummary `json:"instance,omitempty"`
 }
 
 // Available=false means inventory is unknown, never that all containers vanished.
