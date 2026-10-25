@@ -1,305 +1,74 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
-import { Copy, Check } from 'lucide-vue-next'
-
-const props = defineProps<{
-  context: Record<string, string>
-}>()
-
-const current = ref<any>(null)
-const busy = ref(false)
-const message = ref('')
-const mounted = ref(false)
-const copied = ref(false)
-let timer: ReturnType<typeof setInterval> | undefined
-
-const stateLabels: Record<string, string> = {
-  starting: '正在启动',
-  created: '已创建',
-  running: '运行中',
-  stopping: '正在停止',
-  stopped: '已停止',
-  cleanup_pending: '清理待确认',
-  missing: '实例缺失',
-  orphaned: '待接管',
-}
-
-const readinessLabels: Record<string, string> = {
-  healthy: '服务健康',
-  ports_open: '端口已开放',
-  waiting_for_ports: '等待服务端口就绪…',
-  unverified: '已运行（无健康探针）',
-  network_unavailable: '网络未就绪',
-  not_running: '未运行',
-}
-
-const statusText = computed(() => {
-  if (!current.value) return '未启动'
-  if (current.value.instance?.ready) return '服务已就绪'
-  const state = current.value.state || ''
-  const readiness = current.value.instance?.readiness
-  if (state === 'running' && readiness && readinessLabels[readiness]) {
-    return readinessLabels[readiness]
-  }
-  return stateLabels[state] || state
+import {ref,computed,onMounted,onBeforeUnmount} from 'vue'
+import {Box,Copy,Check,Power,Square,LoaderCircle,ChevronDown} from 'lucide-vue-next'
+import type {LearningTarget} from '~/shared/learning-target'
+const props=defineProps<{context:Record<string,string>;target?:LearningTarget}>()
+const {currentUser}=useAuth()
+interface Instance {expiresAt:string;id:string;state:string;instance?:{ip?:string;ready:boolean;readiness:string};error?:string}
+const requestPending=ref(false)
+const current=ref<Instance|null>(null),initializing=ref(true),action=ref(''),message=ref(''),copied=ref(false)
+let alive=true,copyTimer:ReturnType<typeof setTimeout>|undefined
+const clock=ref(Date.now())
+let clockTimer:ReturnType<typeof setInterval>|undefined
+const remaining=computed(()=>current.value?.expiresAt?Math.max(0,Math.ceil((Date.parse(current.value.expiresAt)-clock.value)/1000)):null)
+const countdown=computed(()=>remaining.value===null?'':`${Math.floor(remaining.value/60).toString().padStart(2,'0')}:${(remaining.value%60).toString().padStart(2,'0')}`)
+const config=computed(()=>props.target?.status==='configured'?props.target:null)
+const unavailable=computed(()=>props.target?.status==='unavailable')
+const state=computed(()=>current.value?.state||'stopped')
+const active=computed(()=>!!current.value && state.value!=='stopped')
+const canRetry=computed(()=>['missing','created'].includes(state.value))
+const status=computed(()=>{
+ if(initializing.value)return '正在读取状态'
+ if(active.value && remaining.value===0)return '租期已到期'
+ if(action.value==='start')return '正在启动'
+ if(action.value==='stop')return '正在停止'
+ if(current.value?.instance?.ready && state.value==='running')return '已就绪'
+ if(state.value==='running')return '运行中'
+ return ({starting:'正在启动',created:'尚未启动',stopping:'正在停止',cleanup_pending:'清理待确认',missing:'实例缺失',orphaned:'状态异常',unconfirmed:'状态待确认',stopped:'未启动'} as Record<string,string>)[state.value]||'状态待确认'
 })
-
-async function copyIp() {
-  const ip = current.value?.instance?.ip
-  if (!ip || !navigator?.clipboard) return
-  try {
-    await navigator.clipboard.writeText(ip)
-    copied.value = true
-    setTimeout(() => {
-      copied.value = false
-    }, 2000)
-  } catch {}
+async function run(operation:'inspect'|'start'|'stop'){
+ if(requestPending.value || action.value || !currentUser.value || unavailable.value)return
+ if(operation==='start' && active.value && remaining.value===0)return
+ if(operation==='stop'&&!confirm('停止靶机会清除其中的修改，确认停止？'))return
+ requestPending.value=true
+ if(operation!=='inspect'){action.value=operation;message.value=''}
+ try{
+  const result=operation==='inspect'?await $fetch<Instance|null>('/api/targets',{query:props.context,retry:false}):await $fetch<Instance>('/api/targets',{method:'POST',body:{...props.context,action:operation,id:current.value?.id}})
+  if(alive){current.value=result;message.value=result?.error||''}
+ }catch(e:any){if(alive)message.value=e?.data?.message||'操作结果尚未确认'}
+ finally{requestPending.value=false;if(alive){action.value='';initializing.value=false}}
 }
-
-async function run(action: 'inspect' | 'start' | 'stop') {
-  if (busy.value) return
-  busy.value = true
-  message.value = ''
-  try {
-    const result =
-      action === 'inspect'
-        ? await $fetch('/api/targets', { query: props.context })
-        : await $fetch('/api/targets', {
-            method: 'POST',
-            body: { ...props.context, action, id: current.value?.id },
-          })
-    current.value = result
-    message.value = (result as any)?.error || ''
-  } catch (e: any) {
-    message.value = e?.data?.message || '环境操作失败，请稍后重试'
-  } finally {
-    busy.value = false
-  }
+async function copyIp(){
+ try{await navigator.clipboard.writeText(current.value!.instance!.ip!);copied.value=true;clearTimeout(copyTimer);copyTimer=setTimeout(()=>copied.value=false,2000)}catch{message.value='复制失败，请手动复制地址'}
 }
-
-onMounted(() => {
-  mounted.value = true
-  run('inspect')
-  timer = setInterval(() => {
-    if (!busy.value && current.value && current.value.state !== 'stopped') {
-      run('inspect')
-    }
-  }, 8000)
-})
-
-onBeforeUnmount(() => clearInterval(timer))
+onMounted(()=>{clockTimer=setInterval(()=>clock.value=Date.now(),1000);initializing.value=!!currentUser.value && !unavailable.value;void run('inspect')})
+onBeforeUnmount(()=>{alive=false;clearInterval(clockTimer);clearTimeout(copyTimer)})
 </script>
-
 <template>
-  <section class="target-runtime" aria-label="靶机运行状态">
-    <div class="target-header">
-      <strong>实验靶机</strong>
-      <span
-        v-if="current"
-        class="target-badge"
-        :class="{
-          ready: current.instance?.ready,
-          running: current.state === 'running' && !current.instance?.ready,
-          stopped: current.state === 'stopped',
-        }"
-      >
-        {{ statusText }}
-      </span>
-    </div>
-
-    <div v-if="current?.instance?.ip" class="target-ip-row">
-      <div class="ip-box">
-        <span class="ip-label">目标地址</span>
-        <code>{{ current.instance.ip }}</code>
-        <button
-          type="button"
-          class="copy-btn"
-          :aria-label="copied ? '已复制目标地址' : '复制目标地址'"
-          @click="copyIp"
-        >
-          <Check v-if="copied" :size="13" aria-hidden="true" />
-          <Copy v-else :size="13" aria-hidden="true" />
-          <span>{{ copied ? '已复制' : '复制' }}</span>
-        </button>
-      </div>
-      <small>使用同节点 CLI / GUI 访问</small>
-    </div>
-
-    <p v-if="message" class="target-message" role="status">
-      {{ message }}
-    </p>
-
-    <footer class="target-actions">
-      <button
-        type="button"
-        class="primary-btn"
-        :disabled="!mounted || busy || current?.state === 'stopping'"
-        @click="run('start')"
-      >
-        {{
-          busy
-            ? '处理中…'
-            : current && current.state !== 'stopped'
-              ? '继续启动／重试'
-              : '启动靶机'
-        }}
-      </button>
-      <button
-        v-if="current && current.state !== 'stopped'"
-        type="button"
-        class="danger-btn"
-        :disabled="busy"
-        @click="run('stop')"
-      >
-        停止靶机
-      </button>
-      <button
-        type="button"
-        class="secondary-btn"
-        :disabled="!mounted || busy"
-        @click="run('inspect')"
-      >
-        刷新状态
-      </button>
-    </footer>
-  </section>
+ <section class="target-runtime" aria-label="实验靶机">
+  <div class="target-row">
+   <div class="target-heading"><Box :size="17" aria-hidden="true"/><div><span class="target-label">实验靶机</span><h2>{{config?.name || '实验环境'}}</h2></div></div>
+   <span v-if="!unavailable && currentUser" class="target-state" :class="{ready:current?.instance?.ready && state==='running' && remaining!==0}" role="status"><i/>{{status}}</span>
+   <time v-if="active && countdown" class="target-countdown" :datetime="current?.expiresAt" title="到期自动释放">{{countdown}}</time>
+   <div class="target-action">
+    <span v-if="unavailable" class="target-state">暂不可用</span>
+    <NuxtLink v-else-if="!currentUser" to="/auth">登录后启动</NuxtLink>
+    <template v-else>
+     <button v-if="!active || canRetry" type="button" :disabled="initializing || !!action || requestPending || (active && remaining===0)" class="start" @click="run('start')"><LoaderCircle v-if="action==='start'" :size="14" aria-hidden="true"/><Power v-else :size="14" aria-hidden="true"/>{{canRetry?'重试启动':'启动靶机'}}</button>
+     <button v-if="active" type="button" :disabled="!!action || requestPending" class="stop" @click="run('stop')"><Square :size="12" aria-hidden="true"/>{{state==='cleanup_pending'?'重试停止':'停止靶机'}}</button>
+    </template>
+   </div>
+  </div>
+  <div v-if="current?.instance?.ip && state==='running'" class="target-address"><span>目标地址</span><code>{{current.instance.ip}}</code><button type="button" :aria-label="copied?'已复制目标地址':'复制目标地址'" @click="copyIp"><Check v-if="copied" :size="14"/><Copy v-else :size="14"/></button></div>
+  <p v-if="message" class="target-message" role="alert">{{message}}</p>
+  <details v-if="config && (config.description || config.accessInstructions || config.ports.length)" class="target-details">
+   <summary>环境说明<ChevronDown :size="13" aria-hidden="true"/></summary>
+   <div><p v-if="config.description">{{config.description}}</p><p v-if="config.ports.length" class="ports">服务端口 · {{config.ports.map(p=>`${p.port}/${p.protocol.toUpperCase()}`).join('、')}}</p><p v-if="config.accessInstructions" class="instructions">{{config.accessInstructions}}</p><p class="cleanup-note">独享靶机，停止后清除其中的修改。</p></div>
+  </details>
+ </section>
 </template>
-
 <style scoped>
-.target-runtime {
-  margin: 18px 0;
-  padding: 18px 20px;
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  background: var(--paper);
-  font-size: 13px;
-}
-
-.target-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-}
-
-.target-badge {
-  display: inline-flex;
-  align-items: center;
-  padding: 3px 9px;
-  border-radius: 5px;
-  font-size: 11px;
-  font-weight: 550;
-  background: var(--soft);
-  color: var(--muted);
-}
-
-.target-badge.ready {
-  background: var(--success-bg);
-  color: var(--success-ink);
-}
-
-.target-badge.running {
-  background: var(--mint);
-  color: var(--green);
-}
-
-.target-ip-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  flex-wrap: wrap;
-  gap: 12px;
-  margin-top: 14px;
-  padding: 10px 14px;
-  border-radius: 6px;
-  background: var(--soft);
-}
-
-.ip-box {
-  display: inline-flex;
-  align-items: center;
-  gap: 10px;
-}
-
-.ip-label {
-  font-size: 11px;
-  color: var(--muted);
-}
-
-.ip-box code {
-  font: 600 13px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  color: var(--ink);
-}
-
-.copy-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  padding: 3px 8px;
-  border: 1px solid var(--line);
-  border-radius: 4px;
-  background: var(--paper);
-  color: var(--muted);
-  font-size: 11px;
-  cursor: pointer;
-}
-
-.copy-btn:hover {
-  color: var(--ink);
-}
-
-.target-ip-row small {
-  color: var(--muted);
-  font-size: 12px;
-}
-
-.target-message {
-  margin: 12px 0 0;
-  padding: 8px 12px;
-  border-radius: 6px;
-  background: var(--error-bg);
-  color: var(--error-ink);
-  font-size: 12px;
-  line-height: 1.6;
-}
-
-.target-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-  margin-top: 16px;
-}
-
-button {
-  border: 1px solid var(--line);
-  border-radius: 6px;
-  padding: 8px 14px;
-  background: var(--paper);
-  color: var(--ink);
-  font-size: 12px;
-  font-weight: 550;
-  cursor: pointer;
-  transition: opacity 0.15s ease, background 0.15s ease;
-}
-
-.primary-btn {
-  background: var(--ink);
-  color: var(--paper);
-  border-color: var(--ink);
-}
-
-.danger-btn:hover:not(:disabled) {
-  background: var(--error-bg);
-  color: var(--error-ink);
-  border-color: transparent;
-}
-
-.secondary-btn:hover:not(:disabled) {
-  background: var(--soft);
-}
-
-button:disabled {
-  opacity: 0.5;
-  cursor: default;
-}
+.target-runtime{margin:32px 0;padding:18px 20px;border:1px solid var(--line);border-radius:10px;background:var(--paper);color:var(--ink);font-size:13px}
+.target-row{display:flex;align-items:center;gap:18px;flex-wrap:wrap}.target-heading{display:flex;align-items:center;gap:10px;min-width:0}.target-heading>svg{color:var(--muted);flex-shrink:0}.target-label{font-size:10px;color:var(--muted)}h2{margin:3px 0 0;font-size:14px;font-weight:600;overflow-wrap:anywhere}.target-state{display:inline-flex;gap:6px;align-items:center;font-size:11px;color:var(--muted)}.target-state i{height:5px;width:5px;border-radius:50%;background:currentColor}.target-state.ready{color:var(--green)}.target-countdown{color:var(--error-ink,#b44949);font-size:12px;font-variant-numeric:tabular-nums}.target-action{margin-left:auto;display:flex;align-items:center;gap:8px}
+button,.target-action a{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line);background:transparent;color:var(--ink);border-radius:6px;padding:7px 10px;cursor:pointer;font-size:12px;text-decoration:none}.start{background:var(--green);border-color:var(--green);color:var(--on-accent)}.stop{color:var(--error-ink,#b44949)}button:disabled{opacity:.5;cursor:default}button:focus-visible,summary:focus-visible{outline:2px solid var(--green);outline-offset:3px}.target-address{display:flex;align-items:center;gap:10px;margin-top:15px}.target-address>span{font-size:11px;color:var(--muted)}code{font-family:ui-monospace,monospace;font-size:13px;user-select:all}.target-address button{padding:5px;border:0}.target-message{color:var(--error-ink,#b44949);font-size:12px;line-height:1.6;margin:12px 0 0;overflow-wrap:anywhere}.target-details{margin-top:14px}.target-details summary{display:inline-flex;gap:6px;align-items:center;list-style:none;cursor:pointer;color:var(--muted);font-size:11px}.target-details summary::-webkit-details-marker{display:none}.target-details[open] summary svg{transform:rotate(180deg)}.target-details>div{border-top:1px solid var(--line);margin-top:12px;padding-top:4px}.target-details p{font-size:12px;line-height:1.8;margin:10px 0 0;overflow-wrap:anywhere}.instructions{white-space:pre-wrap}.ports,.cleanup-note{color:var(--muted)}
 </style>

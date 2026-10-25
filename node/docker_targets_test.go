@@ -117,7 +117,7 @@ func newTargetEngineTest(t *testing.T) (*DockerTargetManager, *targetEngineFixtu
 }
 
 func targetTestRequest() protocol.TargetRequest {
-	return protocol.TargetRequest{TargetID: "tgt_0123456789abcdef", OwnerID: "user-1", Image: "example/target:1.0", Ports: []protocol.TargetPort{{Port: 53, Protocol: "udp"}}}
+	return protocol.TargetRequest{ExpiresAt: time.Date(2099, 1, 1, 0, 0, 0, 0, time.UTC), TargetID: "tgt_0123456789abcdef", OwnerID: "user-1", Image: "example/target:1.0", Ports: []protocol.TargetPort{{Port: 53, Protocol: "udp"}}}
 }
 
 func TestTargetStartIdempotenceOwnershipAndRestart(t *testing.T) {
@@ -413,5 +413,84 @@ func TestImagePreparationReportsOutcome(t *testing.T) {
 				time.Sleep(time.Millisecond)
 			}
 		})
+	}
+}
+
+func TestTargetLeaseExpiryPersistsAndRetriesCleanup(t *testing.T) {
+	m, f, _ := newTargetEngineTest(t)
+	now := time.Date(2098, 1, 1, 0, 0, 0, 0, time.UTC)
+	m.clock = func() time.Time { return now }
+	req := targetTestRequest()
+	req.ExpiresAt = now.Add(time.Minute)
+	ctx := context.Background()
+	if _, err := m.Start(ctx, req); err != nil {
+		t.Fatal(err)
+	}
+	if err := m.ReapLeases(ctx); err != nil || f.deletes != 0 {
+		t.Fatal("reaped before deadline", err)
+	}
+	// Retrying a start cannot extend the immutable lease.
+	changed := req
+	changed.ExpiresAt = now.Add(time.Hour)
+	if _, err := m.Start(ctx, changed); err == nil {
+		t.Fatal("lease extended by retry")
+	}
+	now = req.ExpiresAt
+	f.failDelete = true
+	if err := m.ReapLeases(ctx); err == nil {
+		t.Fatal("failed cleanup reported success")
+	}
+	if m.records[req.TargetID].Desired != "stopped" {
+		t.Fatal("expiry intent not persisted")
+	}
+	restarted, err := NewDockerTargetManager(m.cfg, m.nodeID, m.stateDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	restarted.client = m.client
+	restarted.clock = func() time.Time { return now }
+	if s, err := restarted.Inspect(ctx, req); err == nil || s.State != "cleanup_pending" {
+		t.Fatalf("false release: %+v %v", s, err)
+	}
+	f.failDelete = false
+	if err := restarted.ReapLeases(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if f.container != nil || f.deletes != 1 {
+		t.Fatal("container not removed")
+	}
+	if s, err := restarted.Start(ctx, req); err == nil || s.State != "stopped" || f.creates != 1 {
+		t.Fatal("expired instance revived", s, err)
+	}
+	if !restarted.records[req.TargetID].Cleaned {
+		t.Fatal("cleanup confirmation not persisted")
+	}
+}
+
+func TestExpiredStartCannotCreateAndCannotStopAnotherOwner(t *testing.T) {
+	m, f, _ := newTargetEngineTest(t)
+	now := time.Date(2098, 1, 1, 0, 0, 0, 0, time.UTC)
+	m.clock = func() time.Time { return now }
+	req := targetTestRequest()
+	req.ExpiresAt = now.Add(time.Minute)
+	if _, err := m.Start(context.Background(), req); err != nil {
+		t.Fatal(err)
+	}
+	now = req.ExpiresAt
+	other := req
+	other.OwnerID = "other-user"
+	if _, err := m.Start(context.Background(), other); err == nil {
+		t.Fatal("owner mismatch accepted")
+	}
+	if f.deletes != 0 {
+		t.Fatal("another owner triggered deletion")
+	}
+	fresh, engine, _ := newTargetEngineTest(t)
+	fresh.clock = func() time.Time { return now }
+	if _, err := fresh.Start(context.Background(), req); err != nil {
+		t.Fatal(err)
+	}
+	if engine.creates != 0 {
+		t.Fatal("expired delayed request created container")
 	}
 }

@@ -31,6 +31,7 @@ var targetOwnerPattern = regexp.MustCompile(`^[A-Za-z0-9_-]{1,128}$`)
 var targetImagePattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._:/@-]{0,254}$`)
 
 type targetRecord struct {
+	Cleaned     bool                   `json:"cleaned,omitempty"`
 	NodeID      string                 `json:"node_id"`
 	Request     protocol.TargetRequest `json:"request"`
 	Fingerprint string                 `json:"fingerprint"`
@@ -57,6 +58,7 @@ type targetContainer struct {
 // Btrfs sandboxes. Neither disconnect nor process shutdown destroys containers.
 // Operations are serialized in this small single-node implementation.
 type DockerTargetManager struct {
+	clock            func() time.Time
 	imageMu          sync.Mutex
 	imageJobs        map[string]string
 	mu               sync.Mutex
@@ -258,6 +260,27 @@ func (m *DockerTargetManager) Start(ctx context.Context, req protocol.TargetRequ
 		return protocol.TargetSummary{}, err
 	}
 	r, exists := m.records[req.TargetID]
+	if exists && r.Request.OwnerID != req.OwnerID {
+		return protocol.TargetSummary{}, fmt.Errorf("target_owner_mismatch")
+	}
+	if exists && (r.Desired == "stopped" || m.expired(r)) {
+		s, err := m.stopRecord(ctx, r)
+		if err != nil {
+			return s, err
+		}
+		return s, fmt.Errorf("target_lease_ended")
+	}
+	if req.ExpiresAt.IsZero() {
+		return protocol.TargetSummary{}, fmt.Errorf("target_expiry_required")
+	}
+	if !req.ExpiresAt.After(m.now()) {
+		return m.stopRecord(ctx, targetRecord{NodeID: m.nodeID, Request: req, Fingerprint: targetFingerprint(req), Desired: "stopped"})
+	}
+	ctx, cancel := context.WithDeadline(ctx, req.ExpiresAt)
+	defer cancel()
+	if exists && !r.Request.ExpiresAt.Equal(req.ExpiresAt) {
+		return protocol.TargetSummary{}, fmt.Errorf("target_lease_conflict")
+	}
 	if exists {
 		if r.Fingerprint != targetFingerprint(req) {
 			return protocol.TargetSummary{}, fmt.Errorf("target_configuration_conflict")
@@ -346,15 +369,28 @@ func (m *DockerTargetManager) Stop(ctx context.Context, req protocol.TargetReque
 	}
 	// Durable tombstone is written before Docker deletion, blocking late starts
 	// even after a Worker restart. A new lifecycle always needs a new TargetID.
-	r.Desired = "stopped"
-	if err := m.save(r); err != nil {
-		return protocol.TargetSummary{}, err
+	return m.stopRecord(ctx, r)
+}
+
+func (m *DockerTargetManager) stopRecord(ctx context.Context, r targetRecord) (protocol.TargetSummary, error) {
+	if r.Desired != "stopped" || !r.Cleaned {
+		r.Desired = "stopped"
+		if err := m.save(r); err != nil {
+			return protocol.TargetSummary{}, err
+		}
 	}
-	return m.remove(ctx, r)
+	s, err := m.remove(ctx, r)
+	if err == nil && !r.Cleaned {
+		r.Cleaned = true
+		if e := m.save(r); e != nil {
+			return s, e
+		}
+	}
+	return s, err
 }
 
 func (m *DockerTargetManager) remove(ctx context.Context, r targetRecord) (protocol.TargetSummary, error) {
-	s := protocol.TargetSummary{TargetID: r.Request.TargetID, OwnerID: r.Request.OwnerID, State: "cleanup_pending", Readiness: "not_running"}
+	s := protocol.TargetSummary{ExpiresAt: r.Request.ExpiresAt, TargetID: r.Request.TargetID, OwnerID: r.Request.OwnerID, State: "cleanup_pending", Readiness: "not_running"}
 	c, code, err := m.inspect(ctx, "attackbox-"+r.Request.TargetID)
 	if code == 404 {
 		s.State = "stopped"
@@ -391,12 +427,12 @@ func (m *DockerTargetManager) Inspect(ctx context.Context, req protocol.TargetRe
 	if r.Request.OwnerID != req.OwnerID {
 		return protocol.TargetSummary{}, fmt.Errorf("target_owner_mismatch")
 	}
-	if r.Desired == "stopped" {
-		return m.remove(ctx, r)
+	if r.Desired == "stopped" || m.expired(r) {
+		return m.stopRecord(ctx, r)
 	}
 	c, code, err := m.inspect(ctx, "attackbox-"+req.TargetID)
 	if code == 404 {
-		return protocol.TargetSummary{TargetID: req.TargetID, OwnerID: req.OwnerID, State: "missing", Readiness: "not_running"}, nil
+		return protocol.TargetSummary{TargetID: req.TargetID, OwnerID: req.OwnerID, ExpiresAt: r.Request.ExpiresAt, State: "missing", Readiness: "not_running"}, nil
 	}
 	if err != nil {
 		return protocol.TargetSummary{}, err
@@ -408,7 +444,7 @@ func (m *DockerTargetManager) Inspect(ctx context.Context, req protocol.TargetRe
 }
 
 func (m *DockerTargetManager) summary(ctx context.Context, r targetRecord, c targetContainer) protocol.TargetSummary {
-	s := protocol.TargetSummary{TargetID: r.Request.TargetID, OwnerID: r.Request.OwnerID, ContainerID: c.ID, State: c.State.Status, Readiness: "not_running"}
+	s := protocol.TargetSummary{ExpiresAt: r.Request.ExpiresAt, TargetID: r.Request.TargetID, OwnerID: r.Request.OwnerID, ContainerID: c.ID, State: c.State.Status, Readiness: "not_running"}
 	if !c.State.Running || c.State.Status != "running" {
 		return s
 	}
@@ -491,8 +527,8 @@ func (m *DockerTargetManager) Inventory(ctx context.Context) protocol.TargetInve
 			result.Error = "target_inventory_conflict"
 			return result
 		}
-		if r.Desired == "stopped" {
-			s, err := m.remove(ctx, r)
+		if r.Desired == "stopped" || m.expired(r) {
+			s, err := m.stopRecord(ctx, r)
 			if err != nil {
 				s.State = "cleanup_pending"
 			}
@@ -508,7 +544,7 @@ func (m *DockerTargetManager) Inventory(ctx context.Context) protocol.TargetInve
 	}
 	for id, r := range m.records {
 		if !seen[id] && r.Desired == "running" {
-			result.Instances = append(result.Instances, protocol.TargetSummary{TargetID: id, OwnerID: r.Request.OwnerID, State: "missing", Readiness: "not_running"})
+			result.Instances = append(result.Instances, protocol.TargetSummary{TargetID: id, OwnerID: r.Request.OwnerID, ExpiresAt: r.Request.ExpiresAt, State: "missing", Readiness: "not_running"})
 		}
 	}
 	result.Available = true

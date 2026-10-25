@@ -44,7 +44,7 @@ func TestDockerTargetLifecycleRealEngine(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	req := protocol.TargetRequest{TargetID: "tgt_" + suffix, OwnerID: "acceptance-user", Image: image, Ports: []protocol.TargetPort{{Port: 8080, Protocol: "tcp"}}}
+	req := protocol.TargetRequest{ExpiresAt: time.Now().Add(time.Hour), TargetID: "tgt_" + suffix, OwnerID: "acceptance-user", Image: image, Ports: []protocol.TargetPort{{Port: 8080, Protocol: "tcp"}}}
 	defer func() {
 		cleanupCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()

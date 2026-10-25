@@ -26,18 +26,14 @@ const form = ref<TargetTemplateInput>({
 })
 const imageNodes = ref<{nodeId:string;state:string;error?:string}[]>([])
 const imageBusy = ref(false)
-let imageTimer: ReturnType<typeof setTimeout> | undefined
 async function imageAction(action: 'status' | 'prepare' = 'status') {
  if (isNew || imageBusy.value) return
  imageBusy.value = true
- clearTimeout(imageTimer)
  try {
   imageNodes.value = (await $fetch<{data: typeof imageNodes.value}>(`/api/admin/target-templates/${id}/image`, {method:'POST',body:{action}})).data
-  if (imageNodes.value.some(n=>n.state==='preparing')) imageTimer=setTimeout(()=>imageAction(),3000)
  } catch { notice.value='镜像状态查询失败，请重试'; failure.value=true }
  finally { imageBusy.value=false }
 }
-onBeforeUnmount(()=>clearTimeout(imageTimer))
 const imageLabels: Record<string,string> = {ready:'就绪',missing:'未准备',preparing:'正在拉取',failed:'准备失败',unknown:'未知'}
 const original = ref(JSON.stringify(form.value))
 const version = ref(0)
@@ -101,7 +97,6 @@ async function load() {
 onMounted(async () => {
  if (!isNew) {
   await load()
-  if (loaded.value) void imageAction()
   if (loaded.value && route.query.created === '1') notice.value = '模板已创建'
  }
 })
@@ -227,10 +222,10 @@ async function save() {
 
             <div v-if="!isNew" class="image-preparation">
               <p class="hint">镜像按节点准备。保存模板后点击准备；学员启动不会自动下载。</p>
-              <p v-if="!imageNodes.length" class="hint">尚无可用 Docker 节点或未读取状态。</p>
+              <p v-if="!imageNodes.length" class="hint">点击查询状态，查看各节点的镜像准备情况。</p>
               <p v-for="node in imageNodes" :key="node.nodeId" role="status">{{ node.nodeId }} · {{ imageLabels[node.state] || node.state }} <small v-if="node.error">{{ node.error }}</small></p>
               <button type="button" :disabled="imageBusy || dirty" @click="imageAction('prepare')">准备镜像 / 重试</button>
-              <button type="button" :disabled="imageBusy || dirty" @click="imageAction()">刷新状态</button>
+              <button type="button" :disabled="imageBusy || dirty" @click="imageAction()">查询状态</button>
               <small v-if="dirty">请先保存修改，再准备镜像。</small>
             </div>
             <label>

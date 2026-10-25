@@ -70,7 +70,7 @@ export class SandboxHub {
       catch { clearTimeout(timer); this.pending.delete(id); reject(new Error('Worker send failed')) }
     })
   }
-  targetRpc(nodeId: string, bootId: string, type: 'target_start' | 'target_inspect' | 'target_stop' | 'target_image_prepare' | 'target_image_status', payload: {target_id: string; owner_id: string; image?: string; ports?: {port: number; protocol: 'tcp' | 'udp'}[]}, timeoutMs = 125000): Promise<TargetWorkerResult> {
+  targetRpc(nodeId: string, bootId: string, type: 'target_start' | 'target_inspect' | 'target_stop' | 'target_image_prepare' | 'target_image_status', payload: {target_id: string; owner_id: string; image?: string; expires_at?: string; ports?: {port: number; protocol: 'tcp' | 'udp'}[]}, timeoutMs = 125000): Promise<TargetWorkerResult> {
     this.sweep()
     const record = this.records.get(nodeId)
     if (!record?.connection || record.status.state !== 'online' || record.status.bootId !== bootId) return Promise.reject(new Error('Worker unavailable'))

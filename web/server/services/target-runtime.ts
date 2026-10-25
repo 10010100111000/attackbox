@@ -48,6 +48,7 @@ export async function targetScope(user: string, input: Record<string, unknown>) 
 function view(row: typeof targetInstances.$inferSelect) {
   return {
     id: row.id,
+    expiresAt: row.expiresAt,
     state: row.state,
     instance: row.result,
     updatedAt: row.updatedAt,
@@ -115,6 +116,7 @@ export async function targetOperation(
       nodeId: node.id,
       bootId: node.bootId!,
       state: 'starting',
+      expiresAt: new Date(Date.now() + 60 * 60 * 1000),
       image: template.image,
       ports: template.ports,
       result: null,
@@ -129,7 +131,8 @@ export async function targetOperation(
   })
 
   if (!row) return null
-  if (action === 'inspect' && row.state === 'stopped') return view(row)
+  if (row.state === 'stopped') return view(row)
+  if (row.expiresAt.getTime() <= Date.now()) action = 'stop'
   if (action === 'start' && row.state === 'stopping') {
     throw createError({ statusCode: 409, message: '正在停止，请先刷新状态' })
   }
@@ -166,7 +169,7 @@ export async function targetOperation(
       {
         target_id: row.id,
         owner_id: user,
-        ...(action === 'start' ? { image: row.image, ports: row.ports } : {}),
+        ...(action === 'start' ? { image: row.image, ports: row.ports, expires_at: row.expiresAt.toISOString() } : {}),
       }
     )
 
@@ -190,7 +193,7 @@ export async function targetOperation(
   } catch {
     return {
       ...view(row),
-      error: 'Worker 响应未确认，请刷新状态；不要重复创建实例',
+      error: 'Worker 操作结果尚未确认',
     }
   }
 }

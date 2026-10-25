@@ -68,6 +68,10 @@ func (c *NodeControlClient) Start(ctx context.Context) {
 	c.targetsCancel = cancel
 	c.wg.Add(1)
 	go func() { defer c.wg.Done(); c.targetCommandLoop(targetCtx) }()
+	if c.targets != nil {
+		c.wg.Add(1)
+		go func() { defer c.wg.Done(); c.targets.RunLeaseReaper(targetCtx) }()
+	}
 
 	c.wg.Add(1)
 	go func() {

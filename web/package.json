@@ -23,6 +23,7 @@
     "test:target-templates": "node --test tests/target-templates.test.mjs",
     "test:learning-targets": "node --test tests/learning-targets.test.mjs",
     "test:auth-navigation": "node --test tests/auth-navigation-browser.test.mjs",
+    "test:target-leases": "node --test tests/target-leases.test.mjs",
     "test:workbench": "node --test tests/workbench-browser.test.mjs",
     "test:categories": "node --test tests/categories.test.mjs tests/categories-browser.test.mjs",
     "test:challenges": "node --test tests/challenges.test.mjs"

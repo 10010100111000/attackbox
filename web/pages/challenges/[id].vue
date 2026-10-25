@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue'
-import { ArrowLeft, CheckCircle2, LockKeyhole, Flag, Box, Terminal, Monitor, ChevronUp } from 'lucide-vue-next'
+import { ArrowLeft, CheckCircle2, LockKeyhole, Flag, Terminal, Monitor, ChevronUp } from 'lucide-vue-next'
 import MarkdownView from '~/components/ui/MarkdownView.vue'
 import PracticeDock from '~/components/learning/PracticeDock.vue'
 import { useAuth } from '~/composables/useAuth'
@@ -158,33 +158,8 @@ async function submit(stageId: string) {
             </div>
           </header>
 
-          <TargetEnvironment
-            v-if="c.target"
-            :context="{ kind: 'challenge', challengeId: String($route.params.id) }"
-          />
-
-          <details v-if="c.target" class="target">
-            <summary>
-              <Box :size="17" aria-hidden="true" />
-              <span>
-                目标环境{{ c.target.status === 'configured' ? ` · ${c.target.name}` : '暂不可用' }}
-              </span>
-            </summary>
-            <template v-if="c.target.status === 'configured'">
-              <p>{{ c.target.description }}</p>
-              <p>
-                容器服务端口：{{
-                  c.target.ports.map(p => `${p.port}/${p.protocol.toUpperCase()}`).join('、') ||
-                  '未配置'
-                }}
-              </p>
-              <p class="instructions">{{ c.target.accessInstructions }}</p>
-              <small>独享实例，停止后清除靶机内修改。</small>
-            </template>
-            <p v-else>关联环境暂不可用，任务与解题记录仍可查看。</p>
-          </details>
-
           <MarkdownView :content="c.bodyMarkdown" />
+          <TargetEnvironment v-if="c.target" :key="String($route.params.id)" :target="c.target" :context="{kind: 'challenge', challengeId: String($route.params.id)}" />
 
           <section aria-label="阶段任务" class="stage-list">
             <article v-for="(s, index) in c.stages" :key="s.id" class="stage">
@@ -386,39 +361,6 @@ h1 {
   margin-left: auto;
 }
 
-.target {
-  background: var(--paper);
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  padding: 16px 20px;
-  margin: 0 0 28px;
-  font-size: 13px;
-}
-
-.target summary {
-  display: flex;
-  align-items: center;
-  gap: 9px;
-  cursor: pointer;
-  list-style: none;
-  font-weight: 600;
-}
-
-.target summary::-webkit-details-marker {
-  display: none;
-}
-
-.target p {
-  margin: 12px 0 0;
-  line-height: 1.8;
-}
-
-.target small {
-  display: block;
-  margin-top: 10px;
-  color: var(--muted);
-}
-
 .stage-list {
   margin-top: 38px;
 }
@@ -457,8 +399,7 @@ h1 {
   cursor: pointer;
 }
 
-.hint p,
-.instructions {
+.hint p {
   white-space: pre-wrap;
   overflow-wrap: anywhere;
   line-height: 1.8;

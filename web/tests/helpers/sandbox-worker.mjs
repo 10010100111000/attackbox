@@ -37,7 +37,7 @@ export async function sandboxWorker(base, secret, options = {}) {
   function send(type, payload, id = 'fixture-' + seq) { control.send(JSON.stringify({ id, type, payload })) }
   function heartbeat() {
     if (control.readyState !== WebSocket.OPEN) return
-    send('heartbeat', { node_id: 'test-node', boot_id: boot, seq: ++seq, inventory_revision: revision, timestamp: Math.floor(Date.now() / 1000), load_avg: 0.3, mem_available_mb: 16384, disk_free_gb: 80, active_sandboxes: boxes.size, sandboxes: [...boxes.keys()].map(id => ({ id, state: 'running', last_active_at: Math.floor(Date.now() / 1000), gui_running: !!boxes.get(id)?.guiRunning })) })
+    send('heartbeat', { node_id: 'test-node', boot_id: boot, seq: ++seq, inventory_revision: revision, timestamp: Math.floor(Date.now() / 1000), load_avg: 0.3, mem_available_mb: 16384, disk_free_gb: 80, ...(options.dockerTargets ? {docker_targets:{available:true,instances:[]}} : {}), active_sandboxes: boxes.size, sandboxes: [...boxes.keys()].map(id => ({ id, state: 'running', last_active_at: Math.floor(Date.now() / 1000), gui_running: !!boxes.get(id)?.guiRunning })) })
   }
   let readyResolve
   const ready = new Promise(resolve => readyResolve = resolve)
@@ -47,6 +47,11 @@ export async function sandboxWorker(base, secret, options = {}) {
       publicKey = msg.payload.public_key
       key = createPublicKey({ key: Buffer.concat([Buffer.from('302a300506032b6570032100', 'hex'), Buffer.from(msg.payload.public_key, 'hex')]), type: 'spki', format: 'der' }); heartbeat()
     } else if (msg.type === 'heartbeat_ack') readyResolve()
+    else if (options.dockerTargets && ['target_start','target_stop','target_inspect'].includes(msg.type)) {
+      requests.push(msg)
+      const p=msg.payload
+      send(msg.type+'_resp',{success:true,boot_id:boot,target_id:p.target_id,instance:{target_id:p.target_id,owner_id:p.owner_id,state:msg.type==='target_stop'?'stopped':'running',ready:msg.type!=='target_stop',readiness:msg.type==='target_stop'?'not_running':'healthy',expires_at:p.expires_at}},msg.id)
+    }
     else if (msg.type === 'create_box') {
       requests.push(msg); boxes.set(msg.payload.sandbox_id, msg.payload); revision++
       send('create_box_resp', { success: true, boot_id: boot, sandbox_id: msg.payload.sandbox_id, inventory_revision: revision, expires_at: Math.floor(Date.now() / 1000) + msg.payload.ttl_seconds, sandbox_ip: `10.200.0.${msg.payload.slot_index + 1}` }, msg.id); heartbeat()

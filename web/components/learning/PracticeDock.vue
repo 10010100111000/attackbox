@@ -61,11 +61,11 @@ onBeforeUnmount(stopResize)
     <div class="dock-header">
       <div class="dock-title"><Terminal v-if="mode === 'cli'" :size="15" aria-hidden="true" /><Monitor v-else :size="15" aria-hidden="true" />{{ mode === 'cli' ? '终端' : '桌面' }}<span v-if="sandbox.instance" class="sandbox-state">{{ sandbox.instance.connected ? stateLabels[sandbox.instance.state] : '节点断开' }}</span></div>
       <div class="dock-actions">
-        <button type="button" class="independent-open" @click="openViewer(mode)" title="在新标签页打开"><ExternalLink :size="15" aria-hidden="true"/><span>独立打开</span></button>
+        <button type="button" class="independent-open" @click="openViewer(mode)" title="在新标签页打开" aria-label="在新标签页打开"><ExternalLink :size="15" aria-hidden="true"/></button>
         <button type="button" aria-label="收起练习面板" @click="emit('minimize')"><Minus :size="16" aria-hidden="true" /></button>
       </div>
     </div>
-    <p v-if="notice || sandbox.instance?.error" class="sandbox-notice" role="alert">{{ notice || sandbox.instance?.error }} <button type="button" @click="refreshSandbox">刷新状态</button></p>
+    <p v-if="notice || sandbox.instance?.error" class="sandbox-notice" role="alert">{{ notice || sandbox.instance?.error }}</p>
     <div v-if="!currentUser" class="dock-empty"><Unplug :size="26" aria-hidden="true" /><h2>登录后使用练习环境</h2><NuxtLink :to="'/auth?returnTo=' + encodeURIComponent(route.fullPath)" class="sandbox-primary">登录并继续</NuxtLink></div>
     <div v-else-if="loading" class="dock-empty" role="status"><LoaderCircle :size="22" aria-hidden="true" /><p>正在获取环境状态…</p></div>
     <template v-else>
@@ -75,7 +75,7 @@ onBeforeUnmount(stopResize)
       <div class="terminal-tabs" aria-label="终端列表"><div v-for="tab in tabs" :key="tab.id" class="terminal-tab" :class="{ selected: selectedTab === tab.id }"><button type="button" :aria-pressed="selectedTab === tab.id" @click="selectedTab = tab.id">{{ tab.label }}</button><button type="button" :aria-label="'关闭' + tab.label" @click="closeTerminal(tab.id)"><X :size="12" aria-hidden="true" /></button></div><button type="button" class="add-terminal" aria-label="新建终端" :disabled="!sandbox.instance.connected" @click="addTerminal"><Plus :size="15" aria-hidden="true" /></button></div>
       <div class="terminal-workspace"><ClientOnly><SandboxTerminal v-for="tab in tabs" v-show="selectedTab === tab.id" :key="tab.id" :sandbox-id="sandbox.instance.id" :window-id="tab.id" :active="active && mode === 'cli' && selectedTab === tab.id" /></ClientOnly><div v-if="!tabs.length" class="dock-empty"><button type="button" class="sandbox-primary" @click="addTerminal">打开终端</button></div></div>
     </div>
-    <div v-else-if="sandbox.instance" class="dock-empty" role="status"><LoaderCircle :size="22" aria-hidden="true" /><h2>{{ stateLabels[sandbox.instance.state] }}</h2><p>{{ sandbox.instance.state === 'cleanup_failed' ? '占用保留至节点确认释放，可重试释放环境。' : '状态将自动更新，你可以继续阅读。' }}</p><button type="button" class="sandbox-secondary" @click="refreshSandbox">刷新状态</button></div>
+    <div v-else-if="sandbox.instance" class="dock-empty" role="status"><LoaderCircle :size="22" aria-hidden="true" /><h2>{{ stateLabels[sandbox.instance.state] }}</h2><p>{{ sandbox.instance.state === 'cleanup_failed' ? '占用保留至节点确认释放，可重试释放环境。' : '状态将自动更新，你可以继续阅读。' }}</p></div>
     <div v-else class="dock-empty"><Terminal :size="26" :stroke-width="1.5" aria-hidden="true" /><h2>{{ sandbox.available ? '准备开始实践' : '练习环境暂不可用' }}</h2><p>{{ sandbox.available ? '从正文顶部启动环境，再打开终端或桌面。' : '你可以继续阅读教程并完成章节练习。' }}</p></div>
     </template>
   </section>
@@ -113,5 +113,3 @@ button:focus-visible, .dock-grip:focus-visible { outline: 2px solid var(--focus)
 .cli-area { flex: 1; min-height: 0; display: flex; flex-direction: column; }
 .terminal-workspace { flex: 1; min-height: 0; }
 </style>
-
-<style scoped>.dock-actions .independent-open{width:auto;padding:0 9px;gap:6px;font-size:11px}</style>

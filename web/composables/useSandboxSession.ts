@@ -26,14 +26,14 @@ export function useSandboxSession(){
   if(busy.value||!currentUser.value)return
   busy.value=true;runtime.generation++;notice.value='';const generation=runtime.generation
   try{const r=await $fetch<{data:SandboxInstance}>('/api/sandbox/start',{method:'POST'});if(generation===runtime.generation)sandbox.value={available:true,instance:r.data};notify()}
-  catch(e:any){if(generation===runtime.generation)notice.value=e?.data?.message||'启动失败，请刷新状态重试'}finally{busy.value=false;await refresh()}
+  catch(e:any){if(generation===runtime.generation)notice.value=e?.data?.message||'启动失败，请稍后重试'}finally{busy.value=false;await refresh()}
  }
  async function release(){
   const id=sandbox.value.instance?.id
   if(!id||busy.value||!confirm('释放环境会关闭所有终端和桌面，并清理沙箱文件与进程。确认释放？'))return
   busy.value=true;runtime.generation++;notice.value='';const generation=runtime.generation
   try{const r=await $fetch<{data:SandboxStatus}>('/api/sandbox/stop',{method:'POST',body:{sandboxId:id}});if(generation===runtime.generation)sandbox.value=r.data;notify()}
-  catch(e:any){if(generation===runtime.generation)notice.value=e?.data?.message||'释放尚未确认，请刷新状态'}finally{busy.value=false;await refresh()}
+  catch(e:any){if(generation===runtime.generation)notice.value=e?.data?.message||'释放尚未确认，状态将自动更新'}finally{busy.value=false;await refresh()}
  }
  function announceGUI(){guiElsewhere.value=false;runtime.channel?.postMessage({type:'gui-active',id:sandbox.value.instance?.id,owner:owner.value,client:runtime.client})}
  function resumeGUI(){guiElsewhere.value=false}
