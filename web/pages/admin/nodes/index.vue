@@ -1,11 +1,11 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
-import { useFetch, useHead } from '#imports'
+import { useLazyFetch, useHead } from '#imports'
 import { Server, RefreshCw, CircleAlert, ChevronDown, SlidersHorizontal } from 'lucide-vue-next'
 import type { SandboxNodesResponse, SandboxNodeSettings, SandboxNodeStatus } from '~/shared/sandbox'
 definePageMeta({ layout: 'admin' })
 useHead({ title: '节点管理 — AttackBox' })
-const { data, pending, error, refresh } = await useFetch<{ ok: boolean; data: SandboxNodesResponse }>('/api/admin/nodes', { key: 'admin:nodes' })
+const { data, pending, error, refresh } = await useLazyFetch<{ ok: boolean; data: SandboxNodesResponse }>('/api/admin/nodes', { key: 'admin:nodes' })
 const status = computed(() => data.value?.data)
 const editing = ref(''), draft = ref<SandboxNodeSettings | null>(null), saving = ref(false), settingsError = ref('')
 function edit(node: SandboxNodeStatus) {
@@ -41,7 +41,7 @@ onBeforeUnmount(() => { clearInterval(timer); window.removeEventListener('focus'
   <div class="nodes-page">
     <header class="page-head"><div><h1>节点管理</h1><p>查看 Worker 的连接、资源与实例清单。</p></div><button class="refresh-btn" :disabled="pending" @click="refresh()"><RefreshCw :size="14" aria-hidden="true" />{{ pending ? '刷新中' : '刷新' }}</button></header>
     <div v-if="error" class="notice error" role="alert"><CircleAlert :size="17" aria-hidden="true" /><div>节点状态加载失败，请检查网络或管理员登录状态。<button @click="refresh()">重试</button></div></div>
-    <p v-else-if="!status" class="empty" role="status">正在加载节点…</p>
+    <AdminDataLoading v-else-if="!status" :pending="pending" :has-data="!!data" />
     <template v-if="status">
       <div v-if="status.configurationError" class="notice error" role="alert"><CircleAlert :size="17" aria-hidden="true" /><div><strong>节点接入配置有误</strong><p>{{ status.configurationError }}。修正服务端配置后重启应用。</p></div></div>
       <div v-else-if="!status.enabled" class="empty"><Server :size="28" :stroke-width="1.5" aria-hidden="true" /><h2>尚未启用节点接入</h2><p>在服务端配置专用测试 Worker、集群身份及签名密钥后启用。</p><code>docs/implementation/sandbox-node-onboarding.md</code></div>
@@ -72,7 +72,7 @@ onBeforeUnmount(() => { clearInterval(timer); window.removeEventListener('focus'
 </template>
 
 <style scoped>
-.nodes-page { max-width: 1180px; }
+
 .page-head, .node-head { display: flex; align-items: center; justify-content: space-between; gap: 24px; }
 .page-head { margin-bottom: 28px; }
 h1 { margin: 0 0 6px; font-size: 24px; font-weight: 750; }

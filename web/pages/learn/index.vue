@@ -91,7 +91,7 @@ const activeTab = ref<'modules' | 'paths'>(useRoute().query.tab === 'routes' ? '
 const selectedCategory = ref('全部模块')
 const searchQuery = ref('')
 
-const { data: categoryResponse } = await useFetch<{ data: ContentCategory[] }>('/api/categories')
+const { data: categoryResponse } = await useFetch<{ data: ContentCategory[] }>('/api/categories', {key:'content:categories'})
 const categories = computed(() => ['全部模块', ...(categoryResponse.value?.data || []).map(category => category.name)])
 
 function difficultyToLabel(diff: string): string {

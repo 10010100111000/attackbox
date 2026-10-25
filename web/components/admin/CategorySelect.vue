@@ -1,112 +1,57 @@
 <script setup lang="ts">
-import { computed, nextTick, ref } from 'vue'
-import { useFetch } from '#imports'
-import { Check, ChevronDown, Plus, X } from 'lucide-vue-next'
-import {
-  DialogRoot, DialogPortal, DialogOverlay, DialogContent, DialogTitle, DialogDescription, DialogClose,
-} from 'reka-ui'
-import type { ContentCategory } from '~/shared/content'
-const props = defineProps<{ modelValue: string | null; disabled?: boolean }>()
-const emit = defineEmits<{ 'update:modelValue': [value: string | null] }>()
-const { data, error: loadError, refresh } = await useFetch<{ data: ContentCategory[] }>('/api/categories')
-const categories = computed(() => data.value?.data || [])
-const pickerOpen = ref(false)
-const selectedCategory = computed(() => categories.value.find(category => category.id === props.modelValue)?.name || '未分类')
-const dialogOpen = ref(false), categoryName = ref(''), saving = ref(false), formError = ref('')
-const nameInput = ref<HTMLInputElement | null>(null)
-async function selectCategory(value: unknown) {
-  if (typeof value !== 'string') return
-  pickerOpen.value = false
-  if (value === '__create__') {
-    categoryName.value = ''; formError.value = ''
-    await nextTick()
-    dialogOpen.value = true
-  } else {
-    emit('update:modelValue', value === '__none__' ? null : value)
-    await closePicker()
+import {computed,ref,watch,nextTick} from 'vue'
+import {Check,Pencil,Trash2,Plus,X,Search,ChevronRight} from 'lucide-vue-next'
+import {DialogRoot,DialogTrigger,DialogPortal,DialogOverlay,DialogContent,DialogTitle,DialogDescription,DialogClose} from 'reka-ui'
+import type {ContentCategory} from '~/shared/content'
+type Category=ContentCategory & {moduleCount:number}
+const props=defineProps<{modelValue:string|null;disabled?:boolean}>()
+const emit=defineEmits<{'update:modelValue':[value:string|null]; 'version-changed':[value:{id:string;previousVersion:number;lockVersion:number}]}>()
+const {data,error:loadError,refresh}=await useLazyFetch<{data:Category[]}>('/api/admin/categories',{key:'admin:categories'})
+const categories=computed(()=>data.value?.data||[]),open=ref(false),search=ref(''),busy=ref(false),error=ref('')
+const mode=ref<'list'|'create'|'rename'|'delete'>('list'),editing=ref<Category|null>(null),name=ref('')
+const selected=computed(()=>categories.value.find(c=>c.id===props.modelValue)?.name||(props.modelValue?'分类待确认':'未分类'))
+const filtered=computed(()=>categories.value.filter(c=>c.name.toLocaleLowerCase().includes(search.value.trim().toLocaleLowerCase())))
+watch(open,value=>{if(value){mode.value='list';search.value='';error.value='';refresh()}})
+function choose(id:string|null){if(busy.value)return;emit('update:modelValue',id);open.value=false}
+function edit(kind:'create'|'rename'|'delete',category?:Category){mode.value=kind;editing.value=category||null;name.value=category?.name||'';error.value='';nextTick(()=>document.getElementById('category-name')?.focus())}
+async function save(){
+ if(busy.value)return;busy.value=true;error.value=''
+ try{
+  if(mode.value==='delete'){
+   const deleted=await $fetch<{data:{affectedModules:{id:string;previousVersion:number;lockVersion:number}[]}}>(`/api/admin/categories/${editing.value!.id}`,{method:'DELETE',body:{currentName:editing.value!.name,moduleCount:editing.value!.moduleCount}})
+   for(const module of deleted.data.affectedModules)emit('version-changed',module)
+   data.value={data:categories.value.filter(c=>c.id!==editing.value!.id)}
+   if(props.modelValue===editing.value!.id)emit('update:modelValue',null)
+  }else{
+   const creating=mode.value==='create'
+   const result=await $fetch<{data:ContentCategory}>(creating?'/api/admin/categories':`/api/admin/categories/${editing.value!.id}`,{method:creating?'POST':'PATCH',body:{name:name.value,currentName:editing.value?.name}})
+   const category={...result.data,moduleCount:creating?0:editing.value!.moduleCount}
+   data.value={data:creating?[...categories.value,category]:categories.value.map(c=>c.id===category.id?category:c)}
+   if(creating)emit('update:modelValue',category.id)
   }
-}
-async function closePicker() { pickerOpen.value = false; await nextTick(); document.getElementById('module-category')?.focus() }
-async function focusName(event: Event) { event.preventDefault(); await nextTick(); nameInput.value?.focus() }
-function restoreFocus(event: Event) { event.preventDefault(); document.getElementById('module-category')?.focus() }
-async function createCategory() {
-  if (saving.value) return
-  const name = categoryName.value.trim()
-  if (!name) { formError.value = '请输入分类名称'; return }
-  saving.value = true; formError.value = ''
-  try {
-    const result = await $fetch<{ data: ContentCategory }>('/api/admin/categories', { method: 'POST', body: { name } })
-    // Update locally first: a failed refresh must not hide a successfully created category.
-    if (!categories.value.some(category => category.id === result.data.id))
-      data.value = { data: [...categories.value, result.data] }
-    emit('update:modelValue', result.data.id)
-    dialogOpen.value = false
-  } catch (error: any) {
-    formError.value = error?.data?.message || error?.data?.statusMessage || '创建失败，请重试'
-    await nextTick(); nameInput.value?.focus()
-  } finally { saving.value = false }
+  clearNuxtData(key=>key.startsWith('learning:')||key==='content:categories')
+  mode.value='list'
+ }catch(e:any){error.value=e?.data?.message||'保存失败，请刷新后重试'}finally{busy.value=false}
 }
 </script>
-
 <template>
-  <div class="category-control">
-    <div class="category-trigger-row">
-      <button id="module-category" type="button" class="category-trigger" :disabled="disabled" aria-label="内容分类" :aria-expanded="pickerOpen" aria-controls="category-options" @click="pickerOpen = !pickerOpen" @keydown.esc.stop.prevent="closePicker">
-        <span>{{ selectedCategory }}</span><ChevronDown :size="14" aria-hidden="true" />
-      </button>
-      <button type="button" class="category-add" :disabled="disabled" aria-label="新建分类" @click="selectCategory('__create__')"><Plus :size="15" aria-hidden="true" /></button>
-    </div>
-    <div v-if="pickerOpen" id="category-options" class="category-menu" role="group" aria-label="选择内容分类" @keydown.esc.stop.prevent="closePicker">
-      <button type="button" class="category-option" :aria-pressed="!modelValue" @click="selectCategory('__none__')"><span>未分类</span><Check v-if="!modelValue" :size="14" aria-hidden="true" /></button>
-      <button v-for="category in categories" :key="category.id" type="button" class="category-option" :aria-pressed="modelValue === category.id" @click="selectCategory(category.id)"><span>{{ category.name }}</span><Check v-if="modelValue === category.id" :size="14" aria-hidden="true" /></button>
-    </div>
-    <p v-if="loadError" class="category-load-error" role="status">分类加载失败 <button type="button" @click="refresh()">重试</button></p>
-    <DialogRoot v-model:open="dialogOpen">
-      <DialogPortal>
-        <DialogOverlay class="category-overlay" />
-        <DialogContent class="category-dialog" @open-auto-focus="focusName" @close-auto-focus="restoreFocus" @escape-key-down="saving && $event.preventDefault()" @pointer-down-outside="saving && $event.preventDefault()">
-          <DialogTitle class="category-dialog-title">新建分类</DialogTitle>
-          <DialogDescription class="category-dialog-description">分类会保存到公共分类列表，供所有模块使用。</DialogDescription>
-          <DialogClose type="button" class="category-close" :disabled="saving" aria-label="关闭新建分类"><X :size="17" /></DialogClose>
-          <form @submit.prevent="createCategory">
-            <label for="new-category-name" class="category-name-label">分类名称</label>
-            <input id="new-category-name" ref="nameInput" v-model="categoryName" class="category-name-input" maxlength="80" placeholder="例如：Web 安全" :disabled="saving" :aria-invalid="!!formError" :aria-describedby="formError ? 'category-error' : undefined" @input="formError = ''" />
-            <p v-if="formError" id="category-error" class="category-form-error" role="alert">{{ formError }}</p>
-            <div class="category-dialog-actions"><DialogClose type="button" class="category-cancel" :disabled="saving">取消</DialogClose><button class="category-submit" type="submit" :disabled="saving || !categoryName.trim()">{{ saving ? '创建中…' : '创建并选中' }}</button></div>
-          </form>
-        </DialogContent>
-      </DialogPortal>
-    </DialogRoot>
-  </div>
+ <DialogRoot v-model:open="open"><DialogTrigger id="module-category" class="category-trigger" :disabled="disabled"><span>{{selected}}</span><ChevronRight :size="15" aria-hidden="true"/></DialogTrigger>
+ <DialogPortal><DialogOverlay class="category-overlay"/><DialogContent class="category-drawer" @escape-key-down="busy && $event.preventDefault()" @pointer-down-outside="busy && $event.preventDefault()">
+  <header><DialogTitle>内容分类</DialogTitle><DialogClose :disabled="busy" aria-label="关闭分类管理"><X :size="18"/></DialogClose></header>
+  <DialogDescription class="category-description">选择当前模块的分类，也可在这里管理分类名称。</DialogDescription>
+  <template v-if="mode==='list'">
+   <div class="category-tools"><label><Search :size="15"/><input v-model="search" placeholder="搜索分类" aria-label="搜索分类"/></label><button type="button" @click="edit('create')"><Plus :size="15"/>新建</button></div>
+   <p v-if="loadError" role="alert">分类加载失败。<button @click="refresh()">重试</button></p>
+   <div class="category-list"><button class="category-choice" @click="choose(null)"><span>未分类</span><Check v-if="!modelValue" :size="16"/></button>
+    <div v-for="category in filtered" :key="category.id" class="category-row"><button class="category-choice" :aria-pressed="modelValue===category.id" @click="choose(category.id)"><span>{{category.name}}<small>{{category.moduleCount}} 个模块</small></span><Check v-if="modelValue===category.id" :size="16"/></button><button :aria-label="`重命名 ${category.name}`" @click="edit('rename',category)"><Pencil :size="15"/></button><button :aria-label="`删除 ${category.name}`" @click="edit('delete',category)"><Trash2 :size="15"/></button></div>
+    <p v-if="search && !filtered.length" class="muted">没有匹配的分类</p>
+   </div>
+  </template>
+  <form v-else @submit.prevent="save"><h3>{{mode==='create'?'新建分类':mode==='rename'?'重命名分类':'删除分类'}}</h3><template v-if="mode!=='delete'"><label for="category-name">分类名称</label><input id="category-name" v-model="name" maxlength="80" :disabled="busy" required/></template><p v-else>确认删除「{{editing?.name}}」？<span v-if="editing?.moduleCount">关联的 {{editing.moduleCount}} 个模块会改为未分类，正文和发布状态保持不变。</span></p><p v-if="error" role="alert">{{error}}</p><footer><button type="button" :disabled="busy" @click="mode='list'">取消</button><button type="submit" :disabled="busy || (mode!=='delete' && !name.trim())" :class="{danger:mode==='delete'}">{{busy?'处理中…':mode==='delete'?'确认删除':'保存'}}</button></footer></form>
+ </DialogContent></DialogPortal></DialogRoot>
 </template>
-
 <style scoped>
-.category-control { width: 256px; max-width: 100%; }
-.category-trigger-row { display: flex; gap: 6px; }
-.category-add { display: grid; place-items: center; flex-shrink: 0; width: 38px; border: 1px solid var(--line); border-radius: 7px; background: var(--paper); color: var(--muted); cursor: pointer; }
-.category-add:hover { background: var(--soft); color: var(--ink); }
-.category-add:focus-visible, .category-option:focus-visible { outline: 2px solid var(--green); outline-offset: -2px; }
-.category-trigger { display: flex; justify-content: space-between; align-items: center; gap: 12px; width: 100%; min-height: 38px; padding: 8px 12px; border: 1px solid var(--line); border-radius: 7px; background: var(--paper); color: var(--ink); font-size: 13px; text-align: left; cursor: pointer; }
-.category-trigger :deep([data-placeholder]), .category-trigger :deep(span) { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.category-trigger svg { flex-shrink: 0; color: var(--muted); transition: transform .15s; }
-.category-trigger[aria-expanded="true"] svg { transform: rotate(180deg); }
-.category-trigger:focus-visible, .category-name-input:focus { outline: 2px solid var(--green); outline-offset: 2px; }
-.category-trigger:disabled { opacity: .6; cursor: default; }
-.category-menu { display: grid; gap: 2px; max-height: 220px; overflow-y: auto; margin-top: 8px; padding: 5px; border: 1px solid var(--line); border-radius: 7px; background: var(--paper); color: var(--ink); }
-.category-option { display: flex; align-items: center; justify-content: space-between; gap: 8px; width: 100%; padding: 8px 10px; border: 0; background: transparent; color: var(--ink); border-radius: 4px; font-size: 13px; text-align: left; cursor: pointer; overflow-wrap: anywhere; }
-.category-option:hover, .category-option[aria-pressed='true'] { background: var(--soft); }
-.category-load-error, .category-form-error { font-size: 12px; margin: 8px 0 0; color: var(--color-error, #b43e3e); }
-.category-load-error button { background: transparent; border: 0; color: var(--green); cursor: pointer; }
-.category-overlay { position: fixed; inset: 0; background: #0005; z-index: 110; }
-.category-dialog { position: fixed; z-index: 111; left: 50%; top: 50%; transform: translate(-50%, -50%); width: min(400px, calc(100vw - 32px)); padding: 26px; border: 1px solid var(--line); border-radius: 12px; background: var(--paper); color: var(--ink); box-shadow: 0 16px 60px #0003; }
-.category-dialog-title { font-size: 17px; font-weight: 650; margin: 0 0 10px; }
-.category-dialog-description { font-size: 12px; line-height: 1.7; color: var(--muted); margin: 0 0 24px; max-width: 300px; }
-.category-close { position: absolute; top: 20px; right: 18px; padding: 4px; border: 0; background: transparent; color: var(--muted); cursor: pointer; }
-.category-name-label { display: block; font-size: 12px; font-weight: 600; margin-bottom: 8px; }
-.category-name-input { width: 100%; padding: 9px 12px; border: 1px solid var(--line); border-radius: 6px; background: var(--bg); color: var(--ink); font-size: 13px; }
-.category-dialog-actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 24px; }
-.category-cancel, .category-submit { border-radius: 6px; padding: 8px 14px; font-size: 13px; cursor: pointer; }
-.category-cancel { border: 1px solid var(--line); background: var(--paper); color: var(--ink); }
-.category-submit { border: 1px solid var(--ink); background: var(--ink); color: var(--paper); }
-.category-dialog button:disabled { opacity: .5; cursor: default; }
+.category-trigger{display:flex;align-items:center;justify-content:space-between;gap:16px;width:256px;height:38px;padding:0 12px;border:1px solid var(--line);border-radius:7px;background:var(--paper);color:var(--ink);font-size:13px;cursor:pointer}.category-trigger span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.category-trigger svg{flex-shrink:0}.category-trigger:disabled{opacity:.5;cursor:default}.category-overlay{position:fixed;inset:0;background:#0005;z-index:110}.category-drawer{position:fixed;inset:0 0 0 auto;width:440px;display:flex;flex-direction:column;padding:28px;background:var(--paper);color:var(--ink);border-left:1px solid var(--line);box-shadow:-12px 0 48px #0002;z-index:111;overflow-y:auto}.category-drawer header{display:flex;align-items:center;justify-content:space-between;font-size:18px;font-weight:600}.category-drawer :deep(button){cursor:pointer}.category-drawer button{display:inline-flex;align-items:center;justify-content:center;gap:6px;background:transparent;color:var(--ink);border:0;border-radius:5px;padding:8px}.category-drawer button:hover{background:var(--soft)}.category-description{font-size:13px;line-height:1.8;color:var(--muted);margin:16px 0 24px}.category-tools{display:flex;gap:12px;margin-bottom:16px}.category-tools label{display:flex;align-items:center;gap:8px;flex:1;border:1px solid var(--line);border-radius:6px;padding:0 10px}.category-tools input{width:100%;min-width:0;border:0;background:transparent;padding:10px 0;color:var(--ink)}.category-row{display:flex;align-items:center;border-bottom:1px solid var(--line);gap:4px}.category-drawer .category-choice{flex:1;justify-content:space-between;text-align:left;padding:14px 8px;width:100%}.category-choice[aria-pressed=true]{color:var(--green)}.category-choice small{display:block;font-size:11px;color:var(--muted);margin-top:4px}.category-drawer form{display:grid;gap:16px;margin-top:12px}.category-drawer form input{height:40px;padding:0 12px;border:1px solid var(--line);border-radius:6px;background:var(--bg);color:var(--ink)}.category-drawer footer{display:flex;justify-content:flex-end;gap:8px}.category-drawer footer button:last-child{background:var(--ink);color:var(--paper)}.category-drawer footer .danger{background:var(--error-ink,#b43e3e)}[role=alert]{font-size:13px;color:var(--error-ink,#b43e3e)}.muted{font-size:13px;color:var(--muted)}button:disabled{opacity:.5}
 </style>
+
+<style scoped>@media (prefers-reduced-motion:no-preference){.category-drawer[data-state=open]{animation:category-enter .18s ease-out}}@keyframes category-enter{from{transform:translateX(100%)}to{transform:translateX(0)}}</style>

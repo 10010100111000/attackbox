@@ -1,7 +1,6 @@
 <script setup lang="ts">
-import { ref, computed, watch, nextTick } from 'vue'
-import { useRoute } from 'vue-router'
-import { ArrowRight, ArrowLeft } from 'lucide-vue-next'
+import { ref, watch, nextTick, onMounted } from 'vue'
+import { navigateTo } from '#imports'
 import Button from '~/components/ui/Button.vue'
 import Input from '~/components/ui/Input.vue'
 import Checkbox from '~/components/ui/Checkbox.vue'
@@ -20,20 +19,13 @@ const emit = defineEmits<{
   (e: 'switch-mode', mode: 'register' | 'recover'): void
 }>()
 
-const route = useRoute()
-const returnTarget = computed(() => {
-  const returnTo = route?.query?.returnTo
-  if (typeof returnTo === 'string' && returnTo.startsWith('/') && !returnTo.startsWith('//')) {
-    return returnTo
-  }
-  return '/learn'
-})
+const mounted = ref(false)
+onMounted(() => { mounted.value = true })
 
 const email = ref(props.modelValueEmail)
 const password = ref('')
 const rememberMe = ref(false)
 const busy = ref(false)
-const isSuccessPreview = ref(false)
 const emailError = ref('')
 const passwordError = ref('')
 const statusMessage = ref('')
@@ -92,7 +84,7 @@ function validate(): boolean {
 const { login } = useAuth()
 
 async function handleSubmit() {
-  if (busy.value) return
+  if (!mounted.value || busy.value) return
   if (!validate()) return
 
   const cleanEmail = email.value.trim()
@@ -104,10 +96,7 @@ async function handleSubmit() {
   try {
     await login(cleanEmail, password.value, rememberMe.value)
     password.value = ''
-    isSuccessPreview.value = true
-    nextTick(() => {
-      document.getElementById('form-title')?.focus()
-    })
+    await navigateTo('/learn', { replace: true })
   } catch (err: any) {
     statusMessage.value = err?.data?.statusMessage || err?.message || '登录失败，请检查邮箱与密码'
   } finally {
@@ -119,50 +108,17 @@ function handleProvider(providerName: string) {
   statusMessage.value = `${providerName} 登录尚未在当前节点启用，请使用邮箱登录。`
 }
 
-function resetToLogin() {
-  isSuccessPreview.value = false
-  password.value = ''
-  statusMessage.value = ''
-  nextTick(() => {
-    document.getElementById('email')?.focus()
-  })
-}
 </script>
 
 <template>
   <div class="auth-form-wrapper">
-    <!-- 登录成功后的预览视图 -->
-    <div v-if="isSuccessPreview" class="success-content">
-      <div class="success-icon" aria-hidden="true">✓</div>
-      <div class="eyebrow">LOGIN SUCCESS</div>
-      <h1 id="form-title" tabindex="-1">准备好，继续探索。</h1>
-      <p>登录成功。<br>准备进入学习控制台与实验靶场。</p>
-      <Button
-        as="NuxtLink"
-        :to="returnTarget"
-        variant="primary"
-        class="submit w-full h-[46px] text-xs font-semibold rounded-md gap-4"
-      >
-        <span>进入学习平台</span>
-        <ArrowRight class="w-4 h-4" />
-      </Button>
-      <button
-        type="button"
-        class="back-button"
-        @click="resetToLogin"
-      >
-        <ArrowLeft class="w-3.5 h-3.5 inline mr-1" />
-        <span>返回登录</span>
-      </button>
-    </div>
-
-    <!-- 正常登录表单 -->
-    <div v-else>
+    <div>
       <div class="eyebrow">YOUR NEXT DISCOVERY</div>
       <h1 id="form-title">欢迎回来。</h1>
       <p class="intro">登录，继续你的学习与探索。</p>
 
-      <form id="auth-form" novalidate @submit.prevent="handleSubmit">
+      <form id="auth-form" method="post" action="/api/auth/login" novalidate @submit.prevent="handleSubmit">
+        <fieldset :disabled="!mounted || busy" class="login-fields">
         <!-- 邮箱字段 -->
         <div class="field">
           <div class="field-head">
@@ -228,8 +184,8 @@ function resetToLogin() {
           type="submit"
           class="submit w-full h-[46px] text-xs font-semibold rounded-md gap-4"
         >
-          <span>{{ busy ? '正在继续…' : '登录' }}</span>
-          <ArrowRight v-if="!busy" class="w-4 h-4" />
+          <span>{{ busy ? '正在登录…' : '登录' }}</span>
+
         </Button>
 
         <!-- 状态反馈提示 -->
@@ -242,6 +198,7 @@ function resetToLogin() {
         >
           {{ statusMessage }}
         </p>
+        </fieldset>
       </form>
 
       <!-- 第三方认证 -->
@@ -435,27 +392,6 @@ h1 {
   color: #e4bd9f;
 }
 
-.success-icon {
-  width: 42px;
-  height: 42px;
-  border: 1px solid rgba(188, 163, 131, 0.25);
-  border-radius: 12px;
-  display: grid;
-  place-items: center;
-  color: #d7b193;
-  font-size: 20px;
-  margin-bottom: 23px;
-}
-
-.success-content h1 {
-  font-size: 29px;
-  outline: none;
-}
-
-.success-content p {
-  margin: 12px 0 27px;
-  color: #9d91a5;
-  font-size: 12px;
-  line-height: 1.9;
-}
 </style>
+
+<style scoped>.login-fields{border:0;margin:0;padding:0;min-width:0}</style>

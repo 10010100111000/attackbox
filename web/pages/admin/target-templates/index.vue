@@ -10,7 +10,7 @@ const input = ref('')
 const search = ref('')
 const page = ref(1)
 
-const { data, pending, error, refresh } = await useFetch<{ data: TargetTemplateList }>(
+const { data, pending, error, refresh } = await useLazyFetch<{ data: TargetTemplateList }>(
   '/api/admin/target-templates',
   {
     key: 'admin:target-templates',
@@ -36,6 +36,7 @@ function submit() {
         <span>新建模板</span>
       </NuxtLink>
     </header>
+    <AdminDataLoading :pending="pending" :has-data="!!data" />
 
     <form class="filters" @submit.prevent="submit">
       <label class="search">
@@ -91,7 +92,7 @@ function submit() {
         </tbody>
       </table>
 
-      <div v-if="!data?.data.items.length" class="empty">
+      <div v-if="!pending && !data?.data.items.length" class="empty">
         <Box :size="26" aria-hidden="true" />
         <p>{{ pending ? '加载中…' : search ? '没有符合条件的模板' : '还没有靶机模板' }}</p>
       </div>

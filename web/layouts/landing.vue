@@ -1,7 +1,3 @@
-<script setup lang="ts">
-import { ArrowRight } from 'lucide-vue-next'
-</script>
-
 <template>
   <div class="landing-layout" data-theme="midnight">
     <div class="wrap">
@@ -12,7 +8,6 @@ import { ArrowRight } from 'lucide-vue-next'
         </NuxtLink>
         <NuxtLink to="/auth" class="platform-link">
           <span>进入平台</span>
-          <ArrowRight class="platform-arrow" />
         </NuxtLink>
       </header>
     </div>
@@ -72,10 +67,6 @@ import { ArrowRight } from 'lucide-vue-next'
     display: block;
   }
 
-  .platform-arrow {
-    width: 14px;
-    height: 14px;
-  }
 
   .platform-link {
     border: 1px solid rgba(255, 255, 255, 0.15);
@@ -349,17 +340,7 @@ import { ArrowRight } from 'lucide-vue-next'
     padding-top: 13px;
   }
 
-  .card-arrow {
-    color: var(--tone);
-    width: 15px;
-    height: 15px;
-    display: inline-block;
-    transition: transform 0.25s;
-  }
 
-  .module-card:hover .card-arrow {
-    transform: translate(3px, -3px);
-  }
 
   .cloud-art {
     background: radial-gradient(ellipse at 55% 30%, rgba(138, 91, 71, 0.2), transparent 66%), #121318;
@@ -617,7 +598,6 @@ import { ArrowRight } from 'lucide-vue-next'
     .module-art img,
     .module-art:before,
     .art-code,
-    .card-arrow,
     .diagram {
       transition: none;
     }

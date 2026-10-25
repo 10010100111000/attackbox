@@ -22,6 +22,8 @@
     "test:routes": "node --test tests/routes.test.mjs tests/routes-migration.test.mjs",
     "test:target-templates": "node --test tests/target-templates.test.mjs",
     "test:learning-targets": "node --test tests/learning-targets.test.mjs",
+    "test:workbench": "node --test tests/workbench-browser.test.mjs",
+    "test:categories": "node --test tests/categories.test.mjs tests/categories-browser.test.mjs",
     "test:challenges": "node --test tests/challenges.test.mjs"
   },
   "dependencies": {

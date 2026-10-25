@@ -1,5 +1,4 @@
 <script setup lang="ts">
-import { ArrowUpRight } from 'lucide-vue-next'
 import { handleCardPointerMove } from '~/composables/useModuleRail'
 </script>
 
@@ -38,7 +37,7 @@ import { handleCardPointerMove } from '~/composables/useModuleRail'
       <p>沿着身份、服务与集群寻找攻击路径。</p>
       <div class="card-foot">
         <span>10 章节 · 5 次实践</span>
-        <ArrowUpRight class="card-arrow" />
+
       </div>
     </div>
   </NuxtLink>

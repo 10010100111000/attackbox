@@ -1,6 +1,5 @@
 .users-page {
   width: 100%;
-  max-width: 1400px;
   color: var(--ink);
 }
 
@@ -411,17 +410,4 @@ progress {
 .search:focus-within {
   outline: 2px solid var(--green);
   outline-offset: 2px;
-}
-
-@media (max-width: 960px) {
-  .detail-grid {
-    grid-template-columns: 1fr;
-  }
-  .history-row {
-    grid-template-columns: 1fr;
-    gap: 10px;
-  }
-  .history-row time {
-    text-align: left;
-  }
 }

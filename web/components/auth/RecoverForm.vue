@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import { ref, watch, nextTick } from 'vue'
-import { ArrowRight, ArrowLeft } from 'lucide-vue-next'
 import Button from '~/components/ui/Button.vue'
 import Input from '~/components/ui/Input.vue'
 
@@ -113,7 +112,7 @@ async function handleSubmit() {
         class="submit w-full h-[46px] text-xs font-semibold rounded-md gap-4"
       >
         <span>{{ busy ? '正在继续…' : (hasSent ? '再次发送重置链接' : '发送重置链接') }}</span>
-        <ArrowRight v-if="!busy" class="w-4 h-4" />
+
       </Button>
 
       <!-- 状态反馈提示 -->
@@ -134,7 +133,7 @@ async function handleSubmit() {
       type="button"
       @click="$emit('switch-mode', 'login')"
     >
-      <ArrowLeft class="w-3.5 h-3.5 inline mr-1" />
+
       <span>返回登录</span>
     </button>
   </div>

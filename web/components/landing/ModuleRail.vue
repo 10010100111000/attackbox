@@ -1,5 +1,4 @@
 <script setup lang="ts">
-import { ArrowUpRight } from 'lucide-vue-next'
 import { ref } from 'vue'
 import { useModuleRail } from '~/composables/useModuleRail'
 
@@ -47,7 +46,7 @@ const { handleCardPointerMove } = useModuleRail(railRef)
         <p>权限、进程与系统里的第一条线索。</p>
         <div class="card-foot">
           <span>8 章节 · 3 次实践</span>
-          <ArrowUpRight class="card-arrow" />
+
         </div>
       </div>
     </NuxtLink>
@@ -84,7 +83,7 @@ const { handleCardPointerMove } = useModuleRail(railRef)
         <p>从请求出发，拆解应用的信任边界。</p>
         <div class="card-foot">
           <span>12 章节 · 6 次实践</span>
-          <ArrowUpRight class="card-arrow" />
+
         </div>
       </div>
     </NuxtLink>
@@ -121,7 +120,7 @@ const { handleCardPointerMove } = useModuleRail(railRef)
         <p>看见流量如何到达，理解连接如何建立。</p>
         <div class="card-foot">
           <span>9 章节 · 4 次实践</span>
-          <ArrowUpRight class="card-arrow" />
+
         </div>
       </div>
     </NuxtLink>
@@ -151,7 +150,7 @@ const { handleCardPointerMove } = useModuleRail(railRef)
         <p>穿过函数与内存，理解程序真正做了什么。</p>
         <div class="card-foot">
           <span>14 章节 · 7 次实践</span>
-          <ArrowUpRight class="card-arrow" />
+
         </div>
       </div>
     </NuxtLink>
@@ -195,7 +194,7 @@ const { handleCardPointerMove } = useModuleRail(railRef)
         <p>从隔离机制深入容器的权限与边界。</p>
         <div class="card-foot">
           <span>11 章节 · 5 次实践</span>
-          <ArrowUpRight class="card-arrow" />
+
         </div>
       </div>
     </NuxtLink>

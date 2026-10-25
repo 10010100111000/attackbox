@@ -101,7 +101,7 @@ const mobileOutlineOpen = ref(false)
 const scrollElement = ref<HTMLElement | null>(null)
 const practiceMode = ref<'cli' | 'gui'>('cli')
 const practiceOpened = ref(false)
-const practiceVisible = ref(false), practiceMinimized = ref(false), practiceExpanded = ref(false)
+const practiceVisible = ref(false), practiceMinimized = ref(false)
 const dockHeight = ref(310), viewportHeight = ref(900)
 const maxDockHeight = computed(() => Math.max(180, viewportHeight.value - 220))
 function updateViewport() {
@@ -117,8 +117,7 @@ function openPractice(mode: 'cli' | 'gui') {
   practiceOpened.value = true
   practiceMode.value = mode; practiceVisible.value = true; practiceMinimized.value = false
 }
-function closePractice() { practiceVisible.value = false; practiceExpanded.value = false }
-function minimizePractice() { practiceMinimized.value = true; practiceExpanded.value = false }
+function minimizePractice() { practiceMinimized.value = true }
 onMounted(() => {
   readerMounted.value = true; recordVisit()
   try { sidebarCollapsed.value = localStorage.getItem('attackbox-reader-outline-collapsed') === 'true' } catch {}
@@ -272,11 +271,12 @@ useHead({
             <NuxtLink :to="`/learn/modules/${moduleSlug}`" class="module-return"><ArrowLeft :size="14" aria-hidden="true" />返回模块</NuxtLink>
           </div>
           <div class="toolbar-tools" role="group" aria-label="练习环境">
+            <LearningEnvironmentStatus />
             <button type="button" :disabled="!readerMounted" :aria-pressed="practiceVisible && !practiceMinimized && practiceMode === 'cli'" @click="openPractice('cli')"><Terminal :size="15" aria-hidden="true" /><span>CLI</span><span class="tool-word">终端</span></button>
             <button type="button" :disabled="!readerMounted" :aria-pressed="practiceVisible && !practiceMinimized && practiceMode === 'gui'" @click="openPractice('gui')"><Monitor :size="15" aria-hidden="true" /><span>GUI</span><span class="tool-word">桌面</span></button>
           </div>
         </div>
-        <div ref="scrollElement" class="reading-scroll" :inert="practiceVisible && !practiceMinimized && practiceExpanded" tabindex="0" aria-label="章节正文">
+        <div ref="scrollElement" class="reading-scroll" tabindex="0" aria-label="章节正文">
           <article class="article-body">
             <div class="chapter-meta"><span>第 {{ chapterIndex + 1 }} / {{ moduleData?.chapters.length || 1 }} 章</span><span v-if="chapterData.durationMinutes"><Clock3 :size="13" aria-hidden="true" />约 {{ chapterData.durationMinutes }} 分钟</span></div>
             <h1 class="chapter-main-title">{{ chapterData.title }}</h1>
@@ -310,7 +310,7 @@ useHead({
             </nav>
           </article>
         </div>
-        <PracticeDock v-if="practiceOpened" v-show="practiceVisible && !practiceMinimized" :key="learnerId" :active="practiceVisible && !practiceMinimized" v-model:height="dockHeight" v-model:expanded="practiceExpanded" :mode="practiceMode" :max-height="maxDockHeight" @minimize="minimizePractice" @close="closePractice" />
+        <PracticeDock v-if="practiceOpened" v-show="practiceVisible && !practiceMinimized" :key="learnerId" :active="practiceVisible && !practiceMinimized" v-model:height="dockHeight" :mode="practiceMode" :max-height="maxDockHeight" @minimize="minimizePractice" />
         <button v-if="practiceVisible && practiceMinimized" type="button" class="dock-restore" aria-label="恢复练习面板" @click="practiceMinimized = false"><Terminal v-if="practiceMode === 'cli'" :size="14" aria-hidden="true" /><Monitor v-else :size="14" aria-hidden="true" />{{ practiceMode === 'cli' ? '终端' : '桌面' }}<ChevronUp :size="15" aria-hidden="true" /></button>
       </div>
     </div>

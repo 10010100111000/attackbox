@@ -54,7 +54,7 @@ test('AuthVisualAside.vue matches visual design with mission taglines and backgr
   assert.ok(content.includes('@media'))
 })
 
-test('LoginForm.vue defines credentials validation, ui components, and preview success state', () => {
+test('LoginForm.vue defines credentials validation, ui components, and direct post-login navigation', () => {
   const content = readFileSync(resolve(rootDir, 'components/auth/LoginForm.vue'), 'utf-8')
 
   // Props and emits
@@ -80,11 +80,11 @@ test('LoginForm.vue defines credentials validation, ui components, and preview s
   assert.ok(content.includes('还没有账号？'))
   assert.ok(content.includes('创建账号 ↗') || content.includes('创建账号'))
 
-  // Success preview view
-  assert.ok(content.includes('LOGIN SUCCESS') || content.includes('LOGIN PREVIEW'))
-  assert.ok(content.includes('准备好，继续探索。'))
-  assert.ok(content.includes('进入学习平台') || content.includes('进入学习原型'))
-  assert.ok(content.includes('← 返回登录') || content.includes('返回登录'))
+  // One-step navigation and safe pre-hydration submission
+  assert.ok(!content.includes('isSuccessPreview'))
+  assert.ok(content.includes("await navigateTo('/learn', { replace: true })"))
+  assert.ok(content.includes('method="post" action="/api/auth/login"'))
+  assert.ok(content.includes('<fieldset :disabled="!mounted || busy"'))
 
   // Validation logic
   assert.ok(content.includes('请输入有效的邮箱地址。'))
@@ -107,7 +107,6 @@ test('RegisterForm.vue renders registration fields, hints, and prototype preview
   assert.ok(content.includes('继续创建账号'))
   assert.ok(content.includes('下一步验证邮箱，完成账号创建。'))
   assert.ok(content.includes('邮箱验证邮件已发送') || content.includes('邮箱验证步骤预览'))
-  assert.ok(content.includes('← 返回登录') || content.includes('返回登录'))
 
   // Password placeholder
   assert.ok(content.includes('设置密码，至少 6 位'))
@@ -127,10 +126,9 @@ test('RecoverForm.vue renders recovery form and prototype notification', () => {
   assert.ok(content.includes('输入注册邮箱，我们将帮助你重设密码。'))
   assert.ok(content.includes('发送重置链接'))
   assert.ok(content.includes('重置密码链接已发送') || content.includes('重置链接发送状态预览'))
-  assert.ok(content.includes('← 返回登录') || content.includes('返回登录'))
 })
 
-test('layouts/auth.vue defines isolated layout, header with brand, home-link, slot, and footer', () => {
+test('layouts/auth.vue defines isolated layout, header with brand, slot, and footer', () => {
   const content = readFileSync(resolve(rootDir, 'layouts/auth.vue'), 'utf-8')
 
   // Scoped / isolated layout class
@@ -139,8 +137,8 @@ test('layouts/auth.vue defines isolated layout, header with brand, home-link, sl
   // Header elements
   assert.ok(content.includes('/logo.png'))
   assert.ok(content.includes('AttackBox'))
-  assert.ok(content.includes('home-link'))
-  assert.ok(content.includes('返回首页'))
+  assert.ok(!content.includes('home-link'))
+  assert.ok(!content.includes('返回首页'))
 
   // Main slot
   assert.ok(content.includes('<slot />') || content.includes('<slot>'))

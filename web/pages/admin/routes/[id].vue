@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { ArrowLeft, ArrowUp, ArrowDown, X, Plus } from 'lucide-vue-next'
 import type { LearningRoute } from '~/shared/routes'
 
@@ -9,7 +9,7 @@ useHead({ title: '编辑路线 — AttackBox' })
 const id = String(useRoute().params.id)
 const isNew = id === 'new'
 
-const { data: source } = await useFetch<{ data: { id: string; title: string; status: string }[] }>(
+const { data: source } = await useLazyFetch<{ data: { id: string; title: string; status: string }[] }>(
   '/api/admin/modules',
   { key: 'admin:route-module-options' }
 )
@@ -24,9 +24,13 @@ const busy = ref(false)
 const loaded = ref(isNew)
 const query = ref('')
 
+const request = useRequestFetch()
+const initialLoading = ref(!isNew)
+onMounted(async () => {
+ try {
 if (!isNew) {
   try {
-    const r = await useRequestFetch()<{ data: LearningRoute }>(`/api/admin/routes/${id}`)
+    const r = await request<{ data: LearningRoute }>(`/api/admin/routes/${id}`)
     title.value = r.data.title
     summary.value = r.data.summary
     ids.value = r.data.modules!.map(m => m.id)
@@ -37,6 +41,8 @@ if (!isNew) {
     notice.value = '无法读取路线，请返回列表重试'
   }
 }
+ } finally {initialLoading.value=false}
+})
 
 const selected = computed(() =>
   ids.value.map(id => source.value?.data.find(m => m.id === id)).filter(Boolean)
@@ -90,6 +96,7 @@ async function save(intent: 'draft' | 'publish') {
 
 <template>
   <div class="editor">
+    <AdminDataLoading :pending="initialLoading" :has-data="loaded" />
     <NuxtLink to="/admin/routes" class="back">
       <ArrowLeft :size="14" aria-hidden="true" />
       <span>路线列表</span>
@@ -200,7 +207,6 @@ async function save(intent: 'draft' | 'publish') {
 <style scoped>
 .editor {
   width: 100%;
-  max-width: 1400px;
 }
 
 .editor-header,
@@ -395,9 +401,4 @@ li button {
   margin-bottom: 20px;
 }
 
-@media (max-width: 960px) {
-  .grid {
-    grid-template-columns: 1fr;
-  }
-}
 </style>

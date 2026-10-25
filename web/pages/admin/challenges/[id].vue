@@ -62,7 +62,7 @@ const {
   data: options,
   error: optionsError,
   refresh: retryOptions,
-} = await useFetch<{ data: { id: string; name: string; enabled: boolean }[] }>(
+} = await useLazyFetch<{ data: { id: string; name: string; enabled: boolean }[] }>(
   '/api/admin/target-templates/options',
   { key: 'admin:challenge-target-options' }
 )
@@ -100,7 +100,10 @@ async function load() {
   }
 }
 
-if (!isNew) await load()
+const initialLoading = ref(!isNew)
+onMounted(async () => {
+ if (!isNew) {try {await load()} finally {initialLoading.value=false}}
+})
 
 function add() {
   form.value.stages.push({
@@ -157,6 +160,7 @@ async function save(intent: 'draft' | 'publish') {
 
 <template>
   <div class="challenge-editor">
+    <AdminDataLoading :pending="initialLoading" :has-data="loaded" />
     <NuxtLink class="back" to="/admin/challenges">
       <ArrowLeft :size="14" aria-hidden="true" />
       <span>挑战列表</span>
@@ -331,7 +335,6 @@ async function save(intent: 'draft' | 'publish') {
 <style scoped>
 .challenge-editor {
   width: 100%;
-  max-width: 1400px;
 }
 
 .back {
@@ -517,9 +520,4 @@ fieldset {
   margin-bottom: 20px;
 }
 
-@media (max-width: 960px) {
-  .editor-grid {
-    grid-template-columns: 1fr;
-  }
-}
 </style>

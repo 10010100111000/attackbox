@@ -1,7 +1,3 @@
-<script setup lang="ts">
-import { ArrowLeft } from 'lucide-vue-next'
-</script>
-
 <template>
   <div class="auth-layout">
     <div class="shell">
@@ -9,10 +5,6 @@ import { ArrowLeft } from 'lucide-vue-next'
         <NuxtLink to="/" class="brand">
           <img src="/logo.png" alt="AttackBox Logo" class="brand-logo" width="31" height="31" />
           <span>AttackBox</span>
-        </NuxtLink>
-        <NuxtLink to="/" class="home-link">
-          <ArrowLeft class="w-3.5 h-3.5" />
-          <span>返回首页</span>
         </NuxtLink>
       </header>
 
@@ -68,20 +60,6 @@ import { ArrowLeft } from 'lucide-vue-next'
   display: block;
 }
 
-.home-link {
-  font-size: 11px;
-  color: #847b89;
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  text-decoration: none;
-  transition: color 0.2s;
-}
-
-.home-link:hover {
-  color: #ddd0c8;
-}
-
 .footer {
   display: flex;
   justify-content: space-between;
@@ -118,11 +96,6 @@ import { ArrowLeft } from 'lucide-vue-next'
     height: 28px;
     font-size: 19px;
     border-radius: 7px;
-  }
-
-  .home-link {
-    font-size: 10px;
-    gap: 8px;
   }
 
   .footer {

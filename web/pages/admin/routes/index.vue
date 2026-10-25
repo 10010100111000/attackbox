@@ -6,7 +6,7 @@ import { Plus, Route } from 'lucide-vue-next'
 definePageMeta({ layout: 'admin' })
 useHead({ title: '学习路线 — AttackBox' })
 
-const { data, error, refresh } = await useFetch<{ data: RouteSummary[] }>('/api/admin/routes', {
+const { data, pending, error, refresh } = await useLazyFetch<{ data: RouteSummary[] }>('/api/admin/routes', {
   key: 'admin:routes',
 })
 const notice = ref('')
@@ -37,6 +37,7 @@ async function remove(route: RouteSummary) {
         <span>新建路线</span>
       </NuxtLink>
     </header>
+    <AdminDataLoading :pending="pending" :has-data="!!data" />
 
     <p v-if="notice || error" class="notice" role="alert">
       {{ notice || '无法读取路线' }}
@@ -74,7 +75,7 @@ async function remove(route: RouteSummary) {
         </tbody>
       </table>
 
-      <div v-if="!data?.data.length && !error" class="empty">
+      <div v-if="!data?.data.length && !error && !pending" class="empty">
         <Route :size="26" aria-hidden="true" />
         <p>还没有学习路线</p>
       </div>

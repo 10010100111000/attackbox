@@ -55,7 +55,7 @@ test('sandbox frontend/backend: stable identity, concurrent start, ticket securi
     await waitUntil(async () => (await page.locator('.xterm-rows').innerText()).includes('Executed: whoami'))
     const opened = worker.terminals.length
     await page.getByRole('button', { name: '收起练习面板', exact: true }).click(); await page.getByRole('button', { name: '恢复练习面板', exact: true }).click()
-    await page.getByRole('button', { name: '关闭练习面板', exact: true }).click(); await page.getByRole('button', { name: 'CLI 终端', exact: true }).click()
+    await page.getByRole('button', { name: '收起练习面板', exact: true }).click(); await page.getByRole('button', { name: 'CLI 终端', exact: true }).click()
     assert.equal(worker.terminals.length, opened, 'hide/minimize preserve existing terminal connection')
     await page.getByRole('button', { name: '新建终端', exact: true }).click(); await waitUntil(() => worker.terminals.length === opened + 1)
     assert.equal(new Set(worker.terminals.slice(1).map(s => s.windowId)).size, 2, 'separate PTYs use distinct window IDs')
@@ -121,7 +121,7 @@ test('sandbox frontend/backend: stable identity, concurrent start, ticket securi
     await page.bringToFront(); await page.getByRole('button', { name: '启动环境', exact: true }).waitFor()
     await page.getByRole('button', { name: '启动环境', exact: true }).click(); await page.locator('.terminal-status:visible').filter({ hasText: '已连接' }).waitFor()
     assert.equal(String([...worker.boxes.values()][0].user_id), String(numericIdentity), 'restart keeps the durable Worker identity')
-    page.once('dialog', dialog => dialog.accept()); await page.getByRole('button', { name: '释放环境', exact: true }).click(); await page.getByRole('button', { name: '启动环境', exact: true }).waitFor()
+    page.once('dialog', dialog => dialog.accept()); await page.getByRole('button', { name: '环境操作', exact: true }).click(); await page.getByRole('menuitem', { name: '释放环境', exact: true }).click(); await page.getByRole('button', { name: '启动环境', exact: true }).waitFor()
     assert.equal(worker.boxes.size, 0); assert.deepEqual(errors, [])
     await admin.close(); await context.close()
   } catch (error) {

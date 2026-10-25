@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
-import { useFetch, useHead } from '#imports'
+import { useLazyFetch, useHead } from '#imports'
 import { Plus, ExternalLink } from 'lucide-vue-next'
 import type { AdminModuleListItem } from '~/shared/content'
 
@@ -17,7 +17,7 @@ type AdminModuleItem = AdminModuleListItem
 
 const difficultyLabels = { beginner: '基础入门', intermediate: '中级进阶', advanced: '高阶实战' }
 const router = useRouter()
-const { data: response, pending, error, refresh } = await useFetch<{ ok: boolean; data: AdminModuleItem[] }>(
+const { data: response, pending, error, refresh } = await useLazyFetch<{ ok: boolean; data: AdminModuleItem[] }>(
   '/api/admin/modules'
 )
 
@@ -67,7 +67,6 @@ async function deleteModule(id: string) {
         <Plus :size="16" aria-hidden="true" /> 新建模块
       </button>
     </div>
-
     <!-- 筛选与搜索工具条 -->
     <div class="filter-bar">
       <div class="filters-tabs" role="tablist">
@@ -93,9 +92,7 @@ async function deleteModule(id: string) {
     </div>
 
     <!-- 加载中 -->
-    <div v-if="pending" class="empty-box">
-      正在加载模块清单…
-    </div>
+    <AdminDataLoading v-if="pending && !response" :pending="pending" :has-data="!!response" />
 
     <!-- 错误状态 -->
     <div v-else-if="error" class="empty-box">
@@ -169,9 +166,6 @@ async function deleteModule(id: string) {
 </template>
 
 <style scoped>
-.admin-modules-page {
-  max-width: 1100px;
-}
 
 .page-head {
   display: flex;

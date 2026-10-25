@@ -231,7 +231,9 @@ async function handleLogout() {
         </header>
 
         <main class="admin-content">
-          <slot />
+          <div class="admin-page-container">
+            <slot />
+          </div>
         </main>
       </div>
     </template>
@@ -240,6 +242,9 @@ async function handleLogout() {
 
 <style scoped>
 .admin-shell {
+  --admin-page-width: 1400px;
+  --admin-page-gutter: 32px;
+  min-width: 1280px;
   display: grid;
   grid-template-columns: 210px minmax(0, 1fr);
   min-height: 100vh;
@@ -457,7 +462,7 @@ async function handleLogout() {
 .admin-topbar {
   height: 60px;
   border-bottom: 1px solid var(--line);
-  padding: 0 32px;
+  padding: 0 var(--admin-page-gutter);
   background: var(--paper);
   display: flex;
   align-items: center;
@@ -532,25 +537,14 @@ async function handleLogout() {
 
 .admin-content {
   flex: 1;
-  padding: 32px;
+  padding: var(--admin-page-gutter);
   min-width: 0;
 }
 
-@media (max-width: 900px) {
-  .admin-shell {
-    grid-template-columns: 1fr;
-  }
-  .admin-sidebar {
-    position: static;
-    height: auto;
-    border-right: 0;
-    border-bottom: 1px solid var(--line);
-  }
-  .admin-content {
-    padding: 20px 16px;
-  }
-  .admin-topbar {
-    padding: 0 16px;
-  }
+/* Page geometry belongs to the layout, not individual admin routes. */
+.admin-page-container {
+  width: 100%;
+  max-width: var(--admin-page-width);
+  min-width: 0;
 }
 </style>

@@ -7,7 +7,7 @@ definePageMeta({ layout: 'admin' })
 useHead({ title: '用户详情 — AttackBox' })
 const route = useRoute(), { currentUser } = useAuth()
 const id = String(route.params.id)
-const { data, pending, error, refresh } = await useFetch<{ data: AdminUserDetail }>(`/api/admin/users/${id}`, { key: `admin:user:${id}` })
+const { data, pending, error, refresh } = await useLazyFetch<{ data: AdminUserDetail }>(`/api/admin/users/${id}`, { key: `admin:user:${id}` })
 const detail = computed(() => data.value?.data), busy = ref(false), notice = ref(''), clock = ref(Date.now())
 const self = computed(() => detail.value?.user.id === currentUser.value?.id)
 const runtime = computed(() => {
@@ -41,6 +41,7 @@ onBeforeUnmount(() => clearInterval(timer))
 <template>
   <div class="users-page">
     <NuxtLink to="/admin/users" class="back"><ArrowLeft :size="14" aria-hidden="true" />用户列表</NuxtLink>
+    <AdminDataLoading :pending="pending" :has-data="!!data" />
     <p v-if="error" class="notice" role="alert">无法读取用户详情。用户可能不存在，或当前登录已失效。</p>
     <template v-else-if="detail">
       <header class="page-heading"><div><div class="title-line"><h1>{{ detail.user.displayName }}</h1><span class="status" :class="detail.user.status">{{ userStatusLabels[detail.user.status] }}</span></div><p>{{ detail.user.email }}</p></div><button :disabled="pending || busy" @click="refresh()"><RefreshCw :size="14" aria-hidden="true" />刷新</button></header>

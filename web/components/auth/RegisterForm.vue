@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { ref, watch, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
-import { ArrowRight, ArrowLeft } from 'lucide-vue-next'
 import Button from '~/components/ui/Button.vue'
 import Input from '~/components/ui/Input.vue'
 
@@ -136,14 +135,14 @@ function handleActivateNow() {
         @click="handleActivateNow"
       >
         <span>一键激活并登录</span>
-        <ArrowRight class="w-4 h-4" />
+
       </Button>
       <button
         type="button"
         class="back-button"
         @click="$emit('switch-mode', 'login')"
       >
-        <ArrowLeft class="w-3.5 h-3.5 inline mr-1" />
+
         <span>返回登录</span>
       </button>
     </div>
@@ -203,7 +202,7 @@ function handleActivateNow() {
         class="submit w-full h-[46px] text-xs font-semibold rounded-md gap-4"
       >
         <span>{{ busy ? '正在继续…' : '继续创建账号' }}</span>
-        <ArrowRight v-if="!busy" class="w-4 h-4" />
+
       </Button>
 
       <!-- 状态反馈提示 -->
@@ -224,7 +223,7 @@ function handleActivateNow() {
       type="button"
       @click="$emit('switch-mode', 'login')"
     >
-      <ArrowLeft class="w-3.5 h-3.5 inline mr-1" />
+
       <span>返回登录</span>
     </button>
 

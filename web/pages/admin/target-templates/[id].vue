@@ -12,7 +12,8 @@ import {
 definePageMeta({ layout: 'admin', key: route => route.fullPath })
 useHead({ title: '编辑靶机模板 — AttackBox' })
 
-const id = String(useRoute().params.id)
+const route = useRoute()
+const id = String(route.params.id)
 const isNew = id === 'new'
 const form = ref<TargetTemplateInput>({
   name: '',
@@ -26,7 +27,7 @@ const form = ref<TargetTemplateInput>({
 const original = ref(JSON.stringify(form.value))
 const version = ref(0)
 const loaded = ref(isNew)
-const busy = ref(false)
+const busy = ref(!isNew)
 const notice = ref('')
 const failure = ref(false)
 const conflict = ref(false)
@@ -82,12 +83,12 @@ async function load() {
   }
 }
 
-if (!isNew) {
+onMounted(async () => {
+ if (!isNew) {
   await load()
-  if (loaded.value && useRoute().query.created === '1') {
-    notice.value = '模板已创建'
-  }
-}
+  if (loaded.value && route.query.created === '1') notice.value = '模板已创建'
+ }
+})
 
 async function reload() {
   if (dirty.value && !confirm('重新读取会放弃当前未保存输入，确定继续？')) return
@@ -145,6 +146,7 @@ async function save() {
 
 <template>
   <div class="template-editor">
+    <AdminDataLoading :pending="busy" :has-data="loaded" />
     <NuxtLink to="/admin/target-templates" class="back">
       <ArrowLeft :size="14" aria-hidden="true" />
       <span>靶机模板</span>
@@ -289,7 +291,6 @@ async function save() {
 <style scoped>
 .template-editor {
   width: 100%;
-  max-width: 1400px;
   color: var(--ink);
 }
 
@@ -506,9 +507,4 @@ button:disabled {
   color: var(--error-ink);
 }
 
-@media (max-width: 960px) {
-  .editor-grid {
-    grid-template-columns: 1fr;
-  }
-}
 </style>

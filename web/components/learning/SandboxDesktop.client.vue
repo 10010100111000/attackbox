@@ -1,8 +1,10 @@
 <script setup lang="ts">
 import { ref, watch, onMounted, onBeforeUnmount, nextTick } from 'vue'
+import {useSandboxSession} from '~/composables/useSandboxSession'
 import type RFB from '@novnc/novnc'
 import type { SandboxTicket } from '~/shared/sandbox'
-const props = defineProps<{ sandboxId: string; active: boolean }>()
+const props = defineProps<{ sandboxId: string; active: boolean; autoResize?: boolean }>()
+const {announceGUI}=useSandboxSession()
 const host = ref<HTMLElement | null>(null), state = ref('正在启动桌面'), connecting = ref(false), fit = ref(true)
 let viewer: RFB | undefined, retryTimer: ReturnType<typeof setTimeout> | undefined, connectTimer: ReturnType<typeof setTimeout> | undefined, stableTimer: ReturnType<typeof setTimeout> | undefined
 let disposed = false, generation = 0, retries = 0
@@ -25,11 +27,11 @@ async function connect() {
     }
     url.searchParams.set('ticket', response.data.ticket)
     const connection = new Desktop(host.value, url.toString(), { shared: true }); viewer = connection
-    connection.scaleViewport = fit.value; connection.resizeSession = false
+    connection.scaleViewport = fit.value; connection.resizeSession = !!props.autoResize; connection.clipViewport = false; connection.compressionLevel=4; connection.qualityLevel=7
     connectTimer = setTimeout(() => { if (viewer === connection) { state.value = '桌面连接超时'; connection.disconnect() } }, 35000)
     connection.addEventListener('connect', () => {
       if (disposed || viewer !== connection) { connection.disconnect(); return }
-      clearTimeout(connectTimer); connecting.value = false; state.value = '桌面已连接'
+      clearTimeout(connectTimer); connecting.value = false; state.value = '桌面已连接'; announceGUI()
       stableTimer = setTimeout(() => { retries = 0 }, 15000)
       if (props.active) connection.focus()
     })
@@ -46,14 +48,14 @@ async function connect() {
     }
   }
 }
-watch(fit, value => { if (viewer) viewer.scaleViewport = value })
+watch(fit, value => { if (viewer) {viewer.scaleViewport = value;viewer.resizeSession=!!props.autoResize && value} })
 watch(() => props.active, async active => { if (active) { await nextTick(); viewer?.focus() } })
 onMounted(connect)
 onBeforeUnmount(() => { disposed = true; generation++; clearTimeout(retryTimer); clearTimeout(connectTimer); clearTimeout(stableTimer); const old = viewer; viewer = undefined; old?.disconnect() })
 </script>
 
 <template>
-  <div class="desktop-panel"><div class="desktop-toolbar"><span role="status">{{ state }}</span><label><input v-model="fit" type="checkbox" />自适应</label><button v-if="state === '桌面已连接'" type="button" @click="viewer?.sendCtrlAltDel()">Ctrl Alt Del</button><button v-else type="button" :disabled="connecting" @click="retries = 0; connect()">重新连接</button></div><div ref="host" class="desktop-host" aria-label="远程桌面" /></div>
+  <div class="desktop-panel"><div class="desktop-toolbar"><span role="status">{{ state }}</span><label><input v-model="fit" type="checkbox" />自适应（取消后为原始尺寸）</label><button v-if="state === '桌面已连接'" type="button" @click="viewer?.sendCtrlAltDel()">Ctrl Alt Del</button><button v-else type="button" :disabled="connecting" @click="retries = 0; connect()">重新连接</button></div><div ref="host" class="desktop-host" aria-label="远程桌面" /></div>
 </template>
 
 <style scoped>

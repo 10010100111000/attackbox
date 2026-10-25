@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue'
 import { useRoute, useRouter, onBeforeRouteLeave } from 'vue-router'
-import { useFetch, useHead } from '#imports'
+import { useLazyFetch, useHead } from '#imports'
 import { Plus, ArrowUp, ArrowDown, X, Check, Circle, MoreHorizontal, Save, Send, ArrowLeft, Link2, ChevronDown, Copy } from 'lucide-vue-next'
 import TargetTemplateSelect from '~/components/admin/TargetTemplateSelect.vue'
 import CategorySelect from '~/components/admin/CategorySelect.vue'
@@ -14,9 +14,9 @@ const route = useRoute(), router = useRouter()
 const editorReady=ref(false)
 const moduleId = computed(() => String(route.params.id || ''))
 const isNew = computed(() => moduleId.value === 'new')
-const { data: response, pending, error, refresh } = await useFetch<{ ok: boolean; data: AdminModuleDetail }>(() => `/api/admin/modules/${moduleId.value}`, { immediate: !isNew.value, watch: false })
-const { data: moduleOptions, error: moduleOptionsError, refresh: refreshModuleOptions } = await useFetch<{ data: AdminModuleListItem[] }>('/api/admin/modules')
-const {data:targetOptions,error:targetOptionsError,refresh:refreshTargetOptions}=await useFetch<{data:{id:string;name:string;enabled:boolean}[]}>('/api/admin/target-templates/options',{key:'admin:learning-target-options'})
+const { data: response, pending, error, refresh } = await useLazyFetch<{ ok: boolean; data: AdminModuleDetail }>(() => `/api/admin/modules/${moduleId.value}`, { immediate: !isNew.value, watch: false })
+const { data: moduleOptions, error: moduleOptionsError, refresh: refreshModuleOptions } = await useLazyFetch<{ data: AdminModuleListItem[] }>('/api/admin/modules')
+const {data:targetOptions,error:targetOptionsError,refresh:refreshTargetOptions}=await useLazyFetch<{data:{id:string;name:string;enabled:boolean}[]}>('/api/admin/target-templates/options',{key:'admin:learning-target-options'})
 const prerequisiteIds = ref<string[]>([]), prerequisiteSearch = ref(''), prerequisitePickerOpen = ref(false)
 const prerequisiteCandidates = computed(() => (moduleOptions.value?.data || []).filter(m => m.id !== moduleId.value && !prerequisiteIds.value.includes(m.id) && `${m.title} ${m.slug}`.toLowerCase().includes(prerequisiteSearch.value.toLowerCase())).slice(0, 6))
 function prerequisiteInfo(id: string) { return moduleOptions.value?.data.find(m => m.id === id) || response.value?.data.prerequisites.find(m => m.id === id) }
@@ -42,6 +42,9 @@ const selectedChapterId = ref<string | null>(null)
 const chapterEditorTab = ref<'markdown' | 'questions' | 'preview'>('markdown')
 const localChapters = ref<ChapterDraft[]>([])
 const localModuleForm = ref({ title: '', slug: '', summary: '', descriptionMarkdown: '', difficulty: 'beginner' as Difficulty, defaultTargetTemplateId:null as string|null, categoryId: null as string | null, learningOutcomes: '', lockVersion: 0 })
+function onCategoryVersionChanged(change:{id:string;previousVersion:number;lockVersion:number}) {
+ if(change.id===moduleId.value && localModuleForm.value.lockVersion===change.previousVersion) localModuleForm.value.lockVersion=change.lockVersion
+}
 const isDirty = ref(false), isSaving = ref(false), saveIntent = ref<'draft' | 'publish' | null>(null), isMutating = ref(false), toastMessage = ref('')
 const busy = computed(() => isSaving.value || isMutating.value)
 let toastTimer: ReturnType<typeof setTimeout> | undefined
@@ -126,7 +129,7 @@ useHead({ title: computed(() => `${isNew.value ? '新建' : '编辑'}模块：${
     </div>
 
     <!-- 加载中 -->
-    <div v-if="pending && !isNew" class="state-panel">
+    <div v-if="!isNew && (pending || (!response && !error))" class="state-panel">
       正在加载模块详情…
     </div>
 
@@ -444,7 +447,7 @@ useHead({ title: computed(() => `${isNew.value ? '新建' : '编辑'}模块：${
           <div class="section-fields">
             <div class="form-field title-field"><label for="module-title">模块名称 <span class="required-label">必填</span></label><input id="module-title" v-model="localModuleForm.title" class="form-input" aria-required="true" maxlength="160" placeholder="例如 Linux 权限与访问控制" @input="markDirty" /></div>
             <div class="classification-row">
-              <div class="form-field"><label for="module-category">内容分类</label><CategorySelect v-model="localModuleForm.categoryId" :disabled="busy" @update:model-value="markDirty" /></div>
+              <div class="form-field"><label for="module-category">内容分类</label><CategorySelect v-model="localModuleForm.categoryId" :disabled="busy" @update:model-value="markDirty" @version-changed="onCategoryVersionChanged" /></div>
               <div class="form-field"><span id="difficulty-label" class="control-label">学习难度</span><div class="difficulty-segment" role="group" aria-labelledby="difficulty-label"><button v-for="option in ([{ value: 'beginner', label: '基础' }, { value: 'intermediate', label: '进阶' }, { value: 'advanced', label: '高级' }] as const)" :key="option.value" type="button" :aria-pressed="localModuleForm.difficulty === option.value" @click="localModuleForm.difficulty = option.value; markDirty()">{{ option.label }}</button></div></div>
             </div>
             <div class="form-field summary-field"><label for="module-summary">模块简介 <span class="optional-label">可选</span></label><textarea id="module-summary" v-model="localModuleForm.summary" class="form-input" rows="2" maxlength="500" placeholder="用一两句话说明模块内容，展示在学习模块列表中。" @input="markDirty"></textarea></div>
@@ -499,7 +502,9 @@ useHead({ title: computed(() => `${isNew.value ? '新建' : '编辑'}模块：${
 .section-fields { min-width: 0; width: 100%; }
 .section-fields .form-field:last-child { margin-bottom: 0; }
 .title-field, .summary-field { max-width: 680px; }
-.classification-row { display: flex; align-items: start; flex-wrap: wrap; gap: 16px 24px; }
+.classification-row { display: grid; grid-template-columns: 256px max-content; align-items: start; gap: 24px; margin-bottom: 20px; }
+.classification-row .form-field { margin: 0; }
+.classification-row .form-field > label, .classification-row .control-label { display: block; margin: 0 0 8px; font-size: 12px; line-height: 18px; font-weight: 600; }
 .control-label { display: block; font-size: 12px; font-weight: 600; color: var(--ink); margin-bottom: 6px; }
 .difficulty-segment { display: inline-flex; gap: 3px; border: 1px solid var(--line); background: var(--bg); padding: 3px; border-radius: 7px; height: 38px; }
 .difficulty-segment button { padding: 4px 17px; font-size: 12px; border: 0; border-radius: 4px; color: var(--muted); background: transparent; cursor: pointer; }
@@ -550,7 +555,6 @@ useHead({ title: computed(() => `${isNew.value ? '新建' : '编辑'}模块：${
 .duration-input { position: relative; }
 .duration-input input { padding-right: 42px; }
 .duration-input > span { position: absolute; top: 10px; right: 12px; color: var(--muted); font-size: 12px; pointer-events: none; }
-@media (max-width: 1050px) { .chapter-fields { grid-template-columns: 1fr 1fr; } }
 
 .btn, .save-status-text, .back-btn { display: inline-flex; align-items: center; justify-content: center; gap: 7px; }
 
@@ -561,9 +565,6 @@ useHead({ title: computed(() => `${isNew.value ? '新建' : '编辑'}模块：${
 .more-menu .danger { color: var(--error-ink, #bf4545); }
 
 .editor-content { border: 0; padding: 0; margin: 0; min-width: 0; }
-.module-editor-page {
-  max-width: 1200px;
-}
 
 .editor-toast {
   position: fixed;
@@ -965,12 +966,6 @@ useHead({ title: computed(() => `${isNew.value ? '新建' : '编辑'}模块：${
   padding: 64px;
   text-align: center;
   color: var(--muted);
-}
-
-@media (max-width: 900px) {
-  .editor-double-layout {
-    grid-template-columns: 1fr;
-  }
 }
 
 .chapter-target-settings {

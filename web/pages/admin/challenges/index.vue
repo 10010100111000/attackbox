@@ -6,7 +6,7 @@ import type { ChallengeSummary } from '~/shared/challenges'
 definePageMeta({ layout: 'admin' })
 useHead({ title: '挑战管理 — AttackBox' })
 
-const { data, error, refresh } = await useFetch<{ data: ChallengeSummary[] }>('/api/admin/challenges', {
+const { data, pending, error, refresh } = await useLazyFetch<{ data: ChallengeSummary[] }>('/api/admin/challenges', {
   key: 'admin:challenges',
 })
 
@@ -45,6 +45,7 @@ async function remove(c: ChallengeSummary) {
         <span>新建挑战</span>
       </NuxtLink>
     </header>
+    <AdminDataLoading :pending="pending" :has-data="!!data" />
 
     <div class="filters">
       <label class="search">
@@ -91,7 +92,7 @@ async function remove(c: ChallengeSummary) {
           </tr>
         </tbody>
       </table>
-      <p v-if="!rows.length && !error" class="empty">暂无挑战</p>
+      <p v-if="!rows.length && !error && !pending" class="empty">暂无挑战</p>
     </div>
   </div>
 </template>

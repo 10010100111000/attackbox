@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { ref, onMounted, computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { ArrowRight, ArrowLeft } from 'lucide-vue-next'
 import Button from '~/components/ui/Button.vue'
 import { useAuth } from '~/composables/useAuth'
 
@@ -74,7 +73,7 @@ function goToLogin() {
         @click="goToLogin"
       >
         <span>立即前往登录</span>
-        <ArrowRight class="w-4 h-4" />
+
       </Button>
     </div>
 
@@ -92,7 +91,7 @@ function goToLogin() {
           @click="goToLogin"
         >
           <span>尝试直接登录</span>
-          <ArrowRight class="w-4 h-4" />
+
         </Button>
 
         <button
@@ -100,7 +99,7 @@ function goToLogin() {
           class="back-button"
           @click="$emit('switch-mode', 'register')"
         >
-          <ArrowLeft class="w-3.5 h-3.5 inline mr-1" />
+
           <span>返回重新注册</span>
         </button>
       </div>

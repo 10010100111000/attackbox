@@ -7,6 +7,8 @@
 - [部署](implementation/deploy.md)：安装、配置、构建和服务启动。
 - [Docker 网络](implementation/worker-docker-network.md)：双网桥互通及访问边界。
 - [Worker 生命周期](implementation/worker-docker-target-runtime.md)：协议、持久归属与容器管理。
+- [CLI／GUI 工作台](implementation/environment-workbench.md)：独立页面、窗口操作及环境控制。
+- [内容分类](implementation/content-categories.md)：分类管理、删除语义与抽屉交互。
 - [前后端运行接入](implementation/target-runtime-integration.md)：使用与测试重点。
 
 其他阶段计划、概念原型和历史验收记录用于说明背景，不是现行开发限制。数据库当前结构以 `web/server/db/schema` 和迁移为准。后续实现变化应直接更新对应操作文档，避免继续叠加相互冲突的“禁止事项”。
