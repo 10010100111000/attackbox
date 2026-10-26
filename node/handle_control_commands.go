@@ -21,7 +21,7 @@ func (c *NodeControlClient) DispatchMessageForTest(msg *protocol.Message) {
 
 func (c *NodeControlClient) dispatchMessage(msg *protocol.Message) {
 	switch msg.Type {
-	case protocol.MsgComposePrepare, protocol.MsgComposePrepareStatus, protocol.MsgComposeStart, protocol.MsgComposeInspect, protocol.MsgComposeStop:
+	case protocol.MsgComposePrepare, protocol.MsgComposePrepareStatus, protocol.MsgComposePrepareCancel, protocol.MsgComposeStart, protocol.MsgComposeInspect, protocol.MsgComposeStop:
 		c.dispatchCompose(msg)
 	case protocol.MsgTypeTargetImagePrepare, protocol.MsgTypeTargetImageStatus, protocol.MsgTypeTargetStart, protocol.MsgTypeTargetInspect, protocol.MsgTypeTargetStop:
 		select {

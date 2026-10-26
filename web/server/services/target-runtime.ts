@@ -103,7 +103,7 @@ export async function targetOperation(
     const nodes = hub
       .snapshot()
       .nodes.filter(n => n.state === 'online' && !n.settings.draining && n.bootId && (template.runtime==='compose'?hub.composeNodes:hub.targetNodes).has(n.id))
-    const prepared=template.runtime==='compose'?await tx.select().from(labPreparations).where(and(eq(labPreparations.templateId,template.id),eq(labPreparations.templateVersion,template.composeRevision),eq(labPreparations.state,'ready'))):[]
+    const prepared=template.runtime==='compose'?await tx.select().from(labPreparations).where(and(eq(labPreparations.templateId,template.id),eq(labPreparations.templateVersion,template.composeRevision),sql`${labPreparations.deploymentId} is not null`)):[]
     const eligible = (preferredNodeId ? nodes.filter(n => n.id === preferredNodeId) : nodes).filter(n=>template.runtime!=='compose'||prepared.some(p=>p.nodeId===n.id&&p.bootId===n.bootId&&p.deploymentId))
 
     if (!eligible.length) {

@@ -2,7 +2,7 @@ import { randomBytes } from 'node:crypto'
 import type { SandboxNodesResponse, SandboxNodeStatus, SandboxNodeSettings } from '../../shared/sandbox.ts'
 import type { SandboxConfig } from './config.ts'
 import type {ComposeInstance,ComposeSummary,ComposeSettings} from '../../shared/compose-labs.ts'
-export interface ComposePayload {target_id:string;owner_id:string;preparation_id?:string;deployment_id?:string;bundle_id?:string;bundle_hash?:string;settings?:ComposeSettings|null;variables?:Record<string,string>;expires_at?:string}
+export interface ComposePayload {requested_at?:string;rebuild?:boolean;target_id:string;owner_id:string;preparation_id?:string;deployment_id?:string;bundle_id?:string;bundle_hash?:string;settings?:ComposeSettings|null;variables?:Record<string,string>;expires_at?:string}
 export interface ComposeWorkerResult {success:boolean;boot_id:string;target_id:string;owner_id?:string;job_state?:string;deployment_id?:string;summary?:ComposeSummary;logs?:string[];error?:string;instance?:ComposeInstance}
 interface ComposePending {ownerId:string;peerId:string;bootId:string;targetId:string;type:string;resolve:(value:ComposeWorkerResult)=>void;reject:(error:Error)=>void;timer:ReturnType<typeof setTimeout>}
 export interface WorkerPeer { id: string; send: (data: string) => unknown; close: (code: number, reason: string) => unknown }
@@ -92,7 +92,7 @@ export class SandboxHub {
     })
   }
   private reject(peer: WorkerPeer) { this.close(peer); peer.close(1008, 'Invalid control message') }
-  composeRpc(nodeId:string,bootId:string,type:'compose_prepare'|'compose_prepare_status'|'compose_start'|'compose_inspect'|'compose_stop',payload:ComposePayload,timeoutMs=125000):Promise<ComposeWorkerResult>{
+  composeRpc(nodeId:string,bootId:string,type:'compose_prepare'|'compose_prepare_status'|'compose_prepare_cancel'|'compose_start'|'compose_inspect'|'compose_stop',payload:ComposePayload,timeoutMs=125000):Promise<ComposeWorkerResult>{
     this.sweep();const record=this.records.get(nodeId)
     if(!record?.connection||record.status.state!=='online'||record.status.bootId!==bootId||!this.composeNodes.has(nodeId))return Promise.reject(new Error('Compose worker unavailable'))
     if(!/^[A-Za-z0-9_-]{1,64}$/.test(payload.target_id)||!/^[A-Za-z0-9_-]{1,64}$/.test(payload.owner_id))return Promise.reject(new Error('Invalid Compose identity'))
@@ -109,7 +109,7 @@ export class SandboxHub {
       if (Buffer.byteLength(raw) > 1024 * 1024) { this.reject(peer); return }
       const msg = JSON.parse(raw), p = msg?.payload
       if (!text(msg?.id) || !text(msg?.type) || !p || typeof p !== 'object' || Array.isArray(p)) { this.reject(peer); return }
-      if(['compose_prepare_resp','compose_prepare_status_resp','compose_start_resp','compose_inspect_resp','compose_stop_resp'].includes(msg.type)){
+      if(['compose_prepare_resp','compose_prepare_status_resp','compose_prepare_cancel_resp','compose_start_resp','compose_inspect_resp','compose_stop_resp'].includes(msg.type)){
         if(!connection.registered||typeof p.success!=='boolean'||!text(p.target_id)||!text(p.boot_id)){this.reject(peer);return}
         const pending=this.composePending.get(msg.id);if(!pending)return
         if(pending.peerId!==peer.id||pending.bootId!==p.boot_id||pending.targetId!==p.target_id||pending.type!==msg.type||p.owner_id!==pending.ownerId){this.reject(peer);return}
@@ -163,7 +163,7 @@ export class SandboxHub {
         this.reply(peer, 'heartbeat_ack', { success: true })
         if (p.docker_targets?.available === true) this.targetNodes.add(connection.nodeId)
         else this.targetNodes.delete(connection.nodeId)
-        if(p.compose_labs?.available===true&&p.compose_labs?.network_verified===true&&p.compose_labs?.protocol_version===1)this.composeNodes.add(connection.nodeId)
+        if(p.compose_labs?.available===true&&p.compose_labs?.network_verified===true&&p.compose_labs?.protocol_version===2)this.composeNodes.add(connection.nodeId)
         else this.composeNodes.delete(connection.nodeId)
         this.onInventory?.(structuredClone(record.status))
       } else { this.reject(peer) }

@@ -1,6 +1,6 @@
 // Local protocol fixture only. It simulates command output; it is not a sandbox.
 import http from 'node:http'
-import { verify, createPublicKey } from 'node:crypto'
+import { verify, createHash, createPublicKey } from 'node:crypto'
 import { once } from 'node:events'
 import WebSocket, { WebSocketServer } from 'ws'
 import { testDesktop } from './rfb-desktop.mjs'
@@ -38,7 +38,7 @@ export async function sandboxWorker(base, secret, options = {}) {
   function send(type, payload, id = 'fixture-' + seq) { control.send(JSON.stringify({ id, type, payload })) }
   function heartbeat() {
     if (control.readyState !== WebSocket.OPEN) return
-    send('heartbeat', { node_id: 'test-node', boot_id: boot, seq: ++seq, inventory_revision: revision, timestamp: Math.floor(Date.now() / 1000), load_avg: 0.3, mem_available_mb: 16384, disk_free_gb: 80, ...(options.dockerTargets ? {docker_targets:{available:true,instances:[]}} : {}),...(options.composeLabs?{compose_labs:{available:true,network_verified:true,protocol_version:1}}:{}), active_sandboxes: boxes.size, sandboxes: [...boxes.keys()].map(id => ({ id, state: 'running', last_active_at: Math.floor(Date.now() / 1000), gui_running: !!boxes.get(id)?.guiRunning })) })
+    send('heartbeat', { node_id: 'test-node', boot_id: boot, seq: ++seq, inventory_revision: revision, timestamp: Math.floor(Date.now() / 1000), load_avg: 0.3, mem_available_mb: 16384, disk_free_gb: 80, ...(options.dockerTargets ? {docker_targets:{available:true,instances:[]}} : {}),...(options.composeLabs?{compose_labs:{available:true,network_verified:true,protocol_version:2}}:{}), active_sandboxes: boxes.size, sandboxes: [...boxes.keys()].map(id => ({ id, state: 'running', last_active_at: Math.floor(Date.now() / 1000), gui_running: !!boxes.get(id)?.guiRunning })) })
   }
   let readyResolve
   const ready = new Promise(resolve => readyResolve = resolve)
@@ -54,9 +54,17 @@ export async function sandboxWorker(base, secret, options = {}) {
         const downloaded=await fetch(base+'/api/worker/lab-bundles/'+p.bundle_id,{headers:{Authorization:`Bearer ${secret}`,'X-Node-ID':'test-node'}})
         if(!downloaded.ok){send(msg.type+'_resp',{...response,success:false,error:'bundle_download_failed'},msg.id);return}
         const bundle=await downloaded.json();if(bundle.hash!==p.bundle_hash)throw Error('Fixture bundle hash mismatch')
-        composeJobs.set(p.preparation_id,{deployment_id:'dep_'+'a'.repeat(64),summary:{services:[{name:'web',image:'sha256:'+'a'.repeat(64)}],networks:['default'],entry_service:p.settings.entryService,entry_network:p.settings.entryNetwork,entry_port:p.settings.entryPort,report:[]}})
+        composeJobs.set(p.preparation_id,{job_state:'preparing',deployment_id:p.rebuild?'dep_'+createHash('sha256').update(p.preparation_id).digest('hex'):'dep_'+'a'.repeat(64),summary:{services:[{name:'web',image:'sha256:'+'a'.repeat(64)}],networks:['default'],entry_service:p.settings.entryService,entry_network:p.settings.entryNetwork,entry_port:p.settings.entryPort,report:[]}})
         send(msg.type+'_resp',{...response,job_state:'preparing',logs:['已接收准备任务']},msg.id)
-      }else if(msg.type==='compose_prepare_status')send(msg.type+'_resp',{...response,...composeJobs.get(p.preparation_id),job_state:composeJobs.has(p.preparation_id)?'ready':'unknown',logs:['部署包校验完成','镜像准备完成']},msg.id)
+      }else if(msg.type==='compose_prepare_status'){
+       const job=composeJobs.get(p.preparation_id);if(job&&job.job_state==='preparing'&&!options.composePrepareHold)job.job_state=options.composePrepareFail?'failed':'ready'
+       const result={...response,...(job?.job_state==='ready'?job:{}),job_state:job?.job_state||'unknown',...(job?.job_state==='failed'?{error:'compose_prepare_failed'}:{}),logs:['部署包校验完成','镜像准备完成']}
+       const gate=options.composeStatusGate;if(gate){gate.enter();await gate.promise}
+       send(msg.type+'_resp',result,msg.id)
+      }else if(msg.type==='compose_prepare_cancel'){
+       const job=composeJobs.get(p.preparation_id);if(!job||job.job_state!=='ready')composeJobs.set(p.preparation_id,{job_state:'cancelled'})
+       send(msg.type+'_resp',{...response,...composeJobs.get(p.preparation_id),logs:['准备任务已取消']},msg.id)
+      }
       else{
         let record=composeInstances.get(p.target_id)
         if(msg.type==='compose_start'&&!record){record={target_id:p.target_id,owner_id:p.owner_id,expires_at:p.expires_at,ready:true,readiness:'healthy',entry_address:'10.202.0.2:8080',services:[{name:'web',state:'running',health:'healthy',ips:{default:'10.202.0.2'}}],state:'running'};composeInstances.set(p.target_id,record)}

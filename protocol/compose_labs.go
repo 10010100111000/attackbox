@@ -4,6 +4,7 @@ import "time"
 
 const (
 	MsgComposePrepare       = "compose_prepare"
+	MsgComposePrepareCancel = "compose_prepare_cancel"
 	MsgComposePrepareStatus = "compose_prepare_status"
 	MsgComposeStart         = "compose_start"
 	MsgComposeInspect       = "compose_inspect"
@@ -18,6 +19,8 @@ type ComposeSettings struct {
 	PrefixBits   int    `json:"prefixBits"`
 }
 type ComposeRequest struct {
+	RequestedAt   time.Time         `json:"requested_at,omitempty"`
+	Rebuild       bool              `json:"rebuild,omitempty"`
 	BootID        string            `json:"boot_id"`
 	TargetID      string            `json:"target_id"`
 	OwnerID       string            `json:"owner_id"`

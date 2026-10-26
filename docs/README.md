@@ -27,3 +27,5 @@
 - [靶场 GitHub 导入、手动更新与版本兼容](implementation/lab-git-import.md)
 
 - [Compose 本地构建与配套目录](implementation/compose-build-and-assets.md)
+
+- [Compose 准备任务取消、重试与强制重建](implementation/compose-preparation-management.md)

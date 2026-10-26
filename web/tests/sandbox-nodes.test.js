@@ -15,11 +15,12 @@ function fixture() {
   return { config, hub, a, b, send, register, heartbeat, advance: ms => time += ms, node: () => hub.snapshot().nodes[0] }
 }
 test('Compose capability requires network acceptance and replies are correlated and allow-listed',async()=>{
- const f=fixture();f.hub.open(f.a,'test-node');f.register();f.heartbeat(f.a,{compose_labs:{available:true,network_verified:false,protocol_version:1}})
+ const f=fixture();f.hub.open(f.a,'test-node');f.register();f.heartbeat(f.a,{compose_labs:{available:true,network_verified:false,protocol_version:2}})
  assert.equal(f.hub.composeNodes.has('test-node'),false)
  const payload={target_id:'00000000-0000-4000-8000-000000000001',owner_id:'00000000-0000-4000-8000-000000000002'}
  await assert.rejects(f.hub.composeRpc('test-node','boot-1','compose_prepare_status',payload))
- f.heartbeat(f.a,{seq:2,compose_labs:{available:true,network_verified:true,protocol_version:1}})
+ f.heartbeat(f.a,{seq:2,compose_labs:{available:true,network_verified:true,protocol_version:1}});assert.equal(f.hub.composeNodes.has('test-node'),false)
+ f.heartbeat(f.a,{seq:3,compose_labs:{available:true,network_verified:true,protocol_version:2}})
  const promise=f.hub.composeRpc('test-node','boot-1','compose_prepare_status',payload),sent=f.a.sent.at(-1)
  f.hub.message(f.a,JSON.stringify({id:sent.id,type:'compose_prepare_status_resp',payload:{success:true,boot_id:'boot-1',...payload,job_state:'ready',variables:'must-not-return',deployment_id:'dep_'+'a'.repeat(64),summary:{services:[{name:'web',image:'sha256:'+'a'.repeat(64),password:'must-not-return'}],networks:['default'],entry_service:'web',entry_network:'default',entry_port:8080,report:[],document:'must-not-return'}}}))
  assert.ok(!JSON.stringify(await promise).includes('must-not-return'))

@@ -311,7 +311,7 @@ func (c *NodeControlClient) heartbeatLoop(ctx context.Context) {
 		}
 		var compose *protocol.ComposeCapability
 		if c.cfg.ComposeLabs.Enabled {
-			compose = &protocol.ComposeCapability{Available: c.compose != nil, NetworkVerified: c.cfg.ComposeLabs.NetworkVerified, ProtocolVersion: 1, Error: c.composeInitError}
+			compose = &protocol.ComposeCapability{Available: c.compose != nil, NetworkVerified: c.cfg.ComposeLabs.NetworkVerified, ProtocolVersion: 2, Error: c.composeInitError}
 		}
 		hb, _ := protocol.NewMessage(protocol.MsgTypeHeartbeat, protocol.HeartbeatReq{ComposeLabs: compose, DockerTargets: targets, NodeID: c.cfg.Node.NodeID, BootID: c.bootID, Seq: atomic.AddUint64(&c.seq, 1), InventoryRevision: revision, Timestamp: time.Now().Unix(), LoadAvg: readSystemLoadAvg(), MemAvailableMB: available, DiskFreeGB: c.rtMgr.DiskGuard().GetCurrentFreeMB() / 1024, ActiveSandboxes: len(inventory), Sandboxes: inventory})
 		_ = c.sendMessage(hb)

@@ -97,7 +97,7 @@ func TestBuildArgumentsStayInPrivateFileAndBuilderUsesLocalDefault(t *testing.T)
 esac
 `, marker, strings.Repeat("a", 64), log, marker)
 	cli := scriptCLI(t, script)
-	if _, err := cli.BuildImage(context.Background(), b.Directory, stage, d.Builds["web"]); err != nil {
+	if _, err := cli.BuildImage(context.Background(), b.Directory, stage, d.Builds["web"], false); err != nil {
 		t.Fatal(err)
 	}
 	arguments, _ := os.ReadFile(log)
@@ -108,8 +108,37 @@ esac
 	if !strings.Contains(string(encoded), "literal$$private-build-value") {
 		t.Fatal("literal dollar changed in second Compose parse")
 	}
+	if _, err := cli.BuildImage(context.Background(), b.Directory, stage, d.Builds["web"], true); err != nil {
+		t.Fatal(err)
+	}
+	forced, _ := os.ReadFile(log)
+	if !strings.Contains(string(forced), "--pull\n--no-cache") {
+		t.Fatal("force reused cached image or omitted refresh flags")
+	}
 	info, _ := os.Stat(filepath.Join(stage, "build.json"))
 	if info.Mode().Perm()&0077 != 0 {
 		t.Fatal("build definition is not private")
+	}
+}
+
+func TestImageRefreshPullsEvenWhenTagAlreadyExists(t *testing.T) {
+	marker := filepath.Join(t.TempDir(), "pulled")
+	cli := scriptCLI(t, fmt.Sprintf(`case "$2 $3" in
+"image inspect") echo sha256:%s;;
+"image pull") touch %q;;
+*) exit 9;;
+esac
+`, strings.Repeat("a", 64), marker))
+	if _, err := cli.PrepareImage(context.Background(), "fixture:local"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(marker); !os.IsNotExist(err) {
+		t.Fatal("ordinary prepare pulled cached image")
+	}
+	if _, err := cli.RefreshImage(context.Background(), "fixture:local"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(marker); err != nil {
+		t.Fatal("force refresh did not pull")
 	}
 }

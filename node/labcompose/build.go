@@ -20,7 +20,7 @@ type BuildSpec struct {
 
 // Optional capability so image-only engines remain small and compatible.
 type ImageBuilder interface {
-	BuildImage(context.Context, string, string, BuildSpec) (string, error)
+	BuildImage(context.Context, string, string, BuildSpec, bool) (string, error)
 }
 
 func parseBuild(root string, value any) (BuildSpec, error) {
@@ -86,11 +86,13 @@ func parseBuild(root string, value any) (BuildSpec, error) {
 
 func buildKey(spec BuildSpec) string { b, _ := json.Marshal(spec); return digest(b) }
 
-func (c *CLI) BuildImage(ctx context.Context, root, stage string, spec BuildSpec) (string, error) {
+func (c *CLI) BuildImage(ctx context.Context, root, stage string, spec BuildSpec, rebuild bool) (string, error) {
 	key := buildKey(spec)
 	tag := "attackbox-build:" + key
-	if id, err := c.image(ctx, tag); err == nil {
-		return id, nil
+	if !rebuild {
+		if id, err := c.image(ctx, tag); err == nil {
+			return id, nil
+		}
 	}
 	if _, err := c.run(ctx, "buildx", "version"); err != nil {
 		return "", fmt.Errorf("Docker Buildx plugin required for local builds")
@@ -145,7 +147,11 @@ func (c *CLI) BuildImage(ctx context.Context, root, stage string, spec BuildSpec
 	if err := os.WriteFile(file, data, 0600); err != nil {
 		return "", err
 	}
-	if _, err := c.run(ctx, "compose", "--ansi", "never", "--env-file", "/dev/null", "--project-directory", stage, "--project-name", "ab_build_"+key[:24], "--file", file, "build", "--builder", "default", "--quiet"); err != nil {
+	args := []string{"compose", "--ansi", "never", "--env-file", "/dev/null", "--project-directory", stage, "--project-name", "ab_build_" + key[:24], "--file", file, "build", "--builder", "default", "--quiet"}
+	if rebuild {
+		args = append(args, "--pull", "--no-cache")
+	}
+	if _, err := c.run(ctx, args...); err != nil {
 		return "", fmt.Errorf("local image build failed")
 	}
 	return c.image(ctx, tag)

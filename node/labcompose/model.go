@@ -20,6 +20,7 @@ type Budget struct {
 	MaxServices int   `json:"max_services"`
 }
 type Bundle struct {
+	Rebuild                    bool
 	Directory, File            string
 	Variables                  map[string]string
 	EntryService, EntryNetwork string

@@ -72,6 +72,7 @@ func (c *CLI) run(ctx context.Context, args ...string) ([]byte, error) {
 	ctx, cancel := context.WithTimeout(ctx, limit)
 	defer cancel()
 	cmd := exec.CommandContext(ctx, c.cfg.DockerBinary, append([]string{"--host=unix://" + c.cfg.DockerSocket}, args...)...)
+	configureDockerCommand(cmd)
 	// No inherited application secrets, COMPOSE_*, DOCKER_HOST or dotenv files.
 	cmd.Env = []string{"PATH=" + os.Getenv("PATH"), "DOCKER_CONFIG=" + c.cfg.DockerConfig, "COMPOSE_DISABLE_ENV_FILE=1"}
 	var out limitedOutput
@@ -132,6 +133,14 @@ func (c *CLI) PrepareImage(ctx context.Context, ref string) (string, error) {
 	if id, err := c.image(ctx, ref); err == nil {
 		return id, nil
 	}
+	return c.RefreshImage(ctx, ref)
+}
+
+// RefreshImage intentionally pulls even when the tag already exists locally.
+func (c *CLI) RefreshImage(ctx context.Context, ref string) (string, error) {
+	if ref == "" || strings.HasPrefix(ref, "-") {
+		return "", fmt.Errorf("invalid image reference")
+	}
 	ctx, cancel := context.WithTimeout(ctx, 30*time.Minute)
 	defer cancel()
 	if _, err := c.run(ctx, "image", "pull", ref); err != nil {
@@ -139,6 +148,7 @@ func (c *CLI) PrepareImage(ctx context.Context, ref string) (string, error) {
 	}
 	return c.image(ctx, ref)
 }
+
 func (c *CLI) ImagePresent(ctx context.Context, id string) error {
 	if !imageIDPattern.MatchString(id) {
 		return fmt.Errorf("prepared image ID required")

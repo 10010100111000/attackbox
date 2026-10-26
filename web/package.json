@@ -29,7 +29,7 @@
     "test:challenges": "node --test tests/challenges.test.mjs",
     "content:check": "node --experimental-strip-types server/scripts/check-content.mjs",
     "test:content-sync": "node --test tests/content-sync.test.mjs",
-    "test:compose-labs": "node --test --test-concurrency=1 tests/compose-labs.test.mjs tests/compose-builds.test.mjs"
+    "test:compose-labs": "node --test --test-concurrency=1 tests/compose-labs.test.mjs tests/compose-builds.test.mjs tests/compose-preparations.test.mjs"
   },
   "dependencies": {
     "@node-rs/argon2": "^2.2.2",

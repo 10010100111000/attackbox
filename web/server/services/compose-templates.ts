@@ -6,7 +6,6 @@ import {labBundles,labPreparations,targetTemplates} from '../db/schema'
 import {previewFiles,unpack} from '../labs/archive'
 import {readBundleFiles,saveBundleFiles} from '../labs/storage'
 import {openVariables,sealVariables} from '../labs/credentials'
-import {sandboxHub} from '../sandbox'
 import type {ComposeSettings} from '../../shared/compose-labs'
 export const uuid=(v:unknown)=>{if(typeof v!=='string'||!/^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/i.test(v))throw createError({statusCode:400,message:'标识无效'});return v}
 export async function bundleRecord(id:string){const [b]=await db.select().from(labBundles).where(eq(labBundles.id,uuid(id)));if(!b)throw createError({statusCode:404,message:'部署包不存在'});return b}
@@ -41,27 +40,11 @@ export async function saveComposeTemplate(actor:string,id:string|null,body:any){
   if(Buffer.byteLength(ordered(variables))>32768)throw createError({statusCode:400,message:'部署变量总长度超出限制'})
   const oldBundle=old?.bundleId?await tx.select({hash:labBundles.hash}).from(labBundles).where(eq(labBundles.id,old.bundleId)):[]
   const changed=!old||oldBundle[0]?.hash!==bundle.hash||Object.entries(settings).some(([key,value])=>old.composeSettings?.[key as keyof ComposeSettings]!==value)||ordered(previous)!==ordered(variables)
+  if(changed&&old){const [active]=await tx.select({id:labPreparations.id}).from(labPreparations).where(and(eq(labPreparations.templateId,templateId),eq(labPreparations.templateVersion,old.composeRevision),sql`${labPreparations.state} in ('preparing','cancelling','unknown')`));if(active)throw createError({statusCode:409,message:'请先查询或取消当前准备任务，再修改部署配置'})}
   const revision=(old?.composeRevision||0)+(changed?1:0)
-  if(body.enabled){const [ready]=await tx.select({id:labPreparations.id}).from(labPreparations).where(and(eq(labPreparations.templateId,templateId),eq(labPreparations.templateVersion,revision),eq(labPreparations.state,'ready')));if(!ready)throw createError({statusCode:409,message:'请先保存未启用模板，并在节点准备成功后启用'})}
+  if(body.enabled){const [ready]=await tx.select({id:labPreparations.id}).from(labPreparations).where(and(eq(labPreparations.templateId,templateId),eq(labPreparations.templateVersion,revision),sql`${labPreparations.deploymentId} is not null`));if(!ready)throw createError({statusCode:409,message:'请先保存未启用模板，并在节点准备成功后启用'})}
   const values={name,description,accessInstructions,runtime:'compose',image:'',ports:[{port:s.entryPort,protocol:'tcp' as const}],sourceUrl:'',bundleId:bundle.id,composeSettings:settings,composeRevision:revision,variablesCipher:changed?sealVariables(templateId,variables):old!.variablesCipher,variableKeys:Object.keys(variables).sort(),enabled:body.enabled,lockVersion:(old?.lockVersion||0)+1,updatedAt:new Date()}
   const [saved]=old?await tx.update(targetTemplates).set(values).where(eq(targetTemplates.id,templateId)).returning():await tx.insert(targetTemplates).values({id:templateId,...values}).returning()
   return publicTemplate(saved!)
  })
-}
-
-export async function preparationAction(id:string,nodeId:string,action:'status'|'prepare'){
- const t=await composeTemplate(id),hub=sandboxHub(),node=hub.snapshot().nodes.find(n=>n.id===nodeId&&n.state==='online'&&n.bootId&&!n.settings.draining)
- if(!node||!hub.composeNodes.has(node.id))throw createError({statusCode:409,message:'节点未启用已验收的 Compose 运行能力'})
- const [existing]=await db.select().from(labPreparations).where(and(eq(labPreparations.templateId,t.id),eq(labPreparations.templateVersion,t.composeRevision),eq(labPreparations.nodeId,node.id)))
- if(action==='status'&&!existing)return null
- let job=existing
- if(!job){[job]=await db.insert(labPreparations).values({templateId:t.id,templateVersion:t.composeRevision,nodeId:node.id,bootId:node.bootId!,state:'preparing'}).onConflictDoNothing().returning();if(!job)[job]=await db.select().from(labPreparations).where(and(eq(labPreparations.templateId,t.id),eq(labPreparations.templateVersion,t.composeRevision),eq(labPreparations.nodeId,node.id)))}
- if(!job)throw createError({statusCode:409,message:'准备任务冲突，请重试'})
- const b=await bundleRecord(t.bundleId!),variables=openVariables(t.id,t.variablesCipher)
- let result
- try{result=await hub.composeRpc(node.id,node.bootId!,action==='prepare'?'compose_prepare':'compose_prepare_status',{target_id:job.id,owner_id:t.id,preparation_id:job.id,deployment_id:job.deploymentId||undefined,...(action==='prepare'?{bundle_id:b.id,bundle_hash:b.hash,settings:t.composeSettings,variables}:{})},15000)}catch{return {...job,state:'unknown',error:'节点未响应，请手动查询'}}
- const state=result.success&&['preparing','ready','failed','unknown'].includes(result.job_state||'')?result.job_state!:'failed'
- const errors:Record<string,string>={compose_prepare_busy:'节点正在准备其他部署，请稍后重试',compose_prepare_failed:'准备失败，请检查 Compose 配置、文件和镜像访问权限',worker_disk_pressure:'节点磁盘空间不足'}
- const [saved]=await db.update(labPreparations).set({state,bootId:node.bootId!,deploymentId:result.deployment_id||job.deploymentId,summary:result.summary||job.summary,logs:result.logs||job.logs,error:result.error?(errors[result.error]||'节点未完成准备，请检查部署配置后重试'):null,updatedAt:new Date()}).where(eq(labPreparations.id,job.id)).returning()
- return saved
 }

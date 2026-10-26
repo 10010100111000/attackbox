@@ -26,25 +26,15 @@ type ComposeConfig struct {
 	SocketPath      string `yaml:"socket_path"`
 	Pool            string `yaml:"pool"`
 }
-type composeJob struct {
-	Logs         []string
-	State        string
-	DeploymentID string
-	Summary      *protocol.ComposeDefinition
-	Error        string
-	Fingerprint  string
-}
 type composeLabs struct {
-	runtime  *labcompose.Manager
-	network  *labnetwork.Manager
-	mu       sync.Mutex
-	jobs     map[string]composeJob
-	prepare  chan struct{}
-	commands chan struct{}
-	stops    chan struct{}
-	wg       sync.WaitGroup
-	ctx      context.Context
-	cancel   context.CancelFunc
+	runtime      *labcompose.Manager
+	network      *labnetwork.Manager
+	preparations *composePreparations
+	commands     chan struct{}
+	stops        chan struct{}
+	wg           sync.WaitGroup
+	ctx          context.Context
+	cancel       context.CancelFunc
 }
 
 func newComposeLabs(cfg *NodeConfig, sandboxes *rt.RuntimeManager) (*composeLabs, error) {
@@ -100,9 +90,25 @@ func newComposeLabs(cfg *NodeConfig, sandboxes *rt.RuntimeManager) (*composeLabs
 		network.Close()
 		return nil, err
 	}
-	return &composeLabs{runtime: runtime, network: network, ctx: ctx, cancel: cancel, jobs: map[string]composeJob{}, prepare: make(chan struct{}, 1), commands: make(chan struct{}, 8), stops: make(chan struct{}, 4)}, nil
+	labs := &composeLabs{runtime: runtime, network: network, ctx: ctx, cancel: cancel, commands: make(chan struct{}, 8), stops: make(chan struct{}, 4)}
+	labs.preparations = newComposePreparations(ctx, func(ctx context.Context, req protocol.ComposeRequest) (labcompose.Deployment, error) {
+		dir, err := downloadComposeBundle(ctx, cfg, req.BundleID, req.BundleHash)
+		if err != nil {
+			return labcompose.Deployment{}, err
+		}
+		defer os.RemoveAll(dir)
+		s := req.Settings
+		return runtime.Prepare(ctx, labcompose.Bundle{Directory: dir, File: s.File, Variables: req.Variables, EntryService: s.EntryService, EntryNetwork: s.EntryNetwork, EntryPort: s.EntryPort, PrefixBits: s.PrefixBits, Rebuild: req.Rebuild})
+	}, runtime.Deployment)
+	return labs, nil
 }
-func (l *composeLabs) Close() { l.cancel(); l.wg.Wait(); l.runtime.Close(); l.network.Close() }
+func (l *composeLabs) Close() {
+	l.cancel()
+	l.wg.Wait()
+	l.preparations.Close()
+	l.runtime.Close()
+	l.network.Close()
+}
 func definitionSummary(d labcompose.Deployment) *protocol.ComposeDefinition {
 	s := &protocol.ComposeDefinition{Networks: d.Definition.Networks, EntryService: d.Definition.EntryService, EntryNetwork: d.Definition.EntryNetwork, EntryPort: d.Definition.EntryPort, Report: d.Definition.Report, Services: []protocol.ComposeServiceDefinition{}}
 	services, _ := d.Definition.Document["services"].(map[string]any)
@@ -113,76 +119,6 @@ func definitionSummary(d labcompose.Deployment) *protocol.ComposeDefinition {
 	}
 	sort.Slice(s.Services, func(i, j int) bool { return s.Services[i].Name < s.Services[j].Name })
 	return s
-}
-func (l *composeLabs) job(req protocol.ComposeRequest, prepare bool, cfg *NodeConfig) composeJob {
-	l.mu.Lock()
-	defer l.mu.Unlock()
-	old, exists := l.jobs[req.PreparationID]
-	if !prepare {
-		if exists {
-			return old
-		}
-		if req.DeploymentID != "" {
-			if d, err := l.runtime.Deployment(l.ctx, req.DeploymentID); err == nil {
-				return composeJob{State: "ready", DeploymentID: d.ID, Summary: definitionSummary(d)}
-			}
-		}
-		return composeJob{State: "unknown"}
-	}
-	if !bundleIDPattern.MatchString(req.PreparationID) || req.TargetID != req.PreparationID {
-		return composeJob{State: "failed", Error: "invalid_preparation_identity"}
-	}
-	fingerprint := composeRequestFingerprint(req)
-	if exists && old.Fingerprint != fingerprint {
-		return composeJob{State: "failed", Error: "preparation_identity_changed"}
-	}
-	if exists && (old.State == "preparing" || old.State == "ready") {
-		return old
-	}
-	if !exists && len(l.jobs) >= 256 {
-		for id, job := range l.jobs {
-			if job.State != "preparing" {
-				delete(l.jobs, id)
-				break
-			}
-		}
-	}
-	select {
-	case l.prepare <- struct{}{}:
-	default:
-		return composeJob{State: "failed", Error: "compose_prepare_busy"}
-	}
-	l.jobs[req.PreparationID] = composeJob{State: "preparing", Fingerprint: fingerprint, Logs: []string{"已接收准备任务", "正在下载与校验部署包"}}
-	l.wg.Add(1)
-	go func() {
-		defer l.wg.Done()
-		defer func() { <-l.prepare }()
-		ctx, cancel := context.WithTimeout(l.ctx, 30*time.Minute)
-		defer cancel()
-		result := composeJob{State: "failed", Error: "compose_prepare_failed", Fingerprint: fingerprint, Logs: []string{"准备失败，请检查配置支持范围、配套文件与镜像访问权限"}}
-		dir, err := downloadComposeBundle(ctx, cfg, req.BundleID, req.BundleHash)
-		if err == nil {
-			l.mu.Lock()
-			progress := l.jobs[req.PreparationID]
-			progress.Logs = append(progress.Logs, "部署包校验完成", "正在解析 Compose、拉取或构建镜像")
-			l.jobs[req.PreparationID] = progress
-			l.mu.Unlock()
-			defer os.RemoveAll(dir)
-			s := req.Settings
-			var d labcompose.Deployment
-			d, err = l.runtime.Prepare(ctx, labcompose.Bundle{Directory: dir, File: s.File, Variables: req.Variables, EntryService: s.EntryService, EntryNetwork: s.EntryNetwork, EntryPort: s.EntryPort, PrefixBits: s.PrefixBits})
-			if err == nil {
-				result = composeJob{State: "ready", DeploymentID: d.ID, Summary: definitionSummary(d), Fingerprint: fingerprint, Logs: []string{"部署包校验完成", "Compose 校验与镜像准备完成", "已保存不可变部署产物"}}
-			}
-		}
-		l.mu.Lock()
-		if err != nil {
-			result.Logs = append(append([]string(nil), l.jobs[req.PreparationID].Logs...), composeDiagnostic(err))
-		}
-		l.jobs[req.PreparationID] = result
-		l.mu.Unlock()
-	}()
-	return l.jobs[req.PreparationID]
 }
 
 func composeDiagnostic(err error) string {
@@ -224,7 +160,7 @@ func (c *NodeControlClient) dispatchCompose(msg *protocol.Message) {
 	default:
 	}
 	slots := c.compose.commands
-	if msg.Type == protocol.MsgComposeStop {
+	if msg.Type == protocol.MsgComposeStop || msg.Type == protocol.MsgComposePrepareCancel {
 		slots = c.compose.stops
 	}
 	select {
@@ -269,8 +205,8 @@ func (c *NodeControlClient) executeCompose(ctx context.Context, msg *protocol.Me
 		resp.Error = "worker_disk_pressure"
 		return resp
 	}
-	if msg.Type == protocol.MsgComposePrepare || msg.Type == protocol.MsgComposePrepareStatus {
-		job := c.compose.job(req, msg.Type == protocol.MsgComposePrepare, c.cfg)
+	if msg.Type == protocol.MsgComposePrepare || msg.Type == protocol.MsgComposePrepareStatus || msg.Type == protocol.MsgComposePrepareCancel {
+		job := c.compose.preparations.handle(req, msg.Type)
 		resp.Success = true
 		resp.JobState = job.State
 		resp.DeploymentID = job.DeploymentID
@@ -333,8 +269,9 @@ func (c *NodeControlClient) executeCompose(ctx context.Context, msg *protocol.Me
 func composeRequestFingerprint(req protocol.ComposeRequest) string {
 	raw, _ := json.Marshal(struct {
 		Owner, Hash string
+		Rebuild     bool
 		Settings    protocol.ComposeSettings
 		Variables   map[string]string
-	}{req.OwnerID, req.BundleHash, req.Settings, req.Variables})
+	}{req.OwnerID, req.BundleHash, req.Rebuild, req.Settings, req.Variables})
 	return bundleDigest(raw)
 }

@@ -106,6 +106,13 @@
       "when": 1793032820048,
       "tag": "0014_lab_git_sources",
       "breakpoints": true
+    },
+    {
+      "idx": 15,
+      "version": "7",
+      "when": 1793036243916,
+      "tag": "0015_compose_preparation_attempts",
+      "breakpoints": true
     }
   ]
 }

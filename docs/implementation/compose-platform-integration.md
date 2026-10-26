@@ -39,7 +39,7 @@ Worker 从自身配置的 Control URL 推导固定路径 `/api/worker/lab-bundle
 
 每节点一个准备任务，不持有实例生命周期全局锁。任务重复提交按身份去重，内容不能在同一任务 ID 上变化。任务状态与有限准备记录可手动查询；记录只含阶段和安全错误说明，不回传原始 CLI stderr、变量或完整 Compose 内容。进程重启后可由已有部署 ID 检查持久产物，未完成任务允许明确重试。
 
-镜像默认先检查本机，缺失时在管理员准备阶段拉取，再固定镜像 ID。不会在学员启动时 pull/build。要更新已经缓存的相同 tag，当前需先在节点更新镜像，或在来源中采用新 tag／digest；尚未增加网页强制拉取或 Registry 凭据管理。
+镜像默认先检查本机，缺失时在管理员准备阶段拉取，再固定镜像 ID。不会在学员启动时 pull/build。要更新已经缓存的相同 tag，当前需先在节点更新镜像，或在来源中采用新 tag／digest；网页强制刷新已在 [准备任务维护](compose-preparation-management.md) 接入；Registry 凭据管理仍未实现。
 
 ## 启用与部署
 
@@ -117,3 +117,5 @@ npm --prefix web run build
 Go 测试覆盖包摘要、路径、重定向、TLS 限制、停止保留容量、启动失败后的取消、嵌套 Compose、宿主端口转换与原有生命周期。真实 Compose 夹具证明多用户数据独立、初始化依赖、宿主端口没有发布、重启与释放；这与模拟控制通道验收分别记录，不宣称已在真实 Btrfs＋veth 环境完成联调。
 
 GitHub 目录来源与手动更新已在 [第四轮前半段](lab-git-import.md) 接入；本地 Dockerfile 构建与配套目录也已在 [构建迭代](compose-build-and-assets.md) 接入。第五轮再安排旧单容器模板转换和旧网络／协议／表单退出，不把旧路径永久作为隐藏 fallback。
+
+准备任务状态、可用部署保留与协议 2 的操作以 [取消／重试／强制重建](compose-preparation-management.md) 为准，需要新增 0015 迁移并同时升级 Worker。

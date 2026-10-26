@@ -130,8 +130,16 @@ func (m *Manager) Prepare(ctx context.Context, b Bundle) (Deployment, error) {
 				if stageErr != nil {
 					return Deployment{}, stageErr
 				}
-				id, err = builder.BuildImage(ctx, b.Directory, stage, build)
+				id, err = builder.BuildImage(ctx, b.Directory, stage, build, b.Rebuild)
 				os.RemoveAll(stage)
+			} else if b.Rebuild {
+				refresher, ok := m.cfg.Engine.(interface {
+					RefreshImage(context.Context, string) (string, error)
+				})
+				if !ok {
+					return Deployment{}, fmt.Errorf("engine cannot refresh images")
+				}
+				id, err = refresher.RefreshImage(ctx, ref)
 			} else {
 				id, err = m.cfg.Engine.PrepareImage(ctx, ref)
 			}
@@ -144,6 +152,9 @@ func (m *Manager) Prepare(ctx context.Context, b Bundle) (Deployment, error) {
 			return Deployment{}, fmt.Errorf("prepared image ID invalid")
 		}
 		s["image"] = id
+	}
+	if err := ctx.Err(); err != nil {
+		return Deployment{}, err
 	}
 	encoded, err := json.Marshal(def)
 	if err != nil {
@@ -195,6 +206,9 @@ func (m *Manager) Prepare(ctx context.Context, b Bundle) (Deployment, error) {
 		return Deployment{}, err
 	}
 	if err := writeJSON(filepath.Join(tmp, "deployment.json"), dep); err != nil {
+		return Deployment{}, err
+	}
+	if err := ctx.Err(); err != nil {
 		return Deployment{}, err
 	}
 	if err := os.Rename(tmp, dir); err != nil {

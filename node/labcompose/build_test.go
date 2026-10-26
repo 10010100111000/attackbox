@@ -13,7 +13,7 @@ type buildingEngine struct {
 	builds int
 }
 
-func (e *buildingEngine) BuildImage(_ context.Context, _ string, _ string, spec BuildSpec) (string, error) {
+func (e *buildingEngine) BuildImage(_ context.Context, _ string, _ string, spec BuildSpec, _ bool) (string, error) {
 	e.builds++
 	return "sha256:" + buildKey(spec), nil
 }
@@ -91,5 +91,42 @@ func TestRestartRemovesOnlyAbandonedBuildWorkspace(t *testing.T) {
 	}
 	if _, err := os.Stat(keep); err != nil {
 		t.Fatal("unrelated file removed")
+	}
+}
+
+type refreshEngine struct {
+	*fakeEngine
+	pulls, forcedBuilds int
+}
+
+func (e *refreshEngine) RefreshImage(context.Context, string) (string, error) {
+	e.pulls++
+	return "sha256:" + strings.Repeat("b", 64), nil
+}
+func (e *refreshEngine) BuildImage(_ context.Context, _ string, _ string, spec BuildSpec, force bool) (string, error) {
+	if force {
+		e.forcedBuilds++
+		return "sha256:" + strings.Repeat("c", 64), nil
+	}
+	return "sha256:" + buildKey(spec), nil
+}
+func TestForcePreparationRefreshesImagesAndKeepsOldDeploymentImmutable(t *testing.T) {
+	m, base, _, b := fixtureManager(t)
+	engine := &refreshEngine{fakeEngine: base}
+	m.cfg.Engine = engine
+	os.WriteFile(filepath.Join(b.Directory, "compose.yml"), []byte("services: {web: {build: .}, db: {image: 'fixture:local'}}"), 0600)
+	os.WriteFile(filepath.Join(b.Directory, "Dockerfile"), []byte("FROM scratch\n"), 0600)
+	original := prepare(t, m, b)
+	b.Rebuild = true
+	fresh := prepare(t, m, b)
+	if engine.pulls != 1 || engine.forcedBuilds != 1 || original.ID == fresh.ID {
+		t.Fatal("force did not refresh both image kinds")
+	}
+	recovered, err := m.Deployment(context.Background(), original.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if text(object(object(recovered.Definition.Document["services"])["db"])["image"]) != "sha256:"+strings.Repeat("a", 64) {
+		t.Fatal("old deployment changed during force rebuild")
 	}
 }

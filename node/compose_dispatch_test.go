@@ -119,3 +119,27 @@ func TestComposePreparationIdentityUsesContentNotSourceSnapshot(t *testing.T) {
 		t.Fatal("variable change reused preparation")
 	}
 }
+
+func TestPreparationCancelBypassesSaturatedStartDispatch(t *testing.T) {
+	ctx := context.Background()
+	started := make(chan struct{})
+	p := newComposePreparations(ctx, func(ctx context.Context, _ protocol.ComposeRequest) (labcompose.Deployment, error) {
+		close(started)
+		<-ctx.Done()
+		return labcompose.Deployment{}, ctx.Err()
+	}, missingDeployment)
+	defer p.Close()
+	req := preparationRequest(42)
+	req.BootID = "boot"
+	p.handle(req, protocol.MsgComposePrepare)
+	<-started
+	labs := &composeLabs{preparations: p, ctx: ctx, commands: make(chan struct{}, 8), stops: make(chan struct{}, 4)}
+	for i := 0; i < cap(labs.commands); i++ {
+		labs.commands <- struct{}{}
+	}
+	c := &NodeControlClient{bootID: "boot", compose: labs, stopCh: make(chan struct{})}
+	msg, _ := protocol.NewMessage(protocol.MsgComposePrepareCancel, req)
+	c.dispatchCompose(msg)
+	waitPreparation(t, p, req, "cancelled")
+	labs.wg.Wait()
+}
