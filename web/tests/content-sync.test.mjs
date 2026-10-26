@@ -8,7 +8,7 @@ import {chromium} from 'playwright'
 import {learningFixture} from './helpers/learning-fixture.mjs'
 const enabled=!!process.env.CONTENT_TEST_DATABASE_URL&&!!process.env.CONTENT_TEST_BASE_URL
 
-test('manual local/Git import preserves identity and progress, protects images, rejects stale/deleting writes, and renders new admin pages',{skip:!enabled,timeout:120000},async()=>{
+test('manual local/Git import preserves identity and progress, syncs chapter/question removals, protects images, and renders new admin pages',{skip:!enabled,timeout:120000},async()=>{
  process.env.DATABASE_URL=process.env.CONTENT_TEST_DATABASE_URL
  const f=await learningFixture(),jiti=createJiti(import.meta.url)
  const sync=await jiti.import('../server/services/content-sync.ts'),repository=await jiti.import('../server/services/content-repository.ts'),database=await jiti.import('../server/db/index.ts')
@@ -34,7 +34,8 @@ test('manual local/Git import preserves identity and progress, protects images, 
   const chapterId=detail.chapters[0].chapterId,chapterSlug=detail.chapters[0].slug,questionId=detail.chapters[0].questions[0].id,moduleSlug=detail.module.slug
   await f.request(`/api/admin/modules/${id}/runtime`,{actor:f.admin,method:'PUT',body:{lockVersion:detail.module.lockVersion,descriptionMarkdown:'cannot change'},status:400})
   await f.request(`/api/admin/modules/${id}/runtime`,{actor:f.admin,method:'PUT',body:{lockVersion:detail.module.lockVersion,chapters:[null]},status:400})
-  await f.request(`/api/admin/modules/${id}`,{actor:f.admin,method:'PUT',body:{title:'Unauthorized edit',lockVersion:detail.module.lockVersion},status:409})
+  const retiredPut=await fetch(`${f.base}/api/admin/modules/${id}`,{method:'PUT',headers:{cookie:`attackbox_session=${f.admin.token}`,'content-type':'application/json'},body:JSON.stringify({title:'Retired',lockVersion:detail.module.lockVersion})})
+  assert.ok([404,405].includes(retiredPut.status),'legacy full-module PUT endpoint is retired')
   await f.request(`/api/admin/modules/${id}/publish`,{actor:f.admin,method:'POST',body:{lockVersion:detail.module.lockVersion}})
   const attempt=await fetch(`${f.base}/api/modules/${moduleSlug}/chapters/${chapterSlug}/attempt`,{method:'POST',headers:{cookie:`attackbox_session=${learner.token}`,'content-type':'application/json'},body:JSON.stringify({questionId,answer:'whoami'})});assert.equal(attempt.status,200)
   preview=await create();assert.equal(preview.modules[0].changed,false)
@@ -71,17 +72,20 @@ test('manual local/Git import preserves identity and progress, protects images, 
   await writeFile(path.join(root,'Renamed.md'),makeSource(true,'Renamed chapter','Renamed prompt','changed-answer'))
   preview=await create()
   preview=await sync.updateContentBindings(preview.id,f.admin.id,{modules:{'Renamed.md':id},chapters:{[sync.bindingKey('Renamed.md','Renamed chapter')]:chapterId},questions:{[sync.bindingKey('Renamed.md','Renamed chapter','Renamed prompt')]:questionId}})
-  assert.equal(preview.conflicts.length,0)
+  assert.equal(preview.conflicts.length,0);assert.equal(preview.removals.length,0)
   await sync.applyContentPreview(preview.id,f.admin.id)
   detail=(await f.request(`/api/admin/modules/${id}`,{actor:f.admin})).data
   assert.equal(detail.module.slug,moduleSlug);assert.equal(detail.module.title,'Renamed');assert.equal(detail.chapters[1].slug,chapterSlug)
+  // Unbound removed chapters/questions report in removals without blocking apply.
   await writeFile(path.join(root,'Renamed.md'),'---\n---\n# Second\n\nBody')
-  preview=await create();assert.ok(preview.conflicts.length)
-  await assert.rejects(sync.applyContentPreview(preview.id,f.admin.id),/未关联/)
-  await writeFile(path.join(root,'Renamed.md'),makeSource(true,'Renamed chapter','Renamed prompt','changed-answer'))
-  preview=await create()
+  preview=await create();assert.equal(preview.conflicts.length,0);assert.ok(preview.removals.length>0)
   await f.request(`/api/admin/modules/${id}/unpublish`,{actor:f.admin,method:'POST',body:{lockVersion:detail.module.lockVersion}})
   await assert.rejects(sync.applyContentPreview(preview.id,f.admin.id),/已变化/)
+  preview=await create();assert.equal(preview.conflicts.length,0);assert.ok(preview.removals.length>0)
+  await sync.applyContentPreview(preview.id,f.admin.id)
+  detail=(await f.request(`/api/admin/modules/${id}`,{actor:f.admin})).data
+  assert.equal(detail.chapters.length,1);assert.equal(detail.chapters[0].title,'Second')
+  assert.equal((await f.sql`select id from chapters where id=${chapterId}`).length,0,'removed chapter is deleted on sync confirmation')
   const settings=(await f.request('/api/admin/content/repository',{actor:f.admin})).data
   const rawToken='PRIVATE_IMPORT_TEST_TOKEN'
   await f.request('/api/admin/content/repository',{actor:f.admin,method:'PUT',body:{repository:'example/tutorials',branch:'main',directory:'courses',token:rawToken,version:settings.version}})

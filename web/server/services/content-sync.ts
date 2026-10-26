@@ -8,19 +8,33 @@ import {db} from '../db'
 import {modules,chapters,chapterQuestions,contentCategories,moduleSources,chapterSources,questionSources,contentPreviews,contentRepository,assets,chapterAssets,moduleImages} from '../db/schema'
 import type {ContentBindings} from '../db/schema/content-sync'
 import {checkContentDirectory} from '../content/read-directory'
-import {contentMatchKey,learnerContentPreview} from '../content/parse-module'
+import {learnerContentPreview} from '../content/parse-module'
 import type {ParsedModule} from '../content/parse-module'
 import {hash,previewDirectory,discardPreview,storeImage,writeSnapshotFile} from '../content/storage'
-import {saveModuleInTransaction} from './content'
+import {pruneUnusedCategories,saveModuleInTransaction} from './content'
+import {slugFor} from './content-input'
 import type {ModuleInput} from '../../shared/content'
 
 type Tx=Parameters<Parameters<typeof db.transaction>[0]>[0]
 const emptyBindings=():ContentBindings=>({modules:{},chapters:{},questions:{}})
 export const bindingKey=(...parts:string[])=>JSON.stringify(parts)
 function fail(message:string,statusCode=409):never{throw createError({statusCode,message})}
+function findCategory(categories:typeof contentCategories.$inferSelect[],key:string|null){
+ if(!key)return null
+ return categories.find(c=>c.slug===key||c.name===key)||null
+}
+async function ensureCategoryId(tx:Tx,categories:typeof contentCategories.$inferSelect[],key:string|null){
+ if(!key)return null
+ const existing=findCategory(categories,key)
+ if(existing)return existing.id
+ const candidate=/^[a-z0-9]+(-[a-z0-9]+)*$/.test(key)&&key.length<=100&&!categories.some(c=>c.slug===key)?key:slugFor(undefined,'category')
+ const [created]=await tx.insert(contentCategories).values({name:key,slug:candidate}).returning()
+ categories.push(created!)
+ return created!.id
+}
 async function state(tx:Tx){
  const [mods,chs,qs,sources,cs,questionLinks,categories]=await Promise.all([tx.select().from(modules),tx.select().from(chapters),tx.select().from(chapterQuestions),tx.select().from(moduleSources),tx.select().from(chapterSources),tx.select().from(questionSources),tx.select().from(contentCategories)])
- const baseline=hash(JSON.stringify({modules:mods.map(m=>[m.id,m.lockVersion]).sort(),sources:sources.map(s=>[s.moduleId,s.origin,s.sourcePath,s.sourceHash]).sort(),categories:categories.map(c=>[c.id,c.slug]).sort()}))
+ const baseline=hash(JSON.stringify({modules:mods.map(m=>[m.id,m.lockVersion]).sort(),sources:sources.map(s=>[s.moduleId,s.origin,s.sourcePath,s.sourceHash]).sort(),categories:categories.map(c=>[c.id,c.slug,c.name]).sort()}))
  return {mods,chs,qs,sources,cs,questionLinks,categories,baseline}
 }
 async function snapshot(id:string){
@@ -44,7 +58,7 @@ function validateBindings(value:unknown):ContentBindings{
  return result
 }
 function plan(parsed:ParsedModule[],origin:string,bindings:ContentBindings,current:Awaited<ReturnType<typeof state>>){
- const conflicts:string[]=[],usedModules=new Set<string>(),usedChapters=new Set<string>(),usedQuestions=new Set<string>()
+ const conflicts:string[]=[],removals:string[]=[],usedModules=new Set<string>(),usedChapters=new Set<string>(),usedQuestions=new Set<string>()
  const output=parsed.map(module=>{
   const explicit=bindings.modules[module.sourcePath]
   const source=current.sources.find(s=>s.origin===origin&&s.sourcePath===module.sourcePath)
@@ -53,35 +67,34 @@ function plan(parsed:ParsedModule[],origin:string,bindings:ContentBindings,curre
   if(old&&usedModules.has(old.id))fail('一个旧模块不能关联多个文件')
   if(old)usedModules.add(old.id)
   const previous=old?current.sources.find(s=>s.moduleId===old.id):undefined
-  const category=module.categorySlug?current.categories.find(c=>c.slug===module.categorySlug):null
-  if(module.categorySlug&&!category)conflicts.push(`${module.sourcePath}：分类 ${module.categorySlug} 不存在，请先在后台建立或修改文档头`)
+  const category=findCategory(current.categories,module.categorySlug)
+  let hasRemovals=false
   const plannedChapters=module.chapters.map(ch=>{
    const key=bindingKey(module.sourcePath,ch.matchKey),chosen=bindings.chapters[key]
    const link=old?current.cs.find(c=>c.moduleId===old.id&&c.matchKey===ch.matchKey):undefined
-   const legacy=old&&!previous?current.chs.find(c=>c.moduleId===old.id&&contentMatchKey(c.title)===ch.matchKey):undefined
-   const existing=current.chs.find(c=>c.id===(chosen||link?.chapterId||legacy?.id))
+   const existing=current.chs.find(c=>c.id===(chosen||link?.chapterId))
    if(chosen&&(!existing||existing.moduleId!==old?.id))fail('章节关联不属于当前模块')
    if(existing&&usedChapters.has(existing.id))fail('一个旧章节不能关联多个章节')
    if(existing)usedChapters.add(existing.id)
    const plannedQuestions=ch.questions.map(q=>{
     const qkey=bindingKey(module.sourcePath,ch.matchKey,q.matchKey),qid=bindings.questions[qkey]
     const qlink=existing?current.questionLinks.find(l=>l.chapterId===existing.id&&l.matchKey===q.matchKey):undefined
-    const legacyQ=existing&&!previous?current.qs.find(p=>p.chapterId===existing.id&&contentMatchKey(p.promptMarkdown)===q.matchKey):undefined
-    const oldQ=current.qs.find(p=>p.id===(qid||qlink?.questionId||legacyQ?.id))
+    const oldQ=current.qs.find(p=>p.id===(qid||qlink?.questionId))
     if(qid&&(!oldQ||oldQ.chapterId!==existing?.id))fail('题目关联不属于当前章节')
     if(oldQ&&usedQuestions.has(oldQ.id))fail('一个旧题目不能重复关联')
     if(oldQ)usedQuestions.add(oldQ.id)
     return {parsed:q,existing:oldQ,key:qkey}
    })
-   if(existing)for(const oldQ of current.qs.filter(q=>q.chapterId===existing.id))if(!plannedQuestions.some(q=>q.existing?.id===oldQ.id))conflicts.push(`${module.sourcePath} / ${ch.title}：原题目“${oldQ.promptMarkdown.slice(0,80)}”未关联，删除暂不支持；请确认题干改名关联`)
+   if(existing)for(const oldQ of current.qs.filter(q=>q.chapterId===existing.id))if(!plannedQuestions.some(q=>q.existing?.id===oldQ.id)){hasRemovals=true;removals.push(`${module.sourcePath} / ${ch.title}：将删除未关联题目“${oldQ.promptMarkdown.slice(0,80)}”（若为改名请先在下方关联）`)}
    return {parsed:ch,existing,key,questions:plannedQuestions}
   })
-  if(old)for(const removed of current.chs.filter(c=>c.moduleId===old.id))if(!plannedChapters.some(c=>c.existing?.id===removed.id))conflicts.push(`${module.sourcePath}：原章节“${removed.title}”未关联，删除暂不支持；请确认标题改名关联`)
-  const changed=!old||!previous||previous.sourceHash!==module.sourceHash||previous.sourcePath!==module.sourcePath||previous.origin!==origin||old.categoryId!==(category?.id||null)||!!explicit||plannedChapters.some(c=>!!bindings.chapters[c.key]||c.questions.some(q=>!!bindings.questions[q.key]))
+  if(old)for(const removed of current.chs.filter(c=>c.moduleId===old.id))if(!plannedChapters.some(c=>c.existing?.id===removed.id)){hasRemovals=true;removals.push(`${module.sourcePath}：将删除未关联章节“${removed.title}”（若为改名请先在下方关联）`)}
+  const categoryChanged=module.categorySlug?(!category||old?.categoryId!==category.id):!!old?.categoryId
+  const changed=!old||!previous||previous.sourceHash!==module.sourceHash||previous.sourcePath!==module.sourcePath||previous.origin!==origin||categoryChanged||hasRemovals||!!explicit||plannedChapters.some(c=>!!bindings.chapters[c.key]||c.questions.some(q=>!!bindings.questions[q.key]))
   return {parsed:module,existing:old,categoryId:category?.id||null,chapters:plannedChapters,changed}
  })
  for(const entry of output){const occupied=current.sources.find(s=>s.origin===origin&&s.sourcePath===entry.parsed.sourcePath);if(occupied&&occupied.moduleId!==entry.existing?.id&&!usedModules.has(occupied.moduleId))conflicts.push(`${entry.parsed.sourcePath}：该路径已有关联模块，不能直接覆盖为另一个模块`)}
- return {modules:output,conflicts,missingModules:current.sources.filter(s=>!usedModules.has(s.moduleId)).map(s=>({id:s.moduleId,path:s.sourcePath,title:current.mods.find(m=>m.id===s.moduleId)?.title||s.sourcePath}))}
+ return {modules:output,conflicts,removals,missingModules:current.sources.filter(s=>!usedModules.has(s.moduleId)).map(s=>({id:s.moduleId,path:s.sourcePath,title:current.mods.find(m=>m.id===s.moduleId)?.title||s.sourcePath}))}
 }
 async function previewRecord(id:string,actor:string,tx:Tx,writing=false){if(!/^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/i.test(id))fail('预览标识无效',400);const query=tx.select().from(contentPreviews).where(and(eq(contentPreviews.id,id),eq(contentPreviews.actorId,actor)));const [p]=await (writing?query.for('update'):query);if(!p)fail('预览不存在',404);return p}
 async function publicPlan(id:string,actor:string){
@@ -93,7 +106,7 @@ async function publicPlan(id:string,actor:string){
  return db.transaction(async tx=>{
   const [config]=p.configVersion===null?[]:await tx.select().from(contentRepository).where(eq(contentRepository.id,1))
   const current=await state(tx),report=plan(files.modules,p.origin,p.bindings,current)
-  return {id,applied:false,commit:p.commit,expiresAt:p.expiresAt,stale:current.baseline!==p.baseline||(p.configVersion!==null&&config?.version!==p.configVersion),bindings:p.bindings,conflicts:report.conflicts,missingModules:report.missingModules,
+  return {id,applied:false,commit:p.commit,expiresAt:p.expiresAt,stale:current.baseline!==p.baseline||(p.configVersion!==null&&config?.version!==p.configVersion),bindings:p.bindings,conflicts:report.conflicts,removals:report.removals,missingModules:report.missingModules,
    candidates:current.mods.map(m=>({id:m.id,title:m.title,chapters:current.chs.filter(c=>c.moduleId===m.id).map(c=>({id:c.id,title:c.title,questions:current.qs.filter(q=>q.chapterId===c.id).map(q=>({id:q.id,prompt:q.promptMarkdown}))}))})),
    modules:report.modules.map(m=>({path:m.parsed.sourcePath,id:m.existing?.id||null,changed:m.changed,preview:{...learnerContentPreview(m.parsed),imageUrls:Object.fromEntries(m.parsed.images.map(image=>[image.href,`/api/admin/content/previews/${id}/image?source=${encodeURIComponent(m.parsed.sourcePath)}&href=${encodeURIComponent(image.href)}`]))},chapters:m.chapters.map(c=>({key:c.key,id:c.existing?.id||null,title:c.parsed.title,questions:c.questions.map(q=>({key:q.key,id:q.existing?.id||null,prompt:q.parsed.promptMarkdown}))}))}))}
  },{isolationLevel:'repeatable read',accessMode:'read only'})
@@ -132,7 +145,8 @@ export async function applyContentPreview(id:string,actor:string){
   for(const entry of report.modules){
    let moduleId=entry.existing?.id
    if(entry.changed){
-    const input:ModuleInput={title:entry.parsed.title,summary:entry.parsed.summary,descriptionMarkdown:entry.parsed.descriptionMarkdown,learningOutcomes:entry.parsed.learningOutcomes,difficulty:entry.parsed.difficulty,categoryId:entry.categoryId,lockVersion:entry.existing?.lockVersion,
+    const categoryId=await ensureCategoryId(tx,current.categories,entry.parsed.categorySlug)
+    const input:ModuleInput={title:entry.parsed.title,summary:entry.parsed.summary,descriptionMarkdown:entry.parsed.descriptionMarkdown,learningOutcomes:entry.parsed.learningOutcomes,difficulty:entry.parsed.difficulty,categoryId,lockVersion:entry.existing?.lockVersion,
      chapters:entry.chapters.map(c=>({chapterId:c.existing?.id,title:c.parsed.title,access:c.parsed.access,durationMinutes:c.parsed.durationMinutes,bodyMarkdown:c.parsed.bodyMarkdown,questions:c.questions.map(q=>({id:q.existing?.id,promptMarkdown:q.parsed.promptMarkdown,answer:q.parsed.answer,normalization:q.parsed.normalization,errorHint:q.parsed.errorHint}))}))}
     const saved=await saveModuleInTransaction(tx,moduleId||null,actor,input);moduleId=saved.module.id
     const storedChapters=await tx.select().from(chapters).where(eq(chapters.moduleId,moduleId))
@@ -164,6 +178,7 @@ export async function applyContentPreview(id:string,actor:string){
    moduleIds.push(moduleId!)
    await tx.insert(moduleSources).values({moduleId:moduleId!,origin:p.origin,sourcePath:entry.parsed.sourcePath,sourceHash:entry.parsed.sourceHash,commit:p.commit}).onConflictDoUpdate({target:moduleSources.moduleId,set:{origin:p.origin,sourcePath:entry.parsed.sourcePath,sourceHash:entry.parsed.sourceHash,commit:p.commit,syncedAt:new Date()}})
   }
+  await pruneUnusedCategories(tx)
   const result={moduleIds};await tx.update(contentPreviews).set({result}).where(eq(contentPreviews.id,id));return result
  }).catch(error=>{
   if(error?.statusCode)throw error

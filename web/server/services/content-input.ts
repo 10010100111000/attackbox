@@ -16,7 +16,6 @@ export function validateModule(input: ModuleInput) {
   if (input.lockVersion !== undefined && (!Number.isInteger(input.lockVersion) || input.lockVersion < 1)) fail('无效的修改标识')
   if (input.descriptionMarkdown !== undefined && typeof input.descriptionMarkdown !== 'string') fail('模块介绍必须是文本')
   if (input.prerequisiteModuleIds !== undefined && (!Array.isArray(input.prerequisiteModuleIds) || input.prerequisiteModuleIds.length > 12 || new Set(input.prerequisiteModuleIds).size !== input.prerequisiteModuleIds.length || input.prerequisiteModuleIds.some(id => typeof id !== 'string' || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)))) fail('前置模块最多 12 个，不能重复或使用无效标识')
-  if (input.intent !== undefined && !['draft', 'publish'].includes(input.intent)) fail('无效的保存操作')
   if (input.learningOutcomes !== undefined && (!Array.isArray(input.learningOutcomes) || input.learningOutcomes.length > 12 || input.learningOutcomes.some(item => typeof item !== 'string' || !item.trim() || item.length > 200))) fail('学习目标最多 12 项，每项为 1–200 字文本')
   if (input.difficulty !== undefined && !difficulties.includes(input.difficulty)) fail('无效难度')
   if (input.title !== undefined && (typeof input.title !== 'string' || !input.title.trim() || input.title.length > 160)) fail('模块名称不能为空，且不能超过 160 字')
@@ -26,17 +25,15 @@ export function questionValues(input: QuestionInput, old?: typeof chapterQuestio
   if (!normalizations.includes(input.normalization)) fail('无效答案规则，仅支持 exact、trim、trim_casefold')
   if (typeof input.promptMarkdown !== 'string') fail('题目必须是文本')
   if (input.answer != null && (typeof input.answer !== 'string' || input.answer.length > 2000)) fail('标准答案必须是文本，且不能超过 2000 字')
-  const answer = input.clearAnswer ? null : typeof input.answer === 'string' ? input.answer : old?.answer ?? null
+  const answer = typeof input.answer === 'string' ? input.answer : old?.answer ?? null
   const hasAnswer = answer !== null && normalizeAnswer(answer, input.normalization).length > 0
-  const preserveLegacy = answer === null && !input.clearAnswer && input.answer == null && !!old?.answerHmac
-  if (preserveLegacy && old.normalization !== input.normalization) fail('这道旧题只保存了答案摘要，请补填一次标准答案后再修改匹配方式')
 
   return {
     promptMarkdown: input.promptMarkdown,
     errorHint: input.errorHint || null,
     normalization: input.normalization,
     answer: hasAnswer ? answer : null,
-    answerHmac: hasAnswer ? hashQuizAnswer(answer!, input.normalization) : preserveLegacy ? old!.answerHmac : null,
+    answerHmac: hasAnswer ? hashQuizAnswer(answer!, input.normalization) : null,
     answerKeyVersion: hasAnswer ? 1 : old?.answerKeyVersion ?? 1,
   }
 }

@@ -25,7 +25,7 @@
     "test:auth-navigation": "node --test tests/auth-navigation-browser.test.mjs",
     "test:target-leases": "node --test tests/target-leases.test.mjs",
     "test:workbench": "node --test tests/workbench-browser.test.mjs",
-    "test:categories": "node --test tests/categories.test.mjs tests/categories-browser.test.mjs",
+    "test:categories": "node --test tests/categories.test.mjs",
     "test:challenges": "node --test tests/challenges.test.mjs",
     "content:check": "node --experimental-strip-types server/scripts/check-content.mjs",
     "test:content-sync": "node --test tests/content-sync.test.mjs",

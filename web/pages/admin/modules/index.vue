@@ -132,9 +132,9 @@ async function deleteModule(id: string) {
             <td class="text-right">
               <div class="action-cell">
                 <NuxtLink :to="`/admin/modules/${m.id}`" class="action-btn edit-btn">
-                  {{m.source ? '查看详情' : '编辑旧模块'}}
+                  查看详情
                 </NuxtLink>
-                <button v-if="!m.source" class="action-btn delete-btn" type="button" @click="deleteModule(m.id)">删除</button>
+                <button v-if="m.status !== 'published'" class="action-btn delete-btn" type="button" @click="deleteModule(m.id)">删除</button>
                 <NuxtLink
                   v-if="m.status === 'published'"
                   :to="`/learn/modules/${m.slug}`"
@@ -336,7 +336,7 @@ async function deleteModule(id: string) {
 /* Reserve the same slots in published and draft rows. */
 .action-cell {
   display: grid;
-  grid-template-columns: 40px 40px 92px;
+  grid-template-columns: 48px 40px 92px;
   justify-content: end;
   align-items: center;
   gap: 8px;

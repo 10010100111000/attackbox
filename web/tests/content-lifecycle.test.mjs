@@ -1,197 +1,117 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import crypto from 'node:crypto'
-import postgres from 'postgres'
-const databaseUrl = process.env.CONTENT_TEST_DATABASE_URL, baseUrl = process.env.CONTENT_TEST_BASE_URL
+import { learningFixture } from './helpers/learning-fixture.mjs'
 
-test('direct content lifecycle: stable IDs, answers, atomic saves, immediate updates, permissions and deletion', { skip: !databaseUrl || !baseUrl }, async () => {
-  const target = new URL(databaseUrl)
-  assert.ok(['127.0.0.1', 'localhost', '[::1]'].includes(target.hostname))
-  assert.ok(target.pathname.endsWith('_test'))
-  assert.ok(['127.0.0.1', 'localhost', '[::1]'].includes(new URL(baseUrl).hostname))
-  const sql = postgres(databaseUrl, { max: 1 }), suffix = crypto.randomUUID().slice(0, 8)
-  let cookie
-  async function req(path, method = 'GET', body, status = 200, auth = true) {
-    const res = await fetch(baseUrl + path, { method, headers: { ...(auth && cookie ? { cookie } : {}), ...(body ? { 'content-type': 'application/json' } : {}) }, body: body ? JSON.stringify(body) : undefined })
-    const json = await res.json(); assert.equal(res.status, status, `${method} ${path}: ${JSON.stringify(json)}`); return json.data
-  }
+test('Git-managed content lifecycle: retired legacy write endpoints, quiz normalization, prerequisite DAG and unpublished deletion', { skip: !process.env.CONTENT_TEST_DATABASE_URL || !process.env.CONTENT_TEST_BASE_URL }, async () => {
+  const f = await learningFixture(), suffix = crypto.randomUUID().slice(0, 8)
+  const req = async (path, method = 'GET', body, status = 200, actor = f.admin) => (await f.request(path, { actor, method, body, status })).data
   try {
-    const uid = crypto.randomUUID(), token = crypto.randomBytes(32).toString('hex')
-    await sql`INSERT INTO users (id,email,display_name,role,status,email_verified_at) VALUES (${uid},${`content-${suffix}@example.test`},'Content Test','admin','active',now())`
-    await sql`INSERT INTO auth_sessions (id,user_id,token_hash,expires_at) VALUES (${crypto.randomUUID()},${uid},${crypto.createHash('sha256').update(token).digest()},now()+interval '1 hour')`
-    cookie = `attackbox_session=${token}`
-    await req('/api/admin/modules', 'GET', undefined, 401, false)
-    await sql`UPDATE users SET role='user' WHERE id=${uid}`
-    await req('/api/admin/modules', 'GET', undefined, 403)
-    await sql`UPDATE users SET role='admin' WHERE id=${uid}`
-    const categories = await req('/api/categories'), categoryId = categories.find(c => c.slug === 'web-security').id
-    const custom = await req('/api/admin/categories', 'POST', { name: `Custom ${suffix}` }); assert.ok(custom.id)
-    await req('/api/admin/categories', 'POST', { name: `Custom ${suffix}` }, 409)
-    const slug = `lifecycle-${suffix}`
-    const created = await req('/api/admin/modules', 'POST', { title: 'Lifecycle module', slug, categoryId, learningOutcomes: ['使用 Shell 查看系统信息', '定位常见权限问题'], chapters: [
-      { title: 'First', slug: 'first', access: 'public', bodyMarkdown: '# First', questions: [{ promptMarkdown: 'A command?', answer: 'whoami', normalization: 'trim' }] },
-      { title: 'Second', slug: 'second', access: 'authenticated', bodyMarkdown: '# Second', questions: [] },
-    ] })
-    const id = created.module.id, path = `/api/admin/modules/${id}`, publicPath = `/api/modules/${slug}`
-    const detail = () => req(path)
-    let d = await detail()
-    const first = d.chapters[0].chapterId, second = d.chapters[1].chapterId, qid = d.chapters[0].questions[0].id
-    async function save(patch, status = 200) { return req(path, 'PUT', { lockVersion: d.module.lockVersion, ...patch }, status) }
-    async function action(name, status = 200) { return req(path + '/' + name, 'POST', { lockVersion: d.module.lockVersion }, status) }
-    const hash = async () => (await sql`SELECT answer_hmac FROM chapter_questions WHERE id=${qid}`)[0]?.answer_hmac
-    const before = await hash()
-    assert.deepEqual(d.module.learningOutcomes, ['使用 Shell 查看系统信息', '定位常见权限问题']);
-    assert.equal(d.category.name, 'Web 安全'); assert.equal(d.module.status, 'unpublished')
-    assert.equal('draft' in d, false); assert.equal('publishedRevisionId' in d.module, false)
-    let item = (await req('/api/admin/modules')).find(m => m.id === id)
-    assert.equal(item.chapterCount, 2); assert.equal(item.title, 'Lifecycle module')
-    await req(publicPath, 'GET', undefined, 404, false)
-    await save({ chapters: d.chapters.map(c => ({ ...c, questions: undefined })) }); d = await detail()
-    assert.deepEqual(await hash(), before, 'omitting questions preserves answers')
-    await save({ chapters: d.chapters.map(c => ({ ...c, questions: c.questions.map(q => ({ ...q, promptMarkdown: 'Updated prompt' })) })) }); d = await detail()
-    assert.equal(d.chapters[0].questions[0].id, qid); assert.deepEqual(await hash(), before)
-    assert.equal('answerHmac' in d.chapters[0].questions[0], false)
-    assert.equal(d.chapters[0].questions[0].answer, 'whoami', 'admin can read and edit the saved answer')
-    let question = d.chapters[0].questions[0]
-    await save({ chapters: [{ ...d.chapters[0], questions: [{ ...question, normalization: 'lowercase' }] }, d.chapters[1]] }, 400)
-    await save({ chapters: [{ ...d.chapters[0], questions: [{ ...question, normalization: 'trim_casefold', answer: undefined }] }, d.chapters[1]] }); d = await detail()
-    assert.equal(d.chapters[0].questions[0].answer, 'whoami', 'changing match mode reuses the stored answer')
-    assert.notDeepEqual(await hash(), null)
-    // Existing HMAC-only questions remain usable until an administrator supplies their text once.
-    await sql`UPDATE chapter_questions SET answer = null WHERE id=${qid}`
-    d = await detail(); question = d.chapters[0].questions[0]
-    await save({ chapters: d.chapters }); d = await detail()
-    assert.equal(d.chapters[0].questions[0].hasAnswer, true, 'unrelated saves preserve legacy answers')
-    await save({ chapters: [{ ...d.chapters[0], questions: [{ ...question, normalization: 'exact' }] }, d.chapters[1]] }, 400)
-    await save({ chapters: [{ ...d.chapters[0], questions: [{ ...question, normalization: 'trim_casefold', answer: 'WHOAMI' }] }, d.chapters[1]] }); d = await detail()
-    const races = await Promise.all([1, 2].map(async i => (await fetch(baseUrl + path, { method: 'PUT', headers: { cookie, 'content-type': 'application/json' }, body: JSON.stringify({ lockVersion: d.module.lockVersion, summary: `writer ${i}` }) })).status))
-    assert.deepEqual(races.sort(), [200, 409]); d = await detail()
-    await req(path, 'PUT', { title: 'Missing version' }, 409)
-    await save({ title: 'Should roll back', chapters: [{ ...d.chapters[0], title: 'Also rollback' }, { ...d.chapters[1], questions: [{ promptMarkdown: 'Bad', normalization: 'number' }] }] }, 400)
-    d = await detail(); assert.equal(d.module.title, 'Lifecycle module'); assert.equal(d.chapters[0].title, 'First')
-    await save({ chapters: [{ ...d.chapters[0], questions: [{ ...d.chapters[0].questions[0], answer: '' }] }, d.chapters[1]] }); d = await detail()
-    assert.equal(d.chapters[0].questions[0].hasAnswer, false)
-    await action('publish', 400)
-    await save({ chapters: [{ ...d.chapters[0], questions: [{ ...d.chapters[0].questions[0], answer: 'WHOAMI' }] }, d.chapters[1]] }); d = await detail()
-    await action('publish'); d = await detail(); assert.equal(d.module.status, 'published')
-    assert.equal((await req('/api/modules', 'GET', undefined, 200, false)).find(m => m.id === id).category.slug, 'web-security')
-    assert.deepEqual((await req(publicPath)).module.learningOutcomes, d.module.learningOutcomes)
-    await save({ learningOutcomes: ['x'.repeat(201)] }, 400)
-    const publicChapter = await req(publicPath + '/chapters/first', 'GET', undefined, 200, false)
-    assert.equal(publicChapter.questions[0].id, qid); assert.equal('answerHmac' in publicChapter.questions[0], false)
-    assert.equal('answer' in publicChapter.questions[0], false, 'public chapter never exposes the standard answer')
-    await req(publicPath + '/chapters/second', 'GET', undefined, 401, false)
-    assert.equal((await req(publicPath, 'GET', undefined, 200, false)).chapters[1].isLocked, true)
-    assert.equal((await req(publicPath + '/chapters/first/attempt', 'POST', { questionId: qid, answer: ' whoami ' }, 200, false)).correct, true)
-    assert.equal((await req(publicPath + '/chapters/first/attempt', 'POST', { questionId: qid, answer: 'wrong' }, 200, false)).correct, false)
-    await save({ chapters: [{ ...d.chapters[0], questions: [{ ...d.chapters[0].questions[0], answer: 'id', normalization: 'exact' }] }, d.chapters[1]] }); d = await detail()
-    assert.equal(d.chapters[0].questions[0].answer, 'id')
-    assert.equal((await req(publicPath + '/chapters/first/attempt', 'POST', { questionId: qid, answer: 'WHOAMI' }, 200, false)).correct, false, 'previous answer stops working immediately')
-    assert.equal((await req(publicPath + '/chapters/first/attempt', 'POST', { questionId: qid, answer: 'id' }, 200, false)).correct, true)
-    assert.equal((await req(publicPath + '/chapters/first/attempt', 'POST', { questionId: qid, answer: ' id ' }, 200, false)).correct, false)
-    await save({ chapters: [{ ...d.chapters[0], questions: [{ ...d.chapters[0].questions[0], normalization: 'trim' }] }, d.chapters[1]] }); d = await detail()
-    assert.equal((await req(publicPath + '/chapters/first/attempt', 'POST', { questionId: qid, answer: ' id ' }, 200, false)).correct, true, 'match rule can change without retyping the answer')
-    await save({ intent: 'draft', chapters: [{ ...d.chapters[0], questions: [{ ...d.chapters[0].questions[0], answer: '' }] }, d.chapters[1]] }); d = await detail()
-    assert.equal(d.chapters[0].questions[0].answer, null)
-    assert.equal(d.chapters[0].questions[0].hasAnswer, false, 'empty input clears the saved answer')
-    await save({ intent: 'publish' }, 400)
-    await save({ intent: 'publish', chapters: [{ ...d.chapters[0], questions: [{ ...d.chapters[0].questions[0], answer: 'WHOAMI', normalization: 'trim_casefold' }] }, d.chapters[1]] }); d = await detail()
+    await f.request('/api/admin/modules', { status: 401 })
+    const learner = await f.account('user')
+    await f.request('/api/admin/modules', { actor: learner, status: 403 })
+    const retiredPost = await fetch(f.base + '/api/admin/modules', { method: 'POST', headers: { cookie: `attackbox_session=${f.admin.token}`, 'content-type': 'application/json' }, body: JSON.stringify({ title: 'Retired' }) })
+    assert.ok([404, 405].includes(retiredPost.status), 'POST /api/admin/modules is retired')
 
-    await save({ chapters: [d.chapters[1], { ...d.chapters[0], bodyMarkdown: '# Immediately updated' }], title: 'Live title' }); d = await detail()
+    const categories = await req('/api/categories', 'GET', undefined, 200, null)
+    const categoryId = categories.find(c => c.slug === 'web-security').id
+    const slug = `lifecycle-${suffix}`
+    let d = await f.createModule('draft', {
+      title: 'Lifecycle module',
+      slug,
+      categoryId,
+      learningOutcomes: ['使用 Shell 查看系统信息', '定位常见权限问题'],
+      chapters: [
+        { title: 'First', slug: 'first', access: 'public', bodyMarkdown: '# First', questions: [{ promptMarkdown: 'A command?', answer: 'whoami', normalization: 'trim' }] },
+        { title: 'Second', slug: 'second', access: 'authenticated', bodyMarkdown: '# Second', questions: [] },
+      ],
+    })
+    const id = d.module.id, path = `/api/admin/modules/${id}`, publicPath = `/api/modules/${slug}`
+    const first = d.chapters[0].chapterId, second = d.chapters[1].chapterId, qid = d.chapters[0].questions[0].id
+    assert.deepEqual(d.module.learningOutcomes, ['使用 Shell 查看系统信息', '定位常见权限问题'])
+    assert.equal(d.category.name, 'Web 安全'); assert.equal(d.module.status, 'unpublished')
+    assert.equal(d.chapters[0].questions[0].answer, null, 'admin detail never returns plain answers')
+    assert.equal(d.chapters[0].questions[0].hasAnswer, true)
+    await f.request(publicPath, { status: 404 })
+
+    await req(path + '/publish', 'POST', { lockVersion: d.module.lockVersion })
+    d = await req(path); assert.equal(d.module.status, 'published')
+    assert.equal((await req('/api/modules', 'GET', undefined, 200, null)).find(m => m.id === id).category.slug, 'web-security')
+    assert.deepEqual((await req(publicPath, 'GET', undefined, 200, null)).module.learningOutcomes, d.module.learningOutcomes)
+
+    const publicChapter = await req(publicPath + '/chapters/first', 'GET', undefined, 200, null)
+    assert.equal(publicChapter.questions[0].id, qid)
+    assert.equal('answerHmac' in publicChapter.questions[0], false)
+    assert.equal('answer' in publicChapter.questions[0], false, 'public chapter never exposes the standard answer')
+    await f.request(publicPath + '/chapters/second', { status: 401 })
+    assert.equal((await req(publicPath, 'GET', undefined, 200, null)).chapters[1].isLocked, true)
+    assert.equal((await req(publicPath + '/chapters/first/attempt', 'POST', { questionId: qid, answer: ' whoami ' }, 200, null)).correct, true)
+    assert.equal((await req(publicPath + '/chapters/first/attempt', 'POST', { questionId: qid, answer: 'wrong' }, 200, null)).correct, false)
+
+    // Syncing updated answer and normalization takes effect immediately while retaining question identity.
+    d = await f.syncModule(id, { chapters: [{ ...d.chapters[0], questions: [{ id: qid, promptMarkdown: 'A command?', answer: 'id', normalization: 'exact' }] }, d.chapters[1]] })
+    assert.equal((await req(publicPath + '/chapters/first/attempt', 'POST', { questionId: qid, answer: 'WHOAMI' }, 200, null)).correct, false)
+    assert.equal((await req(publicPath + '/chapters/first/attempt', 'POST', { questionId: qid, answer: 'id' }, 200, null)).correct, true)
+    assert.equal((await req(publicPath + '/chapters/first/attempt', 'POST', { questionId: qid, answer: ' id ' }, 200, null)).correct, false)
+
+    // Reordering chapters and updating prose preserves chapter/question IDs.
+    d = await f.syncModule(id, { title: 'Live title', chapters: [d.chapters[1], { ...d.chapters[0], bodyMarkdown: '# Immediately updated', questions: [{ id: qid, promptMarkdown: 'A command?', answer: 'WHOAMI', normalization: 'trim_casefold' }] }] })
     assert.deepEqual(d.chapters.map(c => c.chapterId), [second, first])
-    assert.equal((await req(publicPath, 'GET', undefined, 200, false)).module.title, 'Live title')
-    assert.equal((await req(publicPath + '/chapters/first', 'GET', undefined, 200, false)).chapter.bodyMarkdown, '# Immediately updated')
-    assert.equal(d.chapters[1].questions[0].id, qid, 'saving and publishing retain question identity')
-    await save({ title: 'Invalid live update', chapters: [{ ...d.chapters[0], bodyMarkdown: '' }, d.chapters[1]] }, 400)
-    await save({ chapters: [] }, 400)
-    await save({ chapters: [d.chapters[0], { ...d.chapters[1], questions: [{ ...d.chapters[1].questions[0], answer: '' }] }] }, 400)
-    await save({ chapters: [{ ...d.chapters[0], chapterId: crypto.randomUUID() }, d.chapters[1]] }, 409)
-    await save({ chapters: [d.chapters[0], { ...d.chapters[1], questions: [{ ...d.chapters[1].questions[0], id: crypto.randomUUID() }] }] }, 409)
-    d = await detail(); assert.equal(d.module.title, 'Live title'); assert.equal(d.chapters.length, 2)
-    await save({ chapters: [...d.chapters, { title: 'Third', slug: 'third', access: 'public', bodyMarkdown: '# Third', questions: [] }] }); d = await detail()
-    assert.equal((await req(publicPath)).chapters.length, 3, 'new chapter appears immediately and existing ones remain')
-    await save({ chapters: [d.chapters[0], d.chapters[0]] }, 400)
-    await action('unpublish'); d = await detail()
-    assert.equal(d.module.status, 'unpublished'); assert.equal(d.chapters.length, 3)
-    await req(publicPath, 'GET', undefined, 404, false)
-    await req(publicPath + '/chapters/first/attempt', 'POST', { questionId: qid, answer: 'whoami' }, 404, false)
-    await save({ chapters: [d.chapters[1]] }); d = await detail()
-    assert.equal(d.chapters.length, 1); assert.equal(d.chapters[0].chapterId, first)
-    assert.equal((await sql`SELECT id FROM chapters WHERE id=${second}`).length, 0)
-    await action('publish'); d = await detail()
+    assert.equal((await req(publicPath, 'GET', undefined, 200, null)).module.title, 'Live title')
+    assert.equal((await req(publicPath + '/chapters/first', 'GET', undefined, 200, null)).chapter.bodyMarkdown, '# Immediately updated')
+    assert.equal(d.chapters[1].questions[0].id, qid)
+
+    // Published modules cannot be deleted directly until unpublished.
+    await req(path, 'DELETE', { lockVersion: d.module.lockVersion }, 409)
+    await req(path + '/unpublish', 'POST', { lockVersion: d.module.lockVersion })
+    d = await req(path); assert.equal(d.module.status, 'unpublished')
+    await f.request(publicPath, { status: 404 })
     await req(path, 'DELETE', { lockVersion: d.module.lockVersion })
-    await req(path, 'GET', undefined, 404)
-    assert.equal((await sql`SELECT id FROM modules WHERE id=${id}`).length, 0)
-    assert.equal((await sql`SELECT id FROM chapters WHERE module_id=${id}`).length, 0)
-    assert.equal((await sql`SELECT id FROM chapter_questions WHERE id=${qid}`).length, 0)
-    assert.equal((await req('/api/admin/modules')).some(m => m.id === id), false)
-    const neverPublished = await req('/api/admin/modules', 'POST', { title: 'Unsaved content', slug: `delete-${suffix}` })
-    await req(`/api/admin/modules/${neverPublished.module.id}`, 'DELETE', { lockVersion: 1 })
-    await req(`/api/admin/modules/${neverPublished.module.id}`, 'GET', undefined, 404)
-    // A single save publishes new content atomically. Invalid publication creates no ghost module.
-    const failedSlug = `failed-publish-${suffix}`
-    await req('/api/admin/modules', 'POST', { title: 'Invalid', slug: failedSlug, intent: 'publish', chapters: [] }, 400)
-    assert.equal((await sql`SELECT id FROM modules WHERE slug=${failedSlug}`).length, 0)
-    const atomic = await req('/api/admin/modules', 'POST', { title: 'Atomic', slug: `atomic-${suffix}`, intent: 'publish', learningOutcomes: ['One goal'],
-      chapters: [{ title: 'Only chapter', slug: 'only', access: 'public', bodyMarkdown: '# Body', questions: [] }] })
-    const ap = `/api/admin/modules/${atomic.module.id}`
-    let a = await req(ap)
-    assert.equal(a.module.status, 'published'); assert.equal(a.module.lockVersion, 1)
-    await req(ap, 'PUT', { lockVersion: a.module.lockVersion, title: 'Should not persist', intent: 'publish', learningOutcomes: ['Changed'], chapters: [] }, 400)
-    a = await req(ap); assert.equal(a.module.title, 'Atomic'); assert.equal(a.module.status, 'published')
-    assert.deepEqual(a.module.learningOutcomes, ['One goal']); assert.equal(a.module.lockVersion, 1)
-    await req(ap, 'PUT', { lockVersion: a.module.lockVersion, intent: 'draft', title: 'Saved draft', learningOutcomes: [],
-      chapters: [{ ...a.chapters[0], bodyMarkdown: '' }] })
-    a = await req(ap); assert.equal(a.module.status, 'unpublished'); assert.equal(a.module.title, 'Saved draft')
-    assert.deepEqual(a.module.learningOutcomes, [])
-    await req(`/api/modules/atomic-${suffix}`, 'GET', undefined, 404, false)
-    await req(ap, 'PUT', { lockVersion: a.module.lockVersion, intent: 'publish', chapters: [{ ...a.chapters[0], bodyMarkdown: '# Updated' }] })
-    a = await req(ap); assert.equal(a.module.status, 'published')
-    assert.equal((await req(`/api/modules/atomic-${suffix}`)).chapters.length, 1)
-    await req(ap, 'DELETE', { lockVersion: a.module.lockVersion })
-    // Ordered recommendations and manually configured duration.
-    const make = async (name, intent = 'publish') => req('/api/admin/modules', 'POST', { title: name, slug: `${name}-${suffix}`, intent,
-      chapters: [{ title: name, slug: 'intro', access: 'public', bodyMarkdown: '# Intro', durationMinutes: 15, questions: [] }] })
+    await f.request(path, { actor: f.admin, status: 404 })
+    assert.equal((await f.sql`SELECT id FROM modules WHERE id=${id}`).length, 0)
+
+    // Prerequisite graph and concurrent cycle prevention via /runtime.
+    const make = (name, intent = 'publish') => f.createModule(intent, {
+      title: name,
+      slug: `${name}-${suffix}`,
+      chapters: [{ title: name, slug: 'intro', access: 'public', bodyMarkdown: '# Intro', durationMinutes: 15, questions: [] }],
+    })
     const pa = await make('prereq-a'), pb = await make('prereq-b'), pc = await make('prereq-c', 'draft')
-    const graphPath = `/api/admin/modules/${pa.module.id}`
+    const graphPath = `/api/admin/modules/${pa.module.id}`, graphRuntime = `${graphPath}/runtime`
     let graph = await req(graphPath)
-    await req(graphPath, 'PUT', { lockVersion: graph.module.lockVersion, prerequisiteModuleIds: [pb.module.id, pc.module.id] })
+    await req(graphRuntime, 'PUT', { lockVersion: graph.module.lockVersion, prerequisiteModuleIds: [pb.module.id, pc.module.id] })
     graph = await req(graphPath)
     assert.deepEqual(graph.prerequisites.map(p => p.id), [pb.module.id, pc.module.id])
-    const publicGraph = await req(`/api/modules/prereq-a-${suffix}`, 'GET', undefined, 200, false)
+    const publicGraph = await req(`/api/modules/prereq-a-${suffix}`, 'GET', undefined, 200, null)
     assert.deepEqual(publicGraph.prerequisites.map(p => p.id), [pb.module.id], 'draft prerequisites must never leak')
     assert.equal(publicGraph.chapters[0].durationMinutes, 15)
-    assert.equal((await req(`/api/modules/prereq-a-${suffix}/chapters/intro`)).chapter.durationMinutes, 15)
-    await req(graphPath, 'PUT', { lockVersion: graph.module.lockVersion, prerequisiteModuleIds: [pa.module.id] }, 400)
-    await req(graphPath, 'PUT', { lockVersion: graph.module.lockVersion, prerequisiteModuleIds: [pb.module.id, pb.module.id] }, 400)
-    await req(graphPath, 'PUT', { lockVersion: graph.module.lockVersion, prerequisiteModuleIds: [crypto.randomUUID()] }, 400)
-    await req(graphPath, 'PUT', { lockVersion: graph.module.lockVersion, chapters: [{ ...graph.chapters[0], durationMinutes: 0 }] }, 400)
-    await req(graphPath, 'PUT', { lockVersion: graph.module.lockVersion, chapters: [{ ...graph.chapters[0], durationMinutes: 1.5 }] }, 400)
-    await req(graphPath, 'PUT', { lockVersion: graph.module.lockVersion, chapters: [{ ...graph.chapters[0], durationMinutes: 1441 }] }, 400)
+    await req(graphRuntime, 'PUT', { lockVersion: graph.module.lockVersion, prerequisiteModuleIds: [pa.module.id] }, 400)
+    await req(graphRuntime, 'PUT', { lockVersion: graph.module.lockVersion, prerequisiteModuleIds: [pb.module.id, pb.module.id] }, 400)
+    await req(graphRuntime, 'PUT', { lockVersion: graph.module.lockVersion, prerequisiteModuleIds: [crypto.randomUUID()] }, 400)
+
     const bp = `/api/admin/modules/${pb.module.id}`
     let bdetail = await req(bp)
-    await req(bp, 'PUT', { lockVersion: bdetail.module.lockVersion, prerequisiteModuleIds: [pa.module.id] }, 400)
+    await req(`${bp}/runtime`, 'PUT', { lockVersion: bdetail.module.lockVersion, prerequisiteModuleIds: [pa.module.id] }, 400)
     assert.deepEqual((await req(bp)).prerequisites, [], 'cycle failure rolls back')
-    await req(graphPath, 'PUT', { lockVersion: graph.module.lockVersion, prerequisiteModuleIds: [pc.module.id, pb.module.id], chapters: [{ ...graph.chapters[0], durationMinutes: null }] })
-    graph = await req(graphPath)
-    assert.equal(graph.chapters[0].durationMinutes, null)
-    assert.deepEqual(graph.prerequisites.map(p => p.id), [pc.module.id, pb.module.id])
+
     let cdetail = await req(`/api/admin/modules/${pc.module.id}`)
-    await req(`/api/admin/modules/${pc.module.id}`, 'PUT', { lockVersion: cdetail.module.lockVersion, intent: 'publish' })
-    assert.deepEqual((await req(`/api/modules/prereq-a-${suffix}`)).prerequisites.map(p => p.id), [pc.module.id, pb.module.id])
+    await req(`/api/admin/modules/${pc.module.id}/publish`, 'POST', { lockVersion: cdetail.module.lockVersion })
+    assert.deepEqual((await req(`/api/modules/prereq-a-${suffix}`, 'GET', undefined, 200, null)).prerequisites.map(p => p.id), [pb.module.id, pc.module.id])
+
+    bdetail = await req(bp)
+    await req(`${bp}/unpublish`, 'POST', { lockVersion: bdetail.module.lockVersion })
+    bdetail = await req(bp)
     await req(bp, 'DELETE', { lockVersion: bdetail.module.lockVersion })
     assert.deepEqual((await req(graphPath)).prerequisites.map(p => p.id), [pc.module.id], 'deleting a target removes the recommendation')
+
     graph = await req(graphPath)
-    await req(graphPath, 'PUT', { lockVersion: graph.module.lockVersion, prerequisiteModuleIds: [] })
-    assert.deepEqual((await req(graphPath)).prerequisites, [])
-    // Concurrent opposing links must not create a cycle.
+    await req(graphRuntime, 'PUT', { lockVersion: graph.module.lockVersion, prerequisiteModuleIds: [] })
     graph = await req(graphPath); cdetail = await req(`/api/admin/modules/${pc.module.id}`)
-    const opposing = await Promise.all([[graphPath, graph, pc.module.id], [`/api/admin/modules/${pc.module.id}`, cdetail, pa.module.id]].map(async ([path, current, targetId]) =>
-      (await fetch(baseUrl + path, { method: 'PUT', headers: { cookie, 'content-type': 'application/json' }, body: JSON.stringify({ lockVersion: current.module.lockVersion, prerequisiteModuleIds: [targetId] }) })).status))
+    const opposing = await Promise.all([
+      [graphRuntime, graph, pc.module.id],
+      [`/api/admin/modules/${pc.module.id}/runtime`, cdetail, pa.module.id],
+    ].map(async ([rPath, current, targetId]) =>
+      (await fetch(f.base + rPath, { method: 'PUT', headers: { cookie: `attackbox_session=${f.admin.token}`, 'content-type': 'application/json' }, body: JSON.stringify({ lockVersion: current.module.lockVersion, prerequisiteModuleIds: [targetId] }) })).status))
     assert.deepEqual(opposing.sort(), [200, 400], 'concurrent graph edits remain acyclic')
-    for (const module of [pa.module, pc.module]) {
-      const current = await req(`/api/admin/modules/${module.id}`)
-      await req(`/api/admin/modules/${module.id}`, 'DELETE', { lockVersion: current.module.lockVersion })
-    }
-  } finally { await sql.end() }
+  } finally { await f.cleanup() }
 })

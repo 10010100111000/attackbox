@@ -6,7 +6,7 @@ export type Difficulty = typeof difficulties[number]
 export type ModuleStatus = 'unpublished' | 'published'
 export interface ContentCategory { id: string; slug: string; name: string }
 export interface QuestionInput {
-  id?: string; promptMarkdown: string; answer?: string | null; clearAnswer?: boolean
+  id?: string; promptMarkdown: string; answer?: string | null
   errorHint?: string | null; normalization: Normalization
 }
 export interface ChapterInput {
@@ -15,11 +15,10 @@ export interface ChapterInput {
 }
 export interface ModuleInput {
   title?: string; slug?: string; summary?: string; descriptionMarkdown?: string
-  difficulty?: Difficulty; coverAssetId?: string | null; categoryId?: string | null
+  difficulty?: Difficulty; categoryId?: string | null
   lockVersion?: number; chapters?: ChapterInput[]; learningOutcomes?: string[]
   defaultTargetTemplateId?: string | null
   prerequisiteModuleIds?: string[]
-  intent?: 'draft' | 'publish'
 }
 export interface AdminQuestion {
   id: string; position: number; promptMarkdown: string

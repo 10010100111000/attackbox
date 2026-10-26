@@ -20,10 +20,11 @@ test('single-file prototype parses without authored IDs and strips answers from 
  assert.ok(!parsed.chapters[0].bodyMarkdown.includes('normalization:'))
  assert.equal(parsed.sourceHash,parseModuleMarkdown('Linux 基础.md',source).sourceHash)
 })
-test('defaults and per-chapter overrides align with existing access and duration rules',()=>{
+test('defaults, Git-authored category names and per-chapter overrides align with access and duration rules',()=>{
  const parsed=parseModuleMarkdown('教程.md',module('# A\n\n正文\n\n# B\n\n正文', 'chapters:\n  A:\n    access: public\n    durationMinutes: 15'))
  assert.equal(parsed.categorySlug,null);assert.equal(parsed.difficulty,'beginner')
  assert.deepEqual(parsed.chapters.map(c=>[c.access,c.durationMinutes]),[['public',15],['authenticated',null]])
+ assert.equal(parseModuleMarkdown('教程.md',module('# A\n\n正文','category: 移动安全')).categorySlug,'移动安全')
 })
 test('AST distinguishes real chapters from code, nested headings and quoted headings',()=>{
  const parsed=parseModuleMarkdown('教程.md',module('# **Shell**\n\n```bash\n# not a chapter\n```\n\n> # Quote\n\n## Section\n\n# Permissions\n\n正文'))
@@ -61,6 +62,7 @@ test('header and chapter errors report locations without guessing or dropping co
  invalid(module('# A','chapters:\n  Missing:\n    access: public'),/对应/)
  invalid(module('# A','chapters:\n  A:\n    durationMinutes: 0'),/时长/)
  invalid(module('# A','category: [linux]'),/category/)
+ invalid(module('# A','category: "   "'),/分类名称不能为空/)
  invalid(module('# A','learningOutcomes: [true]'),/目标/)
  invalid(module('# A','summary: first\nsummary: second'),/重复字段/)
 })

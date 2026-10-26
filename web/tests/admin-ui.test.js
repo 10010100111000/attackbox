@@ -7,7 +7,7 @@ import { fileURLToPath } from 'node:url';
 
 const webDir = path.resolve(import.meta.dirname || path.dirname(fileURLToPath(import.meta.url)), '..');
 
-test('admin layout and page templates exist', () => {
+test('admin layout and page templates exist and legacy editor is removed', () => {
   const files = [
     'layouts/admin.vue',
     'pages/admin/modules/index.vue',
@@ -18,6 +18,10 @@ test('admin layout and page templates exist', () => {
     const fullPath = path.join(webDir, f);
     assert.ok(fs.existsSync(fullPath), `File should exist: ${f}`);
   }
+  assert.ok(!fs.existsSync(path.join(webDir, 'components/admin/LegacyModuleEditor.vue')));
+  assert.ok(!fs.existsSync(path.join(webDir, 'components/admin/CategorySelect.vue')));
+  assert.ok(!fs.existsSync(path.join(webDir, 'server/api/admin/modules/index.post.ts')));
+  assert.ok(!fs.existsSync(path.join(webDir, 'server/api/admin/modules/[id]/index.put.ts')));
 });
 
 test('layouts/admin.vue defines admin shell, navigation groups, and permission check', () => {
@@ -42,13 +46,14 @@ test('pages/admin/modules/index.vue defines module list, status filters, and man
   assert.ok(content.includes('/api/admin/content/template'));
   assert.ok(!content.includes('/admin/modules/new'));
   assert.ok(!content.includes('handleCreateModule'));
+  assert.ok(!content.includes('编辑旧模块'));
   assert.ok(content.includes('filters-tabs'));
 });
 
-test('module route selects Git details without mounting the legacy editor for managed content', () => {
+test('module route renders GitModuleDetail directly without legacy editor fallback', () => {
   const content = fs.readFileSync(path.join(webDir, 'pages/admin/modules/[id].vue'), 'utf-8');
-  assert.ok(content.includes('detail?.source'));
   assert.ok(content.includes('GitModuleDetail'));
-  assert.ok(content.includes('defineAsyncComponent'));
+  assert.ok(!content.includes('LegacyModuleEditor'));
+  assert.ok(!content.includes('defineAsyncComponent'));
   assert.ok(content.includes("navigateTo('/admin/content'"));
 });

@@ -47,15 +47,13 @@ test('learning progress: authorization, persistence, concurrent completion, upda
     await req(last, { actor: user, status: 403 })
     await finish(preview); await finish(last)
     assert.equal((await req(modulePath, { actor: user })).progress.isCompleted, true)
-    // Editing answers and adding questions preserves completed chapter records.
-    d = (await f.request(`/api/admin/modules/${d.module.id}`, { actor: f.admin })).data
-    await req(`/api/admin/modules/${d.module.id}`, { actor: f.admin, method: 'PUT', body: { lockVersion: d.module.lockVersion, chapters: [{ ...d.chapters[0], questions: [{ ...q[0], answer: 'id' }, q[1], { promptMarkdown: 'New question', answer: 'new', normalization: 'trim' }] }, ...d.chapters.slice(1)] } })
+    // Syncing updated answers and new questions preserves completed chapter records.
+    d = await f.syncModule(d.module.id, { chapters: [{ ...d.chapters[0], questions: [{ ...q[0], answer: 'id' }, { ...q[1], answer: 'pwd' }, { promptMarkdown: 'New question', answer: 'new', normalization: 'trim' }] }, ...d.chapters.slice(1)] })
     assert.equal((await req(first, { actor: user })).progress.completedAt, completed.progress.completedAt)
     assert.equal((await attempt(q[0], 'whoami')).correct, false)
     assert.equal((await attempt(q[0], 'id')).correct, true)
     // Inserting an earlier private chapter re-locks unfinished later chapters, not completed ones.
-    d = (await f.request(`/api/admin/modules/${d.module.id}`, { actor: f.admin })).data
-    await req(`/api/admin/modules/${d.module.id}`, { actor: f.admin, method: 'PUT', body: { lockVersion: d.module.lockVersion, chapters: [{ title: '新增基础', slug: 'new-foundation', access: 'authenticated', bodyMarkdown: '# Foundation', questions: [] }, ...d.chapters] } })
+    d = await f.syncModule(d.module.id, { chapters: [{ title: '新增基础', slug: 'new-foundation', access: 'authenticated', bodyMarkdown: '# Foundation', questions: [] }, ...d.chapters] })
     assert.equal((await req(modulePath, { actor: user })).chapters.find(c => c.slug === 'permissions').isLocked, false)
     assert.equal((await req(modulePath, { actor: concurrent })).chapters.find(c => c.slug === 'navigation').lockReason, 'prerequisite')
     await req(second, { actor: user })

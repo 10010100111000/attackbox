@@ -110,8 +110,8 @@ export function parseModuleMarkdown(sourcePath: string, raw: string): ParsedModu
   const difficulty = meta.difficulty ?? 'beginner'
   if (!difficulties.includes(difficulty as Difficulty)) fail(fieldLocation('difficulty'), '仅支持 beginner、intermediate 或 advanced')
   const defaultAccess = access(meta.access, 'authenticated', fieldLocation('access'))
-  const categorySlug = meta.category === undefined || meta.category === null ? null : text(meta.category, '', 100, fieldLocation('category'))
-  if (categorySlug !== null && !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(categorySlug)) fail(fieldLocation('category'), '分类必须是有效 slug，未分类请省略该字段')
+  const categorySlug = meta.category === undefined || meta.category === null ? null : text(meta.category, '', 80, fieldLocation('category')).trim()
+  if (categorySlug !== null && !categorySlug) fail(fieldLocation('category'), '分类名称不能为空，未分类请省略该字段')
   const outcomes = meta.learningOutcomes ?? []
   if (!Array.isArray(outcomes) || outcomes.length > 12 || outcomes.some(x => typeof x !== 'string' || !x.trim() || x.length > 200)) fail(fieldLocation('learningOutcomes'), '目标最多 12 项，每项为 1–200 字文本')
   const chapterConfig = meta.chapters === undefined ? {} : record(meta.chapters, fieldLocation('chapters'))

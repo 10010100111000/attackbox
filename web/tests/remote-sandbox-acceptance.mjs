@@ -32,7 +32,6 @@ const terminals=[]
 try {
  const nodes=await request('/api/admin/nodes',actors.admin)
  assert.ok(JSON.stringify(nodes).includes('acceptance-node'))
- if(!actors.module){actors.module=await request('/api/admin/modules',actors.admin,'POST',{title:'真实 Worker 单机验收',summary:'专用验收模块',intent:'publish',chapters:[{title:'终端与桌面',slug:'runtime',access:'public',bodyMarkdown:'# 单机验收\n\n验证真实终端、桌面与资源回收。',questions:[]}]});checkpoint()}
  const config=nodes.nodes.find(n=>n.id==='acceptance-node')
  assert.ok(config,'Dedicated acceptance node required')
  await request('/api/admin/nodes/acceptance-node/settings',actors.admin,'PUT',{...config.settings,draining:false,maxSlots:1,memoryMb:1024,pidsMax:512,ttlSeconds:300,idleSeconds:120})
@@ -62,7 +61,7 @@ try {
  const context=await browser.newContext({viewport:{width:1440,height:1000}})
  await context.addCookies([{name:'attackbox_session',value:actors.alice.token,url:base}])
  const page=await context.newPage();page.setDefaultTimeout(45000)
- await page.goto(`${base}/learn/modules/${actors.module.module.slug}/runtime`)
+ await page.goto(actors.module?`${base}/learn/modules/${actors.module.module.slug}/runtime`:`${base}/learn`)
  await page.waitForFunction(()=>Boolean(document.querySelector('#__nuxt')?.__vue_app__))
  await page.goto(`${base}/gui`)
  await page.getByText('桌面已连接',{exact:true}).waitFor({timeout:60000})
