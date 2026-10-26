@@ -6,6 +6,7 @@
           <img src="/logo.png" alt="AttackBox Logo" class="brand-logo" width="31" height="31" />
           <span>AttackBox</span>
         </NuxtLink>
+        <UserMenu/>
       </header>
 
       <slot />

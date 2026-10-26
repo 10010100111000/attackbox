@@ -31,7 +31,7 @@ test('LearningHeader.vue uses /logo.png, AttackBox brand, and navigation links',
   assert.ok(content.includes('to="/learn"'), 'Must link to /learn');
   assert.ok(content.includes('to="/challenges"'), 'Must link to /challenges');
   assert.ok(content.includes('to="/discuss"'), 'Must link to /discuss');
-  assert.ok(content.includes('appearance-switch'), 'Must provide theme switcher');
+  assert.ok(content.includes('<UserMenu'), 'Must use the shared account menu');
 });
 
 test('pages/learn/index.vue defines learning layout, /api/modules fetch, and categories', () => {

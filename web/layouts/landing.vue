@@ -1,3 +1,6 @@
+<script setup lang="ts">
+const {currentUser}=useAuth()
+</script>
 <template>
   <div class="landing-layout" data-theme="midnight">
     <div class="wrap">
@@ -6,7 +9,7 @@
           <img src="/logo.png" alt="AttackBox Logo" class="brand-logo" width="31" height="31" />
           <span>AttackBox</span>
         </NuxtLink>
-        <NuxtLink to="/auth" class="platform-link">
+        <UserMenu v-if="currentUser"/><NuxtLink v-else to="/auth" class="platform-link">
           <span>进入平台</span>
         </NuxtLink>
       </header>

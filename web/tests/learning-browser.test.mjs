@@ -37,7 +37,7 @@ test('browser: publish, guest preview, login, persistent completion, resume and 
       // Navigate through the same Nuxt app so auth/data caches are exercised across accounts.
       await page.locator('.card').filter({ hasText: mod.module.title }).first().click()
       await page.locator('.start-learning-btn').click()
-      await page.getByLabel('打开用户菜单', { exact: true }).click()
+      await page.getByRole('button', { name: /用户菜单/ }).click()
       await page.getByRole('link', { name: '登录 / 注册', exact: true }).click()
       await page.locator('#email').fill(account.email); await page.locator('#password').fill(account.password)
       await page.getByRole('button', { name: '登录', exact: true }).click()
@@ -45,11 +45,11 @@ test('browser: publish, guest preview, login, persistent completion, resume and 
       await page.waitForURL(f.base + first)
     }
     async function logout() {
-      await page.getByLabel('打开用户菜单', { exact: true }).click()
+      await page.getByRole('button', { name: /用户菜单/ }).click()
       const loggedOut = page.waitForResponse(r => r.url().endsWith('/api/auth/logout') && r.status() === 200)
-      await page.getByRole('button', { name: '退出', exact: true }).click()
+      await page.getByRole('button', { name: '退出登录', exact: true }).click()
       await loggedOut
-      await page.locator('.avatar').filter({ hasText: '访' }).waitFor()
+      await page.locator('.account-trigger').filter({ hasText: '访' }).waitFor()
       await page.waitForURL(f.base + '/learn')
     }
     async function answer(index, value) {
