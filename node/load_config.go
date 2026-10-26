@@ -60,18 +60,17 @@ func LoadNodeConfig(path string) (*NodeConfig, error) {
 			},
 		},
 		Network: NetworkConfig{
-			DockerTargets: DockerTargetNetworkConfig{SocketPath: "/var/run/docker.sock", Name: "attackbox-targets", BridgeName: "br-ab-targets", SubnetCIDR: "10.201.0.0/16", GatewayIP: "10.201.0.1"},
-			BridgeName:    "br-attackbox",
-			GatewayIP:     "10.200.0.1",
-			SubnetCIDR:    "10.200.0.0/16",
-			Interface:     "eth0",
+			BridgeName: "br-attackbox",
+			GatewayIP:  "10.200.0.1",
+			SubnetCIDR: "10.200.0.0/16",
+			Interface:  "eth0",
 		},
 	}
 
 	data, err := os.ReadFile(path)
 	if err != nil {
 		if os.IsNotExist(err) {
-			return cfg, nil
+			return cfg, checkRetiredTargets(cfg.Runtime.InstancesDir)
 		}
 		return nil, fmt.Errorf("read node config %s: %w", path, err)
 	}
@@ -81,10 +80,10 @@ func LoadNodeConfig(path string) (*NodeConfig, error) {
 	if err := decoder.Decode(cfg); err != nil {
 		return nil, fmt.Errorf("unmarshal config yaml: %w", err)
 	}
-	if err := validateTargetNetwork(cfg.Network); err != nil {
+	if err := validateSandboxNetwork(cfg.Network); err != nil {
 		return nil, err
 	}
-	return cfg, nil
+	return cfg, checkRetiredTargets(cfg.Runtime.InstancesDir)
 }
 
 // GatewayConfig represents external interactive gateway listener parameters.

@@ -91,18 +91,6 @@ test('registration and initial heartbeat deadlines are enforced; inventory does 
   f.hub.shutdown(); assert.equal(f.node().state, 'offline')
 })
 
-test('target RPC correlates independent target identity and rejects generation changes', async () => {
- const f=fixture();f.hub.open(f.a,'test-node');f.register();f.heartbeat(f.a,{docker_targets:{available:true,instances:[]}})
- assert.ok(f.hub.targetNodes.has('test-node'))
- const request=f.hub.targetRpc('test-node','boot-1','target_inspect',{target_id:'tgt_0123456789abcdef',owner_id:'user-1'})
- const sent=f.a.sent.at(-1)
- f.hub.message(f.a,JSON.stringify({id:sent.id,type:'target_inspect_resp',payload:{boot_id:'boot-1',target_id:'tgt_0123456789abcdef',success:true,instance:{target_id:'tgt_0123456789abcdef',owner_id:'user-1',state:'running',ready:false,readiness:'unverified'}}}))
- assert.equal((await request).instance.state,'running')
- const lost=f.hub.targetRpc('test-node','boot-1','target_stop',{target_id:'tgt_0123456789abcdef',owner_id:'user-1'})
- f.hub.close(f.a);await assert.rejects(lost,/connection lost/);assert.ok(!f.hub.targetNodes.has('test-node'))
- f.hub.shutdown()
-})
-
 test('learner experiments retain node affinity across scopes and reject split placement', async () => {
  const {experimentNode}=await import('../shared/target-runtime.ts')
  assert.equal(experimentNode(null,[]),null)
@@ -113,8 +101,8 @@ test('learner experiments retain node affinity across scopes and reject split pl
 })
 test('only a confirmed stopped summary releases a target lifecycle', async () => {
  const {targetReplyState}=await import('../shared/target-runtime.ts')
- assert.equal(targetReplyState('starting','inspect',{error:'target_not_found'}),'unconfirmed')
- assert.equal(targetReplyState('running','start',{error:'target_already_stopped'}),'unconfirmed')
+ assert.equal(targetReplyState('starting','inspect',{error:'compose_instance_not_found'}),'unconfirmed')
+ assert.equal(targetReplyState('running','start',{error:'compose_operation_unconfirmed'}),'unconfirmed')
  assert.equal(targetReplyState('running','stop',{}),'stopping')
  assert.equal(targetReplyState('stopping','inspect',{instance:{state:'stopped'}}),'stopped')
  assert.equal(targetReplyState('running','inspect',{instance:{state:'missing'}}),'missing')

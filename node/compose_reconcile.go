@@ -6,7 +6,7 @@ import (
 	"time"
 )
 
-// One existing Worker lease cadence covers both runtimes, independently of the
+// One Worker lease cadence covers Compose instances independently of the
 // control connection. No per-container or per-interface timer is introduced.
 func (c *NodeControlClient) experimentReaper(ctx context.Context) {
 	ticker := time.NewTicker(5 * time.Second)
@@ -15,11 +15,6 @@ func (c *NodeControlClient) experimentReaper(ctx context.Context) {
 	dirty := true
 	for {
 		work, cancel := context.WithTimeout(ctx, 30*time.Second)
-		if c.targets != nil {
-			if err := c.targets.ReapLeases(work); err != nil && ctx.Err() == nil {
-				log.Print("[TARGET] cleanup pending")
-			}
-		}
 		if c.compose != nil {
 			if err := c.compose.runtime.Reap(work); err != nil && ctx.Err() == nil {
 				log.Print("[COMPOSE] cleanup pending")

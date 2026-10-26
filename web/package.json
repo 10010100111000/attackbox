@@ -7,7 +7,7 @@
     "generate": "nuxt generate",
     "dev": "nuxt dev",
     "preview": "nuxt preview",
-    "test": "node --experimental-strip-types --test tests/auth-crypto.test.js tests/composables.test.js tests/ui.test.js tests/landing.test.js tests/auth.test.js tests/markdown.test.js tests/learning-ui.test.js tests/admin-ui.test.js tests/quiz-crypto.test.js tests/learning-access.test.js tests/sandbox-nodes.test.js tests/sandbox-lifecycle.test.js tests/sandbox-settings.test.js tests/target-templates-validation.test.js tests/content-parser.test.mjs tests/content-repository.test.mjs tests/compose-packages.test.mjs tests/lab-git.test.mjs",
+    "test": "node --experimental-strip-types --test tests/auth-crypto.test.js tests/composables.test.js tests/ui.test.js tests/landing.test.js tests/auth.test.js tests/markdown.test.js tests/learning-ui.test.js tests/admin-ui.test.js tests/quiz-crypto.test.js tests/learning-access.test.js tests/sandbox-nodes.test.js tests/sandbox-lifecycle.test.js tests/sandbox-settings.test.js tests/content-parser.test.mjs tests/content-repository.test.mjs tests/compose-packages.test.mjs tests/lab-git.test.mjs",
     "db:generate": "drizzle-kit generate",
     "admin:init": "node server/scripts/init-admin.mjs",
     "postinstall": "nuxt prepare",

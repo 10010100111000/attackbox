@@ -13,13 +13,9 @@ interface PendingRPC { peerId: string; nodeId: string; bootId: string; sandboxId
 const integer = (n: unknown, min = 0): n is number => Number.isSafeInteger(n) && (n as number) >= min
 const text = (s: unknown, max = 128): s is string => typeof s === 'string' && s.length > 0 && s.length <= max
 const timestamp = (n: unknown) => integer(n, 1) && n <= 8640000000000 ? new Date(n * 1000).toISOString() : null
-export interface TargetWorkerResult { image_state?: string; success: boolean; boot_id: string; target_id: string; error?: string; instance?: { target_id: string; owner_id: string; state: string; ready: boolean; readiness: string; ip?: string; container_id?: string } }
-interface TargetPending { ownerId: string; peerId: string; bootId: string; targetId: string; type: string; resolve: (value: TargetWorkerResult) => void; reject: (error: Error) => void; timer: ReturnType<typeof setTimeout> }
 export class SandboxHub {
   composeNodes=new Set<string>()
   private composePending=new Map<string,ComposePending>()
-  targetNodes = new Set<string>()
-  private targetPending = new Map<string, TargetPending>()
 
   onInventory?: (node: SandboxNodeStatus) => void
   onLateCreate?: (nodeId: string, result: WorkerResult) => void
@@ -49,7 +45,6 @@ export class SandboxHub {
   }
   close(peer: WorkerPeer) {
     const composeNode=this.connections.get(peer.id)?.nodeId;if(composeNode)this.composeNodes.delete(composeNode)
-    const node = this.connections.get(peer.id)?.nodeId; if (node) this.targetNodes.delete(node)
     const connection = this.connections.get(peer.id)
     this.connections.delete(peer.id)
     this.failPending(peer.id)
@@ -58,9 +53,7 @@ export class SandboxHub {
   }
   private failPending(peerId: string) {
     for(const [id,p]of this.composePending)if(p.peerId===peerId){clearTimeout(p.timer);this.composePending.delete(id);p.reject(new Error('Worker connection lost'))}
-    for (const [id, pending] of this.targetPending) if (pending.peerId === peerId) {
-      clearTimeout(pending.timer); this.targetPending.delete(id); pending.reject(new Error('Worker connection lost'))
-    }
+
 
     for (const [id, pending] of this.pending) if (pending.peerId === peerId) {
       clearTimeout(pending.timer); this.pending.delete(id); pending.reject(new Error('Worker connection lost'))
@@ -76,19 +69,6 @@ export class SandboxHub {
       this.pending.set(id, { peerId: connection.peer.id, nodeId, bootId, sandboxId: String(payload.sandbox_id), type: type + '_resp', resolve, reject, timer })
       try { connection.peer.send(JSON.stringify({ id, type, payload: { ...payload, boot_id: bootId } })) }
       catch { clearTimeout(timer); this.pending.delete(id); reject(new Error('Worker send failed')) }
-    })
-  }
-  targetRpc(nodeId: string, bootId: string, type: 'target_start' | 'target_inspect' | 'target_stop' | 'target_image_prepare' | 'target_image_status', payload: {target_id: string; owner_id: string; image?: string; expires_at?: string; ports?: {port: number; protocol: 'tcp' | 'udp'}[]}, timeoutMs = 125000): Promise<TargetWorkerResult> {
-    this.sweep()
-    const record = this.records.get(nodeId)
-    if (!record?.connection || record.status.state !== 'online' || record.status.bootId !== bootId) return Promise.reject(new Error('Worker unavailable'))
-    if (!/^tgt_[a-f0-9]{16,64}$/.test(payload.target_id) || !/^[A-Za-z0-9_-]{1,128}$/.test(payload.owner_id)) return Promise.reject(new Error('Invalid target identity'))
-    const peer = record.connection.peer, id = randomBytes(16).toString('hex')
-    return new Promise((resolve, reject) => {
-      const timer = setTimeout(() => { this.targetPending.delete(id); reject(new Error('Worker acknowledgement timeout')) }, timeoutMs)
-      this.targetPending.set(id, {ownerId: payload.owner_id, peerId: peer.id, bootId, targetId: payload.target_id, type: type + '_resp', resolve, reject, timer})
-      try { peer.send(JSON.stringify({id, type, payload: {...payload, boot_id: bootId}})) }
-      catch { clearTimeout(timer); this.targetPending.delete(id); reject(new Error('Worker send failed')) }
     })
   }
   private reject(peer: WorkerPeer) { this.close(peer); peer.close(1008, 'Invalid control message') }
@@ -122,13 +102,6 @@ export class SandboxHub {
         if(p.summary)safe.summary={services:p.summary.services.map((s:any)=>({name:s.name,image:s.image})),networks:p.summary.networks,entry_service:p.summary.entry_service,entry_network:p.summary.entry_network,entry_port:p.summary.entry_port,report:p.summary.report}
         if(p.instance)safe.instance={target_id:p.instance.target_id,owner_id:p.instance.owner_id,state:p.instance.state,ready:p.instance.ready,readiness:p.instance.readiness,entry_address:typeof p.instance.entry_address==='string'?p.instance.entry_address.slice(0,128):undefined,attachment:p.instance.attachment,attacker_address:typeof p.instance.attacker_address==='string'?p.instance.attacker_address.slice(0,64):undefined,interface:typeof p.instance.interface==='string'&&/^lab[0-9]{1,3}$/.test(p.instance.interface)?p.instance.interface:undefined,services:p.instance.services.map((s:any)=>({name:s.name,state:s.state,health:s.health,ips:{...s.ips}})),expires_at:typeof p.instance.expires_at==='string'?p.instance.expires_at:undefined}
         clearTimeout(pending.timer);this.composePending.delete(msg.id);pending.resolve(safe)
-      } else if (['target_image_prepare_resp', 'target_image_status_resp', 'target_start_resp', 'target_inspect_resp', 'target_stop_resp'].includes(msg.type)) {
-        if (!connection.registered || typeof p.success !== 'boolean' || !text(p.target_id) || !text(p.boot_id)) { this.reject(peer); return }
-        const pending = this.targetPending.get(msg.id)
-        if (!pending) return // Late replies require persisted reconciliation, not speculative cleanup.
-        if (pending.peerId !== peer.id || pending.bootId !== p.boot_id || pending.targetId !== p.target_id || pending.type !== msg.type) { this.reject(peer); return }
-        if (p.instance && (p.instance.owner_id !== pending.ownerId || p.instance.target_id !== p.target_id || !text(p.instance.owner_id) || !text(p.instance.state) || typeof p.instance.ready !== 'boolean' || !text(p.instance.readiness))) { this.reject(peer); return }
-        clearTimeout(pending.timer); this.targetPending.delete(msg.id); pending.resolve(p)
       } else if (msg.type === 'create_box_resp'  || msg.type === 'destroy_box_resp') {
         if (!connection.registered || typeof p.success !== 'boolean' || !text(p.sandbox_id)) { this.reject(peer); return }
         const pending = this.pending.get(msg.id)
@@ -161,8 +134,6 @@ export class SandboxHub {
         record.status.telemetry = { loadAverage: p.load_avg, availableMemoryMb: p.mem_available_mb, freeDiskGb: p.disk_free_gb }
         record.status.sandboxes = inventory.map(s => ({ id: s.id, state: s.state, lastActiveAt: timestamp(s.last_active_at), guiRunning: !!s.gui_running }))
         this.reply(peer, 'heartbeat_ack', { success: true })
-        if (p.docker_targets?.available === true) this.targetNodes.add(connection.nodeId)
-        else this.targetNodes.delete(connection.nodeId)
         if(p.compose_labs?.available===true&&p.compose_labs?.network_verified===true&&p.compose_labs?.protocol_version===2)this.composeNodes.add(connection.nodeId)
         else this.composeNodes.delete(connection.nodeId)
         this.onInventory?.(structuredClone(record.status))

@@ -29,3 +29,5 @@
 - [Compose 本地构建与配套目录](implementation/compose-build-and-assets.md)
 
 - [Compose 准备任务取消、重试与强制重建](implementation/compose-preparation-management.md)
+
+- [第五轮第一步：退出旧单容器执行路径](implementation/compose-retirement-stage-one.md)

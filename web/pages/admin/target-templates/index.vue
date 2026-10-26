@@ -41,7 +41,7 @@ function submit() {
     <form class="filters" @submit.prevent="submit">
       <label class="search">
         <Search :size="15" aria-hidden="true" />
-        <input v-model="input" aria-label="搜索模板" placeholder="搜索名称或镜像" maxlength="100" />
+        <input v-model="input" aria-label="搜索模板" placeholder="搜索模板名称" maxlength="100" />
       </label>
       <button type="submit">搜索</button>
       <button type="button" :disabled="pending" @click="refresh()">
@@ -69,13 +69,13 @@ function submit() {
         <tbody>
           <tr v-for="item in data?.data.items" :key="item.id">
             <td class="template-cell">
-              <NuxtLink :to="item.runtime==='compose'?`/admin/target-templates/compose/${item.id}`:`/admin/target-templates/${item.id}`" class="user-name">
+              <NuxtLink :to="`/admin/target-templates/compose/${item.id}`" class="user-name">
                 {{ item.name }}
               </NuxtLink>
               <span class="secondary">{{ item.description }}</span>
             </td>
             <td>
-              <code class="image-code">{{ item.runtime==='compose'?'Compose · '+(item.composeSettings?.file||'部署包'):'旧单容器 · '+item.image }}</code>
+              <code class="image-code">{{ 'Compose · '+(item.composeSettings?.file||'部署包') }}</code>
             </td>
             <td>
               {{ item.ports.map(p => `${p.port}/${p.protocol.toUpperCase()}`).join('、') || '未配置' }}
@@ -86,7 +86,7 @@ function submit() {
               </span>
             </td>
             <td class="actions">
-              <NuxtLink :to="item.runtime==='compose'?`/admin/target-templates/compose/${item.id}`:`/admin/target-templates/${item.id}`">编辑</NuxtLink>
+              <NuxtLink :to="`/admin/target-templates/compose/${item.id}`">编辑</NuxtLink>
             </td>
           </tr>
         </tbody>

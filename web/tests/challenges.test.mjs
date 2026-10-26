@@ -10,7 +10,7 @@ test('challenge lifecycle: staged flags, privacy, throttle, persistence and brow
  const save=async(id,payload,status=200)=>req(id?`/api/admin/challenges/${id}`:'/api/admin/challenges',{actor:f.admin,method:id?'PUT':'POST',body:payload,status})
  try{
   const alice=await f.account(),bob=await f.account()
-  template=await req('/api/admin/target-templates',{actor:f.admin,method:'POST',body:{name:'挑战教学环境',description:'测试目标',image:'private.example/lab:1',sourceUrl:'https://private.example/project',enabled:true,ports:[],accessInstructions:'查看响应'}})
+  template=await f.seedTarget({name:'挑战教学环境',description:'测试目标',image:'private.example/lab:1',sourceUrl:'https://private.example/project',enabled:true,ports:[],accessInstructions:'查看响应'})
   draft.targetTemplateId=template.id
   await f.request('/api/admin/challenges',{status:401});await f.request('/api/admin/challenges',{actor:alice,status:403});await f.request('/api/me/challenges',{status:401})
   await save(null,{...draft,intent:'publish',stages:[]},400)
@@ -20,11 +20,11 @@ test('challenge lifecycle: staged flags, privacy, throttle, persistence and brow
   await save(created.id,{...draft,intent:'publish',lockVersion:d.lockVersion,stages:d.stages})
   await save(created.id,{...draft,lockVersion:d.lockVersion},409)
   d=await req(path);assert.equal(d.stages[1].locked,true);assert.equal(d.target.name,template.name);assert.ok(!JSON.stringify(d).includes('private.example'))
-  await req(`/api/admin/target-templates/${template.id}`,{actor:f.admin,method:'PUT',body:{...template,enabled:false}})
+  await req(`/api/admin/compose-templates/${template.id}`,{actor:f.admin,method:'PUT',body:{...template,enabled:false}})
   assert.deepEqual((await req(path)).target,{status:'unavailable'})
   await save(null,{...draft,intent:'draft'},400)
   const retained=await req(admin,{actor:f.admin});await save(created.id,{...draft,intent:'publish',lockVersion:retained.lockVersion,stages:retained.stages})
-  await req(`/api/admin/target-templates/${template.id}`,{actor:f.admin,method:'PUT',body:{...template,enabled:true,lockVersion:template.lockVersion+1}})
+  await req(`/api/admin/compose-templates/${template.id}`,{actor:f.admin,method:'PUT',body:{...template,enabled:true,lockVersion:template.lockVersion+1}})
   for(const text of ['first_secret','second_secret','flagHmac','flag_hmac'])assert.ok(!JSON.stringify(d).includes(text))
   const attempt=(index,flag,actor=alice,status=200)=>req(path+'/attempt',{actor,method:'POST',body:{stageId:d.stages[index].id,flag},status})
   await attempt(0,'flag{first_secret}',null,401)

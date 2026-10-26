@@ -12,17 +12,15 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
-	"time"
 )
 
 // NetworkConfig holds network virtualization settings for sandboxes.
 type NetworkConfig struct {
-	FirewallTable string                    `yaml:"firewall_table"`
-	BridgeName    string                    `yaml:"bridge_name"`
-	GatewayIP     string                    `yaml:"gateway_ip"`
-	SubnetCIDR    string                    `yaml:"subnet_cidr"`
-	Interface     string                    `yaml:"egress_interface"`
-	DockerTargets DockerTargetNetworkConfig `yaml:"docker_targets"`
+	FirewallTable string `yaml:"firewall_table"`
+	BridgeName    string `yaml:"bridge_name"`
+	GatewayIP     string `yaml:"gateway_ip"`
+	SubnetCIDR    string `yaml:"subnet_cidr"`
+	Interface     string `yaml:"egress_interface"`
 }
 
 // SandboxNetwork represents the network configuration of a single running sandbox.
@@ -36,7 +34,7 @@ type SandboxNetwork struct {
 
 // EnsureHostNetwork initializes the host bridge, IPv4 forwarding, NAT, and nftables containment baseline.
 func EnsureHostNetwork(cfg NetworkConfig) error {
-	if err := validateTargetNetwork(cfg); err != nil {
+	if err := validateSandboxNetwork(cfg); err != nil {
 		return err
 	}
 	table, err := firewallTableName(cfg.FirewallTable)
@@ -123,14 +121,6 @@ func EnsureHostNetwork(cfg NetworkConfig) error {
 	// - forward chain: Enforces same-bridge isolation and whitelisted internet egress
 	// - postrouting chain: Masquerades authorized egress to the external network
 	nftRules := renderFirewallRules(table, bridge, wanIF, portList)
-	if cfg.DockerTargets.Enabled {
-		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-		defer cancel()
-		if err := ensureDockerTargetNetwork(ctx, cfg); err != nil {
-			return err
-		}
-		nftRules = renderFirewallRules(table, bridge, wanIF, portList, cfg)
-	}
 	// Replace only our own table, atomically, without accumulating duplicate rules.
 	if exec.Command("nft", "list", "table", "inet", table).Run() == nil {
 		nftRules = "delete table inet " + table + "\n" + nftRules
@@ -154,30 +144,14 @@ func firewallTableName(value string) (string, error) {
 	return value, nil
 }
 
-// One template owns the Worker firewall; Docker only needs matching exceptions
-// in its existing forwarding hook. No extra bridge or routing layer is created.
-func renderFirewallRules(table, bridge, wanIF, portList string, configs ...NetworkConfig) string {
-	targetInput, targetForward := "", ""
-	if len(configs) > 0 && configs[0].DockerTargets.Enabled {
-		cfg := configs[0]
-		t := cfg.DockerTargets
-		targetInput = fmt.Sprintf("        iifname %q drop\n", t.BridgeName)
-		targetForward = fmt.Sprintf(`        # Existing connected routes carry lab traffic; only unblock forwarding.
-        iifname %q oifname %q ip saddr %s ip daddr %s accept
-        iifname %q oifname %q ip saddr %s ip daddr %s accept
-        # Block target egress even for connections established before this policy.
-        iifname %q drop
-        oifname %q drop
-`, bridge, t.BridgeName, cfg.SubnetCIDR, t.SubnetCIDR, t.BridgeName, bridge, t.SubnetCIDR, cfg.SubnetCIDR, t.BridgeName, t.BridgeName)
-	}
-
+// Sandbox eth0 containment is independent of per-instance lab networks.
+func renderFirewallRules(table, bridge, wanIF, portList string) string {
 	return fmt.Sprintf(`
 table inet %s {
     chain input {
         type filter hook input priority 0; policy accept;
         ct state established,related accept
 
-%s
         # Allow container to query host gateway DNS (53) and ping (icmp echo-request)
         iifname "%s" udp dport 53 accept
         iifname "%s" tcp dport 53 accept
@@ -189,7 +163,6 @@ table inet %s {
 
     chain forward {
         type filter hook forward priority 0; policy accept;
-%s
         ct state established,related accept
 
         # Preserve sandbox peer isolation.
@@ -210,7 +183,7 @@ table inet %s {
         iifname "%s" oifname "%s" masquerade
     }
 }
-`, table, targetInput, bridge, bridge, bridge, bridge, targetForward, bridge, bridge, bridge, wanIF, portList, bridge, wanIF, bridge, bridge, bridge, wanIF)
+`, table, bridge, bridge, bridge, bridge, bridge, bridge, bridge, wanIF, portList, bridge, wanIF, bridge, bridge, bridge, wanIF)
 }
 
 // VethNameForSandbox generates deterministic, instance-bound veth device names <= 15 chars (Linux IFNAMSIZ).

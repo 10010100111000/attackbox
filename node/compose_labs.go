@@ -19,6 +19,9 @@ import (
 	"attackbox/protocol"
 )
 
+var composeOwnerPattern = regexp.MustCompile(`^[A-Za-z0-9_-]{1,128}$`)
+var composeTargetPattern = regexp.MustCompile(`^tgt_[a-f0-9]{16,64}$`)
+
 type ComposeConfig struct {
 	Enabled         bool   `yaml:"enabled"`
 	NetworkVerified bool   `yaml:"network_verified"`
@@ -56,12 +59,7 @@ func newComposeLabs(cfg *NodeConfig, sandboxes *rt.RuntimeManager) (*composeLabs
 		return nil, fmt.Errorf("invalid Compose network pool")
 	}
 	excluded := []netip.Prefix{}
-	for _, s := range []string{cfg.Network.SubnetCIDR, func() string {
-		if cfg.Network.DockerTargets.Enabled {
-			return cfg.Network.DockerTargets.SubnetCIDR
-		}
-		return ""
-	}()} {
+	for _, s := range []string{cfg.Network.SubnetCIDR} {
 		if s != "" {
 			p, err := netip.ParsePrefix(s)
 			if err != nil {
@@ -193,7 +191,7 @@ func (c *NodeControlClient) sendCompose(msg *protocol.Message, resp protocol.Com
 func (c *NodeControlClient) executeCompose(ctx context.Context, msg *protocol.Message) protocol.ComposeResponse {
 	var req protocol.ComposeRequest
 	resp := protocol.ComposeResponse{}
-	if msg.UnpackPayload(&req) != nil || req.BootID != c.bootID || !targetOwnerPattern.MatchString(req.OwnerID) {
+	if msg.UnpackPayload(&req) != nil || req.BootID != c.bootID || !composeOwnerPattern.MatchString(req.OwnerID) {
 		resp.Error = "invalid_compose_request"
 		return resp
 	}
@@ -215,7 +213,7 @@ func (c *NodeControlClient) executeCompose(ctx context.Context, msg *protocol.Me
 		resp.Logs = job.Logs
 		return resp
 	}
-	if !targetIDPattern.MatchString(req.TargetID) {
+	if !composeTargetPattern.MatchString(req.TargetID) {
 		resp.Error = "invalid_target_identity"
 		return resp
 	}

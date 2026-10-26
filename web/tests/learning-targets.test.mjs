@@ -8,7 +8,7 @@ test('learning target bindings: inheritance, exceptions, disabled retention, acc
  const req=async(p,o)=>(await f.request(p,o)).data
  try{
   const user=await f.account()
-  for(const name of ['模块教学模板','章节教学模板']){const t=await req('/api/admin/target-templates',{actor:f.admin,method:'POST',body:{name,description:'预置教学文件',image:'private.example/lab:1',sourceUrl:'https://private.example/project',enabled:true,ports:[{port:80,protocol:'tcp'}],accessInstructions:'查看 /home/box/materials'}});templates.push(t)}
+  for(const name of ['模块教学模板','章节教学模板']){const t=await f.seedTarget({name,description:'预置教学文件',image:'private.example/lab:1',sourceUrl:'https://private.example/project',enabled:true,ports:[{port:80,protocol:'tcp'}],accessInstructions:'查看 /home/box/materials'});templates.push(t)}
   const [a,b]=templates
   await f.request('/api/admin/target-templates/options',{status:401});await f.request('/api/admin/target-templates/options',{actor:user,status:403})
   let d=await f.createModule();modules.push(d.module.id)
@@ -26,7 +26,7 @@ test('learning target bindings: inheritance, exceptions, disabled retention, acc
   assert.equal((await req(chapterPath+'intro')).target.name,a.name)
   await f.request(adminPath,{actor:f.admin,method:'PUT',body:{lockVersion:(await req(adminPath,{actor:f.admin})).module.lockVersion,defaultTargetTemplateId:'bad'},status:400})
   await f.request(adminPath,{actor:f.admin,method:'PUT',body:{lockVersion:(await req(adminPath,{actor:f.admin})).module.lockVersion,defaultTargetTemplateId:crypto.randomUUID()},status:400})
-  await req(`/api/admin/target-templates/${a.id}`,{actor:f.admin,method:'PUT',body:{...a,enabled:false}})
+  await req(`/api/admin/compose-templates/${a.id}`,{actor:f.admin,method:'PUT',body:{...a,enabled:false}})
   assert.deepEqual((await req(chapterPath+'intro')).target,{status:'unavailable'})
   d=await req(adminPath,{actor:f.admin});await save({defaultTargetTemplateId:a.id,chapters:d.chapters})
   const other=await f.createModule();modules.push(other.module.id)
@@ -38,11 +38,11 @@ test('learning target bindings: inheritance, exceptions, disabled retention, acc
    await f.request(adminPath,{actor:f.admin,method:'PUT',body:{lockVersion:current.module.lockVersion,chapters:current.chapters.map((c,i)=>i?c:{...c,...patch})},status:400})
    assert.equal((await req(adminPath,{actor:f.admin})).module.lockVersion,current.module.lockVersion)
   }
-  await req(`/api/admin/target-templates/${b.id}`,{actor:f.admin,method:'PUT',body:{...b,enabled:false}})
+  await req(`/api/admin/compose-templates/${b.id}`,{actor:f.admin,method:'PUT',body:{...b,enabled:false}})
   d=await req(adminPath,{actor:f.admin});await save({chapters:d.chapters})
   assert.deepEqual((await req(chapterPath+'permissions')).target,{status:'unavailable'})
-  await req(`/api/admin/target-templates/${b.id}`,{actor:f.admin,method:'PUT',body:{...b,lockVersion:b.lockVersion+1,enabled:true}})
-  await req(`/api/admin/target-templates/${a.id}`,{actor:f.admin,method:'PUT',body:{...a,lockVersion:a.lockVersion+1,enabled:true}})
+  await req(`/api/admin/compose-templates/${b.id}`,{actor:f.admin,method:'PUT',body:{...b,lockVersion:b.lockVersion+1,enabled:true}})
+  await req(`/api/admin/compose-templates/${a.id}`,{actor:f.admin,method:'PUT',body:{...a,lockVersion:a.lockVersion+1,enabled:true}})
   browser=await chromium.launch({executablePath:'/usr/bin/chromium',args:['--no-sandbox']})
   const ctx=await browser.newContext({viewport:{width:1440,height:1000}});await ctx.addCookies([{name:'attackbox_session',value:f.admin.token,url:f.base}])
   const p=await ctx.newPage();await p.goto(f.base+`/admin/modules/${d.module.id}`)

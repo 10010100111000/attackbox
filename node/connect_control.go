@@ -24,10 +24,7 @@ import (
 type NodeControlClient struct {
 	compose          *composeLabs
 	composeInitError string
-	targets          *DockerTargetManager
-	targetInitError  string
-	targetQueue      chan *protocol.Message
-	targetsCancel    context.CancelFunc
+	workCancel       context.CancelFunc
 	cfg              *NodeConfig
 	rtMgr            *rt.RuntimeManager
 	conn             *websocket.Conn
@@ -53,7 +50,6 @@ func NewNodeControlClient(cfg *NodeConfig, rtMgr *rt.RuntimeManager, onKeySync f
 		onKeySync: onKeySync,
 		mailboxes: make(map[string]*sandboxMailbox),
 	}
-	client.targetQueue = make(chan *protocol.Message, 16)
 	if cfg.ComposeLabs.Enabled {
 		var err error
 		client.compose, err = newComposeLabs(cfg, rtMgr)
@@ -64,23 +60,13 @@ func NewNodeControlClient(cfg *NodeConfig, rtMgr *rt.RuntimeManager, onKeySync f
 			rtMgr.SetLabLifecycle(client.compose.runtime.SandboxAvailable, client.compose.runtime.SandboxGone)
 		}
 	}
-	if cfg.Network.DockerTargets.Enabled {
-		var err error
-		client.targets, err = newConfiguredTargetManager(cfg)
-		if err != nil {
-			client.targetInitError = err.Error()
-			log.Printf("[TARGET] %s", err)
-		}
-	}
 	return client
 }
 
 func (c *NodeControlClient) Start(ctx context.Context) {
 	targetCtx, cancel := context.WithCancel(ctx)
-	c.targetsCancel = cancel
-	c.wg.Add(1)
-	go func() { defer c.wg.Done(); c.targetCommandLoop(targetCtx) }()
-	if c.targets != nil || c.compose != nil {
+	c.workCancel = cancel
+	if c.compose != nil {
 		c.wg.Add(1)
 		go func() { defer c.wg.Done(); c.experimentReaper(targetCtx) }()
 	}
@@ -93,8 +79,8 @@ func (c *NodeControlClient) Start(ctx context.Context) {
 }
 
 func (c *NodeControlClient) Stop() {
-	if c.targetsCancel != nil {
-		c.targetsCancel()
+	if c.workCancel != nil {
+		c.workCancel()
 	}
 	select {
 	case <-c.stopCh:
@@ -119,9 +105,6 @@ func (c *NodeControlClient) Stop() {
 			c.rtMgr.SetLabLifecycle(nil, nil)
 		}
 		c.compose.Close()
-	}
-	if c.targets != nil {
-		c.targets.Close()
 	}
 }
 
@@ -299,21 +282,11 @@ func (c *NodeControlClient) heartbeatLoop(ctx context.Context) {
 	send := func() {
 		_, available := readSystemMemoryMB()
 		revision, inventory := c.rtMgr.Inventory()
-		var targets *protocol.TargetInventory
-		if c.cfg.Network.DockerTargets.Enabled {
-			snapshot := protocol.TargetInventory{Error: c.targetInitError, Instances: []protocol.TargetSummary{}}
-			if c.targets != nil {
-				inventoryCtx, cancel := context.WithTimeout(ctx, time.Second)
-				snapshot = c.targets.Inventory(inventoryCtx)
-				cancel()
-			}
-			targets = &snapshot
-		}
 		var compose *protocol.ComposeCapability
 		if c.cfg.ComposeLabs.Enabled {
 			compose = &protocol.ComposeCapability{Available: c.compose != nil, NetworkVerified: c.cfg.ComposeLabs.NetworkVerified, ProtocolVersion: 2, Error: c.composeInitError}
 		}
-		hb, _ := protocol.NewMessage(protocol.MsgTypeHeartbeat, protocol.HeartbeatReq{ComposeLabs: compose, DockerTargets: targets, NodeID: c.cfg.Node.NodeID, BootID: c.bootID, Seq: atomic.AddUint64(&c.seq, 1), InventoryRevision: revision, Timestamp: time.Now().Unix(), LoadAvg: readSystemLoadAvg(), MemAvailableMB: available, DiskFreeGB: c.rtMgr.DiskGuard().GetCurrentFreeMB() / 1024, ActiveSandboxes: len(inventory), Sandboxes: inventory})
+		hb, _ := protocol.NewMessage(protocol.MsgTypeHeartbeat, protocol.HeartbeatReq{ComposeLabs: compose, NodeID: c.cfg.Node.NodeID, BootID: c.bootID, Seq: atomic.AddUint64(&c.seq, 1), InventoryRevision: revision, Timestamp: time.Now().Unix(), LoadAvg: readSystemLoadAvg(), MemAvailableMB: available, DiskFreeGB: c.rtMgr.DiskGuard().GetCurrentFreeMB() / 1024, ActiveSandboxes: len(inventory), Sandboxes: inventory})
 		_ = c.sendMessage(hb)
 	}
 	send()

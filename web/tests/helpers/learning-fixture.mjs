@@ -1,3 +1,5 @@
+import {rm} from 'node:fs/promises'
+import {join} from 'node:path'
 import assert from 'node:assert/strict'
 import crypto from 'node:crypto'
 import postgres from 'postgres'
@@ -33,13 +35,24 @@ export async function learningFixture() {
     moduleIds.push(data.module.id)
     return (await request(`/api/admin/modules/${data.module.id}`, { actor: admin })).data
   }
+  async function seedTarget(input={},boot='fixture') {
+    const uploaded=await fetch(base+'/api/admin/lab-bundles',{method:'POST',headers:{cookie:`attackbox_session=${admin.token}`,'content-type':'application/octet-stream','x-lab-filename':'compose.yml'},body:'services: {web: {image: nginx:1.27}}'})
+    assert.equal(uploaded.status,200);const bundle=(await uploaded.json()).data
+    const {data:t}=await request('/api/admin/compose-templates',{actor:admin,method:'POST',body:{name:input.name||'Compose fixture',description:input.description||'',accessInstructions:input.accessInstructions||'',bundleId:bundle.id,settings:{file:'compose.yml',entryService:'web',entryNetwork:'default',entryPort:80,prefixBits:28},variables:{},enabled:false}})
+    await sql`insert into lab_preparations(template_id,template_version,node_id,boot_id,state,deployment_id) values(${t.id},1,'test-node',${boot},'ready',${'dep_'+'a'.repeat(64)})`
+    await sql`update target_templates set enabled=${input.enabled!==false} where id=${t.id}`
+    return {...t,enabled:input.enabled!==false,settings:t.composeSettings,variables:{}}
+  }
   async function cleanup() {
     for (const id of moduleIds) await sql`DELETE FROM modules WHERE id=${id}`
+    const bundles=await sql`select id from lab_bundles where actor_id=${admin.id}`
+    await sql`delete from lab_bundles where actor_id=${admin.id}`
+    if(process.env.LAB_DATA_DIR)for(const {id}of bundles)await rm(join(process.env.LAB_DATA_DIR,id),{recursive:true,force:true})
     for (const account of accounts) {
       await sql`DELETE FROM audit_logs WHERE actor_user_id=${account.id}`
       await sql`DELETE FROM users WHERE id=${account.id}`
     }
     await sql.end()
   }
-  return { sql, base, admin, account, request, createModule, cleanup }
+  return { sql, base, admin, account, request, createModule, seedTarget, cleanup }
 }

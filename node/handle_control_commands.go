@@ -23,18 +23,6 @@ func (c *NodeControlClient) dispatchMessage(msg *protocol.Message) {
 	switch msg.Type {
 	case protocol.MsgComposePrepare, protocol.MsgComposePrepareStatus, protocol.MsgComposePrepareCancel, protocol.MsgComposeStart, protocol.MsgComposeInspect, protocol.MsgComposeStop:
 		c.dispatchCompose(msg)
-	case protocol.MsgTypeTargetImagePrepare, protocol.MsgTypeTargetImageStatus, protocol.MsgTypeTargetStart, protocol.MsgTypeTargetInspect, protocol.MsgTypeTargetStop:
-		select {
-		case <-c.stopCh:
-			c.sendTargetResponse(msg, protocol.TargetResponse{Error: "worker_stopping"})
-		default:
-			select {
-			case c.targetQueue <- msg:
-			default:
-				c.sendTargetResponse(msg, protocol.TargetResponse{Error: "target_queue_full"})
-			}
-		}
-
 	case protocol.MsgTypeRegisterAck:
 		log.Printf("[CLUSTER] Registration acknowledged by Control Hub")
 		var resp protocol.RegisterResp

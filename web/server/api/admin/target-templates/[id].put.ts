@@ -1,4 +1,3 @@
-import {defineEventHandler,getRouterParam,readBody} from 'h3'
+import {defineEventHandler,createError} from 'h3'
 import {requireAdmin} from '../../../utils/admin'
-import {saveTargetTemplate} from '../../../services/target-templates'
-export default defineEventHandler(async e=>{requireAdmin(e);return {ok:true,data:await saveTargetTemplate(getRouterParam(e,'id')!,await readBody(e))}})
+export default defineEventHandler(e=>{requireAdmin(e);throw createError({statusCode:410,message:'旧单容器接口已退出，请使用 Compose 部署包与节点准备接口'})})

@@ -118,7 +118,6 @@ type SandboxSummary struct {
 // HeartbeatReq 节点周期心跳真实遥测 (每 3 秒)
 type HeartbeatReq struct {
 	ComposeLabs       *ComposeCapability `json:"compose_labs,omitempty"`
-	DockerTargets     *TargetInventory   `json:"docker_targets,omitempty"`
 	InventoryRevision uint64             `json:"inventory_revision"`
 	NodeID            string             `json:"node_id"`
 	BootID            string             `json:"boot_id,omitempty"` // 节点启动唯一标识

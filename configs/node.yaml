@@ -4,7 +4,7 @@ compose_labs:
   network_verified: false
   state_dir: "/var/lib/attackbox/compose-labs"
   socket_path: "/var/run/docker.sock"
-  # Separate from legacy 10.201.0.0/16 while migrating.
+  # Node-local lab pool; select a range free of existing routes/networks.
   pool: "10.202.0.0/16"
 
 node:
@@ -45,11 +45,3 @@ network:
   gateway_ip: "10.200.0.1"
   subnet_cidr: "10.200.0.0/16"
   egress_interface: ""
-
-  docker_targets:
-    enabled: true
-    socket_path: "/var/run/docker.sock"
-    name: "attackbox-targets"
-    bridge_name: "br-ab-targets"
-    subnet_cidr: "10.201.0.0/16"
-    gateway_ip: "10.201.0.1"

@@ -44,7 +44,7 @@ test('manual local/Git import preserves identity and progress, protects images, 
   const imageUrl=Object.values(privateData.imageUrls)[0];assert.ok(imageUrl)
   assert.equal((await fetch(f.base+imageUrl)).status,401)
   assert.equal((await fetch(f.base+imageUrl,{headers:{cookie:`attackbox_session=${learner.token}`}})).status,200)
-  template=(await f.request('/api/admin/target-templates',{actor:f.admin,method:'POST',body:{name:'Import fixture target',description:'',image:'nginx:1.27',sourceUrl:'',ports:[],accessInstructions:'',enabled:true}})).data
+  template=await f.seedTarget({name:'Import fixture target',description:'',image:'nginx:1.27',sourceUrl:'',ports:[],accessInstructions:'',enabled:true})
   detail=(await f.request(`/api/admin/modules/${id}`,{actor:f.admin})).data
   await f.request(`/api/admin/modules/${id}/runtime`,{actor:f.admin,method:'PUT',body:{lockVersion:detail.module.lockVersion,defaultTargetTemplateId:template.id,chapters:[{chapterId,targetMode:'none',targetTemplateId:null}]}})
   await writeFile(path.join(root,'Imported.md'),makeSource(true,'First','Which command?','changed-answer'))

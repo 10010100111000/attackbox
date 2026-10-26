@@ -7,6 +7,6 @@ export function experimentNode(attacker: string | null | undefined, targets: str
 
 export function targetReplyState(previous: string, action: string, reply: {error?: string; instance?: {state: string}}): string {
   // A missing ledger or a stop tombstone does not confirm Docker removal.
-  if (reply.error === 'target_not_found' || reply.error === 'target_already_stopped') return 'unconfirmed'
+  if(reply.error&&!reply.instance)return action==='stop'?'stopping':'unconfirmed'
   return reply.instance?.state || (action === 'stop' ? 'stopping' : previous)
 }

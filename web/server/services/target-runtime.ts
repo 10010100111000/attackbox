@@ -1,4 +1,4 @@
-import { experimentNode, targetReplyState } from '../../shared/target-runtime'
+import { experimentNode } from '../../shared/target-runtime'
 import { randomBytes } from 'node:crypto'
 import { and, eq, ne, sql } from 'drizzle-orm'
 import { createError } from 'h3'
@@ -96,13 +96,14 @@ export async function targetOperation(
     if (existing && existing.state !== 'stopped') {
       return existing
     }
+    if(template.runtime!=='compose')throw createError({statusCode:410,message:'旧单容器模板已退出，请重新导入 Compose 部署包'})
     if (template.ports.length > 16) {
       throw createError({ statusCode: 409, message: '当前 Worker 最多支持 16 个服务端口' })
     }
 
     const nodes = hub
       .snapshot()
-      .nodes.filter(n => n.state === 'online' && !n.settings.draining && n.bootId && (template.runtime==='compose'?hub.composeNodes:hub.targetNodes).has(n.id))
+      .nodes.filter(n => n.state === 'online' && !n.settings.draining && n.bootId && hub.composeNodes.has(n.id))
     const prepared=template.runtime==='compose'?await tx.select().from(labPreparations).where(and(eq(labPreparations.templateId,template.id),eq(labPreparations.templateVersion,template.composeRevision),sql`${labPreparations.deploymentId} is not null`)):[]
     const eligible = (preferredNodeId ? nodes.filter(n => n.id === preferredNodeId) : nodes).filter(n=>template.runtime!=='compose'||prepared.some(p=>p.nodeId===n.id&&p.bootId===n.bootId&&p.deploymentId))
 
@@ -136,70 +137,8 @@ export async function targetOperation(
   if (!row) return null
   if (row.state === 'stopped') return view(row)
   if (row.expiresAt.getTime() <= Date.now()) action = 'stop'
-  if(row.runtime==='compose')return composeTargetOperation(row,action)
-  if (action === 'start' && row.state === 'stopping') {
-    throw createError({ statusCode: 409, message: '正在停止，请先刷新状态' })
-  }
-
-  const node = hub.snapshot().nodes.find(n => n.id === row.nodeId && n.state === 'online')
-  if (!node?.bootId) {
-    return { ...view(row), error: '节点离线，实例状态待确认' }
-  }
-
-  // Only mutating lifecycle commands (start / stop) claim a new revision before RPC.
-  // Read-only inspect queries must not increment revision and break an in-flight start or stop.
-  let targetRevision = row.revision
-  if (action !== 'inspect') {
-    const claimed = await db
-      .update(targetInstances)
-      .set({
-        revision: row.revision + 1,
-        ...(action === 'stop' ? { state: 'stopping' } : {}),
-      })
-      .where(and(eq(targetInstances.id, row.id), eq(targetInstances.revision, row.revision)))
-      .returning()
-
-    if (!claimed.length) {
-      throw createError({ statusCode: 409, message: '环境正在被其他请求操作，请刷新后重试' })
-    }
-    targetRevision = row.revision + 1
-  }
-
-  try {
-    const result = await hub.targetRpc(
-      row.nodeId,
-      node.bootId,
-      action === 'start' ? 'target_start' : action === 'stop' ? 'target_stop' : 'target_inspect',
-      {
-        target_id: row.id,
-        owner_id: user,
-        ...(action === 'start' ? { image: row.image, ports: row.ports, expires_at: row.expiresAt.toISOString() } : {}),
-      }
-    )
-
-    const convergedState = targetReplyState(row.state, action, result)
-
-    const [updated] = await db
-      .update(targetInstances)
-      .set({
-        state: convergedState,
-        result: result.instance ? { ...result.instance } : convergedState === 'stopped' ? null : row.result,
-        bootId: node.bootId,
-        updatedAt: new Date(),
-      })
-      .where(and(eq(targetInstances.id, row.id), eq(targetInstances.revision, targetRevision)))
-      .returning()
-
-    return {
-      ...view(updated || row),
-      ...(!result.success && convergedState !== 'stopped' ? { error: result.error === 'target_image_not_prepared' ? '靶机镜像尚未准备，请联系管理员在模板管理中准备镜像' : result.error || 'Worker 操作失败' } : {}),
-    }
-  } catch {
-    return {
-      ...view(row),
-      error: 'Worker 操作结果尚未确认',
-    }
-  }
+  if(row.runtime!=='compose')throw createError({statusCode:410,message:'发现未清理的旧单容器实例，请使用升级前版本完成释放；当前版本不会将其标记为已释放'})
+  return composeTargetOperation(row,action)
 }
 
 export async function stopUserTargets(userId: string): Promise<'none' | 'released' | 'pending'> {

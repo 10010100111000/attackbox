@@ -17,7 +17,7 @@ export async function challengeDetail(id:string,admin=false,user:string|null=nul
  let preceding=true
  const stages=rows.map(s=>{const locked=!s.passedAt&&!preceding;preceding=preceding&&!!s.passedAt;return {...s,passedAt:s.passedAt,locked,...(admin?{flag:flags.find(f=>f.id===s.id)?.flag}: {})}})
  let target:any=null
- if(c.targetTemplateId){const [t]=await tx`select name,description,ports,access_instructions as "accessInstructions",enabled from target_templates where id=${c.targetTemplateId}`;if(t?.enabled)target={status:'configured',name:t.name,description:t.description,ports:t.ports,accessInstructions:t.accessInstructions};else target={status:'unavailable'}}
+ if(c.targetTemplateId){const [t]=await tx`select runtime,name,description,ports,access_instructions as "accessInstructions",enabled from target_templates where id=${c.targetTemplateId}`;if(t?.enabled&&t.runtime==='compose')target={status:'configured',name:t.name,description:t.description,ports:t.ports,accessInstructions:t.accessInstructions};else target={status:'unavailable'}}
  const completedStages=stages.filter(s=>s.passedAt).length
  if(!admin)delete c.targetTemplateId
  return {...c,stages,target,totalStages:stages.length,completedStages,isCompleted:stages.length>0&&completedStages===stages.length}
@@ -33,7 +33,7 @@ export async function saveChallenge(id:string|null,body:any){
   const [old]=id?await tx`select * from challenges where id=${id} for update`:[]
   if(id&&!old)fail(404,'挑战不存在')
   if(old&&old.lock_version!==body.lockVersion)fail(409,'内容已被修改，当前输入已保留，请刷新后合并修改')
-  if(template){const [t]=await tx`select enabled from target_templates where id=${template} for share`;if(!t||!t.enabled&&old?.target_template_id!==template)fail(400,'请选择已启用的靶机模板')}
+  if(template){const [t]=await tx`select runtime,enabled from target_templates where id=${template} for share`;if(!t||(!t.enabled||t.runtime!=='compose')&&old?.target_template_id!==template)fail(400,'请选择已启用的靶机模板')}
   const status=body.intent==='publish'?'published':'unpublished'
   const [row]=id?await tx`update challenges set title=${body.title.trim()},summary=${body.summary.trim()},body_markdown=${body.bodyMarkdown},category=${body.category.trim()},difficulty=${body.difficulty},target_template_id=${template},status=${status},lock_version=lock_version+1,updated_at=now() where id=${id} returning id`:await tx`insert into challenges(title,summary,body_markdown,category,difficulty,target_template_id,status) values(${body.title.trim()},${body.summary.trim()},${body.bodyMarkdown},${body.category.trim()},${body.difficulty},${template},${status}) returning id`
   const oldStages=await tx`select id,position from challenge_stages where challenge_id=${row!.id}`
