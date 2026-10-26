@@ -25,3 +25,5 @@
 - [手动 Git 教程同步使用说明](implementation/git-content-sync-usage.md)：仓库凭据、部署变量、导入流程与后台维护边界。
 
 - [靶场 GitHub 导入、手动更新与版本兼容](implementation/lab-git-import.md)
+
+- [Compose 本地构建与配套目录](implementation/compose-build-and-assets.md)

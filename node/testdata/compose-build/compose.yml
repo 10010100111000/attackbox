@@ -1,0 +1,23 @@
+services:
+  init:
+    image: ${BASE_IMAGE:?supply the offline fixture base image}
+    command: [write, /data/initialized, initialized]
+    volumes: [./data:/data]
+  web:
+    build:
+      context: ./app
+      args:
+        BASE_IMAGE: ${BASE_IMAGE:?supply the offline fixture base image}
+        LITERAL: literal$$value
+    depends_on:
+      init:
+        condition: service_completed_successfully
+    volumes:
+      - ./config:/config:ro
+      - ./data:/data
+      - ./data:/readonly-data:ro
+    healthcheck:
+      test: [CMD, /fixture, check]
+      interval: 1s
+      timeout: 1s
+      retries: 5

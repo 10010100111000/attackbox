@@ -59,7 +59,7 @@ func TestParseRetainsDependenciesAndAppliesWholeProjectBudget(t *testing.T) {
 func TestParserRejectsRemoteExecutionAndUnsafeFeatures(t *testing.T) {
 	for _, content := range []string{
 		"include: [https://example.com/private.yml]\nservices: {}",
-		"services: {web: {image: fixture:local, build: .}}",
+		"services: {web: {image: fixture:local, build: https://example.com/repo.git}}",
 		"services: {web: {image: fixture:local, privileged: true}}",
 		"services: {web: {image: fixture:local, env_file: /etc/passwd}}",
 		"services: {web: {image: fixture:local, networks: [front]}}\nnetworks: {front: {external: true}}",

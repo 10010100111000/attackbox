@@ -210,3 +210,109 @@ func TestComposeRealEngineLifecycle(t *testing.T) {
 		}
 	}
 }
+
+func TestComposeRealBuildAndWritableAssets(t *testing.T) {
+	if os.Getenv("ATTACKBOX_TEST_COMPOSE_ENGINE") != "1" {
+		t.Skip("opt in with local Docker and offline fixture base image")
+	}
+	socket, image := os.Getenv("ATTACKBOX_TEST_DOCKER_SOCKET"), os.Getenv("ATTACKBOX_TEST_LAB_IMAGE")
+	if socket == "" || image == "" {
+		t.Fatal("explicit local socket and fixture base required")
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
+	defer cancel()
+	cli, err := NewCLI(CLIConfig{DockerSocket: socket, DockerConfig: t.TempDir()})
+	if err != nil {
+		t.Fatal(err)
+	}
+	node := "build-fixture-" + digest([]byte(time.Now().String()))[:12]
+	nets := &engineTestNetworks{fakeNetworks: &fakeNetworks{nets: map[string]labnetwork.Network{}, attachments: map[string]labnetwork.Attachment{}}, cli: cli, node: node}
+	m, err := New(ctx, Config{NodeID: node, StateDir: filepath.Join(t.TempDir(), "runtime"), Engine: cli, Networks: nets})
+	if err != nil {
+		t.Fatal(err)
+	}
+	requests := []Request{}
+	t.Cleanup(func() {
+		defer m.Close()
+		cleanup, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+		for _, r := range requests {
+			if _, err := m.Stop(cleanup, r.ID); err != nil {
+				t.Error("build fixture cleanup pending", err)
+			}
+		}
+	})
+	dir, _ := filepath.Abs("../testdata/compose-build")
+	d, err := m.Prepare(ctx, Bundle{Directory: dir, File: "compose.yml", Variables: map[string]string{"BASE_IMAGE": image}, EntryService: "web", EntryPort: 8080})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, owner := range []string{"alice", "bob"} {
+		r := req(d, "build_"+owner+"_"+node, owner)
+		requests = append(requests, r)
+		if _, err := m.Start(ctx, r); err != nil {
+			t.Fatal(err)
+		}
+	}
+	container := func(r Request) string {
+		t.Helper()
+		e, err := m.get(r.ID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		items, err := cli.inventory(ctx, e.snapshot())
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, c := range items {
+			if c.Config.Labels["com.docker.compose.service"] == "web" {
+				return c.ID
+			}
+		}
+		t.Fatal("web missing")
+		return ""
+	}
+	a, b := container(requests[0]), container(requests[1])
+	env, err := cli.run(ctx, "container", "inspect", "--format", "{{json .Config.Env}}", a)
+	if err != nil || !strings.Contains(string(env), "FIXTURE_LITERAL=literal$value") {
+		t.Fatal("literal build argument changed", err)
+	}
+	read := func(id, path string) string {
+		t.Helper()
+		out, err := cli.run(ctx, "exec", id, "/fixture", "read", path)
+		if err != nil {
+			t.Fatal("read failed", path, err)
+		}
+		return string(out)
+	}
+	if read(a, "/app.txt") != "built-locally" || read(a, "/config/site.conf") != "read-only-config" || read(a, "/data/initialized") != "initialized" || read(a, "/readonly-data/initialized") != "initialized" {
+		t.Fatal("build or init assets missing")
+	}
+	if _, err := cli.run(ctx, "exec", a, "/fixture", "write", "/data/seed.txt", "alice-only"); err != nil {
+		t.Fatal("non-root target cannot write its copy", err)
+	}
+	if _, err := cli.run(ctx, "exec", a, "/fixture", "write", "/config/site.conf", "bad"); err == nil {
+		t.Fatal("read-only directory became writable")
+	}
+	if read(b, "/data/seed.txt") != "original-data" {
+		t.Fatal("users share writable package directory")
+	}
+	if _, err := m.Start(ctx, requests[0]); err != nil {
+		t.Fatal(err)
+	}
+	if read(a, "/data/seed.txt") != "alice-only" {
+		t.Fatal("repeat start reset files")
+	}
+	if _, err := m.Stop(ctx, requests[0].ID); err != nil {
+		t.Fatal(err)
+	}
+	if read(b, "/data/seed.txt") != "original-data" {
+		t.Fatal("release affected other user")
+	}
+	if _, err := os.Stat(filepath.Join(m.cfg.StateDir, "instances", requests[0].ID, "assets")); !os.IsNotExist(err) {
+		t.Fatal("released copy still exists")
+	}
+	if err := cli.ImagePresent(ctx, text(object(object(d.Definition.Document["services"])["web"])["image"])); err != nil {
+		t.Fatal("release removed built image", err)
+	}
+}

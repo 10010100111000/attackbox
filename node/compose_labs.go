@@ -164,7 +164,7 @@ func (l *composeLabs) job(req protocol.ComposeRequest, prepare bool, cfg *NodeCo
 		if err == nil {
 			l.mu.Lock()
 			progress := l.jobs[req.PreparationID]
-			progress.Logs = append(progress.Logs, "部署包校验完成", "正在解析 Compose 与准备镜像")
+			progress.Logs = append(progress.Logs, "部署包校验完成", "正在解析 Compose、拉取或构建镜像")
 			l.jobs[req.PreparationID] = progress
 			l.mu.Unlock()
 			defer os.RemoveAll(dir)
@@ -195,6 +195,10 @@ func composeDiagnostic(err error) string {
 		}
 	}
 	switch message {
+	case "Docker Buildx plugin required for local builds":
+		return "节点缺少 Docker Buildx 插件，请安装 docker-buildx-plugin 后重试准备"
+	case "local image build failed":
+		return "本地镜像构建失败，请检查 Dockerfile、构建参数、基础镜像及节点构建环境"
 	case "Docker operation failed":
 		return "Docker 操作失败，请检查镜像引用、Registry 登录和节点网络"
 	case "bundle download rejected":

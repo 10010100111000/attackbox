@@ -1,5 +1,5 @@
-// Package labcompose manages prepared, private Compose lab projects. It is not
-// wired to the legacy Worker or public HTTP APIs.
+// Package labcompose manages prepared, private Compose lab projects behind the
+// Worker control protocol, independently of the legacy single-container engine.
 package labcompose
 
 import (
@@ -27,15 +27,17 @@ type Bundle struct {
 	PrefixBits                 int
 }
 type Definition struct {
-	Document     map[string]any    `json:"document"`
-	Files        map[string]string `json:"files"` // Relative package file -> SHA256.
-	Networks     []string          `json:"networks"`
-	EntryService string            `json:"entry_service"`
-	EntryNetwork string            `json:"entry_network"`
-	EntryPort    int               `json:"entry_port"`
-	PrefixBits   int               `json:"prefix_bits"`
-	OneShot      map[string]bool   `json:"one_shot"`
-	Report       []string          `json:"report"`
+	Builds       map[string]BuildSpec `json:"builds,omitempty"`
+	Directories  []string             `json:"directories,omitempty"`
+	Document     map[string]any       `json:"document"`
+	Files        map[string]string    `json:"files"` // Relative package file -> SHA256.
+	Networks     []string             `json:"networks"`
+	EntryService string               `json:"entry_service"`
+	EntryNetwork string               `json:"entry_network"`
+	EntryPort    int                  `json:"entry_port"`
+	PrefixBits   int                  `json:"prefix_bits"`
+	OneShot      map[string]bool      `json:"one_shot"`
+	Report       []string             `json:"report"`
 }
 type Deployment struct {
 	ID         string     `json:"id"`

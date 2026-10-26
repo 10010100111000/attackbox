@@ -2,6 +2,7 @@ package labcompose
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -74,5 +75,41 @@ func TestComposeVersionCompatibility(t *testing.T) {
 		if err := checkComposeVersion(version); err == nil {
 			t.Errorf("%q accepted", version)
 		}
+	}
+}
+
+func TestBuildArgumentsStayInPrivateFileAndBuilderUsesLocalDefault(t *testing.T) {
+	b := packageFile(t, "services: {web: {build: {context: ., args: {TOKEN: '${TOKEN}'}}}}")
+	os.WriteFile(filepath.Join(b.Directory, "Dockerfile"), []byte("FROM scratch\n"), 0600)
+	b.Variables = map[string]string{"TOKEN": "literal$private-build-value"}
+	d, err := Parse(context.Background(), b, Budget{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	stage := t.TempDir()
+	log := filepath.Join(stage, "arguments")
+	marker := filepath.Join(stage, "built")
+	script := fmt.Sprintf(`case "$2 $3" in
+"image inspect") if [ -f %q ]; then echo sha256:%s; else exit 1; fi;;
+"buildx version") exit 0;;
+"compose --ansi") printf '%%s\n' "$@" > %q; touch %q;;
+*) exit 9;;
+esac
+`, marker, strings.Repeat("a", 64), log, marker)
+	cli := scriptCLI(t, script)
+	if _, err := cli.BuildImage(context.Background(), b.Directory, stage, d.Builds["web"]); err != nil {
+		t.Fatal(err)
+	}
+	arguments, _ := os.ReadFile(log)
+	if strings.Contains(string(arguments), "private-build-value") || !strings.Contains(string(arguments), "--builder\ndefault") {
+		t.Fatal("build arguments leaked or remote builder selected")
+	}
+	encoded, _ := os.ReadFile(filepath.Join(stage, "build.json"))
+	if !strings.Contains(string(encoded), "literal$$private-build-value") {
+		t.Fatal("literal dollar changed in second Compose parse")
+	}
+	info, _ := os.Stat(filepath.Join(stage, "build.json"))
+	if info.Mode().Perm()&0077 != 0 {
+		t.Fatal("build definition is not private")
 	}
 }

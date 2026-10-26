@@ -114,10 +114,27 @@ func (m *Manager) Prepare(ctx context.Context, b Bundle) (Deployment, error) {
 	for _, name := range keys(object(def.Document["services"])) {
 		s := object(object(def.Document["services"])[name])
 		ref := text(s["image"])
+		build, local := def.Builds[name]
+		if local {
+			ref = "build:" + buildKey(build)
+		}
 		id, ok := prepared[ref]
 		var err error
 		if !ok {
-			id, err = m.cfg.Engine.PrepareImage(ctx, ref)
+			if local {
+				builder, supported := m.cfg.Engine.(ImageBuilder)
+				if !supported {
+					return Deployment{}, fmt.Errorf("engine does not support local builds")
+				}
+				stage, stageErr := os.MkdirTemp(m.cfg.StateDir, ".build-")
+				if stageErr != nil {
+					return Deployment{}, stageErr
+				}
+				id, err = builder.BuildImage(ctx, b.Directory, stage, build)
+				os.RemoveAll(stage)
+			} else {
+				id, err = m.cfg.Engine.PrepareImage(ctx, ref)
+			}
 			prepared[ref] = id
 		}
 		if err != nil {
@@ -174,6 +191,9 @@ func (m *Manager) Prepare(ctx context.Context, b Bundle) (Deployment, error) {
 			return Deployment{}, err
 		}
 	}
+	if err := exposeAssetDirectories(filepath.Join(tmp, "files"), def.Directories); err != nil {
+		return Deployment{}, err
+	}
 	if err := writeJSON(filepath.Join(tmp, "deployment.json"), dep); err != nil {
 		return Deployment{}, err
 	}
@@ -216,6 +236,16 @@ func (m *Manager) loadDeployment(id string) (Deployment, error) {
 			return d, fmt.Errorf("prepared file changed")
 		}
 	}
+	for _, dir := range d.Definition.Directories {
+		path, err := safePath(filepath.Join(root, "files"), dir)
+		if err != nil {
+			return d, err
+		}
+		info, err := os.Stat(path)
+		if err != nil || !info.IsDir() {
+			return d, fmt.Errorf("prepared directory changed")
+		}
+	}
 	return d, nil
 }
 
@@ -223,13 +253,18 @@ func (m *Manager) render(r Record, d Deployment) (string, error) {
 	doc := cloneDocument(d.Definition.Document)
 	doc["name"] = r.Project
 	labels := ownedLabels(m.cfg.NodeID, r)
+	writable := writableSources(d)
 	for _, v := range object(doc["services"]) {
 		s := object(v)
 		s["labels"] = labels
 		for _, raw := range slice(s["volumes"]) {
 			mount := object(raw)
 			if text(mount["type"]) == "bind" {
-				mount["source"] = filepath.Join(m.cfg.StateDir, "deployments", d.ID, text(mount["source"]))
+				if !privateAssetSource(text(mount["source"]), writable) {
+					mount["source"] = filepath.Join(m.cfg.StateDir, "deployments", d.ID, text(mount["source"]))
+				} else {
+					mount["source"] = filepath.Join(m.cfg.StateDir, "instances", r.Request.ID, "assets", text(mount["source"]))
+				}
 			}
 		}
 	}

@@ -23,7 +23,7 @@
 - 压缩包／上传最大 8 MiB，最多 512 项；解压后总计 32 MiB，单文件最大 4 MiB，Compose 最大 1 MiB。
 - 使用流式 ZIP 解压，拒绝目录穿越、重复路径、symlink、特殊文件和加密 ZIP；文件路径首版限 ASCII 字母、数字、点、横线、下划线和斜线。
 - 服务文件引用相对 Compose 文件所在目录解析，不能超出整份部署包；不会把子目录里的 Compose 错当成根目录配置。
-- 已新增 GitHub 导入，见 [Git 来源](lab-git-import.md)；本轮仍未实现源码构建。`build`、`include`、`extends`、profiles、env_file、host 网络、特权／设备、共享外部资源、可写／目录 bind 等仍明确不支持，见 [运行器支持范围](compose-runtime-local.md)。
+- 已新增 GitHub 导入，见 [Git 来源](lab-git-import.md)；本地构建及目录挂载已在 [构建迭代](compose-build-and-assets.md) 接入。`include`、`extends`、profiles、env_file、host 网络、特权／设备、共享外部资源、宿主路径等仍明确不支持，见 [运行器支持范围](compose-runtime-local.md)。
 - 服务／依赖与挂载最终由 Go 官方 compose-go 校验。网页预览提供及时提示，不作为运行权限或安全校验的替代。
 - 包与准备产物私有保存，未作为 Nuxt public 或 Nginx 静态目录开放。尚无未引用包的自动 GC，管理员取消导入留下的私有包不会被误删；后续维护功能再收敛。
 
@@ -116,4 +116,4 @@ npm --prefix web run build
 
 Go 测试覆盖包摘要、路径、重定向、TLS 限制、停止保留容量、启动失败后的取消、嵌套 Compose、宿主端口转换与原有生命周期。真实 Compose 夹具证明多用户数据独立、初始化依赖、宿主端口没有发布、重启与释放；这与模拟控制通道验收分别记录，不宣称已在真实 Btrfs＋veth 环境完成联调。
 
-GitHub 目录来源与手动更新已在 [第四轮前半段](lab-git-import.md) 接入；下一轮做 Dockerfile 构建与更完整的配套目录支持。第五轮再安排旧单容器模板转换和旧网络／协议／表单退出，不把旧路径永久作为隐藏 fallback。
+GitHub 目录来源与手动更新已在 [第四轮前半段](lab-git-import.md) 接入；本地 Dockerfile 构建与配套目录也已在 [构建迭代](compose-build-and-assets.md) 接入。第五轮再安排旧单容器模板转换和旧网络／协议／表单退出，不把旧路径永久作为隐藏 fallback。

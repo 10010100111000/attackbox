@@ -139,3 +139,5 @@ ATTACKBOX_TEST_LAB_IMAGE=attackbox-lab-network-fixture:local \
 下一轮按 [分步迁移计划](compose-target-migration-plan.md) 第三轮接后台导入、准备任务、协议及学习／挑战组件；生产切换仍以前述网络验收为前提。
 
 版本检查已由后续 [Git 来源与兼容性迭代](lab-git-import.md#compose-版本兼容) 改为稳定版 >=2.40.3、<3.0.0；本文 2.40.3 指验收所用版本。
+
+本地 Dockerfile 构建、只读目录和实例独立可写文件／目录已由 [第四轮构建迭代](compose-build-and-assets.md) 实现，上述“首版拒绝”保留第二轮历史边界。

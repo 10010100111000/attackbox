@@ -182,11 +182,15 @@ func Parse(ctx context.Context, bundle Bundle, budget Budget) (Definition, error
 		if s == nil {
 			return def, fmt.Errorf("invalid service configuration")
 		}
-		if err := allowed(s, "image command entrypoint environment depends_on healthcheck networks volumes working_dir user init read_only hostname container_name ports expose restart mem_limit cpus pids_limit stop_signal stop_grace_period"); err != nil {
+		if err := allowed(s, "image build command entrypoint environment depends_on healthcheck networks volumes working_dir user init read_only hostname container_name ports expose restart mem_limit cpus pids_limit stop_signal stop_grace_period"); err != nil {
 			return def, err
 		}
-		if text(s["image"]) == "" {
-			return def, fmt.Errorf("every service requires an image; build is not supported yet")
+		if s["build"] != nil {
+			if err := rawBuildAllowed(s["build"]); err != nil {
+				return def, err
+			}
+		} else if text(s["image"]) == "" {
+			return def, fmt.Errorf("every service requires an image or local build")
 		}
 	}
 	for name, value := range object(raw["networks"]) {
@@ -235,6 +239,7 @@ func Parse(ctx context.Context, bundle Bundle, budget Budget) (Definition, error
 		return def, err
 	}
 	def.Files = map[string]string{}
+	def.Builds = map[string]BuildSpec{}
 	def.OneShot = map[string]bool{}
 	def.EntryService = bundle.EntryService
 	def.EntryNetwork = bundle.EntryNetwork
@@ -279,6 +284,15 @@ func Parse(ctx context.Context, bundle Bundle, budget Budget) (Definition, error
 	}
 	for _, name := range names {
 		s := object(docServices[name])
+		if s["build"] != nil {
+			spec, err := parseBuild(bundle.Directory, s["build"])
+			if err != nil {
+				return def, err
+			}
+			def.Builds[name] = spec
+			delete(s, "build")
+			def.Report = append(def.Report, name+": local Dockerfile built during node preparation; declared image tag not published")
+		}
 		if ports, ok := s["ports"].([]any); ok {
 			if len(ports) > 32 {
 				return def, fmt.Errorf("too many declared service ports")
@@ -365,32 +379,22 @@ func Parse(ctx context.Context, bundle Bundle, budget Budget) (Definition, error
 			mount := object(m)
 			switch text(mount["type"]) {
 			case "bind":
-				if mount["read_only"] != true {
-					return def, fmt.Errorf("package binds must be read-only")
-				}
 				if opts := object(mount["bind"]); opts != nil {
 					if err := allowed(opts, "create_host_path"); err != nil {
 						return def, err
 					}
 				}
-				src, err := safePath(bundle.Directory, text(mount["source"]))
+				rel, dir, err := snapshotPath(bundle.Directory, text(mount["source"]), def.Files)
 				if err != nil {
 					return def, err
 				}
-				info, err := os.Stat(src)
-				if err != nil {
-					return def, err
+				if dir {
+					def.Directories = append(def.Directories, rel)
 				}
-				if info.IsDir() {
-					return def, fmt.Errorf("this round supports read-only package files; directory mounts need explicit packaging")
+				if mount["read_only"] != true {
+					def.Report = append(def.Report, name+": writable package mount copied per instance")
 				}
-				b, err := readBounded(src, 4<<20)
-				if err != nil {
-					return def, err
-				}
-				rel, _ := filepath.Rel(bundle.Directory, src)
-				rel = filepath.ToSlash(rel)
-				def.Files[rel] = digest(b)
+
 				mount["source"] = "files/" + rel
 				mount["bind"] = map[string]any{"create_host_path": false}
 			case "volume":
@@ -427,9 +431,10 @@ func Parse(ctx context.Context, bundle Bundle, budget Budget) (Definition, error
 		def.Report = append(def.Report, key+": internal network managed by platform")
 	}
 	def.Report = append(def.Report, "resource limits distributed within whole-project budget")
-	sort.Strings(def.Report)
+	def.Report = sortedUnique(def.Report)
 	delete(def.Document, "name")
-	if len(def.Files) > 128 {
+	def.Directories = sortedUnique(def.Directories)
+	if len(def.Files) > 512 {
 		return def, fmt.Errorf("too many package files")
 	}
 	return def, nil

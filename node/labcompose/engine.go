@@ -11,6 +11,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -65,7 +66,7 @@ func (b *limitedOutput) Write(p []byte) (int, error) {
 
 func (c *CLI) run(ctx context.Context, args ...string) ([]byte, error) {
 	limit := 2 * time.Minute
-	if len(args) >= 2 && args[0] == "image" && args[1] == "pull" {
+	if len(args) >= 2 && (args[0] == "image" && args[1] == "pull" || args[0] == "compose" && slices.Contains(args, "build")) {
 		limit = 30 * time.Minute
 	}
 	ctx, cancel := context.WithTimeout(ctx, limit)

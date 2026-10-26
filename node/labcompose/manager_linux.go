@@ -10,6 +10,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strings"
 	"sync"
 	"time"
 
@@ -68,6 +69,19 @@ func New(ctx context.Context, cfg Config) (*Manager, error) {
 	for _, dir := range []string{"deployments", "instances"} {
 		if err := privateDir(filepath.Join(cfg.StateDir, dir)); err != nil {
 			return fail(err)
+		}
+	}
+	entries, err := os.ReadDir(cfg.StateDir)
+	if err != nil {
+		return fail(err)
+	}
+	// The runtime lock proves previous preparation workers are no longer owned
+	// by a live Manager. Only remove our transient build workspaces.
+	for _, entry := range entries {
+		if strings.HasPrefix(entry.Name(), ".build-") {
+			if err := os.RemoveAll(filepath.Join(cfg.StateDir, entry.Name())); err != nil {
+				return fail(err)
+			}
 		}
 	}
 	if err := cfg.Engine.Check(ctx); err != nil {
@@ -308,6 +322,9 @@ func (m *Manager) Start(ctx context.Context, req Request) (Status, error) {
 			}
 		}
 		r = e.snapshot()
+		if err := m.prepareInstanceAssets(r, d); err != nil {
+			return err
+		}
 		file, err := m.render(r, d)
 		if err != nil {
 			return err
@@ -413,6 +430,9 @@ func (m *Manager) stopEntry(ctx context.Context, e *entry, d Deployment) (Status
 		if err := m.cfg.Networks.ReleaseNetwork(ctx, n.ID); err != nil {
 			return pending(r), err
 		}
+	}
+	if err := m.removeInstanceAssets(r); err != nil {
+		return pending(r), err
 	}
 	e.mu.Lock()
 	e.record.Cleaned = true
