@@ -46,7 +46,20 @@ test('manual local/Git import preserves identity and progress, protects images, 
   assert.equal((await fetch(f.base+imageUrl,{headers:{cookie:`attackbox_session=${learner.token}`}})).status,200)
   template=await f.seedTarget({name:'Import fixture target',description:'',image:'nginx:1.27',sourceUrl:'',ports:[],accessInstructions:'',enabled:true})
   detail=(await f.request(`/api/admin/modules/${id}`,{actor:f.admin})).data
-  await f.request(`/api/admin/modules/${id}/runtime`,{actor:f.admin,method:'PUT',body:{lockVersion:detail.module.lockVersion,defaultTargetTemplateId:template.id,chapters:[{chapterId,targetMode:'none',targetTemplateId:null}]}})
+  const contentBefore=detail.chapters.map(c=>({id:c.chapterId,slug:c.slug,position:c.position,title:c.title,body:c.bodyMarkdown,questions:c.questions.map(q=>q.id)}))
+  const runtimePath=`/api/admin/modules/${id}/runtime`,runtimeBody={lockVersion:detail.module.lockVersion,defaultTargetTemplateId:template.id,chapters:[{chapterId,targetMode:'none',targetTemplateId:null}]}
+  await f.request(runtimePath,{actor:f.admin,method:'PUT',body:runtimeBody})
+  const afterRuntime=(await f.request(`/api/admin/modules/${id}`,{actor:f.admin})).data
+  assert.deepEqual(afterRuntime.chapters.map(c=>({id:c.chapterId,slug:c.slug,position:c.position,title:c.title,body:c.bodyMarkdown,questions:c.questions.map(q=>q.id)})),contentBefore,'runtime save never rewrites tutorial content, order or question identity')
+  assert.equal(afterRuntime.module.lockVersion,detail.module.lockVersion+1);assert.equal(afterRuntime.module.defaultTargetTemplateId,template.id);assert.equal(afterRuntime.chapters.find(c=>c.chapterId===chapterId).targetMode,'none')
+  await f.request(runtimePath,{actor:f.admin,method:'PUT',body:runtimeBody,status:409})
+  const current=afterRuntime.module.lockVersion
+  await f.request(runtimePath,{actor:f.admin,method:'PUT',body:{lockVersion:current,chapters:[{chapterId,targetMode:'bogus'}]},status:400})
+  await f.request(runtimePath,{actor:f.admin,method:'PUT',body:{lockVersion:current,chapters:[{chapterId:'00000000-0000-4000-8000-000000000000',targetMode:'none'}]},status:409})
+  await f.request(runtimePath,{actor:f.admin,method:'PUT',body:{lockVersion:'1'},status:400})
+  await f.request(runtimePath,{actor:f.admin,method:'PUT',body:{lockVersion:current,prerequisiteModuleIds:[id]},status:400})
+  assert.equal((await f.request(`/api/admin/modules/${id}`,{actor:f.admin})).data.module.lockVersion,current,'rejected runtime saves roll back completely')
+  detail=afterRuntime
   await writeFile(path.join(root,'Imported.md'),makeSource(true,'First','Which command?','changed-answer'))
   preview=await create();await sync.applyContentPreview(preview.id,f.admin.id)
   detail=(await f.request(`/api/admin/modules/${id}`,{actor:f.admin})).data

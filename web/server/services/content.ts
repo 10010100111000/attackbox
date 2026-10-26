@@ -1,21 +1,11 @@
-import { eq, and, asc, sql, inArray } from 'drizzle-orm'
+import { eq, and, asc, sql } from 'drizzle-orm'
 import { db } from '../db'
-import { modules, chapters, chapterQuestions, auditLogs, contentCategories, assets, modulePrerequisites, targetTemplates, moduleSources } from '../db/schema'
+import { modules, chapters, chapterQuestions, contentCategories, assets, modulePrerequisites, moduleSources } from '../db/schema'
 import {contentImageUrls} from './content-images'
-import { fail, slugFor, validateModule, questionValues, validateTemplateId } from './content-input'
+import { fail, slugFor, validateModule, questionValues } from './content-input'
+import { type Tx, auditModule, checkTargetTemplate, lockModule, resolveChapterTarget, writePrerequisites } from './module-references'
 import type { ModuleInput, ChapterInput, AdminModuleDetail } from '../../shared/content'
-type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0]
 
-async function lockModule(tx: Tx, id: string, input: ModuleInput) {
-  const [mod] = await tx.select().from(modules).where(eq(modules.id, id)).for('update')
-  if (!mod) fail('模块不存在', 404)
-  if (input.lockVersion === undefined) fail('缺少修改标识，请刷新后重试', 409)
-  if (input.lockVersion !== mod.lockVersion) fail('内容已被其他管理员修改，请刷新后重试', 409)
-  return mod
-}
-async function audit(tx: Tx, actor: string, id: string, action: string) {
-  await tx.insert(auditLogs).values({ actorUserId: actor, action, targetType: 'module', targetId: id })
-}
 async function validateReferences(tx: Tx, input: ModuleInput) {
   if (input.categoryId) {
     const [category] = await tx.select().from(contentCategories).where(eq(contentCategories.id, input.categoryId))
@@ -34,13 +24,7 @@ async function writeChapter(tx: Tx, moduleId: string, input: ChapterInput, posit
   const old = existing.find(c => c.id === input.chapterId)
   if (input.chapterId && !old) fail('章节不属于当前模块', 409)
   if (input.durationMinutes !== undefined && input.durationMinutes !== null && (!Number.isInteger(input.durationMinutes) || input.durationMinutes < 1 || input.durationMinutes > 1440)) fail('预计时长需为 1–1440 分钟的整数，或留空')
-  const targetMode = input.targetMode ?? old?.targetMode ?? 'inherit'
-  if(!['inherit','none','custom'].includes(targetMode))fail('章节实验环境选项无效')
-  if(input.targetTemplateId!==undefined)validateTemplateId(input.targetTemplateId)
-  const targetTemplateId = targetMode==='custom' ? (input.targetTemplateId===undefined ? old?.targetTemplateId ?? null : input.targetTemplateId) : null
-  if(targetMode!=='custom'&&input.targetTemplateId)fail('仅另选模板时可以指定章节靶机')
-  if(targetMode==='custom'&&!targetTemplateId)fail('请为章节选择靶机模板')
-  await checkTargetTemplate(tx,targetTemplateId,old?.targetMode==='custom'?old.targetTemplateId:null)
+  const { targetMode, targetTemplateId } = await resolveChapterTarget(tx, old, input)
   const values = { targetMode, targetTemplateId, title: input.title.trim(), access: input.access, bodyMarkdown: input.bodyMarkdown, position, durationMinutes: input.durationMinutes === undefined ? old?.durationMinutes ?? null : input.durationMinutes }
   const [chapter] = old
     ? await tx.update(chapters).set(values).where(eq(chapters.id, old.id)).returning()
@@ -76,25 +60,6 @@ async function validatePublication(tx: Tx, id: string) {
     if (questions.some(q => !q.promptMarkdown.trim() || !q.answerHmac)) fail('存在未设置题目或标准答案的练习')
   }
 }
-async function writePrerequisites(tx: Tx, moduleId: string, ids: string[]) {
-  ids = ids.map(id => id.toLowerCase())
-  if (ids.includes(moduleId)) fail('模块不能将自身设为前置模块')
-  if (ids.length) {
-    const found = await tx.select({ id: modules.id }).from(modules).where(inArray(modules.id, ids))
-    if (found.length !== ids.length) fail('前置模块不存在，请重新选择')
-  }
-  await tx.delete(modulePrerequisites).where(eq(modulePrerequisites.moduleId, moduleId))
-  if (!ids.length) return
-  await tx.insert(modulePrerequisites).values(ids.map((prerequisiteId, index) => ({ moduleId, prerequisiteId, position: index + 1 })))
-  const cycle = await tx.execute(sql`
-    with recursive reachable(id) as (
-      select prerequisite_id from module_prerequisites where module_id = ${moduleId}::uuid
-      union
-      select p.prerequisite_id from module_prerequisites p join reachable r on p.module_id = r.id
-    ) select id from reachable where id = ${moduleId}::uuid limit 1
-  `)
-  if (cycle.length) fail('前置模块形成循环，请调整学习顺序')
-}
 export async function saveModuleInTransaction(tx: Tx, id: string | null, actor: string, input: ModuleInput) {
   validateModule(input)
   if (!id && !input.title?.trim()) fail('请填写模块名称')
@@ -108,7 +73,7 @@ export async function saveModuleInTransaction(tx: Tx, id: string | null, actor: 
     if (metadata.learningOutcomes) metadata.learningOutcomes = metadata.learningOutcomes.map(item => item.trim())
     let mod: typeof modules.$inferSelect
     if (id) {
-      mod = await lockModule(tx, id, input)
+      mod = await lockModule(tx, id, input.lockVersion)
       if(input.defaultTargetTemplateId!==undefined)await checkTargetTemplate(tx,input.defaultTargetTemplateId,mod.defaultTargetTemplateId)
       if (input.slug !== undefined && slugFor(input.slug, 'module') !== mod.slug) fail('创建后不能修改访问标识')
       ;[mod] = await tx.update(modules).set({ ...metadata, lockVersion: mod.lockVersion + 1, updatedAt: new Date() }).where(eq(modules.id, id)).returning()
@@ -134,7 +99,7 @@ export async function saveModuleInTransaction(tx: Tx, id: string | null, actor: 
     if (input.intent) {
       ;[mod] = await tx.update(modules).set({ status, publishedAt: status === 'published' ? (mod.publishedAt || new Date()) : mod.publishedAt }).where(eq(modules.id, mod.id)).returning()
     }
-    await audit(tx, actor, mod.id, id ? 'admin.module.save' : 'admin.module.create')
+    await auditModule(tx, actor, mod.id, id ? 'admin.module.save' : 'admin.module.create')
     return { module: mod }
 }
 export async function saveModule(id: string | null, actor: string, input: ModuleInput) {
@@ -151,7 +116,7 @@ export async function lifecycle(id: string, actor: string, action: 'publish' | '
   validateModule(input)
   return db.transaction(async tx => {
     await tx.execute(sql`select pg_advisory_xact_lock(72486211)`)
-    const mod = await lockModule(tx, id, input)
+    const mod = await lockModule(tx, id, input.lockVersion)
     if (action === 'delete') {
       const [source]=await tx.select().from(moduleSources).where(eq(moduleSources.moduleId,id));if(source)fail('请先在 Git 中移除来源并完成影响确认；当前可下架模块',409)
       const refs = await tx.execute(sql`select 1 from learning_route_modules where module_id=${id} limit 1`)
@@ -164,7 +129,7 @@ export async function lifecycle(id: string, actor: string, action: 'publish' | '
         publishedAt: action === 'publish' ? (mod.publishedAt || new Date()) : mod.publishedAt,
         lockVersion: mod.lockVersion + 1, updatedAt: new Date() }).where(eq(modules.id, id))
     }
-    await audit(tx, actor, id, `admin.module.${action}`)
+    await auditModule(tx, actor, id, `admin.module.${action}`)
     return { id }
   })
 }
@@ -191,9 +156,4 @@ export async function getModuleDetail(id: string): Promise<AdminModuleDetail> {
   }, { isolationLevel: 'repeatable read', accessMode: 'read only' })
 }
 
-async function checkTargetTemplate(tx:Tx,id:string|null,previous:string|null){
- if(!id)return
- const [template]=await tx.select({id:targetTemplates.id,enabled:targetTemplates.enabled}).from(targetTemplates).where(eq(targetTemplates.id,id)).for('share')
- if(!template)fail('靶机模板不存在，请重新选择')
- if(!template.enabled&&id.toLowerCase()!==previous?.toLowerCase())fail('该靶机模板已停用，请选择已启用模板')
-}
+
