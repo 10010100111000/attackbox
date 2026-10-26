@@ -1,5 +1,7 @@
 # Docker 靶机：小步迭代计划
 
+> 历史阶段记录：本文包含当时的待办与限制，不代表当前功能状态。后续多服务部署和网络重构以 [Compose 靶场分步重构计划](compose-target-migration-plan.md) 为准；现有到期释放见 [Docker 靶机租期](docker-target-leases.md)。
+
 状态：模板基础管理、学习关联和挑战内容闭环已实现，Worker Docker 网络与单容器生命周期已实现，Nuxt／页面运行接入待做。用户管理、学习路线和真实 Worker 单机验收已存档至 `912ff40`。
 
 ## 已确认的方向
