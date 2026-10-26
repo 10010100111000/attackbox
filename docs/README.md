@@ -8,6 +8,7 @@
 - [Docker 网络](implementation/worker-docker-network.md)：双网桥互通及访问边界。
 - [Compose 靶场分步重构计划](implementation/compose-target-migration-plan.md)：独立实验网络、沙箱第二网卡接入、多服务部署及旧单容器路径退出的分轮安排。
 - [本机实验网络第一轮](implementation/lab-network-local.md)：独立 Go 模块、namespace 身份固定、地址预留、接线恢复和本地验证；尚未切换生产路径。
+- [Compose 运行器第二轮](implementation/compose-runtime-local.md)：独立多服务生命周期、固定镜像、实例数据、到期清理和真实本机 Compose 验证；尚未接入生产 Worker。
 - [Worker 生命周期](implementation/worker-docker-target-runtime.md)：协议、持久归属与容器管理。
 - [CLI／GUI 工作台](implementation/environment-workbench.md)：独立页面、窗口操作及环境控制。
 - [内容分类](implementation/content-categories.md)：分类管理、删除语义与抽屉交互。

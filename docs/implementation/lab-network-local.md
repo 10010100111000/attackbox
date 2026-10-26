@@ -66,9 +66,13 @@ Docker 网络固定为 IPv4、`internal=true`、关闭 masquerade，保留容器
 
 `bt_` 是本模块保留的桥名前缀，宿主机不要将无关网络命名为该前缀。保护表保留到显式维护，不在退出时删除，避免留下未保护的存量资源。
 
+新建 veth 不仅依赖创建请求中的 Alias：独占创建成功后，先核对固定 namespace 中的双向 peer ifindex，再显式 SETLINK 写入宿主别名并重读验证。失败时仅回滚已确认的新建链路；已有接口仍须原有归属标记匹配，不接管空别名接口。
+
 ## 持久化与恢复
 
 `StateDir` 必须是专用绝对路径、权限 0700，不放进 Btrfs 沙箱实例目录。状态文件 0600，写入经过临时文件、fsync、rename 和目录 fsync；文件锁阻止两个进程同时分配地址。
+
+测试使用 `filepath.Join(t.TempDir(), "state")` 作为状态目录，由模块按 0700 创建。`t.TempDir()` 返回的子目录权限受 umask 影响，不直接作为私有账本目录；不放宽已有目录的生产权限检查。
 
 账本绑定节点 ID，启动验证派生名称、地址和互斥预留；损坏或冲突不静默跳过。写盘失败后停止接受新的修改，需重新打开模块恢复，以免在落盘状态未知时继续创建或删除。
 
@@ -127,4 +131,4 @@ ATTACKBOX_TEST_LAB_POOL=172.29.240.0/24 \
 - 当前执行进程没有 NET_ADMIN／SYS_ADMIN，且缺少 nft，未执行真实 namespace 接线与通信测试；不连接 VPS 绕过此限制。
 - 第一轮代码交付完成，真实通信验收待上述具备权限的本地环境执行；尚未启用生产切换。
 
-下一轮以 [Compose 靶场分步重构计划](compose-target-migration-plan.md) 的第二轮为边界，先完成必要的真实网络验收，再接 Compose 运行器。
+第二轮 [Compose 运行器](compose-runtime-local.md) 已独立实现并完成本机 Compose 生命周期验证；后续业务接入以 [分步重构计划](compose-target-migration-plan.md) 第三轮为边界。完整网络验收仍是生产切换门槛。

@@ -114,7 +114,7 @@ type harness struct {
 
 func newHarness(t *testing.T) *harness {
 	t.Helper()
-	return &harness{cfg: Config{NodeID: "node-a", StateDir: t.TempDir(), Pool: netip.MustParsePrefix("10.201.0.0/16")}, d: &fakeDocker{networks: map[string]Network{}}, l: &fakeLinks{attachments: map[string]Attachment{}}, g: &fakeGuard{}}
+	return &harness{cfg: Config{NodeID: "node-a", StateDir: filepath.Join(t.TempDir(), "state"), Pool: netip.MustParsePrefix("10.201.0.0/16")}, d: &fakeDocker{networks: map[string]Network{}}, l: &fakeLinks{attachments: map[string]Attachment{}}, g: &fakeGuard{}}
 }
 func (h *harness) open(t *testing.T) *Manager {
 	t.Helper()

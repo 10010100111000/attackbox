@@ -8,11 +8,41 @@ import (
 	"log"
 	"net"
 	"net/http"
+	"os"
 	"strings"
 	"time"
 )
 
 func main() {
+	if len(os.Args) > 1 {
+		switch os.Args[1] {
+		case "check":
+			c, err := net.DialTimeout("tcp4", "127.0.0.1:8080", time.Second)
+			if err != nil {
+				os.Exit(1)
+			}
+			c.Close()
+			return
+		case "write":
+			if len(os.Args) != 4 {
+				os.Exit(2)
+			}
+			if err := os.WriteFile(os.Args[2], []byte(os.Args[3]), 0644); err != nil {
+				os.Exit(1)
+			}
+			return
+		case "read":
+			if len(os.Args) != 3 {
+				os.Exit(2)
+			}
+			b, err := os.ReadFile(os.Args[2])
+			if err != nil {
+				os.Exit(1)
+			}
+			os.Stdout.Write(b)
+			return
+		}
+	}
 	udp, err := net.ListenPacket("udp4", ":8081")
 	if err != nil {
 		log.Fatal(err)

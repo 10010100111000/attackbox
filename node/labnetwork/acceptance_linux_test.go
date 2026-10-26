@@ -13,6 +13,7 @@ import (
 	"net/url"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"sort"
 	"strings"
 	"syscall"
@@ -222,7 +223,7 @@ func TestLocalAttachmentAcceptance(t *testing.T) {
 	s := Sandbox{ID: "fixture-sandbox", OwnerID: "fixture-user", PID: cmd.Process.Pid, Namespace: id}
 	suffix := shortHash(time.Now().String(), 10)
 	node := "fixture-" + suffix
-	m, err := New(Config{NodeID: node, StateDir: t.TempDir(), DockerSocket: socket, Pool: pool})
+	m, err := New(Config{NodeID: node, StateDir: filepath.Join(t.TempDir(), "state"), DockerSocket: socket, Pool: pool})
 	if err != nil {
 		t.Fatal(err)
 	}

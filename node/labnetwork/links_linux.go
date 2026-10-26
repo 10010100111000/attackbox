@@ -98,10 +98,7 @@ func (l *localLinks) Ensure(ctx context.Context, n Network, a Attachment, ns *Pi
 		attrs.Alias = a.Alias
 		attrs.MTU = bridge.Attrs().MTU
 		v := &netlink.Veth{LinkAttrs: attrs, PeerName: a.PeerName, PeerNamespace: netlink.NsFd(ns.file.Fd()), PeerMTU: uint32(bridge.Attrs().MTU)}
-		if err := l.host.LinkAdd(v); err != nil {
-			return err
-		}
-		host, err = l.host.LinkByName(a.HostName)
+		host, err = createOwnedVeth(l.host, guest, v, a)
 		if err != nil {
 			return err
 		}

@@ -1,0 +1,20 @@
+services:
+  init:
+    image: ${LAB_IMAGE:?supply the offline-built fixture image}
+    user: "0"
+    command: ["write", "/data/seed", "initialized"]
+    volumes: [data:/data]
+  web:
+    image: ${LAB_IMAGE:?supply the offline-built fixture image}
+    user: "0"
+    depends_on:
+      init:
+        condition: service_completed_successfully
+    volumes: [data:/data]
+    healthcheck:
+      test: ["CMD", "/fixture", "check"]
+      interval: 1s
+      timeout: 1s
+      retries: 5
+volumes:
+  data: {}
