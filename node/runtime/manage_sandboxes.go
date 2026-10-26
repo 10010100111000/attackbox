@@ -1,6 +1,7 @@
 package runtime
 
 import (
+	"attackbox/node/labnetwork"
 	"attackbox/protocol"
 	"os/exec"
 	"sync"
@@ -8,6 +9,7 @@ import (
 )
 
 type SandboxConfig struct {
+	OwnerID     string
 	TTLSeconds  int
 	IdleSeconds int
 	ID          string
@@ -19,6 +21,8 @@ type SandboxConfig struct {
 
 // SandboxRecord Worker 内部唯一的全量权威实例记录
 type SandboxRecord struct {
+	OwnerID      string                       `json:"owner_id,omitempty"`
+	Namespace    labnetwork.NamespaceIdentity `json:"-"`
 	opMu         sync.Mutex
 	State        string    `json:"state"`
 	Revision     uint64    `json:"revision"`
@@ -41,19 +45,21 @@ type SandboxRecord struct {
 
 // SandboxSnapshot 外部组件只读值快照
 type SandboxSnapshot struct {
-	IdleSeconds  int64  `json:"idle_seconds"`
-	State        string `json:"state"`
-	Revision     uint64 `json:"revision"`
-	ExpiresAt    int64  `json:"expires_at"`
-	ID           string `json:"id"`
-	UserID       int64  `json:"user_id"`
-	SlotIndex    int    `json:"slot_index"`
-	IP           string `json:"ip"`
-	PID          int    `json:"pid"`
-	StartedAt    int64  `json:"started_at"`
-	LastActiveAt int64  `json:"last_active_at"`
-	CleanupError string `json:"cleanup_error,omitempty"`
-	GUIRunning   bool   `json:"gui_running,omitempty"`
+	OwnerID      string                       `json:"owner_id,omitempty"`
+	Namespace    labnetwork.NamespaceIdentity `json:"-"`
+	IdleSeconds  int64                        `json:"idle_seconds"`
+	State        string                       `json:"state"`
+	Revision     uint64                       `json:"revision"`
+	ExpiresAt    int64                        `json:"expires_at"`
+	ID           string                       `json:"id"`
+	UserID       int64                        `json:"user_id"`
+	SlotIndex    int                          `json:"slot_index"`
+	IP           string                       `json:"ip"`
+	PID          int                          `json:"pid"`
+	StartedAt    int64                        `json:"started_at"`
+	LastActiveAt int64                        `json:"last_active_at"`
+	CleanupError string                       `json:"cleanup_error,omitempty"`
+	GUIRunning   bool                         `json:"gui_running,omitempty"`
 }
 
 func (m *RuntimeManager) ListSandboxIDs() []string {
@@ -76,6 +82,7 @@ func (m *RuntimeManager) TouchSandbox(id string) {
 
 func snapshotOf(s *SandboxRecord) SandboxSnapshot {
 	return SandboxSnapshot{
+		OwnerID: s.OwnerID, Namespace: s.Namespace,
 		IdleSeconds:  int64(s.idleLimit / time.Second),
 		ID:           s.ID,
 		UserID:       s.UserID,

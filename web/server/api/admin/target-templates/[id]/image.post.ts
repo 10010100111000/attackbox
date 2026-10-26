@@ -6,6 +6,7 @@ import {sandboxHub} from '../../../../sandbox'
 export default defineEventHandler(async event => {
  const admin=requireAdmin(event)
  const template=await getTargetTemplate(getRouterParam(event,'id')!)
+ if(template.runtime==='compose')throw createError({statusCode:409,message:'Compose 模板请使用部署准备操作'})
  const body=await readBody(event)
  if (!['status','prepare'].includes(body?.action)) throw createError({statusCode:400,message:'无效操作'})
  const hub=sandboxHub()

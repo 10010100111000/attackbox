@@ -22,21 +22,23 @@ import (
 )
 
 type NodeControlClient struct {
-	targets         *DockerTargetManager
-	targetInitError string
-	targetQueue     chan *protocol.Message
-	targetsCancel   context.CancelFunc
-	cfg             *NodeConfig
-	rtMgr           *rt.RuntimeManager
-	conn            *websocket.Conn
-	connMu          sync.Mutex
-	bootID          string
-	seq             uint64
-	stopCh          chan struct{}
-	wg              sync.WaitGroup
-	onKeySync       func(pubKey ed25519.PublicKey)
-	mailboxesMu     sync.Mutex
-	mailboxes       map[string]*sandboxMailbox
+	compose          *composeLabs
+	composeInitError string
+	targets          *DockerTargetManager
+	targetInitError  string
+	targetQueue      chan *protocol.Message
+	targetsCancel    context.CancelFunc
+	cfg              *NodeConfig
+	rtMgr            *rt.RuntimeManager
+	conn             *websocket.Conn
+	connMu           sync.Mutex
+	bootID           string
+	seq              uint64
+	stopCh           chan struct{}
+	wg               sync.WaitGroup
+	onKeySync        func(pubKey ed25519.PublicKey)
+	mailboxesMu      sync.Mutex
+	mailboxes        map[string]*sandboxMailbox
 }
 
 func NewNodeControlClient(cfg *NodeConfig, rtMgr *rt.RuntimeManager, onKeySync func(pubKey ed25519.PublicKey)) *NodeControlClient {
@@ -52,6 +54,16 @@ func NewNodeControlClient(cfg *NodeConfig, rtMgr *rt.RuntimeManager, onKeySync f
 		mailboxes: make(map[string]*sandboxMailbox),
 	}
 	client.targetQueue = make(chan *protocol.Message, 16)
+	if cfg.ComposeLabs.Enabled {
+		var err error
+		client.compose, err = newComposeLabs(cfg, rtMgr)
+		if err != nil {
+			client.composeInitError = "compose_initialization_failed"
+			log.Printf("[COMPOSE] initialization failed: %v", err)
+		} else if rtMgr != nil {
+			rtMgr.SetLabLifecycle(client.compose.runtime.SandboxAvailable, client.compose.runtime.SandboxGone)
+		}
+	}
 	if cfg.Network.DockerTargets.Enabled {
 		var err error
 		client.targets, err = newConfiguredTargetManager(cfg)
@@ -68,9 +80,9 @@ func (c *NodeControlClient) Start(ctx context.Context) {
 	c.targetsCancel = cancel
 	c.wg.Add(1)
 	go func() { defer c.wg.Done(); c.targetCommandLoop(targetCtx) }()
-	if c.targets != nil {
+	if c.targets != nil || c.compose != nil {
 		c.wg.Add(1)
-		go func() { defer c.wg.Done(); c.targets.RunLeaseReaper(targetCtx) }()
+		go func() { defer c.wg.Done(); c.experimentReaper(targetCtx) }()
 	}
 
 	c.wg.Add(1)
@@ -102,6 +114,12 @@ func (c *NodeControlClient) Stop() {
 	c.connMu.Unlock()
 
 	c.wg.Wait()
+	if c.compose != nil {
+		if c.rtMgr != nil {
+			c.rtMgr.SetLabLifecycle(nil, nil)
+		}
+		c.compose.Close()
+	}
 	if c.targets != nil {
 		c.targets.Close()
 	}
@@ -291,7 +309,11 @@ func (c *NodeControlClient) heartbeatLoop(ctx context.Context) {
 			}
 			targets = &snapshot
 		}
-		hb, _ := protocol.NewMessage(protocol.MsgTypeHeartbeat, protocol.HeartbeatReq{DockerTargets: targets, NodeID: c.cfg.Node.NodeID, BootID: c.bootID, Seq: atomic.AddUint64(&c.seq, 1), InventoryRevision: revision, Timestamp: time.Now().Unix(), LoadAvg: readSystemLoadAvg(), MemAvailableMB: available, DiskFreeGB: c.rtMgr.DiskGuard().GetCurrentFreeMB() / 1024, ActiveSandboxes: len(inventory), Sandboxes: inventory})
+		var compose *protocol.ComposeCapability
+		if c.cfg.ComposeLabs.Enabled {
+			compose = &protocol.ComposeCapability{Available: c.compose != nil, NetworkVerified: c.cfg.ComposeLabs.NetworkVerified, ProtocolVersion: 1, Error: c.composeInitError}
+		}
+		hb, _ := protocol.NewMessage(protocol.MsgTypeHeartbeat, protocol.HeartbeatReq{ComposeLabs: compose, DockerTargets: targets, NodeID: c.cfg.Node.NodeID, BootID: c.bootID, Seq: atomic.AddUint64(&c.seq, 1), InventoryRevision: revision, Timestamp: time.Now().Unix(), LoadAvg: readSystemLoadAvg(), MemAvailableMB: available, DiskFreeGB: c.rtMgr.DiskGuard().GetCurrentFreeMB() / 1024, ActiveSandboxes: len(inventory), Sandboxes: inventory})
 		_ = c.sendMessage(hb)
 	}
 	send()

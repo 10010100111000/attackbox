@@ -2,6 +2,8 @@
 
 状态：独立 `node/labcompose` 包与多服务夹具已实现。本机真实 Docker Compose 生命周期测试通过；现有 Worker 的控制协议、沙箱生命周期、后台与学习／挑战页面尚未切换。第一轮真实 veth／宿主机 INPUT 隔离验收仍待具备权限的环境执行。
 
+本文保留第二轮的运行器边界；第三轮已补充可选 Worker／后台接入与端口转换，当前操作以 [平台接入说明](compose-platform-integration.md) 为准，新模式仍需显式启用。
+
 ## 本轮范围
 
 管理员网页上传、Git 拉取、数据库接口、源码构建留在后续轮次。当前由可信 Go 调用方提供包目录、Compose 文件、显式变量和入口，先验证完整运行模型。浏览器不能提交这些本机路径或 Docker 参数。
@@ -40,13 +42,13 @@ Registry 认证由显式 DockerConfig 提供，镜像下载使用 Docker daemon 
 - 上游固定 `container_name` 移除，容器名由独立 Compose project 产生。
 - 上游网络和卷名称由平台替换；网络保持服务归属与别名，均使用 `internal` 网络，沙箱仅接入选定入口网络。
 - 匿名挂载转换为项目内命名卷，避免把一次实例数据变成难以追踪的共享资源。
-- 固定宿主机端口发布不支持；入口使用容器 IP 和管理员确认的服务端口。端口不是访问白名单。
+- 识别 Compose 端口声明并转换为私有容器端口，不发布到宿主机；入口使用容器 IP 和管理员确认的服务端口。端口不是访问白名单。
 - 包内 bind 只接受已存在、无 symlink、范围内的只读普通文件。准备阶段复制成持久快照，不运行时引用作者工作目录。容器可读的文件权限与私有父目录配合，不要求容器以 root 读取配置。
 - 文件每份最多 4 MiB，最多 128 份、合计 32 MiB；Compose 文件最多 1 MiB。
 - 默认整套预算为 1 GiB、2 CPU、256 PIDs、最多 8 个服务，按服务分配，不给每个服务复制整套额度。调用方可设置节点预算；每服务日志最多 10 MiB × 2。
 - 强制 `pull_policy: never`、`restart: no`、有限停止宽限，避免运行期间隐式拉取或无限重启。规范化变更通过 `Definition.Report` 返回。
 
-首版明确拒绝：`build`、`include`、`extends`、profiles、YAML aliases、env_file、宿主机端口映射、external 共享资源、host 网络、特权／设备／Socket、额外驱动与 IPAM、自定义静态地址、宿主目录和可写 bind。目录形式的包内挂载、secrets/configs 也暂不支持。未支持字段报错，不静默忽略或宣称兼容任意开源 Compose。
+首版明确拒绝：`build`、`include`、`extends`、profiles、YAML aliases、env_file、external 共享资源、host 网络、特权／设备／Socket、额外驱动与 IPAM、自定义静态地址、宿主目录和可写 bind。目录形式的包内挂载、secrets/configs 也暂不支持。未支持字段报错，不静默忽略或宣称兼容任意开源 Compose。第三轮补充端口声明转换，仍禁止实际宿主机端口发布。
 
 ## 准备产物
 

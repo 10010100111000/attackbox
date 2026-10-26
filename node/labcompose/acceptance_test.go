@@ -159,6 +159,14 @@ func TestComposeRealEngineLifecycle(t *testing.T) {
 		return ""
 	}
 	a, b := containerID(requests[0]), containerID(requests[1])
+	bindings, err := cli.run(ctx, "container", "inspect", "--format", "{{json .HostConfig.PortBindings}}", a)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var published map[string]any
+	if json.Unmarshal(bindings, &published) != nil || len(published) != 0 {
+		t.Fatal("host port mapping was not removed")
+	}
 	if a == b {
 		t.Fatal("shared container")
 	}

@@ -1,6 +1,10 @@
 import { randomBytes } from 'node:crypto'
 import type { SandboxNodesResponse, SandboxNodeStatus, SandboxNodeSettings } from '../../shared/sandbox.ts'
 import type { SandboxConfig } from './config.ts'
+import type {ComposeInstance,ComposeSummary,ComposeSettings} from '../../shared/compose-labs.ts'
+export interface ComposePayload {target_id:string;owner_id:string;preparation_id?:string;deployment_id?:string;bundle_id?:string;bundle_hash?:string;settings?:ComposeSettings|null;variables?:Record<string,string>;expires_at?:string}
+export interface ComposeWorkerResult {success:boolean;boot_id:string;target_id:string;owner_id?:string;job_state?:string;deployment_id?:string;summary?:ComposeSummary;logs?:string[];error?:string;instance?:ComposeInstance}
+interface ComposePending {ownerId:string;peerId:string;bootId:string;targetId:string;type:string;resolve:(value:ComposeWorkerResult)=>void;reject:(error:Error)=>void;timer:ReturnType<typeof setTimeout>}
 export interface WorkerPeer { id: string; send: (data: string) => unknown; close: (code: number, reason: string) => unknown }
 interface Connection { peer: WorkerPeer; nodeId: string; openedAt: number; registered: boolean }
 interface NodeRecord { status: SandboxNodeStatus; connection?: Connection; seq: number; revision: number; heartbeatAt: number }
@@ -12,6 +16,8 @@ const timestamp = (n: unknown) => integer(n, 1) && n <= 8640000000000 ? new Date
 export interface TargetWorkerResult { image_state?: string; success: boolean; boot_id: string; target_id: string; error?: string; instance?: { target_id: string; owner_id: string; state: string; ready: boolean; readiness: string; ip?: string; container_id?: string } }
 interface TargetPending { ownerId: string; peerId: string; bootId: string; targetId: string; type: string; resolve: (value: TargetWorkerResult) => void; reject: (error: Error) => void; timer: ReturnType<typeof setTimeout> }
 export class SandboxHub {
+  composeNodes=new Set<string>()
+  private composePending=new Map<string,ComposePending>()
   targetNodes = new Set<string>()
   private targetPending = new Map<string, TargetPending>()
 
@@ -42,6 +48,7 @@ export class SandboxHub {
     if (old) { this.connections.delete(old.peer.id); this.failPending(old.peer.id); old.peer.close(1000, 'Connection replaced') }
   }
   close(peer: WorkerPeer) {
+    const composeNode=this.connections.get(peer.id)?.nodeId;if(composeNode)this.composeNodes.delete(composeNode)
     const node = this.connections.get(peer.id)?.nodeId; if (node) this.targetNodes.delete(node)
     const connection = this.connections.get(peer.id)
     this.connections.delete(peer.id)
@@ -50,6 +57,7 @@ export class SandboxHub {
     if (record && record.connection === connection) { record.connection = undefined; record.status.state = 'offline' }
   }
   private failPending(peerId: string) {
+    for(const [id,p]of this.composePending)if(p.peerId===peerId){clearTimeout(p.timer);this.composePending.delete(id);p.reject(new Error('Worker connection lost'))}
     for (const [id, pending] of this.targetPending) if (pending.peerId === peerId) {
       clearTimeout(pending.timer); this.targetPending.delete(id); pending.reject(new Error('Worker connection lost'))
     }
@@ -84,6 +92,13 @@ export class SandboxHub {
     })
   }
   private reject(peer: WorkerPeer) { this.close(peer); peer.close(1008, 'Invalid control message') }
+  composeRpc(nodeId:string,bootId:string,type:'compose_prepare'|'compose_prepare_status'|'compose_start'|'compose_inspect'|'compose_stop',payload:ComposePayload,timeoutMs=125000):Promise<ComposeWorkerResult>{
+    this.sweep();const record=this.records.get(nodeId)
+    if(!record?.connection||record.status.state!=='online'||record.status.bootId!==bootId||!this.composeNodes.has(nodeId))return Promise.reject(new Error('Compose worker unavailable'))
+    if(!/^[A-Za-z0-9_-]{1,64}$/.test(payload.target_id)||!/^[A-Za-z0-9_-]{1,64}$/.test(payload.owner_id))return Promise.reject(new Error('Invalid Compose identity'))
+    const peer=record.connection.peer,id=randomBytes(16).toString('hex')
+    return new Promise((resolve,reject)=>{const timer=setTimeout(()=>{this.composePending.delete(id);reject(new Error('Worker acknowledgement timeout'))},timeoutMs);this.composePending.set(id,{ownerId:payload.owner_id,peerId:peer.id,bootId,targetId:payload.target_id,type:type+'_resp',resolve,reject,timer});try{peer.send(JSON.stringify({id,type,payload:{...payload,boot_id:bootId}}))}catch{clearTimeout(timer);this.composePending.delete(id);reject(new Error('Worker send failed'))}})
+  }
   private reply(peer: WorkerPeer, type: string, payload: object) { peer.send(JSON.stringify({ id: randomBytes(8).toString('hex'), type, payload })) }
   message(peer: WorkerPeer, raw: string) {
     const connection = this.connections.get(peer.id)
@@ -94,7 +109,20 @@ export class SandboxHub {
       if (Buffer.byteLength(raw) > 1024 * 1024) { this.reject(peer); return }
       const msg = JSON.parse(raw), p = msg?.payload
       if (!text(msg?.id) || !text(msg?.type) || !p || typeof p !== 'object' || Array.isArray(p)) { this.reject(peer); return }
-      if (['target_image_prepare_resp', 'target_image_status_resp', 'target_start_resp', 'target_inspect_resp', 'target_stop_resp'].includes(msg.type)) {
+      if(['compose_prepare_resp','compose_prepare_status_resp','compose_start_resp','compose_inspect_resp','compose_stop_resp'].includes(msg.type)){
+        if(!connection.registered||typeof p.success!=='boolean'||!text(p.target_id)||!text(p.boot_id)){this.reject(peer);return}
+        const pending=this.composePending.get(msg.id);if(!pending)return
+        if(pending.peerId!==peer.id||pending.bootId!==p.boot_id||pending.targetId!==p.target_id||pending.type!==msg.type||p.owner_id!==pending.ownerId){this.reject(peer);return}
+        if(p.instance&&(p.instance.target_id!==pending.targetId||p.instance.owner_id!==pending.ownerId||!text(p.instance.state)||typeof p.instance.ready!=='boolean'||!Array.isArray(p.instance.services)||p.instance.services.length>16)){this.reject(peer);return}
+        if(p.instance&&(!text(p.instance.readiness)||!['not_connected','connected','disconnected'].includes(p.instance.attachment)||p.instance.services.some((s:any)=>!s||!text(s.name,64)||!text(s.state,64)||!text(s.health,64)||!s.ips||typeof s.ips!=='object'||Array.isArray(s.ips)||Object.entries(s.ips).length>8||Object.entries(s.ips).some(([k,v])=>!text(k,128)||typeof v!=='string'||v.length>64)))){this.reject(peer);return}
+        if(p.deployment_id!==undefined&&!/^dep_[a-f0-9]{64}$/.test(p.deployment_id)){this.reject(peer);return}
+        if(p.logs!==undefined&&(!Array.isArray(p.logs)||p.logs.length>20||p.logs.some((v:unknown)=>typeof v!=='string'||v.length>300))){this.reject(peer);return}
+        if(p.summary&&(!Array.isArray(p.summary.services)||p.summary.services.length>16||p.summary.services.some((s:any)=>!s||!text(s.name,64)||!text(s.image,128))||!Array.isArray(p.summary.networks)||p.summary.networks.length>8||p.summary.networks.some((n:unknown)=>!text(n,64))||!Array.isArray(p.summary.report)||p.summary.report.length>128||p.summary.report.some((v:unknown)=>typeof v!=='string'||v.length>300)||!text(p.summary.entry_service,64)||!text(p.summary.entry_network,64)||!integer(p.summary.entry_port,1)||p.summary.entry_port>65535)){this.reject(peer);return}
+        const safe:ComposeWorkerResult={success:p.success,boot_id:p.boot_id,target_id:p.target_id,owner_id:p.owner_id,...(typeof p.error==='string'?{error:p.error.slice(0,200)}:{}),...(p.job_state?{job_state:String(p.job_state)}:{}),...(p.deployment_id?{deployment_id:p.deployment_id}:{}),...(p.logs?{logs:p.logs}:{})}
+        if(p.summary)safe.summary={services:p.summary.services.map((s:any)=>({name:s.name,image:s.image})),networks:p.summary.networks,entry_service:p.summary.entry_service,entry_network:p.summary.entry_network,entry_port:p.summary.entry_port,report:p.summary.report}
+        if(p.instance)safe.instance={target_id:p.instance.target_id,owner_id:p.instance.owner_id,state:p.instance.state,ready:p.instance.ready,readiness:p.instance.readiness,entry_address:typeof p.instance.entry_address==='string'?p.instance.entry_address.slice(0,128):undefined,attachment:p.instance.attachment,attacker_address:typeof p.instance.attacker_address==='string'?p.instance.attacker_address.slice(0,64):undefined,interface:typeof p.instance.interface==='string'&&/^lab[0-9]{1,3}$/.test(p.instance.interface)?p.instance.interface:undefined,services:p.instance.services.map((s:any)=>({name:s.name,state:s.state,health:s.health,ips:{...s.ips}})),expires_at:typeof p.instance.expires_at==='string'?p.instance.expires_at:undefined}
+        clearTimeout(pending.timer);this.composePending.delete(msg.id);pending.resolve(safe)
+      } else if (['target_image_prepare_resp', 'target_image_status_resp', 'target_start_resp', 'target_inspect_resp', 'target_stop_resp'].includes(msg.type)) {
         if (!connection.registered || typeof p.success !== 'boolean' || !text(p.target_id) || !text(p.boot_id)) { this.reject(peer); return }
         const pending = this.targetPending.get(msg.id)
         if (!pending) return // Late replies require persisted reconciliation, not speculative cleanup.
@@ -135,6 +163,8 @@ export class SandboxHub {
         this.reply(peer, 'heartbeat_ack', { success: true })
         if (p.docker_targets?.available === true) this.targetNodes.add(connection.nodeId)
         else this.targetNodes.delete(connection.nodeId)
+        if(p.compose_labs?.available===true&&p.compose_labs?.network_verified===true&&p.compose_labs?.protocol_version===1)this.composeNodes.add(connection.nodeId)
+        else this.composeNodes.delete(connection.nodeId)
         this.onInventory?.(structuredClone(record.status))
       } else { this.reject(peer) }
     } catch { this.reject(peer) }

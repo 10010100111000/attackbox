@@ -1,3 +1,12 @@
+compose_labs:
+  enabled: false
+  # Set only after the local network acceptance test has passed on this host.
+  network_verified: false
+  state_dir: "/var/lib/attackbox/compose-labs"
+  socket_path: "/var/run/docker.sock"
+  # Separate from legacy 10.201.0.0/16 while migrating.
+  pool: "10.202.0.0/16"
+
 node:
   node_id: "node-primary"
   cluster_secret: "attackbox_cluster_secret_change_me_in_prod!"

@@ -76,7 +76,7 @@ export class SandboxController {
     // Reservation is synchronous and precedes RPC: concurrent starts share one instance.
     this.instances.set(record.id, record); this.byUser.set(userId, record.id)
     try {
-      const result = await this.hub.rpc(node.id, record.bootId, 'create_box', { sandbox_id: record.id, user_id: workerUserId, slot_index: slot, ttl_seconds: node.settings.ttlSeconds, idle_seconds: node.settings.idleSeconds, policy: record.policy }, this.timeout)
+      const result = await this.hub.rpc(node.id, record.bootId, 'create_box', { sandbox_id: record.id,owner_id:userId, user_id: workerUserId, slot_index: slot, ttl_seconds: node.settings.ttlSeconds, idle_seconds: node.settings.idleSeconds, policy: record.policy }, this.timeout)
       if (this.instances.get(record.id) !== record) throw new Error('Worker generation changed')
       if (!result.success || !Number.isSafeInteger(result.inventory_revision) || result.inventory_revision! < 1 || !Number.isSafeInteger(result.expires_at) || result.expires_at! * 1000 <= this.now() || result.expires_at! > 8640000000000 || !result.sandbox_ip || isIP(result.sandbox_ip) !== 4) throw new Error('Invalid create acknowledgement')
       record.confirmedRevision = result.inventory_revision!

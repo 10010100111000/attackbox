@@ -117,18 +117,19 @@ type SandboxSummary struct {
 
 // HeartbeatReq 节点周期心跳真实遥测 (每 3 秒)
 type HeartbeatReq struct {
-	DockerTargets     *TargetInventory `json:"docker_targets,omitempty"`
-	InventoryRevision uint64           `json:"inventory_revision"`
-	NodeID            string           `json:"node_id"`
-	BootID            string           `json:"boot_id,omitempty"` // 节点启动唯一标识
-	Seq               uint64           `json:"seq,omitempty"`     // 节点递增序列号
-	Timestamp         int64            `json:"timestamp"`
-	LoadAvg           float64          `json:"load_avg"`                     // 宿主机 1分钟平均负载 (真实读取 /proc/loadavg)
-	MemAvailableMB    int64            `json:"mem_available_mb"`             // 真实可用物理内存 MB (真实读取 /proc/meminfo)
-	DiskFreeGB        int64            `json:"disk_free_gb"`                 // 真实磁盘剩余 GB
-	ActiveSandboxes   int              `json:"active_sandboxes"`             // 真实活跃沙箱运行数
-	ActiveSandboxIDs  []string         `json:"active_sandbox_ids,omitempty"` // 本地活跃沙箱 ID 清单
-	Sandboxes         []SandboxSummary `json:"sandboxes,omitempty"`          // 极简快照清单
+	ComposeLabs       *ComposeCapability `json:"compose_labs,omitempty"`
+	DockerTargets     *TargetInventory   `json:"docker_targets,omitempty"`
+	InventoryRevision uint64             `json:"inventory_revision"`
+	NodeID            string             `json:"node_id"`
+	BootID            string             `json:"boot_id,omitempty"` // 节点启动唯一标识
+	Seq               uint64             `json:"seq,omitempty"`     // 节点递增序列号
+	Timestamp         int64              `json:"timestamp"`
+	LoadAvg           float64            `json:"load_avg"`                     // 宿主机 1分钟平均负载 (真实读取 /proc/loadavg)
+	MemAvailableMB    int64              `json:"mem_available_mb"`             // 真实可用物理内存 MB (真实读取 /proc/meminfo)
+	DiskFreeGB        int64              `json:"disk_free_gb"`                 // 真实磁盘剩余 GB
+	ActiveSandboxes   int                `json:"active_sandboxes"`             // 真实活跃沙箱运行数
+	ActiveSandboxIDs  []string           `json:"active_sandbox_ids,omitempty"` // 本地活跃沙箱 ID 清单
+	Sandboxes         []SandboxSummary   `json:"sandboxes,omitempty"`          // 极简快照清单
 }
 
 // HeartbeatResp 控制端心跳响应
@@ -199,6 +200,7 @@ type SandboxPolicy struct {
 
 // CreateBoxReq 控制端下发沙箱创建指令
 type CreateBoxReq struct {
+	OwnerID     string        `json:"owner_id,omitempty"`
 	BootID      string        `json:"boot_id"`
 	TTLSeconds  int           `json:"ttl_seconds"`
 	IdleSeconds int           `json:"idle_seconds"`

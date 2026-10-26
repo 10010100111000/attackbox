@@ -168,6 +168,9 @@ func Parse(ctx context.Context, bundle Bundle, budget Budget) (Definition, error
 		return def, err
 	}
 	services := object(raw["services"])
+	if len(object(raw["volumes"])) > 32 {
+		return def, fmt.Errorf("too many declared project volumes")
+	}
 	if len(services) == 0 || len(services) > budget.MaxServices {
 		return def, fmt.Errorf("service count exceeds project budget")
 	}
@@ -179,7 +182,7 @@ func Parse(ctx context.Context, bundle Bundle, budget Budget) (Definition, error
 		if s == nil {
 			return def, fmt.Errorf("invalid service configuration")
 		}
-		if err := allowed(s, "image command entrypoint environment depends_on healthcheck networks volumes working_dir user init read_only hostname container_name expose restart mem_limit cpus pids_limit stop_signal stop_grace_period"); err != nil {
+		if err := allowed(s, "image command entrypoint environment depends_on healthcheck networks volumes working_dir user init read_only hostname container_name ports expose restart mem_limit cpus pids_limit stop_signal stop_grace_period"); err != nil {
 			return def, err
 		}
 		if text(s["image"]) == "" {
@@ -215,7 +218,7 @@ func Parse(ctx context.Context, bundle Bundle, budget Budget) (Definition, error
 	if err != nil {
 		return def, fmt.Errorf("invalid Compose values")
 	}
-	project, err := loader.LoadWithContext(ctx, types.ConfigDetails{WorkingDir: bundle.Directory, ConfigFiles: []types.ConfigFile{{Filename: file, Content: data}}, Environment: types.Mapping(bundle.Variables)}, func(o *loader.Options) {
+	project, err := loader.LoadWithContext(ctx, types.ConfigDetails{WorkingDir: filepath.Dir(file), ConfigFiles: []types.ConfigFile{{Filename: file, Content: data}}, Environment: types.Mapping(bundle.Variables)}, func(o *loader.Options) {
 		o.SetProjectName("attackbox-template", true)
 		o.ResolvePaths = true
 		o.SkipInclude = true
@@ -276,6 +279,42 @@ func Parse(ctx context.Context, bundle Bundle, budget Budget) (Definition, error
 	}
 	for _, name := range names {
 		s := object(docServices[name])
+		if ports, ok := s["ports"].([]any); ok {
+			if len(ports) > 32 {
+				return def, fmt.Errorf("too many declared service ports")
+			}
+			exposed := map[string]bool{}
+			for _, v := range slice(s["expose"]) {
+				exposed[fmt.Sprint(v)] = true
+			}
+			for _, raw := range ports {
+				p := object(raw)
+				if protocol := text(p["protocol"]); protocol != "" && protocol != "tcp" && protocol != "udp" {
+					return def, fmt.Errorf("only TCP and UDP service ports are supported")
+				}
+				target, ok := p["target"].(float64)
+				if !ok || target < 1 || target > 65535 {
+					return def, fmt.Errorf("invalid container port")
+				}
+				value := fmt.Sprintf("%.0f", target)
+				if text(p["protocol"]) == "udp" {
+					value += "/udp"
+				}
+				exposed[value] = true
+			}
+			var values []any
+			var ordered []string
+			for value := range exposed {
+				ordered = append(ordered, value)
+			}
+			sort.Strings(ordered)
+			for _, value := range ordered {
+				values = append(values, value)
+			}
+			s["expose"] = values
+			delete(s, "ports")
+			def.Report = append(def.Report, name+": host port publishing removed; use private container ports")
+		}
 		for key, value := range object(s["environment"]) {
 			if value == nil {
 				delete(object(s["environment"]), key)
@@ -319,6 +358,9 @@ func Parse(ctx context.Context, bundle Bundle, budget Budget) (Definition, error
 		// A finite stop grace prevents a project from monopolizing cleanup.
 		s["stop_grace_period"] = "5s"
 		mounts, _ := s["volumes"].([]any)
+		if len(mounts) > 32 {
+			return def, fmt.Errorf("too many service mounts")
+		}
 		for i, m := range mounts {
 			mount := object(m)
 			switch text(mount["type"]) {
@@ -373,6 +415,9 @@ func Parse(ctx context.Context, bundle Bundle, budget Budget) (Definition, error
 	for key := range volumes {
 		volumes[key] = map[string]any{}
 		def.Report = append(def.Report, key+": volume isolated per project")
+	}
+	if len(volumes) > 64 {
+		return def, fmt.Errorf("too many project volumes")
 	}
 	if def.OneShot[def.EntryService] {
 		return def, fmt.Errorf("entry service must be long-running")

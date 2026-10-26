@@ -9,6 +9,7 @@ export async function sandboxWorker(base, secret, options = {}) {
   const requests = [], tickets = [], terminals = [], desktops = [], desktopInputs = [], commands = [], boxes = new Map(), consumed = new Set()
   let key, publicKey, seq = 0, revision = 0
   const boot = 'fixture-' + Math.random().toString(16).slice(2)
+  const composeJobs=new Map(),composeInstances=new Map()
   const httpServer = http.createServer((_, res) => { res.writeHead(404); res.end() })
   const gateway = new WebSocketServer({ noServer: true })
   httpServer.on('upgrade', (req, socket, head) => {
@@ -37,16 +38,33 @@ export async function sandboxWorker(base, secret, options = {}) {
   function send(type, payload, id = 'fixture-' + seq) { control.send(JSON.stringify({ id, type, payload })) }
   function heartbeat() {
     if (control.readyState !== WebSocket.OPEN) return
-    send('heartbeat', { node_id: 'test-node', boot_id: boot, seq: ++seq, inventory_revision: revision, timestamp: Math.floor(Date.now() / 1000), load_avg: 0.3, mem_available_mb: 16384, disk_free_gb: 80, ...(options.dockerTargets ? {docker_targets:{available:true,instances:[]}} : {}), active_sandboxes: boxes.size, sandboxes: [...boxes.keys()].map(id => ({ id, state: 'running', last_active_at: Math.floor(Date.now() / 1000), gui_running: !!boxes.get(id)?.guiRunning })) })
+    send('heartbeat', { node_id: 'test-node', boot_id: boot, seq: ++seq, inventory_revision: revision, timestamp: Math.floor(Date.now() / 1000), load_avg: 0.3, mem_available_mb: 16384, disk_free_gb: 80, ...(options.dockerTargets ? {docker_targets:{available:true,instances:[]}} : {}),...(options.composeLabs?{compose_labs:{available:true,network_verified:true,protocol_version:1}}:{}), active_sandboxes: boxes.size, sandboxes: [...boxes.keys()].map(id => ({ id, state: 'running', last_active_at: Math.floor(Date.now() / 1000), gui_running: !!boxes.get(id)?.guiRunning })) })
   }
   let readyResolve
   const ready = new Promise(resolve => readyResolve = resolve)
-  control.on('message', raw => {
+  control.on('message', async raw => {
     const msg = JSON.parse(raw)
     if (msg.type === 'register_ack') {
       publicKey = msg.payload.public_key
       key = createPublicKey({ key: Buffer.concat([Buffer.from('302a300506032b6570032100', 'hex'), Buffer.from(msg.payload.public_key, 'hex')]), type: 'spki', format: 'der' }); heartbeat()
     } else if (msg.type === 'heartbeat_ack') readyResolve()
+    else if(options.composeLabs&&msg.type.startsWith('compose_')){
+      requests.push(msg);const p=msg.payload;const response={success:true,boot_id:boot,target_id:p.target_id,owner_id:p.owner_id}
+      if(msg.type==='compose_prepare'){
+        const downloaded=await fetch(base+'/api/worker/lab-bundles/'+p.bundle_id,{headers:{Authorization:`Bearer ${secret}`,'X-Node-ID':'test-node'}})
+        if(!downloaded.ok){send(msg.type+'_resp',{...response,success:false,error:'bundle_download_failed'},msg.id);return}
+        const bundle=await downloaded.json();if(bundle.hash!==p.bundle_hash)throw Error('Fixture bundle hash mismatch')
+        composeJobs.set(p.preparation_id,{deployment_id:'dep_'+'a'.repeat(64),summary:{services:[{name:'web',image:'sha256:'+'a'.repeat(64)}],networks:['default'],entry_service:p.settings.entryService,entry_network:p.settings.entryNetwork,entry_port:p.settings.entryPort,report:[]}})
+        send(msg.type+'_resp',{...response,job_state:'preparing',logs:['已接收准备任务']},msg.id)
+      }else if(msg.type==='compose_prepare_status')send(msg.type+'_resp',{...response,...composeJobs.get(p.preparation_id),job_state:composeJobs.has(p.preparation_id)?'ready':'unknown',logs:['部署包校验完成','镜像准备完成']},msg.id)
+      else{
+        let record=composeInstances.get(p.target_id)
+        if(msg.type==='compose_start'&&!record){record={target_id:p.target_id,owner_id:p.owner_id,expires_at:p.expires_at,ready:true,readiness:'healthy',entry_address:'10.202.0.2:8080',services:[{name:'web',state:'running',health:'healthy',ips:{default:'10.202.0.2'}}],state:'running'};composeInstances.set(p.target_id,record)}
+        if(msg.type==='compose_stop'){record={...record,target_id:p.target_id,owner_id:p.owner_id,ready:false,readiness:'not_running',state:'stopped',services:[]};composeInstances.set(p.target_id,record)}
+        const attached=[...boxes.values()].some(b=>b.owner_id===p.owner_id)
+        send(msg.type+'_resp',{...response,instance:{...record,attacker_address:attached?'10.202.0.14':undefined,interface:attached?'lab0':undefined,attachment:record?.state==='stopped'?'disconnected':attached?'connected':'not_connected'}},msg.id)
+      }
+    }
     else if (options.dockerTargets && ['target_start','target_stop','target_inspect'].includes(msg.type)) {
       requests.push(msg)
       const p=msg.payload

@@ -22,6 +22,9 @@ type Config struct {
 	MaxInstances, Concurrency int
 	Engine                    Engine
 	Networks                  Networks
+	// Production supplies the sandbox owner's lifecycle lock here. The memory
+	// registry remains useful for standalone fixtures without a sandbox runtime.
+	SandboxAccess func(context.Context, string, func(context.Context, labnetwork.Sandbox) error) error
 }
 type entry struct {
 	mu, op   sync.Mutex
@@ -337,6 +340,14 @@ func (m *Manager) Start(ctx context.Context, req Request) (Status, error) {
 
 func (m *Manager) finishStart(ctx context.Context, e *entry, d Deployment) (Status, error) {
 	r := e.snapshot()
+	if m.cfg.SandboxAccess != nil {
+		err := m.cfg.SandboxAccess(ctx, r.Request.OwnerID, func(ctx context.Context, s labnetwork.Sandbox) error { return m.connect(ctx, e.snapshot(), d, s) })
+		if err != nil {
+			status, _ := m.status(ctx, e.snapshot(), d)
+			return status, err
+		}
+		return m.status(ctx, e.snapshot(), d)
+	}
 	m.mu.Lock()
 	sandbox, available := m.sandboxes[r.Request.OwnerID]
 	m.mu.Unlock()
@@ -533,6 +544,10 @@ func (m *Manager) status(ctx context.Context, r Record, d Deployment) (Status, e
 			for _, n := range r.Networks {
 				if a.NetworkID == n.ID {
 					s.Attachment = "connected"
+					if n.Spec.Key == d.Definition.EntryNetwork && a.Address.IsValid() {
+						s.AttackerAddress = a.Address.Addr().String()
+						s.Interface = a.GuestName
+					}
 				}
 			}
 		}
@@ -602,7 +617,9 @@ func (m *Manager) SandboxAvailable(ctx context.Context, sandbox labnetwork.Sandb
 	m.mu.Unlock()
 	var errs []error
 	for _, e := range entries {
-		e.op.Lock()
+		if !e.op.TryLock() {
+			continue
+		} // Start's tail or the control handler retries attachment.
 		r := e.snapshot()
 		if r.Desired && !r.Cleaned && r.Request.OwnerID == sandbox.OwnerID && r.Request.ExpiresAt.After(m.clock()) {
 			d, err := m.loadDeployment(r.Request.DeploymentID)
@@ -636,7 +653,9 @@ func (m *Manager) SandboxGone(ctx context.Context, id string) error {
 	m.mu.Unlock()
 	var errs []error
 	for _, e := range entries {
-		e.op.Lock()
+		if !e.op.TryLock() {
+			continue
+		} // Namespace teardown removes the peer; Reconcile retires its ledger.
 		r := e.snapshot()
 		owned := map[string]bool{}
 		for _, n := range r.Networks {
@@ -673,4 +692,19 @@ func (m *Manager) connect(ctx context.Context, r Record, d Deployment, sandbox l
 	}
 	_, err := m.cfg.Networks.Attach(ctx, n.ID, sandbox)
 	return err
+}
+
+func (m *Manager) Deployment(ctx context.Context, id string) (Deployment, error) {
+	if err := m.enter(); err != nil {
+		return Deployment{}, err
+	}
+	defer m.leave()
+	return m.loadDeployment(id)
+}
+func (m *Manager) Owns(id, owner string) bool {
+	e, err := m.get(id)
+	if err != nil {
+		return false
+	}
+	return e.snapshot().Request.OwnerID == owner
 }

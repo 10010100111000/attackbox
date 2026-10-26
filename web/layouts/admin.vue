@@ -64,7 +64,7 @@ const sectionMeta: Record<AdminSectionKey, { groupLabel: string; groupHref: stri
   modules: { groupLabel: '内容管理', groupHref: '/admin/modules', title: '学习模块' },
   routes: { groupLabel: '内容管理', groupHref: '/admin/routes', title: '学习路线' },
   users: { groupLabel: '账户管理', groupHref: '/admin/users', title: '用户管理' },
-  'target-templates': { groupLabel: '环境管理', groupHref: '/admin/target-templates', title: '靶机模板' },
+  'target-templates': { groupLabel: '环境管理', groupHref: '/admin/target-templates', title: '靶场模板' },
   nodes: { groupLabel: '环境管理', groupHref: '/admin/nodes', title: '节点管理' },
   instances: { groupLabel: '环境管理', groupHref: '/admin/instances', title: '运行实例' },
 }
@@ -159,7 +159,7 @@ async function handleLogout() {
             :class="{ active: currentSection === 'target-templates' }"
           >
             <Monitor :size="16" class="nav-icon" aria-hidden="true" />
-            <span>靶机模板</span>
+            <span>靶场模板</span>
           </NuxtLink>
           <NuxtLink
             to="/admin/nodes"

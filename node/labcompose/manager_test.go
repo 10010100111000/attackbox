@@ -366,3 +366,27 @@ func TestHealthAndPartialStartupAreNotReportedReady(t *testing.T) {
 		t.Fatal(s, err)
 	}
 }
+
+func TestRejectedStartCanStillBeReleasedWithVerifiedStopIdentity(t *testing.T) {
+	m, e, _, b := fixtureManager(t)
+	m.cfg.MaxInstances = 1
+	ctx := context.Background()
+	d := prepare(t, m, b)
+	if _, err := m.Start(ctx, req(d, "one", "alice")); err != nil {
+		t.Fatal(err)
+	}
+	r := req(d, "two", "bob")
+	if _, err := m.Start(ctx, r); err == nil {
+		t.Fatal("capacity ignored")
+	}
+	if s, err := m.StopRequest(ctx, r); err != nil || s.State != "stopped" {
+		t.Fatal(s, err)
+	}
+	if s, err := m.Start(ctx, r); err != nil || s.State != "stopped" || e.upCount != 1 {
+		t.Fatal("canceled request revived", s, err)
+	}
+	r.OwnerID = "alice"
+	if _, err := m.StopRequest(ctx, r); err == nil {
+		t.Fatal("foreign stop identity accepted")
+	}
+}

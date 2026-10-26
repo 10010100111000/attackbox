@@ -58,6 +58,9 @@ func (m *RuntimeManager) destroyRecord(ctx context.Context, rec *SandboxRecord) 
 	rec.Revision = m.revision
 	m.mu.Unlock()
 	var errs []error
+	if err := m.notifyLabGone(ctx, rec.ID); err != nil {
+		errs = append(errs, err)
+	}
 	if rec.cmd != nil && rec.cmd.Process != nil {
 		_ = rec.cmd.Process.Kill()
 	}

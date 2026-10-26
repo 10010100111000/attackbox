@@ -3,7 +3,8 @@ import { randomBytes } from 'node:crypto'
 import { and, eq, ne, sql } from 'drizzle-orm'
 import { createError } from 'h3'
 import { db } from '../db'
-import { targetInstances, targetTemplates, chapters, modules, challenges } from '../db/schema'
+import { targetInstances, targetTemplates,labPreparations, chapters, modules, challenges } from '../db/schema'
+import {composeTargetOperation} from './compose-target-runtime'
 import { chapterContext } from './learning'
 import { sandboxHub, sandboxController } from '../sandbox'
 
@@ -101,11 +102,12 @@ export async function targetOperation(
 
     const nodes = hub
       .snapshot()
-      .nodes.filter(n => n.state === 'online' && !n.settings.draining && n.bootId && hub.targetNodes.has(n.id))
-    const eligible = preferredNodeId ? nodes.filter(n => n.id === preferredNodeId) : nodes
+      .nodes.filter(n => n.state === 'online' && !n.settings.draining && n.bootId && (template.runtime==='compose'?hub.composeNodes:hub.targetNodes).has(n.id))
+    const prepared=template.runtime==='compose'?await tx.select().from(labPreparations).where(and(eq(labPreparations.templateId,template.id),eq(labPreparations.templateVersion,template.composeRevision),eq(labPreparations.state,'ready'))):[]
+    const eligible = (preferredNodeId ? nodes.filter(n => n.id === preferredNodeId) : nodes).filter(n=>template.runtime!=='compose'||prepared.some(p=>p.nodeId===n.id&&p.bootId===n.bootId&&p.deploymentId))
 
     if (!eligible.length) {
-      throw createError({ statusCode: 503, message: '需要一个可用的 Docker 节点，且与攻击环境位于同一节点' })
+      throw createError({ statusCode: 503, message: template.runtime==='compose'?'当前可用节点尚未准备此靶场，请联系管理员':'需要一个可用的 Docker 节点，且与攻击环境位于同一节点' })
     }
 
     const node = eligible[0]!
@@ -118,6 +120,7 @@ export async function targetOperation(
       state: 'starting',
       expiresAt: new Date(Date.now() + 60 * 60 * 1000),
       image: template.image,
+      runtime:template.runtime,deploymentId:template.runtime==='compose'?prepared.find(p=>p.nodeId===node.id)!.deploymentId:null,
       ports: template.ports,
       result: null,
       revision: (existing?.revision || 0) + 1,
@@ -133,6 +136,7 @@ export async function targetOperation(
   if (!row) return null
   if (row.state === 'stopped') return view(row)
   if (row.expiresAt.getTime() <= Date.now()) action = 'stop'
+  if(row.runtime==='compose')return composeTargetOperation(row,action)
   if (action === 'start' && row.state === 'stopping') {
     throw createError({ statusCode: 409, message: '正在停止，请先刷新状态' })
   }

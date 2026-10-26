@@ -16,10 +16,11 @@ type NodeInfoConfig struct {
 }
 
 type NodeConfig struct {
-	Node    NodeInfoConfig   `yaml:"node"`
-	Gateway GatewayConfig    `yaml:"gateway"`
-	Runtime rt.RuntimeConfig `yaml:"runtime"`
-	Network NetworkConfig    `yaml:"network"`
+	ComposeLabs ComposeConfig    `yaml:"compose_labs"`
+	Node        NodeInfoConfig   `yaml:"node"`
+	Gateway     GatewayConfig    `yaml:"gateway"`
+	Runtime     rt.RuntimeConfig `yaml:"runtime"`
+	Network     NetworkConfig    `yaml:"network"`
 }
 
 // LoadNodeConfig parses configs/node.yaml or falls back to production defaults.

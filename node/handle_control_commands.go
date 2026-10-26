@@ -21,6 +21,8 @@ func (c *NodeControlClient) DispatchMessageForTest(msg *protocol.Message) {
 
 func (c *NodeControlClient) dispatchMessage(msg *protocol.Message) {
 	switch msg.Type {
+	case protocol.MsgComposePrepare, protocol.MsgComposePrepareStatus, protocol.MsgComposeStart, protocol.MsgComposeInspect, protocol.MsgComposeStop:
+		c.dispatchCompose(msg)
 	case protocol.MsgTypeTargetImagePrepare, protocol.MsgTypeTargetImageStatus, protocol.MsgTypeTargetStart, protocol.MsgTypeTargetInspect, protocol.MsgTypeTargetStop:
 		select {
 		case <-c.stopCh:
@@ -167,6 +169,7 @@ func (c *NodeControlClient) handleCreateBox(msg *protocol.Message) {
 	defer cancel()
 
 	sbx, err := c.rtMgr.CreateSandbox(ctx, rt.SandboxConfig{
+		OwnerID:    req.OwnerID,
 		TTLSeconds: req.TTLSeconds, IdleSeconds: req.IdleSeconds,
 		ID:        req.SandboxID,
 		UserID:    req.UserID,

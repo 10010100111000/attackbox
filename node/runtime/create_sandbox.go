@@ -1,6 +1,7 @@
-﻿package runtime
+package runtime
 
 import (
+	"attackbox/node/labnetwork"
 	"bufio"
 	"context"
 	"encoding/json"
@@ -18,7 +19,7 @@ func (m *RuntimeManager) CreateSandbox(ctx context.Context, scfg SandboxConfig) 
 	if m.diskGuard.IsTripped() {
 		return result, ErrDiskFuseTripped
 	}
-	rec := &SandboxRecord{ID: scfg.ID, UserID: scfg.UserID, SlotIndex: scfg.SlotIndex, State: "creating", StartedAt: time.Now(), LastActiveAt: time.Now()}
+	rec := &SandboxRecord{ID: scfg.ID, OwnerID: scfg.OwnerID, UserID: scfg.UserID, SlotIndex: scfg.SlotIndex, State: "creating", StartedAt: time.Now(), LastActiveAt: time.Now()}
 	ttl := scfg.TTLSeconds
 	if ttl <= 0 {
 		ttl = m.cfg.SandboxTTLSec
@@ -95,6 +96,15 @@ func (m *RuntimeManager) CreateSandbox(ctx context.Context, scfg SandboxConfig) 
 	rec.PID = cmd.Process.Pid
 	rec.waitDone = make(chan struct{})
 	m.mu.Unlock()
+	// Capture before starting Wait: an unreaped child PID cannot be reused.
+	var captureErr error
+	if rec.OwnerID != "" {
+		var identity labnetwork.NamespaceIdentity
+		identity, captureErr = labnetwork.CaptureNamespace(cmd.Process.Pid)
+		m.mu.Lock()
+		rec.Namespace = identity
+		m.mu.Unlock()
+	}
 	go func() {
 		_ = cmd.Wait()
 		close(rec.waitDone)
@@ -140,6 +150,9 @@ func (m *RuntimeManager) CreateSandbox(ctx context.Context, scfg SandboxConfig) 
 	}
 
 	sandboxIP := scfg.IP
+	if captureErr != nil {
+		return SandboxSnapshot{}, fmt.Errorf("capture sandbox namespace: %w", captureErr)
+	}
 	if m.netSetup != nil && scfg.SlotIndex > 0 {
 		netns := fmt.Sprintf("/proc/%d/ns/net", cmd.Process.Pid)
 		ip, netErr := m.netSetup(ctx, scfg.SlotIndex, scfg.ID, netns)
@@ -157,5 +170,7 @@ func (m *RuntimeManager) CreateSandbox(ctx context.Context, scfg SandboxConfig) 
 	rec.Revision = m.revision
 	result = snapshotOf(rec)
 	m.mu.Unlock()
+	// Attachment errors do not invalidate an otherwise running CLI sandbox.
+	_ = m.notifyLabReady(ctx, rec)
 	return result, nil
 }

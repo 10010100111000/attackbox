@@ -1,6 +1,7 @@
 package runtime
 
 import (
+	"attackbox/node/labnetwork"
 	"context"
 	"errors"
 	"fmt"
@@ -17,6 +18,8 @@ var (
 )
 
 type RuntimeManager struct {
+	labReady         func(context.Context, labnetwork.Sandbox) error
+	labGone          func(context.Context, string) error
 	cfg              RuntimeConfig
 	btrfs            *BtrfsDriver
 	cgroups          *CgroupManager

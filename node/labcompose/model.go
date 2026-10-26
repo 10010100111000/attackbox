@@ -63,14 +63,16 @@ type Service struct {
 	IPs    map[string]string `json:"ips"`
 }
 type Status struct {
-	ID           string    `json:"id"`
-	State        string    `json:"state"`
-	Ready        bool      `json:"ready"`
-	Readiness    string    `json:"readiness"`
-	Services     []Service `json:"services"`
-	EntryAddress string    `json:"entry_address,omitempty"`
-	ExpiresAt    time.Time `json:"expires_at"`
-	Attachment   string    `json:"attachment"`
+	ID              string    `json:"id"`
+	State           string    `json:"state"`
+	Ready           bool      `json:"ready"`
+	Readiness       string    `json:"readiness"`
+	Services        []Service `json:"services"`
+	EntryAddress    string    `json:"entry_address,omitempty"`
+	ExpiresAt       time.Time `json:"expires_at"`
+	Attachment      string    `json:"attachment"`
+	AttackerAddress string    `json:"attacker_address,omitempty"`
+	Interface       string    `json:"interface,omitempty"`
 }
 
 // Only this interface abstracts Docker execution. Implementations must refuse

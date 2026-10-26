@@ -61,7 +61,6 @@ func TestParserRejectsRemoteExecutionAndUnsafeFeatures(t *testing.T) {
 		"include: [https://example.com/private.yml]\nservices: {}",
 		"services: {web: {image: fixture:local, build: .}}",
 		"services: {web: {image: fixture:local, privileged: true}}",
-		"services: {web: {image: fixture:local, ports: ['8080:80']}}",
 		"services: {web: {image: fixture:local, env_file: /etc/passwd}}",
 		"services: {web: {image: fixture:local, networks: [front]}}\nnetworks: {front: {external: true}}",
 		"services: {web: {image: fixture:local, volumes: ['/etc/passwd:/leak:ro']}}",
@@ -74,6 +73,21 @@ func TestParserRejectsRemoteExecutionAndUnsafeFeatures(t *testing.T) {
 				t.Fatal("unsafe/unsupported input accepted")
 			}
 		})
+	}
+}
+
+func TestHostPortsAreNormalizedToPrivateContainerPorts(t *testing.T) {
+	d, err := Parse(context.Background(), packageFile(t, "services: {web: {image: 'fixture:local', ports: ['127.0.0.1:8080:80', '5353:53/udp']}}"), Budget{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	s := object(object(d.Document["services"])["web"])
+	if _, ok := s["ports"]; ok {
+		t.Fatal("host publication retained")
+	}
+	expose, _ := json.Marshal(s["expose"])
+	if !strings.Contains(string(expose), "80") || !strings.Contains(string(expose), "53/udp") {
+		t.Fatal(string(expose))
 	}
 }
 
@@ -104,5 +118,17 @@ func TestPackageReadOnlyFileAndLiteralVariableIsolation(t *testing.T) {
 	}
 	if _, err := Parse(context.Background(), b, Budget{}); err == nil {
 		t.Fatal("symlink accepted")
+	}
+}
+
+func TestNestedComposeResolvesFilesRelativeToItsDirectory(t *testing.T) {
+	b := packageFile(t, "services: {web: {image: 'fixture:local'}}")
+	os.Mkdir(filepath.Join(b.Directory, "nested"), 0700)
+	os.WriteFile(filepath.Join(b.Directory, "nested", "compose.yml"), []byte("services: {web: {image: 'fixture:local', volumes: ['./init.sql:/init.sql:ro']}}"), 0600)
+	os.WriteFile(filepath.Join(b.Directory, "nested", "init.sql"), []byte("select 1;"), 0600)
+	b.File = "nested/compose.yml"
+	d, err := Parse(context.Background(), b, Budget{})
+	if err != nil || d.Files["nested/init.sql"] == "" {
+		t.Fatal("nested reference lost", d.Files, err)
 	}
 }
