@@ -169,7 +169,7 @@ test(
         )[0].n,
         1,
       )
-      await page.goto(f.base + '/me')
+      await page.goto(f.base + '/me?tab=profile')
       await page.getByLabel('昵称', { exact: true }).fill('Learning Reader')
       await page.getByRole('button', { name: '保存资料', exact: true }).click()
       await page.getByText('资料已保存', { exact: true }).waitFor()

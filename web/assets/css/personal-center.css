@@ -1,0 +1,757 @@
+.personal-center {
+  display: grid;
+  grid-template-columns: 204px minmax(0, 1fr);
+  align-items: start;
+  gap: 56px;
+  width: min(1140px, calc(100% - 64px));
+  margin: 48px auto 88px;
+  color: var(--ink);
+}
+.personal-sidebar {
+  position: sticky;
+  top: 32px;
+  min-width: 0;
+}
+.personal-identity {
+  padding: 4px 14px 30px;
+}
+.personal-avatar {
+  display: grid;
+  place-items: center;
+  width: 58px;
+  height: 58px;
+  margin-bottom: 24px;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background: var(--paper);
+  color: var(--green);
+  font-size: 19px;
+  font-weight: 650;
+  letter-spacing: -0.5px;
+}
+.personal-eyebrow {
+  display: block;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 1.5px;
+  color: var(--muted);
+}
+.personal-identity h2 {
+  margin: 9px 0 8px;
+  font-size: 20px;
+  font-weight: 650;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+  letter-spacing: -0.4px;
+}
+.personal-role {
+  color: var(--muted);
+  font-size: 12px;
+}
+.personal-navigation {
+  display: grid;
+  gap: 5px;
+}
+.personal-navigation a,
+.personal-notifications {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  border-radius: 8px;
+  color: var(--muted);
+  font-size: 13px;
+  text-decoration: none;
+}
+.personal-navigation a:hover,
+.personal-notifications:hover {
+  background: var(--soft);
+  color: var(--ink);
+}
+.personal-navigation a[aria-current='page'] {
+  background: var(--paper);
+  color: var(--ink);
+  box-shadow: 0 1px 4px #00000006;
+  font-weight: 650;
+}
+.personal-notifications {
+  margin-top: 24px;
+  border-top: 1px solid var(--line);
+  border-radius: 0;
+  padding-top: 22px;
+}
+.personal-content {
+  min-width: 0;
+}
+.personal-section-heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 20px;
+  min-height: 62px;
+  margin-bottom: 28px;
+}
+.personal-section-heading h1 {
+  margin: 10px 0 0;
+  font-size: 28px;
+  line-height: 1.3;
+  font-weight: 650;
+  letter-spacing: -0.8px;
+}
+.personal-text-link {
+  border: 0;
+  background: transparent;
+  padding: 4px 0;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.5;
+  text-decoration: none;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.personal-text-link:hover {
+  color: var(--ink);
+  text-decoration: underline;
+  text-underline-offset: 4px;
+}
+.personal-resume {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 164px;
+  align-items: center;
+  gap: 32px;
+  padding: 30px 32px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  color: var(--code-ink);
+  background: var(--code);
+}
+.personal-resume-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--code-muted);
+  font-size: 11px;
+}
+.personal-resume-label > span {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--code-highlight);
+}
+.personal-resume h2 {
+  margin: 16px 0 10px;
+  font-size: 23px;
+  font-weight: 600;
+  line-height: 1.45;
+  letter-spacing: -0.5px;
+  overflow-wrap: anywhere;
+}
+.personal-resume-copy > p {
+  font-size: 12px;
+  color: var(--code-muted);
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.personal-resume-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 24px;
+  padding: 10px 15px;
+  border-radius: 7px;
+  background: var(--code-ink);
+  color: var(--code);
+  font-size: 12px;
+  font-weight: 600;
+  text-decoration: none;
+}
+.personal-resume-button:hover {
+  opacity: 0.9;
+}
+.personal-resume-progress {
+  display: flex;
+  flex-direction: column;
+  border-left: 1px solid color-mix(in srgb, var(--code-muted) 24%, transparent);
+  padding-left: 30px;
+  gap: 8px;
+}
+.personal-resume-progress > strong {
+  font-size: 45px;
+  line-height: 1;
+  font-weight: 450;
+  letter-spacing: -2px;
+  font-variant-numeric: tabular-nums;
+}
+.personal-resume-progress > strong > span {
+  font-size: 20px;
+  letter-spacing: 0;
+  margin-left: 4px;
+  color: var(--code-muted);
+}
+.personal-resume-progress > span:not(.personal-progress) {
+  font-size: 11px;
+  color: var(--code-muted);
+}
+.personal-resume-progress > small {
+  font-size: 10px;
+  color: var(--code-muted);
+}
+.personal-resume .personal-progress {
+  margin-top: 10px;
+  background: color-mix(in srgb, var(--code-muted) 25%, transparent);
+}
+.personal-resume .personal-progress i {
+  background: var(--code-highlight);
+}
+.personal-list-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 14px;
+  margin: 32px 0 16px;
+}
+.personal-list-heading.first {
+  margin-top: 0;
+}
+.personal-list-heading h2 {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+}
+.personal-filters {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.personal-filters button {
+  border: 0;
+  border-radius: 6px;
+  padding: 7px 11px;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: 11px;
+  cursor: pointer;
+}
+.personal-filters button:hover {
+  color: var(--ink);
+}
+.personal-filters button[aria-pressed='true'] {
+  background: var(--soft);
+  color: var(--ink);
+  font-weight: 600;
+}
+.personal-record-list {
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--paper);
+}
+.personal-record {
+  display: grid;
+  grid-template-columns: 40px minmax(0, 1fr) 154px 62px;
+  gap: 18px;
+  align-items: center;
+  padding: 24px;
+  color: var(--ink);
+  text-decoration: none;
+}
+.personal-record + .personal-record {
+  border-top: 1px solid var(--line);
+}
+.personal-record:hover {
+  background: var(--hover);
+}
+.personal-record-icon {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  color: var(--muted);
+}
+.personal-record-icon.complete {
+  color: var(--success-ink);
+  background: var(--success-bg);
+  border-color: transparent;
+}
+.personal-record-text {
+  display: grid;
+  gap: 9px;
+  min-width: 0;
+}
+.personal-record-text strong {
+  font-size: 14px;
+  line-height: 1.5;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+.personal-record-text > span {
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+.personal-record-progress {
+  display: grid;
+  gap: 10px;
+}
+.personal-record-count {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  color: var(--muted);
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+}
+.personal-record-count .personal-complete {
+  color: var(--success-ink);
+}
+.personal-progress {
+  display: block;
+  height: 3px;
+  border-radius: 4px;
+  background: var(--soft);
+  overflow: hidden;
+}
+.personal-progress i {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--green);
+}
+.personal-record-date {
+  text-align: right;
+  font-size: 10px;
+  color: var(--muted);
+  white-space: nowrap;
+}
+.personal-footnote {
+  margin: 16px 0 0;
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.8;
+}
+.personal-empty,
+.personal-guest {
+  padding: 66px 28px;
+  text-align: center;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--paper);
+}
+.personal-guest {
+  grid-column: 1 / -1;
+  width: min(600px, 100%);
+  box-sizing: border-box;
+  margin: 24px auto;
+}
+.personal-empty > svg,
+.personal-guest > svg {
+  margin: 0 auto 18px;
+  color: var(--muted);
+}
+.personal-empty-icon {
+  display: grid;
+  place-items: center;
+  width: 64px;
+  height: 64px;
+  border-radius: 20px;
+  background: var(--soft);
+  color: var(--muted);
+  margin: 0 auto 24px;
+}
+.personal-empty h2,
+.personal-guest h1 {
+  margin: 0 0 12px;
+  font-size: 21px;
+  font-weight: 600;
+  letter-spacing: -0.4px;
+}
+.personal-empty p,
+.personal-guest p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.8;
+}
+.personal-empty .personal-button,
+.personal-guest .personal-button {
+  margin-top: 25px;
+}
+.personal-filter-empty {
+  padding: 44px 24px;
+  text-align: center;
+  border: 1px dashed var(--line);
+  border-radius: 12px;
+}
+.personal-filter-empty p {
+  font-size: 13px;
+  margin: 0 0 10px;
+  color: var(--muted);
+}
+.personal-button {
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  border: 1px solid var(--green);
+  border-radius: 7px;
+  padding: 10px 16px;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  background: var(--green);
+  color: var(--on-accent);
+  text-decoration: none;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.personal-button.secondary {
+  border-color: var(--line);
+  background: var(--paper);
+  color: var(--ink);
+  font-weight: 400;
+}
+.personal-button:hover:not(:disabled) {
+  filter: brightness(0.95);
+}
+.personal-button:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+.personal-loading {
+  display: grid;
+  gap: 18px;
+  padding: 32px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--paper);
+}
+.personal-skeleton {
+  display: block;
+  width: 100%;
+  height: 56px;
+  border-radius: 7px;
+  background: var(--soft);
+}
+.personal-skeleton-title {
+  width: 48%;
+  height: 22px;
+  margin-bottom: 12px;
+}
+.personal-sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+}
+.personal-settings {
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--paper);
+}
+.personal-settings-heading {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 26px 30px;
+  border-bottom: 1px solid var(--line);
+}
+.personal-settings-heading > svg {
+  color: var(--muted);
+}
+.personal-settings-heading h2 {
+  font-size: 14px;
+  font-weight: 600;
+  margin: 0;
+}
+.personal-field {
+  display: grid;
+  grid-template-columns: 104px minmax(0, 1fr);
+  gap: 24px;
+  align-items: start;
+  padding: 28px 30px;
+}
+.personal-field + .personal-field {
+  padding-top: 4px;
+  padding-bottom: 34px;
+}
+.personal-field > label,
+.personal-field-label {
+  font-size: 13px;
+  padding-top: 11px;
+}
+.personal-field input {
+  width: 100%;
+  max-width: 360px;
+  min-width: 0;
+  box-sizing: border-box;
+  padding: 11px 12px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: var(--bg);
+  color: var(--ink);
+  font: inherit;
+  font-size: 13px;
+}
+.personal-field input[aria-invalid='true'] {
+  border-color: var(--error-ink);
+}
+.personal-field-hint,
+.personal-field-error {
+  font-size: 11px;
+  line-height: 1.7;
+  margin: 9px 0 0;
+  color: var(--muted);
+}
+.personal-field-error {
+  color: var(--error-ink);
+}
+.personal-email {
+  display: flex;
+  gap: 9px;
+  align-items: center;
+  padding-top: 11px;
+  font-size: 13px;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+.personal-email svg {
+  flex-shrink: 0;
+  color: var(--muted);
+}
+.personal-save-row {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  padding: 20px 30px;
+  border-top: 1px solid var(--line);
+  background: var(--hover);
+}
+.personal-save-row > p {
+  margin: 0;
+}
+.personal-save-hint {
+  font-size: 11px;
+  color: var(--muted);
+}
+.personal-save-success {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 12px;
+  color: var(--success-ink);
+}
+.personal-save-actions {
+  display: flex;
+  gap: 10px;
+  margin-left: auto;
+}
+.personal-security {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 26px 30px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  margin-top: 22px;
+  background: var(--paper);
+}
+.personal-security > div {
+  display: flex;
+  gap: 14px;
+  align-items: center;
+}
+.personal-security svg {
+  color: var(--muted);
+}
+.personal-security h2 {
+  margin: 0 0 7px;
+  font-size: 14px;
+  font-weight: 600;
+}
+.personal-security p {
+  margin: 0;
+  font-size: 12px;
+  color: var(--muted);
+}
+.personal-center a:focus-visible,
+.personal-center button:focus-visible,
+.personal-center input:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 3px;
+}
+@media (max-width: 1020px) {
+  .personal-center {
+    grid-template-columns: 180px minmax(0, 1fr);
+    gap: 28px;
+    width: calc(100% - 48px);
+  }
+  .personal-record {
+    grid-template-columns: 36px minmax(0, 1fr) 130px;
+    gap: 14px;
+    padding: 22px 20px;
+  }
+  .personal-record-date {
+    display: none;
+  }
+  .personal-resume {
+    gap: 22px;
+    padding: 26px;
+    grid-template-columns: minmax(0, 1fr) 130px;
+  }
+  .personal-resume-progress {
+    padding-left: 22px;
+  }
+}
+@media (max-width: 760px) {
+  .personal-center {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 28px;
+    width: calc(100% - 32px);
+    margin-top: 26px;
+  }
+  .personal-sidebar {
+    position: static;
+  }
+  .personal-identity {
+    display: grid;
+    grid-template-columns: 48px minmax(0, 1fr) auto;
+    align-items: center;
+    column-gap: 12px;
+    padding: 0 2px 22px;
+  }
+  .personal-avatar {
+    grid-row: 1 / 3;
+    width: 46px;
+    height: 46px;
+    margin: 0;
+    font-size: 16px;
+    border-radius: 14px;
+  }
+  .personal-identity .personal-eyebrow {
+    font-size: 9px;
+  }
+  .personal-identity h2 {
+    grid-column: 2;
+    grid-row: 2;
+    margin: 4px 0 0;
+    font-size: 16px;
+  }
+  .personal-role {
+    grid-column: 3;
+    grid-row: 1 / 3;
+    font-size: 11px;
+  }
+  .personal-navigation {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    padding: 4px;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    gap: 3px;
+  }
+  .personal-navigation a {
+    justify-content: center;
+    gap: 7px;
+    padding: 10px 2px;
+    font-size: 12px;
+  }
+  .personal-navigation svg {
+    width: 14px;
+  }
+  .personal-notifications {
+    display: none;
+  }
+  .personal-section-heading {
+    min-height: 48px;
+    margin-bottom: 24px;
+  }
+  .personal-section-heading h1 {
+    font-size: 24px;
+  }
+  .personal-resume {
+    grid-template-columns: minmax(0, 1fr);
+    padding: 26px;
+    gap: 24px;
+  }
+  .personal-resume h2 {
+    font-size: 21px;
+  }
+  .personal-resume-progress {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    align-items: center;
+    border-left: 0;
+    padding-left: 0;
+    column-gap: 16px;
+  }
+  .personal-resume-progress > strong {
+    font-size: 28px;
+    grid-row: 1 / 4;
+  }
+  .personal-resume-progress > strong > span {
+    font-size: 13px;
+  }
+  .personal-resume .personal-progress {
+    margin: 0;
+  }
+  .personal-resume-progress > span:not(.personal-progress) {
+    display: none;
+  }
+  .personal-record {
+    grid-template-columns: 36px minmax(0, 1fr);
+    padding: 22px 18px;
+    gap: 12px;
+  }
+  .personal-record-icon {
+    width: 34px;
+    height: 34px;
+  }
+  .personal-record-progress {
+    grid-column: 2;
+    margin-top: 2px;
+    gap: 8px;
+  }
+  .personal-record-text strong {
+    font-size: 13px;
+  }
+  .personal-list-heading {
+    margin-top: 24px;
+    gap: 10px;
+  }
+  .personal-filters button {
+    padding: 7px 9px;
+  }
+  .personal-field {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 12px;
+    padding: 22px;
+  }
+  .personal-field > label,
+  .personal-field-label {
+    padding-top: 0;
+  }
+  .personal-settings-heading,
+  .personal-save-row,
+  .personal-security {
+    padding: 22px;
+  }
+  .personal-field + .personal-field {
+    padding-top: 0;
+    padding-bottom: 28px;
+  }
+  .personal-empty {
+    padding: 46px 22px;
+  }
+}
