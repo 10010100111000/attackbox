@@ -1,7 +1,7 @@
 // web/tests/markdown.test.js
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { renderMarkdown } from '../utils/markdown.ts';
+import { renderMarkdown, createMarkdownRenderer } from '../utils/markdown.ts';
 
 test('renderMarkdown converts headers, bold, and list with heading extraction', () => {
   const md = `# Linux 基础入门\n\n掌握 **常用命令** 与权限：\n\n- pwd\n- ls\n- cd\n\n## 认识终端与 Shell\n\nShell 负责解释命令。`;
@@ -53,4 +53,37 @@ test('fenced language labels escape HTML and attribute delimiters', () => {
   const result = renderMarkdown('```unknown"onclick="alert(1)\nhello\n```');
   assert.ok(!result.html.includes('unknown"onclick='));
   assert.ok(result.html.includes('&quot;'));
+});
+
+test('callouts preserve multiple paragraphs, lists, fences and nested quotes', () => {
+  const result = renderMarkdown('> [!NOTE]\n>\n> First **paragraph**.\n>\n> Second paragraph.\n>\n> - one\n> - two\n>\n> ```bash\n> echo safe\n> ```\n>\n> > ordinary quote\n>\n> Last paragraph.\n\nOutside.');
+  assert.match(result.html, /^<div class="callout callout-note">\s*<strong>本章学习目标<\/strong>\s*<p>First/);
+  assert.ok(result.html.includes('</p>\n<p>Second paragraph.</p>\n<ul>'));
+  assert.ok(result.html.includes('</ul>\n<div class="code-block">'));
+  assert.ok(result.html.includes('<blockquote>\n<p>ordinary quote</p>\n</blockquote>'));
+  assert.ok(result.html.endsWith('<p>Last paragraph.</p>\n</div>\n<p>Outside.</p>\n'));
+  assert.equal((result.html.match(/<p>/g)||[]).length, (result.html.match(/<\/p>/g)||[]).length);
+});
+
+test('nested and adjacent callouts keep their own closing tokens and headings', () => {
+  const result = renderMarkdown('> [!WARNING]\n> Outer\n>\n> > [!TIP]\n> > Inner\n>\n> ## Nested heading\n>\n> Outer end\n\n> [!CAUTION]\n> Next');
+  assert.ok(result.html.includes('callout-warning'));
+  assert.ok(result.html.includes('callout-tip'));
+  assert.ok(result.html.includes('<p>Inner</p>\n</div>\n<h2 id="nested-heading">'));
+  assert.ok(result.html.includes('<p>Outer end</p>\n</div>\n<div class="callout callout-caution">'));
+  assert.deepEqual(result.headings, [{id:'nested-heading',text:'Nested heading',level:2}]);
+});
+
+test('callout recognition is limited to a leading supported marker, not code or HTML', () => {
+  const md = createMarkdownRenderer();
+  for (const source of ['> [!UNKNOWN]\n> body', '> prefix [!NOTE]', '> `[!TIP]`', '```md\n> [!NOTE]\n```']) {
+    assert.ok(!md.render(source).includes('class="callout '));
+  }
+  assert.ok(md.render('> [!note] Inline **body**').includes('<p>Inline <strong>body</strong></p>'));
+  const empty = md.render('> [!IMPORTANT]');
+  assert.ok(!empty.includes('<p>'));
+  assert.ok(empty.includes('重要提示'));
+  const attack = md.render('> [!NOTE]\n> <script>alert(1)</script>');
+  assert.ok(!attack.includes('<script>'));
+  assert.ok(attack.includes('&lt;script&gt;'));
 });

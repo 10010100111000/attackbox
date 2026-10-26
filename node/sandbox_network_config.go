@@ -6,6 +6,8 @@ import (
 	"regexp"
 )
 
+var sandboxIDForNetwork = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$`)
+
 func validateSandboxNetwork(cfg NetworkConfig) error {
 	if !regexp.MustCompile(`^[A-Za-z][A-Za-z0-9_-]{0,14}$`).MatchString(cfg.BridgeName) {
 		return fmt.Errorf("invalid sandbox bridge name")

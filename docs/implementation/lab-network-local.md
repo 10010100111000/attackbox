@@ -1,10 +1,10 @@
-# 本机实验网络接入：第一轮代码与验证
+# 本机实验网络与接入验证
 
-状态：独立网络模块与测试夹具已实现，尚未接入现有 Worker 生产启动流程。现有单容器靶机、沙箱主网络、页面与 API 不改变。本轮不实现 Compose 执行器或源码构建。
+状态：已接入 Compose Worker 生产流程。沙箱主网与靶场网承担不同职责，但网卡操作统一使用 netlink 与校验后的 namespace FD；没有旧单容器执行器或 Shell 网络初始化 fallback。
 
 ## 代码边界
 
-新代码位于 `node/labnetwork`，不依赖旧 `DockerTargetManager` 或旧的共享靶机网桥：
+靶场接线代码位于 `node/labnetwork`，执行器位于 `node/labcompose`：
 
 | 文件 | 职责 |
 | --- | --- |
@@ -28,6 +28,25 @@
 - `Close()`：只关闭句柄和文件锁，不删除运行资源或保护规则。
 
 所有调用都在可信 Worker 内部执行，不是允许浏览器提交 PID、namespace 或 Docker 配置的 API。
+
+## 沙箱主网与靶场网的共享操作
+
+`node/sandbox_network_linux.go` 负责主网 eth0 的 bridge、veth、地址、默认路由与清理。Runtime 在创建 init 子进程时捕获 Device/Inode，网络生命周期接口传递完整沙箱身份，不再传 `/proc/<pid>/ns/net` 字符串。主网与靶场接线共用 `PinNetworkNamespace` 和 `CreateOwnedVeth`，创建 peer 时直接指定 namespace FD，后续操作不再查询 PID 或调用 `nsenter`、`sh`、`ip`。
+
+主网端口保持 `isolated=true`，配置唯一的 eth0 默认路由；靶场端口保持 `isolated=false`，仅配置 lab* 地址。主网 veth 使用完整 `attackbox:sandbox:<id>` alias，清理同时核对接口类型、名称和所有权。配置失败回滚本次确认创建的 veth，不删除碰巧同名的设备。防火墙仍通过受校验配置生成 nft 规则，与网卡初始化分开。
+
+主网实测可以在**网络隔离的临时容器**中执行，不需要 VPS 或容器内 Docker daemon：
+
+```bash
+CGO_ENABLED=0 go test -c ./node -o /tmp/attackbox-primary-network.test
+docker run --rm --network none --cap-add NET_ADMIN --cap-add SYS_ADMIN \
+  --security-opt seccomp=unconfined -e ATTACKBOX_TEST_SANDBOX_NETWORK=1 \
+  --mount type=bind,src=/tmp/attackbox-primary-network.test,dst=/tests/node.test,readonly \
+  --entrypoint /tests/node.test postgres:16-alpine \
+  -test.run '^TestSandboxPrimaryNetworkAcceptance$' -test.v
+```
+
+覆盖 bridge 初始化幂等与地址冲突、真实 namespace 中的 eth0／IPv4／默认路由、主网端口隔离、重复配置拒绝、清理幂等、同名设备保护及路由冲突后的回滚。普通无权限测试验证拒绝宿主 namespace、身份变化与取消请求。
 
 ## 命名与地址
 

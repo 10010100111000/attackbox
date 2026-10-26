@@ -22,6 +22,7 @@ type fakeEngine struct {
 	downErr                          error
 	blockID                          string
 	started                          chan struct{}
+	beforeDown                       func()
 }
 
 func (e *fakeEngine) Check(context.Context) error { return nil }
@@ -70,6 +71,9 @@ func (e *fakeEngine) Inspect(_ context.Context, r Record) ([]Service, error) {
 	return append([]Service(nil), e.services[r.Request.ID]...), nil
 }
 func (e *fakeEngine) Down(_ context.Context, r Record, _ string) error {
+	if e.beforeDown != nil {
+		e.beforeDown()
+	}
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	e.downCount++
@@ -85,6 +89,8 @@ type fakeNetworks struct {
 	mu          sync.Mutex
 	nets        map[string]labnetwork.Network
 	attachments map[string]labnetwork.Attachment
+	changed     chan struct{}
+	attachCalls int
 }
 
 func (n *fakeNetworks) CreateNetwork(_ context.Context, s labnetwork.NetworkSpec) (labnetwork.Network, error) {
@@ -116,6 +122,8 @@ func (n *fakeNetworks) Attach(_ context.Context, id string, s labnetwork.Sandbox
 	key := id + "/" + s.ID
 	v := labnetwork.Attachment{ID: key, NetworkID: id, Sandbox: s, Desired: true}
 	n.attachments[key] = v
+	n.attachCalls++
+	n.signal()
 	return v, nil
 }
 func (n *fakeNetworks) Detach(_ context.Context, id string) error {
@@ -125,7 +133,36 @@ func (n *fakeNetworks) Detach(_ context.Context, id string) error {
 	v.Desired = false
 	v.Cleaned = true
 	n.attachments[id] = v
+	n.signal()
 	return nil
+}
+func (n *fakeNetworks) signal() {
+	select {
+	case n.changed <- struct{}{}:
+	default:
+	}
+}
+func waitAttachment(t *testing.T, n *fakeNetworks, sandbox string, connected bool) {
+	t.Helper()
+	timer := time.NewTimer(3 * time.Second)
+	defer timer.Stop()
+	for {
+		_, attachments := n.Snapshot()
+		found := false
+		for _, a := range attachments {
+			if a.Sandbox.ID == sandbox && a.Desired && !a.Cleaned {
+				found = true
+			}
+		}
+		if found == connected {
+			return
+		}
+		select {
+		case <-n.changed:
+		case <-timer.C:
+			t.Fatal("attachment event not processed", sandbox, connected)
+		}
+	}
 }
 func (n *fakeNetworks) Snapshot() ([]labnetwork.Network, []labnetwork.Attachment) {
 	n.mu.Lock()
@@ -143,7 +180,7 @@ func (n *fakeNetworks) Snapshot() ([]labnetwork.Network, []labnetwork.Attachment
 func fixtureManager(t *testing.T) (*Manager, *fakeEngine, *fakeNetworks, Bundle) {
 	t.Helper()
 	e := &fakeEngine{records: map[string]Record{}, services: map[string][]Service{}, started: make(chan struct{})}
-	n := &fakeNetworks{nets: map[string]labnetwork.Network{}, attachments: map[string]labnetwork.Attachment{}}
+	n := &fakeNetworks{nets: map[string]labnetwork.Network{}, attachments: map[string]labnetwork.Attachment{}, changed: make(chan struct{}, 1)}
 	cfg := Config{NodeID: "node-a", StateDir: filepath.Join(t.TempDir(), "runtime"), Engine: e, Networks: n}
 	m, err := New(context.Background(), cfg)
 	if err != nil {
@@ -229,6 +266,7 @@ func TestBothSandboxOrdersAndRecreation(t *testing.T) {
 					t.Fatal(err)
 				}
 			}
+			waitAttachment(t, m.cfg.Networks.(*fakeNetworks), s.ID, true)
 			status, err := m.Inspect(ctx, r.ID)
 			if err != nil || status.Attachment != "connected" {
 				t.Fatal(status, err)
@@ -236,6 +274,7 @@ func TestBothSandboxOrdersAndRecreation(t *testing.T) {
 			if err := m.SandboxGone(ctx, s.ID); err != nil {
 				t.Fatal(err)
 			}
+			waitAttachment(t, m.cfg.Networks.(*fakeNetworks), s.ID, false)
 			status, err = m.Inspect(ctx, r.ID)
 			if err != nil || status.State != "running" || status.Attachment == "connected" {
 				t.Fatal(status, err)
@@ -245,6 +284,7 @@ func TestBothSandboxOrdersAndRecreation(t *testing.T) {
 			if err := m.SandboxAvailable(ctx, s); err != nil {
 				t.Fatal(err)
 			}
+			waitAttachment(t, m.cfg.Networks.(*fakeNetworks), s.ID, true)
 			status, err = m.Inspect(ctx, r.ID)
 			if err != nil || status.Attachment != "connected" {
 				t.Fatal(status, err)

@@ -45,6 +45,16 @@ errorHint: 想想“我是谁”对应的命令。
 
 prompt 和 answer 必填，normalization 默认为 trim，errorHint 可省略。题目提示支持 YAML 多行 Markdown；同一章节不能出现重复题干。数字、yes/no、true/false 等答案请用引号明确写成文本，例如 `answer: "123"` 或 `answer: "true"`。
 
+正文支持 GitHub 风格提示块：在块引用开头使用 `[!NOTE]`、`[!TIP]`、`[!IMPORTANT]`、`[!WARNING]` 或 `[!CAUTION]`。提示块内部可以包含多个段落、列表、代码块和嵌套引用，保留正常 Markdown 结构，不需要手写 HTML。
+
+```markdown
+> [!WARNING]
+> 仅在授权的实验环境中操作。
+>
+> - 先确认目标地址
+> - 再执行验证命令
+```
+
 - exact：完全匹配，保留空白和大小写。
 - trim：忽略首尾空白。
 - trim_casefold：忽略首尾空白和大小写；沿用现有服务端规则，不压缩命令内部空格。

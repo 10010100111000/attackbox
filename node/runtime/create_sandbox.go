@@ -97,14 +97,10 @@ func (m *RuntimeManager) CreateSandbox(ctx context.Context, scfg SandboxConfig) 
 	rec.waitDone = make(chan struct{})
 	m.mu.Unlock()
 	// Capture before starting Wait: an unreaped child PID cannot be reused.
-	var captureErr error
-	if rec.OwnerID != "" {
-		var identity labnetwork.NamespaceIdentity
-		identity, captureErr = labnetwork.CaptureNamespace(cmd.Process.Pid)
-		m.mu.Lock()
-		rec.Namespace = identity
-		m.mu.Unlock()
-	}
+	identity, captureErr := labnetwork.CaptureNamespace(cmd.Process.Pid)
+	m.mu.Lock()
+	rec.Namespace = identity
+	m.mu.Unlock()
 	go func() {
 		_ = cmd.Wait()
 		close(rec.waitDone)
@@ -154,8 +150,7 @@ func (m *RuntimeManager) CreateSandbox(ctx context.Context, scfg SandboxConfig) 
 		return SandboxSnapshot{}, fmt.Errorf("capture sandbox namespace: %w", captureErr)
 	}
 	if m.netSetup != nil && scfg.SlotIndex > 0 {
-		netns := fmt.Sprintf("/proc/%d/ns/net", cmd.Process.Pid)
-		ip, netErr := m.netSetup(ctx, scfg.SlotIndex, scfg.ID, netns)
+		ip, netErr := m.netSetup(ctx, scfg.SlotIndex, labnetwork.Sandbox{ID: rec.ID, OwnerID: rec.OwnerID, PID: rec.PID, Namespace: rec.Namespace})
 		if netErr != nil {
 
 			return SandboxSnapshot{}, fmt.Errorf("setup sandbox network: %w", netErr)

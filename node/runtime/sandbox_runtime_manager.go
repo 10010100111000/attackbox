@@ -25,7 +25,7 @@ type RuntimeManager struct {
 	cgroups          *CgroupManager
 	diskGuard        *DiskGuard
 	rootDeviceNumber string
-	netSetup         func(ctx context.Context, slotIndex int, id, netns string) (string, error)
+	netSetup         func(ctx context.Context, slotIndex int, sandbox labnetwork.Sandbox) (string, error)
 	netTeardown      func(ctx context.Context, slotIndex int, id string) error
 	mu               sync.RWMutex
 	revision         uint64
@@ -36,7 +36,7 @@ type RuntimeManager struct {
 
 // SetNetworkLifecycle attaches network provisioning and teardown handlers to the runtime manager.
 func (m *RuntimeManager) SetNetworkLifecycle(
-	setup func(ctx context.Context, slotIndex int, id, netns string) (string, error),
+	setup func(ctx context.Context, slotIndex int, sandbox labnetwork.Sandbox) (string, error),
 	teardown func(ctx context.Context, slotIndex int, id string) error,
 ) {
 	m.mu.Lock()

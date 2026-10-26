@@ -227,9 +227,6 @@ func (c *NodeControlClient) executeCompose(ctx context.Context, msg *protocol.Me
 	case protocol.MsgComposeStart:
 		status, err = c.compose.runtime.Start(ctx, labcompose.Request{ID: req.TargetID, OwnerID: req.OwnerID, DeploymentID: req.DeploymentID, ExpiresAt: req.ExpiresAt})
 	case protocol.MsgComposeInspect:
-		if c.rtMgr != nil {
-			_ = c.rtMgr.WithLabSandbox(ctx, req.OwnerID, c.compose.runtime.SandboxAvailable)
-		}
 		status, err = c.compose.runtime.Inspect(ctx, req.TargetID)
 	case protocol.MsgComposeStop:
 		if !c.compose.runtime.Owns(req.TargetID, req.OwnerID) {

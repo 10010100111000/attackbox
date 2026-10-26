@@ -20,6 +20,7 @@ type PinnedNamespace struct {
 }
 
 func (p *PinnedNamespace) Close() error { return p.file.Close() }
+func (p *PinnedNamespace) FD() uintptr  { return p.file.Fd() }
 
 func fileIdentity(f *os.File) (NamespaceIdentity, error) {
 	info, err := f.Stat()
@@ -47,10 +48,19 @@ func CaptureNamespace(pid int) (NamespaceIdentity, error) {
 }
 
 func PinNamespace(s Sandbox) (*PinnedNamespace, error) {
-	if !identityPattern.MatchString(s.ID) || !identityPattern.MatchString(s.OwnerID) || s.PID <= 0 || s.Namespace.Inode == 0 || s.Namespace.Device == 0 {
+	if !identityPattern.MatchString(s.ID) || !identityPattern.MatchString(s.OwnerID) {
 		return nil, fmt.Errorf("invalid sandbox identity")
 	}
-	f, err := os.Open("/proc/" + strconv.Itoa(s.PID) + "/ns/net")
+	return PinNetworkNamespace(s.PID, s.Namespace)
+}
+
+// PinNetworkNamespace is shared by primary eth0 and lab adapters. Validate the
+// captured device/inode once, then use only FD() for all netlink operations.
+func PinNetworkNamespace(pid int, expected NamespaceIdentity) (*PinnedNamespace, error) {
+	if pid <= 0 || expected.Inode == 0 || expected.Device == 0 {
+		return nil, fmt.Errorf("invalid sandbox namespace identity")
+	}
+	f, err := os.Open("/proc/" + strconv.Itoa(pid) + "/ns/net")
 	if err != nil {
 		return nil, fmt.Errorf("open sandbox namespace: %w", err)
 	}
@@ -59,7 +69,7 @@ func PinNamespace(s Sandbox) (*PinnedNamespace, error) {
 	if err != nil {
 		return fail(err)
 	}
-	if id != s.Namespace {
+	if id != expected {
 		return fail(ErrNamespaceChanged)
 	}
 	for _, path := range []string{"/proc/self/ns/net", "/proc/1/ns/net"} {

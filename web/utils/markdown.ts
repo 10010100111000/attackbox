@@ -1,4 +1,5 @@
 import MarkdownIt from 'markdown-it'
+import { callouts } from './markdown-callouts.ts'
 import hljs from 'highlight.js/lib/core'
 import bash from 'highlight.js/lib/languages/bash'
 import javascript from 'highlight.js/lib/languages/javascript'
@@ -77,6 +78,8 @@ export function createMarkdownRenderer() {
     },
   })
 
+  md.use(callouts)
+
   // The highlighter already returns the complete code card. Avoid MarkdownIt's
   // default extra <pre><code> wrapper, which indents and narrows the card.
   md.renderer.rules.fence = (tokens, idx, options) => {
@@ -151,25 +154,7 @@ export function renderMarkdown(content: string, imageUrls: Record<string,string>
     return defaultHeadingOpen(tokens, idx, options, env, self)
   }
 
-  let html = md.render(content)
-
-  // 处理 GitHub 风格 Callout 提示框：
-  // <blockquote><p>[!NOTE] ... </p></blockquote> -> <div class="callout callout-note">...</div>
-  html = html.replace(
-    /<blockquote>\s*<p>\[!(NOTE|TIP|IMPORTANT|WARNING|CAUTION)\]\s*([\s\S]*?)<\/blockquote>/gi,
-    (_match, type, body) => {
-      const calloutType = String(type).toLowerCase()
-      const titleMap: Record<string, string> = {
-        note: '本章学习目标',
-        tip: '停下来，想一想',
-        important: '重要提示',
-        warning: '安全警告',
-        caution: '风险警示',
-      }
-      const title = titleMap[calloutType] || '提示'
-      return `<div class="callout callout-${calloutType}"><strong>${title}</strong><p>${body}</div>`
-    }
-  )
+  const html = md.render(content)
 
   return { html, headings }
 }

@@ -40,7 +40,7 @@ func creationFixture() (*creationLinks, *creationLinks, *netlink.Veth, Attachmen
 
 func TestNewVethExplicitAliasWithoutCreationTimeAlias(t *testing.T) {
 	h, p, v, a := creationFixture()
-	link, err := createOwnedVeth(h, p, v, a)
+	link, err := CreateOwnedVeth(h, p, v, a.Alias)
 	if err != nil || link.Attrs().Alias != a.Alias || h.sets != 1 || h.deletes != 0 {
 		t.Fatal(link, err, h)
 	}
@@ -53,7 +53,7 @@ func TestNewVethAliasFailureRollsBackVerifiedPair(t *testing.T) {
 		if !ignored {
 			h.aliasErr = errors.New("SETLINK failed")
 		}
-		if _, err := createOwnedVeth(h, p, v, a); err == nil || h.deletes != 1 {
+		if _, err := CreateOwnedVeth(h, p, v, a.Alias); err == nil || h.deletes != 1 {
 			t.Fatal("new pair not rolled back", err, h.deletes)
 		}
 	}
@@ -67,7 +67,7 @@ func TestNewVethNeverClaimsCollisionOrWrongPeer(t *testing.T) {
 	} {
 		h, p, v, a := creationFixture()
 		mutate(h, p)
-		if _, err := createOwnedVeth(h, p, v, a); err == nil || h.sets != 0 || h.deletes != 0 {
+		if _, err := CreateOwnedVeth(h, p, v, a.Alias); err == nil || h.sets != 0 || h.deletes != 0 {
 			t.Fatal("unverified interface modified", err, h)
 		}
 	}

@@ -28,10 +28,11 @@ type Config struct {
 	SandboxAccess func(context.Context, string, func(context.Context, labnetwork.Sandbox) error) error
 }
 type entry struct {
-	mu, op   sync.Mutex
-	record   Record
-	cancel   context.CancelFunc
-	writeErr error
+	mu, op         sync.Mutex
+	record         Record
+	cancel         context.CancelFunc
+	writeErr       error
+	attachmentWake chan struct{} // guarded by Manager.mu
 }
 type Manager struct {
 	mu                        sync.Mutex
@@ -615,82 +616,6 @@ func (m *Manager) Reap(ctx context.Context) error {
 		}(id)
 	}
 	wg.Wait()
-	return errors.Join(errs...)
-}
-
-// SandboxAvailable is a lifecycle hook for both startup orders and sandbox
-// recreation. The caller holds the sandbox lifecycle lock while invoking it.
-func (m *Manager) SandboxAvailable(ctx context.Context, sandbox labnetwork.Sandbox) error {
-	if !idPattern.MatchString(sandbox.ID) || !idPattern.MatchString(sandbox.OwnerID) || sandbox.PID <= 0 || sandbox.Namespace.Device == 0 || sandbox.Namespace.Inode == 0 {
-		return fmt.Errorf("valid captured sandbox identity required")
-	}
-	if err := m.enter(); err != nil {
-		return err
-	}
-	defer m.leave()
-	m.mu.Lock()
-	m.sandboxes[sandbox.OwnerID] = sandbox
-	var entries []*entry
-	for _, e := range m.entries {
-		entries = append(entries, e)
-	}
-	m.mu.Unlock()
-	var errs []error
-	for _, e := range entries {
-		if !e.op.TryLock() {
-			continue
-		} // Start's tail or the control handler retries attachment.
-		r := e.snapshot()
-		if r.Desired && !r.Cleaned && r.Request.OwnerID == sandbox.OwnerID && r.Request.ExpiresAt.After(m.clock()) {
-			d, err := m.loadDeployment(r.Request.DeploymentID)
-			if err != nil {
-				errs = append(errs, err)
-			} else {
-				if err := m.connect(ctx, r, d, sandbox); err != nil {
-					errs = append(errs, err)
-				}
-			}
-		}
-		e.op.Unlock()
-	}
-	return errors.Join(errs...)
-}
-func (m *Manager) SandboxGone(ctx context.Context, id string) error {
-	if err := m.enter(); err != nil {
-		return err
-	}
-	defer m.leave()
-	m.mu.Lock()
-	var entries []*entry
-	for owner, s := range m.sandboxes {
-		if s.ID == id {
-			delete(m.sandboxes, owner)
-		}
-	}
-	for _, e := range m.entries {
-		entries = append(entries, e)
-	}
-	m.mu.Unlock()
-	var errs []error
-	for _, e := range entries {
-		if !e.op.TryLock() {
-			continue
-		} // Namespace teardown removes the peer; Reconcile retires its ledger.
-		r := e.snapshot()
-		owned := map[string]bool{}
-		for _, n := range r.Networks {
-			owned[n.ID] = true
-		}
-		_, attachments := m.cfg.Networks.Snapshot()
-		for _, a := range attachments {
-			if a.Sandbox.ID == id && !a.Cleaned && owned[a.NetworkID] && a.Sandbox.OwnerID == r.Request.OwnerID {
-				if err := m.cfg.Networks.Detach(ctx, a.ID); err != nil {
-					errs = append(errs, err)
-				}
-			}
-		}
-		e.op.Unlock()
-	}
 	return errors.Join(errs...)
 }
 

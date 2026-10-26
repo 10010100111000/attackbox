@@ -11,6 +11,7 @@ import (
 	"syscall"
 
 	"attackbox/node"
+	"attackbox/node/labnetwork"
 	"attackbox/node/runtime"
 )
 
@@ -74,8 +75,8 @@ func main() {
 	// 2. Initialize Container Runtime Manager
 	rtMgr := runtime.NewRuntimeManager(cfg.Runtime)
 	rtMgr.SetNetworkLifecycle(
-		func(ctx context.Context, slotIndex int, id, netns string) (string, error) {
-			net, err := node.SetupSandboxNetworkWithConfig(ctx, cfg.Network, slotIndex, id, netns)
+		func(ctx context.Context, slotIndex int, sandbox labnetwork.Sandbox) (string, error) {
+			net, err := node.SetupSandboxNetwork(ctx, cfg.Network, slotIndex, sandbox)
 			if err != nil {
 				return "", err
 			}

@@ -73,7 +73,7 @@ func (l *localLinks) Ensure(ctx context.Context, n Network, a Attachment, ns *Pi
 	}
 	// NewHandleAt pins its socket to this descriptor's namespace. No nsenter,
 	// shell, later PID lookup, or change to the worker goroutine's namespace.
-	guest, err := netlink.NewHandleAt(netns.NsHandle(ns.file.Fd()), unix.NETLINK_ROUTE)
+	guest, err := netlink.NewHandleAt(netns.NsHandle(ns.FD()), unix.NETLINK_ROUTE)
 	if err != nil {
 		return err
 	}
@@ -97,8 +97,8 @@ func (l *localLinks) Ensure(ctx context.Context, n Network, a Attachment, ns *Pi
 		attrs.Name = a.HostName
 		attrs.Alias = a.Alias
 		attrs.MTU = bridge.Attrs().MTU
-		v := &netlink.Veth{LinkAttrs: attrs, PeerName: a.PeerName, PeerNamespace: netlink.NsFd(ns.file.Fd()), PeerMTU: uint32(bridge.Attrs().MTU)}
-		host, err = createOwnedVeth(l.host, guest, v, a)
+		v := &netlink.Veth{LinkAttrs: attrs, PeerName: a.PeerName, PeerNamespace: netlink.NsFd(ns.FD()), PeerMTU: uint32(bridge.Attrs().MTU)}
+		host, err = CreateOwnedVeth(l.host, guest, v, a.Alias)
 		if err != nil {
 			return err
 		}
@@ -191,7 +191,7 @@ func (l *localLinks) Check(ctx context.Context, n Network, a Attachment, ns *Pin
 	if bridge.Type() != "bridge" || host.Attrs().MasterIndex != bridge.Attrs().Index {
 		return false, fmt.Errorf("lab bridge attachment changed")
 	}
-	guest, err := netlink.NewHandleAt(netns.NsHandle(ns.file.Fd()), unix.NETLINK_ROUTE)
+	guest, err := netlink.NewHandleAt(netns.NsHandle(ns.FD()), unix.NETLINK_ROUTE)
 	if err != nil {
 		return false, err
 	}
