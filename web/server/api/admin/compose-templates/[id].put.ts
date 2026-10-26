@@ -1,4 +1,0 @@
-import {defineEventHandler,readBody,getRouterParam,getRequestURL,getRequestProtocol,createError,setResponseHeader} from 'h3'
-import {requireAdmin} from '../../../utils/admin'
-import {saveComposeTemplate} from '../../../services/compose-templates'
-export default defineEventHandler(async e=>{const a=requireAdmin(e),body=await readBody(e);setResponseHeader(e,'Cache-Control','private, no-store');if(Object.keys(body?.variables||{}).length&&!['localhost','127.0.0.1','[::1]'].includes(getRequestURL(e).hostname)&&getRequestProtocol(e,{xForwardedProto:true})!=='https')throw createError({statusCode:400,message:'请使用 HTTPS 提交部署变量'});return {data:await saveComposeTemplate(a.id,getRouterParam(e,'id')!,body)}})

@@ -70,7 +70,7 @@ func LoadNodeConfig(path string) (*NodeConfig, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
 		if os.IsNotExist(err) {
-			return cfg, checkRetiredTargets(cfg.Runtime.InstancesDir)
+			return cfg, nil
 		}
 		return nil, fmt.Errorf("read node config %s: %w", path, err)
 	}
@@ -83,7 +83,7 @@ func LoadNodeConfig(path string) (*NodeConfig, error) {
 	if err := validateSandboxNetwork(cfg.Network); err != nil {
 		return nil, err
 	}
-	return cfg, checkRetiredTargets(cfg.Runtime.InstancesDir)
+	return cfg, nil
 }
 
 // GatewayConfig represents external interactive gateway listener parameters.

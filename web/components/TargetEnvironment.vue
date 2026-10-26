@@ -72,9 +72,9 @@ onBeforeUnmount(()=>{alive=false;clearInterval(clockTimer);clearTimeout(copyTime
   <div v-if="attackerAddress && state==='running'" class="target-address"><span title="反向连接时使用此地址">回连地址</span><code>{{attackerAddress}}</code><button type="button" :aria-label="copied===attackerAddress?'已复制回连地址':'复制回连地址'" @click="copyText(attackerAddress)"><Check v-if="copied===attackerAddress" :size="14"/><Copy v-else :size="14"/></button><span>{{current?.instance?.interface}}</span></div>
   <details v-if="current?.instance?.services?.length" class="target-details"><summary>服务状态<ChevronDown :size="13" aria-hidden="true"/></summary><div><p v-for="service in current.instance.services" :key="service.name"><strong>{{service.name}}</strong> · {{({running:'运行中',exited:'已退出',failed:'异常',created:'等待启动'} as Record<string,string>)[service.state]||service.state}}<span v-if="service.health==='unhealthy'"> · 健康检查未通过</span></p></div></details>
   <p v-if="message" class="target-message" role="alert">{{message}}</p>
-  <details v-if="config && (config.description || config.accessInstructions || config.ports.length)" class="target-details">
+  <details v-if="config && (config.description || config.accessInstructions || config.entryPort)" class="target-details">
    <summary>环境说明<ChevronDown :size="13" aria-hidden="true"/></summary>
-   <div><p v-if="config.description">{{config.description}}</p><p v-if="config.ports.length" class="ports">服务端口 · {{config.ports.map(p=>`${p.port}/${p.protocol.toUpperCase()}`).join('、')}}</p><p v-if="config.accessInstructions" class="instructions">{{config.accessInstructions}}</p><p class="cleanup-note">独享靶机，停止后清除其中的修改。</p></div>
+   <div><p v-if="config.description">{{config.description}}</p><p v-if="config.entryPort" class="ports">服务端口 · {{config.entryPort}}</p><p v-if="config.accessInstructions" class="instructions">{{config.accessInstructions}}</p><p class="cleanup-note">独享靶机，停止后清除其中的修改。</p></div>
   </details>
  </section>
 </template>

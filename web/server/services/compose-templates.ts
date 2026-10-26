@@ -15,7 +15,7 @@ export async function uploadLabBundle(actor:string,data:Buffer,filename:string){
 }
 export async function previewLabBundle(id:string,file?:string){const b=await bundleRecord(id);try{return {id:b.id,hash:b.hash,source:b.source?{...b.source,hasToken:!!b.gitTokenCipher}:null,...previewFiles(await readBundleFiles(b.id,b.manifest),file)}}catch{throw createError({statusCode:400,message:'部署包校验或 Compose 解析失败'})}}
 export function publicTemplate<T extends {variablesCipher:string|null}>(t:T){const {variablesCipher,...safe}=t;return safe}
-export async function composeTemplate(id:string){const [t]=await db.select().from(targetTemplates).where(eq(targetTemplates.id,uuid(id)));if(!t||t.runtime!=='compose')throw createError({statusCode:404,message:'Compose 模板不存在'});return t}
+export async function composeTemplate(id:string){const [t]=await db.select().from(targetTemplates).where(eq(targetTemplates.id,uuid(id)));if(!t)throw createError({statusCode:404,message:'Compose 模板不存在'});return t}
 export async function saveComposeTemplate(actor:string,id:string|null,body:any){
  if(!body||typeof body!=='object'||Array.isArray(body))throw createError({statusCode:400,message:'表单无效'})
  const name=typeof body.name==='string'?body.name.trim():'',description=typeof body.description==='string'?body.description.trim():'',accessInstructions=typeof body.accessInstructions==='string'?body.accessInstructions.trim():''
@@ -29,7 +29,7 @@ export async function saveComposeTemplate(actor:string,id:string|null,body:any){
  return db.transaction(async tx=>{
   await tx.execute(sql`select pg_advisory_xact_lock(72486212)`)
   const [old]=id?await tx.select().from(targetTemplates).where(eq(targetTemplates.id,templateId)):[]
-  if(id&&(!old||old.runtime!=='compose'))throw createError({statusCode:404,message:'Compose 模板不存在'})
+  if(id&&(!old))throw createError({statusCode:404,message:'Compose 模板不存在'})
   if(old&&old.lockVersion!==body.lockVersion)throw createError({statusCode:409,message:'模板已被修改，当前输入已保留，请重新读取'})
   const previous=openVariables(templateId,old?.variablesCipher||null),variables:Record<string,string>=Object.create(null)
   const clear=body.clearVariables||[]
@@ -39,11 +39,11 @@ export async function saveComposeTemplate(actor:string,id:string|null,body:any){
   const ordered=(v:Record<string,string>)=>JSON.stringify(Object.fromEntries(Object.entries(v).sort(([a],[b])=>a.localeCompare(b))))
   if(Buffer.byteLength(ordered(variables))>32768)throw createError({statusCode:400,message:'部署变量总长度超出限制'})
   const oldBundle=old?.bundleId?await tx.select({hash:labBundles.hash}).from(labBundles).where(eq(labBundles.id,old.bundleId)):[]
-  const changed=!old||oldBundle[0]?.hash!==bundle.hash||Object.entries(settings).some(([key,value])=>old.composeSettings?.[key as keyof ComposeSettings]!==value)||ordered(previous)!==ordered(variables)
-  if(changed&&old){const [active]=await tx.select({id:labPreparations.id}).from(labPreparations).where(and(eq(labPreparations.templateId,templateId),eq(labPreparations.templateVersion,old.composeRevision),sql`${labPreparations.state} in ('preparing','cancelling','unknown')`));if(active)throw createError({statusCode:409,message:'请先查询或取消当前准备任务，再修改部署配置'})}
-  const revision=(old?.composeRevision||0)+(changed?1:0)
+  const changed=!old||oldBundle[0]?.hash!==bundle.hash||Object.entries(settings).some(([key,value])=>old.settings?.[key as keyof ComposeSettings]!==value)||ordered(previous)!==ordered(variables)
+  if(changed&&old){const [active]=await tx.select({id:labPreparations.id}).from(labPreparations).where(and(eq(labPreparations.templateId,templateId),eq(labPreparations.templateVersion,old.revision),sql`${labPreparations.state} in ('preparing','cancelling','unknown')`));if(active)throw createError({statusCode:409,message:'请先查询或取消当前准备任务，再修改部署配置'})}
+  const revision=(old?.revision||0)+(changed?1:0)
   if(body.enabled){const [ready]=await tx.select({id:labPreparations.id}).from(labPreparations).where(and(eq(labPreparations.templateId,templateId),eq(labPreparations.templateVersion,revision),sql`${labPreparations.deploymentId} is not null`));if(!ready)throw createError({statusCode:409,message:'请先保存未启用模板，并在节点准备成功后启用'})}
-  const values={name,description,accessInstructions,runtime:'compose',image:'',ports:[{port:s.entryPort,protocol:'tcp' as const}],sourceUrl:'',bundleId:bundle.id,composeSettings:settings,composeRevision:revision,variablesCipher:changed?sealVariables(templateId,variables):old!.variablesCipher,variableKeys:Object.keys(variables).sort(),enabled:body.enabled,lockVersion:(old?.lockVersion||0)+1,updatedAt:new Date()}
+  const values={name,description,accessInstructions,bundleId:bundle.id,settings:settings,revision:revision,variablesCipher:changed?sealVariables(templateId,variables):old!.variablesCipher,variableKeys:Object.keys(variables).sort(),enabled:body.enabled,lockVersion:(old?.lockVersion||0)+1,updatedAt:new Date()}
   const [saved]=old?await tx.update(targetTemplates).set(values).where(eq(targetTemplates.id,templateId)).returning():await tx.insert(targetTemplates).values({id:templateId,...values}).returning()
   return publicTemplate(saved!)
  })

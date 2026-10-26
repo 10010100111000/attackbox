@@ -96,19 +96,14 @@ export async function targetOperation(
     if (existing && existing.state !== 'stopped') {
       return existing
     }
-    if(template.runtime!=='compose')throw createError({statusCode:410,message:'旧单容器模板已退出，请重新导入 Compose 部署包'})
-    if (template.ports.length > 16) {
-      throw createError({ statusCode: 409, message: '当前 Worker 最多支持 16 个服务端口' })
-    }
-
     const nodes = hub
       .snapshot()
       .nodes.filter(n => n.state === 'online' && !n.settings.draining && n.bootId && hub.composeNodes.has(n.id))
-    const prepared=template.runtime==='compose'?await tx.select().from(labPreparations).where(and(eq(labPreparations.templateId,template.id),eq(labPreparations.templateVersion,template.composeRevision),sql`${labPreparations.deploymentId} is not null`)):[]
-    const eligible = (preferredNodeId ? nodes.filter(n => n.id === preferredNodeId) : nodes).filter(n=>template.runtime!=='compose'||prepared.some(p=>p.nodeId===n.id&&p.bootId===n.bootId&&p.deploymentId))
+    const prepared=await tx.select().from(labPreparations).where(and(eq(labPreparations.templateId,template.id),eq(labPreparations.templateVersion,template.revision),sql`${labPreparations.deploymentId} is not null`))
+    const eligible = (preferredNodeId ? nodes.filter(n => n.id === preferredNodeId) : nodes).filter(n=>prepared.some(p=>p.nodeId===n.id&&p.bootId===n.bootId&&p.deploymentId))
 
     if (!eligible.length) {
-      throw createError({ statusCode: 503, message: template.runtime==='compose'?'当前可用节点尚未准备此靶场，请联系管理员':'需要一个可用的 Docker 节点，且与攻击环境位于同一节点' })
+      throw createError({ statusCode: 503, message: '当前可用节点尚未准备此靶场，请联系管理员' })
     }
 
     const node = eligible[0]!
@@ -120,9 +115,7 @@ export async function targetOperation(
       bootId: node.bootId!,
       state: 'starting',
       expiresAt: new Date(Date.now() + 60 * 60 * 1000),
-      image: template.image,
-      runtime:template.runtime,deploymentId:template.runtime==='compose'?prepared.find(p=>p.nodeId===node.id)!.deploymentId:null,
-      ports: template.ports,
+      deploymentId:prepared.find(p=>p.nodeId===node.id)!.deploymentId!,
       result: null,
       revision: (existing?.revision || 0) + 1,
       updatedAt: new Date(),
@@ -137,7 +130,6 @@ export async function targetOperation(
   if (!row) return null
   if (row.state === 'stopped') return view(row)
   if (row.expiresAt.getTime() <= Date.now()) action = 'stop'
-  if(row.runtime!=='compose')throw createError({statusCode:410,message:'发现未清理的旧单容器实例，请使用升级前版本完成释放；当前版本不会将其标记为已释放'})
   return composeTargetOperation(row,action)
 }
 

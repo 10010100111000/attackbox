@@ -69,4 +69,4 @@ services:
 
 真实构建测试复用已离线构建的夹具基础镜像，无外部镜像拉取。它不等于真实 Btrfs 沙箱＋veth 接线验收。
 
-准备任务的管理员取消／强制重建已在 [维护迭代](compose-preparation-management.md) 完成；旧模式删除仍按第五轮安排，并以网络验收和旧资源清理完成为前提。
+准备任务的管理员取消／强制重建已在 [维护迭代](compose-preparation-management.md) 完成。平台已经统一为 Compose，全新部署见 [平台说明](compose-platform-integration.md)。

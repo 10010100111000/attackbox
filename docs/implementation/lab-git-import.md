@@ -16,7 +16,7 @@
 
 ## 凭据与存储
 
-新增迁移 `0014_lab_git_sources`：在 `lab_bundles` 增加来源元数据与加密 Git Token。不增加模板历史编辑器。来源属于不可变包，模板仍只引用当前包。
+`lab_bundles` 保存来源元数据与加密 Git Token，包含在全新数据库基线中。不增加模板历史编辑器。来源属于不可变包，模板仍只引用当前包。
 
 沿用 `CONTENT_CREDENTIALS_KEY`，凭据 AAD 使用独立的 `git:<bundle UUID>` 域，与教程及部署变量分离。带 Token 的导入请求必须使用 HTTPS（localhost 联调除外）；Token 不写入 URL、下载文件、Worker 下载响应或日志。Worker 仅获取包文件，不获取 Git Token。
 

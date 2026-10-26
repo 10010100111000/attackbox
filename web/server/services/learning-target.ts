@@ -8,7 +8,7 @@ export async function learningTarget(tx:LearningTx,chapterId:string):Promise<Lea
  if(!config||config.mode==='none')return null
  const id=config.mode==='custom'?config.chapterTemplateId:config.moduleTemplateId
  if(!id)return null
- const [template]=await tx.select({runtime:targetTemplates.runtime,name:targetTemplates.name,description:targetTemplates.description,ports:targetTemplates.ports,accessInstructions:targetTemplates.accessInstructions,enabled:targetTemplates.enabled}).from(targetTemplates).where(eq(targetTemplates.id,id))
- if(!template?.enabled||template.runtime!=='compose')return {status:'unavailable'}
- return {status:'configured',scope:config.mode==='custom'?'chapter':'module',name:template.name,description:template.description,ports:template.ports,accessInstructions:template.accessInstructions}
+ const [template]=await tx.select({name:targetTemplates.name,description:targetTemplates.description,settings:targetTemplates.settings,accessInstructions:targetTemplates.accessInstructions,enabled:targetTemplates.enabled}).from(targetTemplates).where(eq(targetTemplates.id,id))
+ if(!template?.enabled)return {status:'unavailable'}
+ return {status:'configured',scope:config.mode==='custom'?'chapter':'module',name:template.name,description:template.description,entryPort:template.settings.entryPort,accessInstructions:template.accessInstructions}
 }

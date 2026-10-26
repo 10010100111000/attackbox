@@ -193,7 +193,7 @@ export async function getModuleDetail(id: string): Promise<AdminModuleDetail> {
 
 async function checkTargetTemplate(tx:Tx,id:string|null,previous:string|null){
  if(!id)return
- const [template]=await tx.select({id:targetTemplates.id,runtime:targetTemplates.runtime,enabled:targetTemplates.enabled}).from(targetTemplates).where(eq(targetTemplates.id,id)).for('share')
+ const [template]=await tx.select({id:targetTemplates.id,enabled:targetTemplates.enabled}).from(targetTemplates).where(eq(targetTemplates.id,id)).for('share')
  if(!template)fail('靶机模板不存在，请重新选择')
- if((!template.enabled||template.runtime!=='compose')&&id.toLowerCase()!==previous?.toLowerCase())fail('该靶机模板已停用，请选择已启用模板')
+ if(!template.enabled&&id.toLowerCase()!==previous?.toLowerCase())fail('该靶机模板已停用，请选择已启用模板')
 }

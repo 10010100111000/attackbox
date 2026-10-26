@@ -14,9 +14,9 @@ export async function preparationAction(id:string,nodeId:string,action:Preparati
  if(['prepare','rebuild'].includes(action)&&node.settings.draining)throw createError({statusCode:409,message:'节点已暂停新任务'})
  const reservation=await db.transaction(async tx=>{
   await tx.execute(sql`select pg_advisory_xact_lock(72486212)`)
-  const [t]=await tx.select().from(targetTemplates).where(eq(targetTemplates.id,uuid(id)));if(!t||t.runtime!=='compose')throw createError({statusCode:404,message:'Compose 模板不存在'})
-  const [old]=await tx.select().from(labPreparations).where(and(eq(labPreparations.templateId,t.id),eq(labPreparations.templateVersion,t.composeRevision),eq(labPreparations.nodeId,node.id)))
-  if(!old){if(action!=='prepare')return {t,job:null,dispatch:false};const [job]=await tx.insert(labPreparations).values({templateId:t.id,templateVersion:t.composeRevision,nodeId:node.id,bootId:node.bootId!,state:'preparing'}).returning();return {t,job:job!,dispatch:true}}
+  const [t]=await tx.select().from(targetTemplates).where(eq(targetTemplates.id,uuid(id)));if(!t)throw createError({statusCode:404,message:'Compose 模板不存在'})
+  const [old]=await tx.select().from(labPreparations).where(and(eq(labPreparations.templateId,t.id),eq(labPreparations.templateVersion,t.revision),eq(labPreparations.nodeId,node.id)))
+  if(!old){if(action!=='prepare')return {t,job:null,dispatch:false};const [job]=await tx.insert(labPreparations).values({templateId:t.id,templateVersion:t.revision,nodeId:node.id,bootId:node.bootId!,state:'preparing'}).returning();return {t,job:job!,dispatch:true}}
   if(action==='status')return {t,job:old,dispatch:true}
   if(expectedAttemptId!==old.attemptId)throw createError({statusCode:409,message:'准备任务已变化，请重新读取节点准备状态'})
   if(action==='cancel'){
@@ -33,7 +33,7 @@ export async function preparationAction(id:string,nodeId:string,action:Preparati
  let result
  try{
   const payload={requested_at:new Date().toISOString(),target_id:job.attemptId,owner_id:t.id,preparation_id:job.attemptId,deployment_id:job.deploymentId||undefined}
-  if(type==='compose_prepare'){const b=await bundleRecord(t.bundleId!);Object.assign(payload,{bundle_id:b.id,bundle_hash:b.hash,settings:t.composeSettings,variables:openVariables(t.id,t.variablesCipher),rebuild:job.mode==='refresh'})}
+  if(type==='compose_prepare'){const b=await bundleRecord(t.bundleId!);Object.assign(payload,{bundle_id:b.id,bundle_hash:b.hash,settings:t.settings,variables:openVariables(t.id,t.variablesCipher),rebuild:job.mode==='refresh'})}
   result=await hub.composeRpc(node.id,node.bootId!,type,payload,15000)
  }catch{
   const [saved]=await db.update(labPreparations).set({state:'unknown',error:'节点结果未确认，请手动查询；重新准备前请先取消旧任务',version:job.version+1,updatedAt:new Date()}).where(and(eq(labPreparations.id,job.id),eq(labPreparations.attemptId,job.attemptId),eq(labPreparations.version,job.version))).returning()

@@ -1,3 +1,4 @@
-import {defineEventHandler,createError} from 'h3'
+import {defineEventHandler,readBody,getRequestURL,getRequestProtocol,createError,setResponseHeader} from 'h3'
 import {requireAdmin} from '../../../utils/admin'
-export default defineEventHandler(e=>{requireAdmin(e);throw createError({statusCode:410,message:'旧单容器接口已退出，请使用 Compose 部署包与节点准备接口'})})
+import {saveComposeTemplate} from '../../../services/compose-templates'
+export default defineEventHandler(async e=>{const a=requireAdmin(e),body=await readBody(e);setResponseHeader(e,'Cache-Control','private, no-store');if(Object.keys(body?.variables||{}).length&&!['localhost','127.0.0.1','[::1]'].includes(getRequestURL(e).hostname)&&getRequestProtocol(e,{xForwardedProto:true})!=='https')throw createError({statusCode:400,message:'请使用 HTTPS 提交部署变量'});return {data:await saveComposeTemplate(a.id,null,body)}})

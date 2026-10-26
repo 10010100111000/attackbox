@@ -19,7 +19,7 @@
     "test:sandbox-browser": "node --test tests/sandbox-lifecycle-browser.test.mjs",
     "test:sandbox-persistence": "node --test tests/sandbox-settings-persistence.test.mjs",
     "test:users": "node --test tests/admin-users.test.mjs",
-    "test:routes": "node --test tests/routes.test.mjs tests/routes-migration.test.mjs",
+    "test:routes": "node --test tests/routes.test.mjs",
     "test:target-templates": "node --test tests/target-templates.test.mjs",
     "test:learning-targets": "node --test tests/learning-targets.test.mjs",
     "test:auth-navigation": "node --test tests/auth-navigation-browser.test.mjs",
@@ -29,7 +29,8 @@
     "test:challenges": "node --test tests/challenges.test.mjs",
     "content:check": "node --experimental-strip-types server/scripts/check-content.mjs",
     "test:content-sync": "node --test tests/content-sync.test.mjs",
-    "test:compose-labs": "node --test --test-concurrency=1 tests/compose-labs.test.mjs tests/compose-builds.test.mjs tests/compose-preparations.test.mjs"
+    "test:compose-labs": "node --test --test-concurrency=1 tests/compose-labs.test.mjs tests/compose-builds.test.mjs tests/compose-preparations.test.mjs",
+    "test:baseline": "node --test --test-concurrency=1 tests/content-migration.test.mjs tests/fresh-baseline.test.mjs"
   },
   "dependencies": {
     "@node-rs/argon2": "^2.2.2",

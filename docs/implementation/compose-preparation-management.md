@@ -16,7 +16,7 @@
 
 ## 任务身份与并发
 
-新增 `0015_compose_preparation_attempts`：准备记录增加 `attempt_id`、`mode`、`version`。每个模板修订／节点仍只有一条准备记录，未新增历史版本编辑器或任务历史列表。
+准备记录包含 `attempt_id`、`mode`、`version`。每个模板修订／节点仍只有一条准备记录，未新增历史版本编辑器或任务历史列表。
 
 - `deployment_id` 和 `boot_id` 表示最近已确认的可用产物及节点代次，不再把“任务正在准备”误认为“原部署不可用”。新任务成功才切换该引用；调度仍核对当前模板修订与 Worker Boot ID。
 - 每次重试／重建生成新 attempt ID；`expectedAttemptId` 防止旧页面取消或重建另一名管理员的新任务。重复准备不会重复执行同一个任务。
@@ -29,7 +29,7 @@
 
 ## 部署与协议
 
-执行 `npm --prefix web run db:migrate`，新增 `0015`；已有准备产物和实例不转换、不清库。
+从空库执行 `npm --prefix web run db:migrate`；不提供旧数据库转换。
 
 控制端和 Worker 同次升级到 **Compose 协议 2**。旧协议 1 不再被视为兼容节点，避免把取消或强制重建发给会忽略它们的旧 Worker。新消息 `compose_prepare_cancel`，准备消息新增 `rebuild` 和 `requested_at`；其余启动／释放归属与网络启用门槛不变。
 
@@ -42,4 +42,4 @@
 - `npm --prefix web test`、TypeScript 与生产构建。
 - `npm --prefix web run test:compose-labs`：使用隔离 localhost `_test` PostgreSQL、模拟 Worker 和 Chromium。新增测试覆盖取消、失败重试、强制重建、迟到响应竞争、重建期间新学员使用原部署、成功后新实例使用新产物、旧实例释放继续引用旧产物，及后台按钮交互。环境变量沿用 [平台接入测试](compose-platform-integration.md#验证与后续)。
 
-本轮没有连接 VPS，也不替代真实 Btrfs／veth 网络验收。准备任务维护完成后，下一步应先按现有夹具完成真实网络验收，再按第五轮收敛旧单容器路径；不在未验收时自动切换或清理旧资源。
+代码已统一为 Compose 模型；真实 Btrfs／veth 网络验收仍需在部署主机执行，本轮未连接 VPS。

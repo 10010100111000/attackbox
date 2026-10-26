@@ -31,7 +31,7 @@ function submit() {
         <h1>靶场模板</h1>
         <p>集中维护教学与挑战环境配置。启用表示允许关联，不代表容器正在运行。</p>
       </div>
-      <NuxtLink to="/admin/target-templates/compose/new">
+      <NuxtLink to="/admin/target-templates/new">
         <Plus :size="16" aria-hidden="true" />
         <span>新建模板</span>
       </NuxtLink>
@@ -60,7 +60,7 @@ function submit() {
         <thead>
           <tr>
             <th>模板</th>
-            <th>部署方式</th>
+            <th>部署文件</th>
             <th>服务端口</th>
             <th>允许关联</th>
             <th class="actions">操作</th>
@@ -69,16 +69,16 @@ function submit() {
         <tbody>
           <tr v-for="item in data?.data.items" :key="item.id">
             <td class="template-cell">
-              <NuxtLink :to="`/admin/target-templates/compose/${item.id}`" class="user-name">
+              <NuxtLink :to="`/admin/target-templates/${item.id}`" class="user-name">
                 {{ item.name }}
               </NuxtLink>
               <span class="secondary">{{ item.description }}</span>
             </td>
             <td>
-              <code class="image-code">{{ 'Compose · '+(item.composeSettings?.file||'部署包') }}</code>
+              <code class="image-code">{{ item.settings.file }}</code>
             </td>
             <td>
-              {{ item.ports.map(p => `${p.port}/${p.protocol.toUpperCase()}`).join('、') || '未配置' }}
+              {{ item.settings.entryPort }}
             </td>
             <td>
               <span class="status" :class="{ active: item.enabled }">
@@ -86,7 +86,7 @@ function submit() {
               </span>
             </td>
             <td class="actions">
-              <NuxtLink :to="`/admin/target-templates/compose/${item.id}`">编辑</NuxtLink>
+              <NuxtLink :to="`/admin/target-templates/${item.id}`">编辑</NuxtLink>
             </td>
           </tr>
         </tbody>

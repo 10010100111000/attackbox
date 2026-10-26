@@ -1,20 +1,19 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import crypto from 'node:crypto'
 import {learningFixture} from './helpers/learning-fixture.mjs'
-test('Retired container APIs fail explicitly and legacy records cannot become released',{skip:!process.env.CONTENT_TEST_DATABASE_URL},async()=>{
- const f=await learningFixture();let template,user
+test('Fresh Compose schema has one template contract, required references and no legacy columns',{skip:!process.env.CONTENT_TEST_DATABASE_URL},async()=>{
+ const f=await learningFixture();let template
  try{
-  user=await f.account();const id=crypto.randomUUID();template=id
-  await f.sql`insert into target_templates(id,name,image,runtime) values(${id},'Retired fixture','nginx:1.27','container')`
-  await f.request('/api/admin/target-templates',{actor:f.admin,method:'POST',body:{},status:410})
-  await f.request(`/api/admin/target-templates/${id}`,{actor:f.admin,method:'PUT',body:{},status:410})
-  await f.request(`/api/admin/target-templates/${id}/image`,{actor:f.admin,method:'POST',body:{action:'prepare'},status:410})
-  await f.request(`/api/admin/target-templates/${id}`,{actor:f.admin,status:410})
-  const list=(await f.request('/api/admin/target-templates',{actor:f.admin})).data;assert.ok(!list.items.some(t=>t.id===id))
-  const instance='tgt_'+crypto.randomBytes(16).toString('hex')
-  await f.sql`insert into target_instances(id,user_id,scope,node_id,boot_id,state,image,ports,runtime,expires_at) values(${instance},${user.id},'legacy','offline','old','running','nginx:1.27','[]','container',now()+interval '1 hour')`
-  const result=await fetch(f.base+'/api/targets',{method:'POST',headers:{cookie:`attackbox_session=${user.token}`,'content-type':'application/json'},body:JSON.stringify({action:'stop',id:instance})});assert.equal(result.status,410)
-  assert.equal((await f.sql`select state from target_instances where id=${instance}`)[0].state,'running')
- }finally{if(user)await f.sql`delete from target_instances where user_id=${user.id}`;if(template)await f.sql`delete from target_templates where id=${template}`;await f.cleanup()}
+  template=await f.seedTarget({name:'Canonical template'})
+  for(const table of ['target_templates','target_instances']){
+   const columns=await f.sql`select column_name,is_nullable from information_schema.columns where table_schema='public' and table_name=${table}`
+   for(const removed of ['runtime','image','ports','source_url','compose_revision','compose_settings'])assert.ok(!columns.some(c=>c.column_name===removed),`${table}.${removed} remains`)
+   for(const field of table==='target_templates'?['bundle_id','settings','revision']:['deployment_id'])assert.equal(columns.find(c=>c.column_name===field)?.is_nullable,'NO')
+  }
+  const record=(await f.request(`/api/admin/target-templates/${template.id}`,{actor:f.admin})).data
+  assert.equal(record.settings.entryPort,80);assert.equal(record.revision,1);assert.ok(!('runtime'in record))
+  assert.equal((await fetch(f.base+'/api/admin/compose-templates',{method:'POST',headers:{cookie:`attackbox_session=${f.admin.token}`,'content-type':'application/json'},body:'{}'})).status,404)
+  assert.equal((await fetch(f.base+`/api/admin/target-templates/${template.id}/image`,{method:'POST',headers:{cookie:`attackbox_session=${f.admin.token}`,'content-type':'application/json'},body:'{}'})).status,404)
+  await assert.rejects(f.sql`delete from lab_bundles where id=${template.bundleId}`,e=>e.code==='23503')
+ }finally{await f.cleanup()}
 })
