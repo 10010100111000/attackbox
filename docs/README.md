@@ -11,6 +11,7 @@
 - [准备任务取消、重试与强制重建](implementation/compose-preparation-management.md)
 - [架构实施状态](implementation/compose-target-migration-plan.md)
 - [CLI／GUI 工作台](implementation/environment-workbench.md)
+- [账户菜单与站内通知](implementation/account-notifications.md)
 - [内容分类](implementation/content-categories.md)
 - [单文件教程格式](content-template/README.md)
 - [教程 Git 同步](implementation/git-content-sync-usage.md)

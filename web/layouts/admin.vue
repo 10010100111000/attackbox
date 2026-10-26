@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
+import { useRoute } from 'vue-router'
 import {
   BookOpen,
   Route,
@@ -11,21 +11,16 @@ import {
   Settings,
   ExternalLink,
   LockKeyhole,
-  Sun,
-  Moon,
+  Bell,
 } from 'lucide-vue-next'
 import { useAuth } from '~/composables/useAuth'
-import { useTheme } from '~/composables/useTheme'
 
 const route = useRoute()
-const router = useRouter()
-const { currentUser, isInitialized, fetchMe, logout } = useAuth()
-const { currentTheme, setTheme, initTheme } = useTheme()
+const { currentUser, isInitialized, fetchMe } = useAuth()
 
 const isChecking = ref(!isInitialized.value)
 
 onMounted(async () => {
-  initTheme()
   if (!isInitialized.value) {
     try {
       await fetchMe()
@@ -40,6 +35,7 @@ const isAdmin = computed(() => {
 })
 
 type AdminSectionKey =
+  | 'notifications'
   | 'challenges'
   | 'target-templates'
   | 'instances'
@@ -49,6 +45,7 @@ type AdminSectionKey =
   | 'users'
 
 const currentSection = computed<AdminSectionKey>(() => {
+  if (route.path.startsWith('/admin/notifications')) return 'notifications'
   if (route.path.startsWith('/admin/challenges')) return 'challenges'
   if (route.path.startsWith('/admin/target-templates')) return 'target-templates'
   if (route.path.startsWith('/admin/instances')) return 'instances'
@@ -60,6 +57,7 @@ const currentSection = computed<AdminSectionKey>(() => {
 })
 
 const sectionMeta: Record<AdminSectionKey, { groupLabel: string; groupHref: string; title: string }> = {
+  notifications: { groupLabel: '系统管理', groupHref: '/admin/notifications', title: '站内通知' },
   challenges: { groupLabel: '内容管理', groupHref: '/admin/challenges', title: '挑战管理' },
   modules: { groupLabel: '内容管理', groupHref: '/admin/modules', title: '学习模块' },
   routes: { groupLabel: '内容管理', groupHref: '/admin/routes', title: '学习路线' },
@@ -71,10 +69,6 @@ const sectionMeta: Record<AdminSectionKey, { groupLabel: string; groupHref: stri
 
 const currentBreadcrumb = computed(() => sectionMeta[currentSection.value])
 
-async function handleLogout() {
-  await logout()
-  router.push('/auth')
-}
 </script>
 
 <template>
@@ -179,6 +173,7 @@ async function handleLogout() {
           </NuxtLink>
 
           <div class="nav-group-label">系统管理</div>
+          <NuxtLink to="/admin/notifications" class="admin-nav-link" :class="{active:currentSection==='notifications'}"><Bell :size="16" class="nav-icon"/>站内通知</NuxtLink>
           <span class="admin-nav-link disabled" title="后续阶段接入">
             <Settings :size="16" class="nav-icon" aria-hidden="true" />
             <span>系统设置</span>
@@ -191,10 +186,7 @@ async function handleLogout() {
             <ExternalLink :size="14" aria-hidden="true" />
             <span>预览学习前台</span>
           </NuxtLink>
-          <div class="admin-user-info">
-            <span class="admin-email">{{ currentUser?.email }}</span>
-            <button type="button" class="admin-logout-btn" @click="handleLogout">退出</button>
-          </div>
+
         </div>
       </aside>
 
@@ -208,25 +200,7 @@ async function handleLogout() {
           </div>
 
           <div class="topbar-right">
-            <div class="theme-switch-mini" role="group" aria-label="外观">
-              <button
-                type="button"
-                :class="{ active: currentTheme === 'graphite' }"
-                title="石墨"
-                @click="setTheme('graphite')"
-              >
-                <Sun :size="15" aria-hidden="true" />
-              </button>
-              <button
-                type="button"
-                :class="{ active: currentTheme === 'midnight' }"
-                title="深海"
-                @click="setTheme('midnight')"
-              >
-                <Moon :size="15" aria-hidden="true" />
-              </button>
-            </div>
-            <span class="admin-tag">管理员</span>
+            <UserMenu />
           </div>
         </header>
 
@@ -424,34 +398,6 @@ async function handleLogout() {
   text-decoration: underline;
 }
 
-.admin-user-info {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  font-size: 11px;
-  color: var(--muted);
-}
-
-.admin-email {
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  max-width: 120px;
-}
-
-.admin-logout-btn {
-  background: transparent;
-  border: none;
-  color: var(--color-error);
-  cursor: pointer;
-  padding: 0;
-  font-size: 11px;
-}
-
-.admin-logout-btn:hover {
-  text-decoration: underline;
-}
-
 /* 顶栏 */
 .admin-main-wrap {
   display: flex;
@@ -500,40 +446,7 @@ async function handleLogout() {
   gap: 16px;
 }
 
-.theme-switch-mini {
-  display: flex;
-  background: var(--soft);
-  border-radius: 6px;
-  padding: 2px;
-}
 
-.theme-switch-mini button {
-  background: transparent;
-  border: none;
-  padding: 4px 8px;
-  font-size: 12px;
-  border-radius: 4px;
-  cursor: pointer;
-  color: var(--muted);
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.theme-switch-mini button.active {
-  background: var(--paper);
-  color: var(--ink);
-  font-weight: bold;
-}
-
-.admin-tag {
-  font-size: 11px;
-  font-weight: 600;
-  padding: 3px 8px;
-  border-radius: 4px;
-  background: var(--mint);
-  color: var(--green);
-}
 
 .admin-content {
   flex: 1;

@@ -62,7 +62,7 @@ test('login navigates before learning APIs finish; slow routes do not block modu
       routesAvailable = true
       await page.getByRole('button', { name: '重新加载', exact: true }).click()
       await page.getByText('暂时没有已发布的路线。', { exact: true }).waitFor()
-      await page.locator('#user-menu summary').click()
+      await page.getByRole('button', { name: /用户菜单/ }).click()
       await page.getByText(user.displayName, { exact: true }).waitFor()
     } finally { routes.resolve(); modules.resolve() }
   })
@@ -92,7 +92,7 @@ test('slow initial session lookup does not disable login or overwrite a successf
       await sessionDone.promise
       // Wait for the delayed /me handler to settle, then check the rendered account state.
       await page.waitForTimeout(150)
-      await page.locator('#user-menu summary').click()
+      await page.getByRole('button', { name: /用户菜单/ }).click()
       await page.getByText(user.displayName, { exact: true }).waitFor({ timeout: 2000 })
     } finally { session.resolve() }
   })

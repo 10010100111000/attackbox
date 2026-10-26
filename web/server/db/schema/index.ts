@@ -16,3 +16,4 @@ export * from './target-instances';
 export * from './content-sync';
 export * from './content-images';
 export * from './compose-labs';
+export * from './notifications';

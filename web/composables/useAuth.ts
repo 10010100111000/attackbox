@@ -9,7 +9,7 @@ export interface AuthUser {
 
 export function useAuth() {
   const nuxtApp = useNuxtApp();
-  function clearLearningData() { nuxtApp.runWithContext(() => clearNuxtData(key => key.startsWith('challenges:') || key.startsWith('learning:') || key.startsWith('admin:'))); }
+  function clearLearningData() { nuxtApp.runWithContext(() => clearNuxtData(key => key.startsWith('account:') || key.startsWith('challenges:') || key.startsWith('learning:') || key.startsWith('admin:'))); }
   const currentUser = useState<AuthUser | null>('auth_user', () => null);
   const isInitialized = useState<boolean>('auth_initialized', () => false);
 
@@ -61,14 +61,11 @@ export function useAuth() {
   }
 
   async function logout(): Promise<void> {
-    try {
-      await $fetch('/api/auth/logout', { method: 'POST' });
-    } finally {
-      identityVersion.value++;
-      clearLearningData();
-      currentUser.value = null;
-      isInitialized.value = true;
-    }
+    await $fetch('/api/auth/logout', { method: 'POST' });
+    identityVersion.value++;
+    clearLearningData();
+    currentUser.value = null;
+    isInitialized.value = true;
   }
 
   async function forgotPassword(email: string): Promise<{ message: string; resetToken?: string }> {
