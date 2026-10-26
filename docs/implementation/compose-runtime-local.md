@@ -137,3 +137,5 @@ ATTACKBOX_TEST_LAB_IMAGE=attackbox-lab-network-fixture:local \
 本轮验证：Docker 28.4.0＋Compose 2.40.3 的真实生命周期测试通过；全仓库 Go race 与 vet 通过。此结论不包含第一轮真实 veth、宿主机防火墙、实际 Btrfs 沙箱公网访问回归或生产单机部署验收；没有连接 VPS。
 
 下一轮按 [分步迁移计划](compose-target-migration-plan.md) 第三轮接后台导入、准备任务、协议及学习／挑战组件；生产切换仍以前述网络验收为前提。
+
+版本检查已由后续 [Git 来源与兼容性迭代](lab-git-import.md#compose-版本兼容) 改为稳定版 >=2.40.3、<3.0.0；本文 2.40.3 指验收所用版本。

@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -93,9 +94,10 @@ func (c *CLI) Check(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	if strings.TrimPrefix(strings.TrimSpace(string(b)), "v") != ComposeVersion {
-		return fmt.Errorf("Compose %s is required", ComposeVersion)
+	if err := checkComposeVersion(string(b)); err != nil {
+		return err
 	}
+	log.Printf("[COMPOSE] CLI version %s (tested baseline %s)", strings.TrimSpace(string(b)), ComposeVersion)
 	b, err = c.run(ctx, "version", "--format", "{{.Server.Version}}")
 	if err != nil {
 		return err
@@ -315,6 +317,32 @@ func (c *CLI) Down(ctx context.Context, r Record, file string) error {
 	}
 	if strings.TrimSpace(string(b)) != "" {
 		return errors.New("project volumes remain")
+	}
+	return nil
+}
+
+// Accept stable v2 releases at or above the tested baseline. New major versions
+// require explicit qualification; prereleases do not establish compatibility.
+func checkComposeVersion(raw string) error {
+	v := strings.TrimPrefix(strings.TrimSpace(raw), "v")
+	core := strings.SplitN(v, "+", 2)[0]
+	parts := strings.Split(core, ".")
+	if len(parts) != 3 {
+		return fmt.Errorf("unrecognized Compose version; stable v2 >= %s required", ComposeVersion)
+	}
+	numbers := [3]int{}
+	for i, p := range parts {
+		if p == "" || strings.Trim(p, "0123456789") != "" {
+			return fmt.Errorf("stable Compose v2 >= %s required", ComposeVersion)
+		}
+		n, err := strconv.Atoi(p)
+		if err != nil {
+			return fmt.Errorf("invalid Compose version")
+		}
+		numbers[i] = n
+	}
+	if numbers[0] != 2 || numbers[1] < 40 || numbers[1] == 40 && numbers[2] < 3 {
+		return fmt.Errorf("supported Compose range: >= %s, < 3.0.0 (stable releases)", ComposeVersion)
 	}
 	return nil
 }

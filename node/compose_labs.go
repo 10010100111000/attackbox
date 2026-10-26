@@ -132,12 +132,7 @@ func (l *composeLabs) job(req protocol.ComposeRequest, prepare bool, cfg *NodeCo
 	if !bundleIDPattern.MatchString(req.PreparationID) || req.TargetID != req.PreparationID {
 		return composeJob{State: "failed", Error: "invalid_preparation_identity"}
 	}
-	raw, _ := json.Marshal(struct {
-		Owner, Bundle, Hash string
-		Settings            protocol.ComposeSettings
-		Variables           map[string]string
-	}{req.OwnerID, req.BundleID, req.BundleHash, req.Settings, req.Variables})
-	fingerprint := bundleDigest(raw)
+	fingerprint := composeRequestFingerprint(req)
 	if exists && old.Fingerprint != fingerprint {
 		return composeJob{State: "failed", Error: "preparation_identity_changed"}
 	}
@@ -328,4 +323,14 @@ func (c *NodeControlClient) executeCompose(ctx context.Context, msg *protocol.Me
 		resp.Error = "compose_operation_unconfirmed"
 	}
 	return resp
+}
+
+// Package UUID is provenance, while content hash determines preparation identity.
+func composeRequestFingerprint(req protocol.ComposeRequest) string {
+	raw, _ := json.Marshal(struct {
+		Owner, Hash string
+		Settings    protocol.ComposeSettings
+		Variables   map[string]string
+	}{req.OwnerID, req.BundleHash, req.Settings, req.Variables})
+	return bundleDigest(raw)
 }

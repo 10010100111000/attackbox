@@ -23,3 +23,5 @@
 - [单文件教程作者模板](content-template/README.md)：Markdown 头、章节与练习约定，以及本地校验命令。
 
 - [手动 Git 教程同步使用说明](implementation/git-content-sync-usage.md)：仓库凭据、部署变量、导入流程与后台维护边界。
+
+- [靶场 GitHub 导入、手动更新与版本兼容](implementation/lab-git-import.md)

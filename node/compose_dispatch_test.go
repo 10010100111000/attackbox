@@ -101,3 +101,21 @@ func TestComposeStopHasCapacityWhenStartDispatchSlotsAreFull(t *testing.T) {
 	<-done
 	labs.wg.Wait()
 }
+
+func TestComposePreparationIdentityUsesContentNotSourceSnapshot(t *testing.T) {
+	a := protocol.ComposeRequest{OwnerID: "template", BundleID: "old", BundleHash: strings.Repeat("a", 64), Variables: map[string]string{"PASSWORD": "one"}}
+	b := a
+	b.BundleID = "new"
+	if composeRequestFingerprint(a) != composeRequestFingerprint(b) {
+		t.Fatal("same content lost preparation on metadata update")
+	}
+	b.BundleHash = strings.Repeat("b", 64)
+	if composeRequestFingerprint(a) == composeRequestFingerprint(b) {
+		t.Fatal("different content reused preparation")
+	}
+	b = a
+	b.Variables = map[string]string{"PASSWORD": "two"}
+	if composeRequestFingerprint(a) == composeRequestFingerprint(b) {
+		t.Fatal("variable change reused preparation")
+	}
+}

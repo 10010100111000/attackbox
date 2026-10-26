@@ -14,7 +14,7 @@ export async function uploadLabBundle(actor:string,data:Buffer,filename:string){
  try{const files=await unpack(data,filename),preview=previewFiles(files),id=randomUUID(),stored=await saveBundleFiles(id,files);await db.insert(labBundles).values({id,actorId:actor,...stored});return {id,hash:stored.hash,...preview}}
  catch(e){if((e as any).statusCode)throw e;throw createError({statusCode:400,message:e instanceof Error?e.message:'部署包无法读取'})}
 }
-export async function previewLabBundle(id:string,file?:string){const b=await bundleRecord(id);try{return {id:b.id,hash:b.hash,...previewFiles(await readBundleFiles(b.id,b.manifest),file)}}catch{throw createError({statusCode:400,message:'部署包校验或 Compose 解析失败'})}}
+export async function previewLabBundle(id:string,file?:string){const b=await bundleRecord(id);try{return {id:b.id,hash:b.hash,source:b.source?{...b.source,hasToken:!!b.gitTokenCipher}:null,...previewFiles(await readBundleFiles(b.id,b.manifest),file)}}catch{throw createError({statusCode:400,message:'部署包校验或 Compose 解析失败'})}}
 export function publicTemplate<T extends {variablesCipher:string|null}>(t:T){const {variablesCipher,...safe}=t;return safe}
 export async function composeTemplate(id:string){const [t]=await db.select().from(targetTemplates).where(eq(targetTemplates.id,uuid(id)));if(!t||t.runtime!=='compose')throw createError({statusCode:404,message:'Compose 模板不存在'});return t}
 export async function saveComposeTemplate(actor:string,id:string|null,body:any){
@@ -39,7 +39,8 @@ export async function saveComposeTemplate(actor:string,id:string|null,body:any){
   if(body.variables!==undefined){if(!body.variables||typeof body.variables!=='object'||Array.isArray(body.variables)||Object.keys(body.variables).length>64)throw createError({statusCode:400,message:'部署变量无效'});for(const [key,value]of Object.entries(body.variables)){if(!preview.variables.includes(key)||typeof value!=='string'||value.length>8192)throw createError({statusCode:400,message:'部署变量无效'});if(value!=='')variables[key]=value}}
   const ordered=(v:Record<string,string>)=>JSON.stringify(Object.fromEntries(Object.entries(v).sort(([a],[b])=>a.localeCompare(b))))
   if(Buffer.byteLength(ordered(variables))>32768)throw createError({statusCode:400,message:'部署变量总长度超出限制'})
-  const changed=!old||old.bundleId!==bundle.id||Object.entries(settings).some(([key,value])=>old.composeSettings?.[key as keyof ComposeSettings]!==value)||ordered(previous)!==ordered(variables)
+  const oldBundle=old?.bundleId?await tx.select({hash:labBundles.hash}).from(labBundles).where(eq(labBundles.id,old.bundleId)):[]
+  const changed=!old||oldBundle[0]?.hash!==bundle.hash||Object.entries(settings).some(([key,value])=>old.composeSettings?.[key as keyof ComposeSettings]!==value)||ordered(previous)!==ordered(variables)
   const revision=(old?.composeRevision||0)+(changed?1:0)
   if(body.enabled){const [ready]=await tx.select({id:labPreparations.id}).from(labPreparations).where(and(eq(labPreparations.templateId,templateId),eq(labPreparations.templateVersion,revision),eq(labPreparations.state,'ready')));if(!ready)throw createError({statusCode:409,message:'请先保存未启用模板，并在节点准备成功后启用'})}
   const values={name,description,accessInstructions,runtime:'compose',image:'',ports:[{port:s.entryPort,protocol:'tcp' as const}],sourceUrl:'',bundleId:bundle.id,composeSettings:settings,composeRevision:revision,variablesCipher:changed?sealVariables(templateId,variables):old!.variablesCipher,variableKeys:Object.keys(variables).sort(),enabled:body.enabled,lockVersion:(old?.lockVersion||0)+1,updatedAt:new Date()}

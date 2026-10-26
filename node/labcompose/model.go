@@ -9,6 +9,7 @@ import (
 	"attackbox/node/labnetwork"
 )
 
+// ComposeVersion is the tested baseline, not an exact installation requirement.
 const ComposeVersion = "2.40.3"
 const labelPrefix = "io.attackbox.compose."
 

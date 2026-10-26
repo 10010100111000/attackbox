@@ -63,3 +63,16 @@ func TestNodeLabelMustMatchExactly(t *testing.T) {
 		t.Fatal("foreign node accepted")
 	}
 }
+
+func TestComposeVersionCompatibility(t *testing.T) {
+	for _, version := range []string{"2.40.3", "v2.40.4", "2.41.0", "2.99.0", "2.40.3+vendor.1\n"} {
+		if err := checkComposeVersion(version); err != nil {
+			t.Errorf("%q rejected: %v", version, err)
+		}
+	}
+	for _, version := range []string{"2.40.2", "2.39.9", "1.29.2", "3.0.0", "2.41.0-rc.1", "garbage", "2.41", "2.x.1"} {
+		if err := checkComposeVersion(version); err == nil {
+			t.Errorf("%q accepted", version)
+		}
+	}
+}
