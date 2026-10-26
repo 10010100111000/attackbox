@@ -74,10 +74,15 @@ func TestProtectionHasEarlyDropsWithoutCrossBridgeAllowOrNAT(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, want := range []string{`iifname "bt_*" drop`, `priority -10`} {
+	for _, want := range []string{`iifname "bt_*" drop`, `priority -10`, `iifname "bt_*" ct direction reply ct state { established, related } accept`} {
 		if !strings.Contains(rules, want) {
 			t.Fatal(want)
 		}
+	}
+	reply := strings.Index(rules, `iifname "bt_*" ct direction reply`)
+	drop := strings.Index(rules, `iifname "bt_*" drop`)
+	if reply < 0 || reply >= drop || strings.Count(rules, " accept\n") != 1 {
+		t.Fatal("reply exception must precede the drop without broad acceptance")
 	}
 	if strings.Contains(rules, "masquerade") || strings.Contains(rules, "flush ruleset") || strings.Contains(rules, "DOCKER-USER") || strings.Contains(rules, "chain forward") {
 		t.Fatal(rules)

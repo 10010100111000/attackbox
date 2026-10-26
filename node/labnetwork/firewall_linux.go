@@ -10,9 +10,11 @@ import (
 	"os/exec"
 )
 
-// An early INPUT drop cannot be bypassed by an accept/established rule in the
-// legacy Worker table. Docker internal networks own FORWARD isolation; we do
-// not duplicate Docker's forwarding rules or filter same-bridge lab traffic.
+// Allow only conntrack reply traffic before the early INPUT drop. Host-initiated
+// probes need their replies, while lab-initiated traffic (including pre-existing
+// original-direction flows) must not bypass protection via an established rule.
+// Later host chains still apply. Docker owns FORWARD isolation; we do not add
+// cross-bridge forwarding or filter same-bridge lab traffic.
 func ProtectionRules(node string) (string, error) {
 	if !identityPattern.MatchString(node) {
 		return "", fmt.Errorf("invalid node identity")
@@ -22,6 +24,7 @@ func ProtectionRules(node string) (string, error) {
     comment "attackbox:lab:%s"
     chain input {
         type filter hook input priority -10; policy accept;
+        iifname "bt_*" ct direction reply ct state { established, related } accept
         iifname "bt_*" drop
     }
 }

@@ -315,6 +315,32 @@ func TestLocalAttachmentAcceptance(t *testing.T) {
 		}
 	}
 	client := &http.Client{Timeout: 3 * time.Second, Transport: &http.Transport{Proxy: nil}}
+	// Host-initiated TCP and UDP require INPUT replies through the lab bridge.
+	// Keep these separate from the callback probes below so failures name the
+	// conntrack direction being tested rather than appearing as callback timeouts.
+	resp, err := client.Get("http://" + ip + ":8080/whoami")
+	if err != nil {
+		t.Fatal("host-initiated TCP reply blocked", err)
+	}
+	resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatal("host probe returned", resp.StatusCode)
+	}
+	udp, err := net.DialTimeout("udp4", net.JoinHostPort(ip, "8081"), time.Second)
+	if err != nil {
+		t.Fatal(err)
+	}
+	udp.SetDeadline(time.Now().Add(time.Second))
+	if _, err = udp.Write([]byte("ping")); err != nil {
+		udp.Close()
+		t.Fatal(err)
+	}
+	echo := make([]byte, 4)
+	count, err := udp.Read(echo)
+	udp.Close()
+	if err != nil || count != 4 || string(echo) != "ping" {
+		t.Fatal("host-initiated UDP reply blocked", err)
+	}
 	who := request(helperRequest{Action: "http", Address: "http://" + ip + ":8080/whoami"})
 	if !who.OK || who.Source != n.SandboxIP.String() {
 		t.Fatal("sandbox source IP was translated", who)

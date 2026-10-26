@@ -60,7 +60,7 @@
 
 主 `eth0`、默认路由和原有出口配置不变；实验端口显式关闭 bridge isolated，不复制主沙箱网桥的端口隔离设置。接口别名、peer ifindex、接入桥和实验地址可核对，错误不会伪装为接入成功。
 
-Docker 网络固定为 IPv4、`internal=true`、关闭 masquerade，保留容器互通和 Docker DNS。自定义 nftables 仅安装独立、带 Node 所有权 comment 的 INPUT 表，提前阻断 `iifname "bt_*"` 的宿主访问，不改旧 Worker 表、不清空 ruleset、不增加 FORWARD／DOCKER-USER 例外。
+Docker 网络固定为 IPv4、`internal=true`、关闭 masquerade，保留容器互通和 Docker DNS。自定义 nftables 仅安装独立、带 Node 所有权 comment 的 INPUT 表，在提前阻断 `iifname "bt_*"` 的宿主访问前，只放行 `ct direction reply` 且状态为 `established, related` 的回包，使宿主主动发起的 TCP／UDP 探针能收到响应；靶场主动访问宿主（包括原方向已建立流量）仍丢弃。后续宿主机防火墙链仍生效，不改旧 Worker 表、不清空 ruleset、不增加 FORWARD／DOCKER-USER 例外。
 
 跨网络和直接公网出口由 Docker internal 网络负责；必须通过真实网络测试确认所用 Docker／内核配置的行为。沙箱可主动代理流量不属于本轮阻止目标。手动接入的沙箱不自动获得 Docker 内置 DNS，第一版使用实验 IP。
 
