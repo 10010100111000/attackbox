@@ -72,9 +72,9 @@ sudo systemctl enable attackbox-web nginx >/dev/null
 sudo systemctl restart attackbox-web
 sudo systemctl reload nginx
 
-echo "==> [Deploy Control] 执行健康检查 (http://${WEB_UPSTREAM}/api/health)..."
+echo "==> [Deploy Control] 执行健康检查 (http://${WEB_UPSTREAM}/)..."
 for _ in $(seq 1 30); do
-    if curl --fail --silent --show-error --max-time 2 "http://${WEB_UPSTREAM}/api/health" >/dev/null; then
+    if curl --fail --silent --show-error --max-time 2 "http://${WEB_UPSTREAM}/" >/dev/null; then
         echo "==> [Deploy Control] 部署成功，服务运行正常。"
         exit 0
     fi

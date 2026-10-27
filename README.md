@@ -104,7 +104,7 @@ sudo ./scripts/manage.py admin \
 ./scripts/deploy-control.sh
 ```
 
-该脚本会校验 `web/.output` 与 `/etc/attackbox/web.env`，原子发布静态与服务端产物至 `/var/www/attackbox-web`，渲染 Nginx 配置并启动 `attackbox-web` 与 `nginx`，最后自动执行 `/api/health` 健康检查。
+该脚本会校验 `web/.output` 与 `/etc/attackbox/web.env`，原子发布静态与服务端产物至 `/var/www/attackbox-web`，渲染 Nginx 配置并启动 `attackbox-web` 与 `nginx`，最后自动执行 Web 健康检查。
 
 ---
 
