@@ -166,8 +166,9 @@ async function exit() {
   transition: transform 0.16s ease, border-color 0.16s ease, box-shadow 0.16s ease;
 }
 .account-trigger:hover {
-  transform: translateY(-1px);
-  border-color: var(--ink);
+  transform: translateY(-1px) rotate(-4deg) scale(1.04);
+  border-color: var(--brand);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.35), 0 0 16px var(--brand-glow);
 }
 .account-trigger:focus-visible {
   outline: 2px solid var(--focus);
@@ -188,11 +189,11 @@ async function exit() {
   width: 260px;
   max-width: calc(100vw - 32px);
   padding: 8px;
-  border: 1px solid var(--line);
+  border: 1px solid var(--popover-border);
   border-radius: 16px;
-  background: var(--paper);
+  background: var(--popover-bg);
   color: var(--ink);
-  box-shadow: 0 14px 48px #0002;
+  box-shadow: inset 0 1px 0 rgba(255, 220, 195, 0.14), 0 20px 50px rgba(0, 0, 0, 0.55);
   font-size: 13px;
 }
 .account-identity {

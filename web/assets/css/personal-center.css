@@ -38,7 +38,8 @@
 }
 
 .personal-avatar:hover {
-  transform: translateY(-2px);
+  transform: translateY(-2px) rotate(-5deg) scale(1.04);
+  border-color: var(--brand);
 }
 
 .personal-identity h2 {
@@ -98,10 +99,10 @@
 }
 
 .personal-navigation a[aria-current="page"] {
-  background: var(--paper);
+  background: linear-gradient(90deg, var(--brand-soft) 0%, var(--paper) 100%);
   color: var(--ink);
-  border-color: var(--line);
-  box-shadow: var(--surface-highlight), 0 4px 12px rgba(0, 0, 0, 0.08);
+  border-color: var(--border-playful);
+  box-shadow: inset 3px 0 0 var(--brand), 0 4px 14px rgba(0, 0, 0, 0.12);
   font-weight: 650;
 }
 
@@ -163,15 +164,25 @@
   align-items: center;
   gap: 32px;
   padding: 28px 32px;
-  border: 1px solid color-mix(in srgb, var(--ink) 14%, var(--line));
+  border: 1px solid var(--border-playful);
   border-radius: 16px;
   color: var(--ink);
   background:
-    radial-gradient(circle at 92% 20%, var(--brand-soft), transparent 55%),
-    linear-gradient(180deg, rgba(255, 255, 255, 0.03) 0%, rgba(255, 255, 255, 0) 100%),
+    radial-gradient(circle at 90% 20%, rgba(255, 175, 136, 0.20), transparent 52%),
+    radial-gradient(circle at 20% 100%, rgba(239, 124, 141, 0.12), transparent 50%),
     var(--paper);
   box-shadow: var(--surface-highlight), var(--card-shadow);
   overflow: hidden;
+}
+
+.personal-resume::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: var(--gradient-collision);
 }
 
 .personal-resume-label {
@@ -242,10 +253,13 @@
 .personal-resume-progress > strong {
   font-size: 42px;
   line-height: 1;
-  font-weight: 650;
+  font-weight: 700;
   letter-spacing: -2px;
   font-variant-numeric: tabular-nums;
-  color: var(--ink);
+  background: var(--gradient-warm);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
 }
 
 .personal-resume-progress > strong > span {
@@ -273,7 +287,7 @@
 }
 
 .personal-resume .personal-progress i {
-  background: var(--brand);
+  background: var(--gradient-collision);
 }
 
 /* 列表标题与分段胶囊筛选器 */
@@ -434,7 +448,7 @@
   display: block;
   height: 100%;
   border-radius: inherit;
-  background: var(--brand);
+  background: var(--gradient-collision);
   transition: width 0.3s ease;
 }
 
@@ -616,16 +630,17 @@
 }
 
 .personal-settings-heading {
+  position: relative;
   display: flex;
   align-items: center;
   gap: 10px;
   padding: 22px 28px;
-  background: var(--soft);
+  background: linear-gradient(90deg, var(--brand-soft) 0%, transparent 75%), var(--soft);
   border-bottom: 1px solid var(--line);
 }
 
 .personal-settings-heading > svg {
-  color: var(--ink);
+  color: var(--brand);
 }
 
 .personal-settings-heading h2 {

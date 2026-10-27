@@ -120,13 +120,14 @@ function stagePercent(c: ChallengeSummary): number {
 .head-badge {
   display: grid;
   place-items: center;
-  width: 38px;
-  height: 38px;
-  border-radius: 10px;
-  background: var(--soft);
-  color: var(--ink);
-  border: 1px solid var(--line);
-  box-shadow: var(--surface-highlight);
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  background: var(--brand-soft);
+  color: var(--brand);
+  border: 1px solid var(--border-playful);
+  box-shadow: 0 4px 14px rgba(255, 175, 136, 0.18);
+  transform: rotate(-4deg);
 }
 
 h1 {
@@ -202,19 +203,19 @@ input {
   left: 0;
   right: 0;
   height: 3px;
-  background: var(--brand);
-  opacity: 0;
-  transition: opacity 0.2s ease;
+  background: var(--gradient-collision);
+  opacity: 0.75;
+  transition: opacity 0.2s ease, height 0.2s ease;
 }
 
-.card[data-difficulty='beginner']::before { background: var(--tone-green); }
-.card[data-difficulty='intermediate']::before { background: var(--tone-blue); }
-.card[data-difficulty='advanced']::before { background: var(--tone-red); }
+.card[data-difficulty='beginner']::before { background: linear-gradient(90deg, #fbbf24, #ffaf88); }
+.card[data-difficulty='intermediate']::before { background: linear-gradient(90deg, #ffaf88, #c084fc); }
+.card[data-difficulty='advanced']::before { background: linear-gradient(90deg, #ef7c8d, #fb7185, #c084fc); }
 
 .card:hover {
-  border-color: color-mix(in srgb, var(--ink) 28%, var(--line));
-  transform: translateY(-3px);
-  box-shadow: var(--surface-highlight), var(--card-shadow);
+  border-color: var(--border-playful);
+  transform: translateY(-5px);
+  box-shadow: var(--surface-highlight), 0 16px 38px -8px rgba(239, 124, 141, 0.22), 0 0 0 1px rgba(255, 175, 136, 0.2);
 }
 
 .card:hover::before {
@@ -307,8 +308,8 @@ footer {
 }
 
 .card:hover .card-arrow {
-  transform: translateX(3px);
-  color: var(--ink);
+  transform: translateX(4px);
+  color: var(--brand);
 }
 
 .stage-bar {
@@ -322,7 +323,7 @@ footer {
   display: block;
   height: 100%;
   border-radius: inherit;
-  background: var(--brand);
+  background: var(--gradient-collision);
 }
 
 .empty {

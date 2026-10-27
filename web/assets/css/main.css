@@ -14,73 +14,88 @@
   --text-muted: #96939d;
   --border-line: rgba(255, 255, 255, 0.07);
 
-  /* 统一设计 Token (深海曜石 · 极简纯白主按钮 × 冰川青蓝点缀) */
-  --bg: #0b0d13;
-  --paper: #12161f;
-  --ink: #f3f4f6;
-  --muted: #949ba8;
-  --body: #c4cad4;
-  --reader-bg: #0f1219;
-  --reader-ink: #d8dde6;
-  --line: #232938;
+  /* 统一设计 Token (延续落地页「落日珊瑚 × 电光玫瑰 × 星云紫」碰撞感) */
+  --bg: #0a0b10;
+  --paper: #13141c;
+  --ink: #f5f3f0;
+  --muted: #9e97a6;
+  --body: #cbc4d1;
+  --reader-bg: #0e1017;
+  --reader-ink: #ded9e2;
+  --line: rgba(255, 210, 185, 0.11);
 
-  /* 高对比度主按钮 (暗色模式下采用纯净珍珠白按钮 + 深曜石文字，告别刺眼黄/绿块) */
-  --btn-primary-bg: #f4f4f6;
+  /* 主按钮保持纯净高对比白底黑字，悬停带暖珊瑚能量光晕 */
+  --btn-primary-bg: #f6f4f2;
   --btn-primary-hover: #ffffff;
-  --btn-primary-fg: #090a0f;
-  --btn-primary-shadow: 0 1px 2px rgba(0, 0, 0, 0.45), 0 0 18px rgba(255, 255, 255, 0.12);
+  --btn-primary-fg: #0b0a0e;
+  --btn-primary-shadow: 0 2px 10px rgba(0, 0, 0, 0.45), 0 0 20px rgba(255, 175, 136, 0.22);
 
-  /* 品牌点缀与交互聚焦色 (仅用于细线条、徽章、进度条与链接，不涂满大按钮) */
-  --brand: #60a5fa;
-  --brand-hover: #93c5fd;
-  --brand-soft: rgba(96, 165, 250, 0.14);
+  /* 核心点缀色：直接沿用落地页的暖珊瑚橙 (#ffaf88) 与电光玫红碰撞 */
+  --brand: #ffaf88;
+  --brand-hover: #ffc4a6;
+  --brand-soft: rgba(255, 175, 136, 0.15);
+  --brand-glow: rgba(255, 175, 136, 0.38);
   --green: var(--brand);
   --mint: var(--brand-soft);
 
-  --soft: #191f2c;
-  --hover: #161b26;
-  --on-accent: #090a0f;
-  --focus: #60a5fa;
+  /* 活泼碰撞渐变：用于某些线、卡片顶边、进度条与高亮框 */
+  --gradient-warm: linear-gradient(100deg, #ffe0b0, #ffae82 48%, #ef7c8d);
+  --gradient-collision: linear-gradient(115deg, #ffe0b0 0%, #ffaf88 35%, #ef7c8d 70%, #c084fc 100%);
+  --border-playful: rgba(255, 175, 136, 0.35);
 
-  /* 头像与高光表面 (解决暗色背景下头像不明显的问题) */
-  --avatar-bg: linear-gradient(145deg, #2b3346 0%, #1a202e 100%);
-  --avatar-border: rgba(255, 255, 255, 0.32);
-  --avatar-fg: #ffffff;
-  --avatar-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.24), 0 4px 12px rgba(0, 0, 0, 0.45);
+  --soft: #1b1c27;
+  --hover: #181924;
+  --on-accent: #1e130f;
+  --focus: #ffaf88;
+
+  /* 下拉框 (Select) 与浮层高对比度专属变量 (解决暗色下对比度低的问题) */
+  --select-bg: #1d1f2b;
+  --select-border: rgba(255, 196, 168, 0.32);
+  --select-hover-border: #ffaf88;
+  --select-text: #f7f5f2;
+  --popover-bg: #181a24;
+  --popover-border: rgba(255, 175, 136, 0.28);
+
+  /* 头像与高光表面：暖金珊瑚渐变外环 */
+  --avatar-bg: linear-gradient(135deg, #2d242b 0%, #1d1a27 100%);
+  --avatar-border: rgba(255, 185, 148, 0.55);
+  --avatar-fg: #ffe3d1;
+  --avatar-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.25), 0 4px 14px rgba(239, 124, 141, 0.22);
 
   /* 装饰与代码高亮面板 */
-  --art: #1b2232;
-  --art2: #1c2536;
-  --art3: #251f30;
-  --art-ink: #93c5fd;
-  --code: #0a0d13;
-  --code-ink: #e6edf5;
-  --code-muted: #8b96a9;
-  --code-highlight: #7dd3fc;
+  --art: #2b2123;
+  --art2: #251f33;
+  --art3: #1f2933;
+  --art-ink: #ffaf88;
+  --code: #0c0d13;
+  --code-ink: #efe9f4;
+  --code-muted: #9b92a6;
+  --code-highlight: #ffbe98;
 
   /* 状态语义色 */
-  --success-bg: rgba(56, 189, 248, 0.14);
-  --success-ink: #7dd3fc;
-  --error-bg: rgba(244, 63, 94, 0.15);
+  --success-bg: rgba(45, 212, 191, 0.15);
+  --success-ink: #5eead4;
+  --error-bg: rgba(251, 113, 133, 0.16);
   --error-ink: #fda4af;
 
-  /* 卡片微立体光影、建筑感背景网格与氛围光 */
-  --surface-highlight: inset 0 1px 0 0 rgba(255, 255, 255, 0.06);
-  --card-shadow: 0 12px 32px -6px rgba(0, 0, 0, 0.5);
-  --bg-grid-line: rgba(255, 255, 255, 0.026);
+  /* 卡片微立体光影、背景点阵与双色碰撞极光 */
+  --surface-highlight: inset 0 1px 0 0 rgba(255, 230, 215, 0.08);
+  --card-shadow: 0 14px 34px -8px rgba(0, 0, 0, 0.58), 0 0 24px -6px rgba(255, 175, 136, 0.08);
+  --bg-grid-line: rgba(255, 195, 160, 0.045);
+  --bg-dot-color: rgba(255, 185, 148, 0.14);
   --page-ambient:
-    radial-gradient(ellipse 65% 300px at 50% -40px, rgba(96, 165, 250, 0.09), transparent 70%),
-    radial-gradient(ellipse 45% 240px at 85% 20px, rgba(245, 158, 108, 0.05), transparent 70%);
+    radial-gradient(ellipse 55% 340px at 18% -30px, rgba(255, 158, 108, 0.17), transparent 70%),
+    radial-gradient(ellipse 50% 320px at 82% 10px, rgba(239, 124, 141, 0.14), transparent 70%),
+    radial-gradient(ellipse 40% 260px at 55% 40%, rgba(192, 132, 252, 0.06), transparent 75%);
 
-  /* 品牌高亮与交互态 (保留落地页暖调锚点与测试兼容) */
+  /* 品牌高亮与交互态 */
   --accent-coral: #ffaf88;
   --accent-hover: #ffc19e;
   --text-on-accent: #271a15;
   --color-error: #e6a49c;
 
-  /* 渐变与阴影 Token */
-  --gradient-warm: linear-gradient(100deg, #ffe0b0, #ffae82 48%, #ef7c8d);
-  --selection-bg: rgba(96, 165, 250, 0.25);
+  /* 选中态与光晕 Token */
+  --selection-bg: rgba(255, 175, 136, 0.28);
   --card-glow: 0 15px 45px rgba(0, 0, 0, 0.4);
 
   /* 统一圆角 */
@@ -93,74 +108,88 @@
 [data-theme='light'],
 [data-theme='graphite'] {
   color-scheme: light;
-  --bg-app: #f6f6f4;
+  --bg-app: #faf8f5;
   --bg-card: #ffffff;
-  --bg-input: #efeee9;
-  --text-main: #18181b;
-  --text-muted: #686b75;
-  --border-line: rgba(24, 24, 27, 0.09);
-  --accent-coral: #18181b;
-  --accent-hover: #27272a;
+  --bg-input: #f2ece7;
+  --text-main: #1d1a1f;
+  --text-muted: #706875;
+  --border-line: rgba(29, 26, 31, 0.09);
+  --accent-coral: #e05d36;
+  --accent-hover: #c94c27;
   --text-on-accent: #ffffff;
   --color-error: #c53030;
 
-  /* 统一设计 Token (暖曜石墨 · 曜石黑主按钮 × 钴蓝点缀) */
-  --bg: #f6f6f4;
+  /* 统一设计 Token (暖曜浅色 · 曜石黑按钮 × 落日珊瑚碰撞) */
+  --bg: #faf8f5;
   --paper: #ffffff;
-  --ink: #18181b;
-  --muted: #646874;
-  --body: #3f3f46;
-  --reader-bg: #fafaf8;
-  --reader-ink: #27272a;
-  --line: #e4e4e0;
+  --ink: #1d1a1f;
+  --muted: #6c6472;
+  --body: #433e49;
+  --reader-bg: #fcfbf9;
+  --reader-ink: #2b2730;
+  --line: #e8e1db;
 
-  /* 高对比度主按钮 (浅色模式下采用曜石黑底 + 纯白字) */
-  --btn-primary-bg: #18181b;
-  --btn-primary-hover: #27272a;
+  /* 主按钮：浅色下采用深曜石黑底 + 纯白字 + 暖色环境投影 */
+  --btn-primary-bg: #1d1a1f;
+  --btn-primary-hover: #2f2a33;
   --btn-primary-fg: #ffffff;
-  --btn-primary-shadow: 0 4px 12px rgba(24, 24, 27, 0.14);
+  --btn-primary-shadow: 0 4px 14px rgba(224, 93, 54, 0.16), 0 2px 6px rgba(29, 26, 31, 0.12);
 
-  /* 品牌点缀与交互聚焦色 */
-  --brand: #2563eb;
-  --brand-hover: #1d4ed8;
-  --brand-soft: #eff6ff;
+  /* 核心点缀色 */
+  --brand: #e05d36;
+  --brand-hover: #c94c27;
+  --brand-soft: #fff0ea;
+  --brand-glow: rgba(224, 93, 54, 0.28);
   --green: var(--brand);
   --mint: var(--brand-soft);
 
-  --soft: #f0f0ec;
-  --hover: #f5f5f2;
+  --gradient-warm: linear-gradient(100deg, #f59e0b, #ea580c 48%, #e11d48);
+  --gradient-collision: linear-gradient(115deg, #f59e0b 0%, #ea580c 38%, #e11d48 72%, #9333ea 100%);
+  --border-playful: rgba(224, 93, 54, 0.35);
+
+  --soft: #f4eee9;
+  --hover: #f8f4f0;
   --on-accent: #ffffff;
-  --focus: #2563eb;
+  --focus: #e05d36;
+
+  /* 下拉框与浮层高对比度变量 */
+  --select-bg: #ffffff;
+  --select-border: #d5cbc3;
+  --select-hover-border: #e05d36;
+  --select-text: #1d1a1f;
+  --popover-bg: #ffffff;
+  --popover-border: rgba(224, 93, 54, 0.25);
 
   /* 头像与高光表面 */
-  --avatar-bg: linear-gradient(145deg, #27272a 0%, #18181b 100%);
-  --avatar-border: rgba(24, 24, 27, 0.18);
-  --avatar-fg: #ffffff;
-  --avatar-shadow: 0 4px 10px rgba(24, 24, 27, 0.14);
+  --avatar-bg: linear-gradient(135deg, #2a242d 0%, #1d1920 100%);
+  --avatar-border: rgba(224, 93, 54, 0.45);
+  --avatar-fg: #ffe3d1;
+  --avatar-shadow: 0 4px 12px rgba(224, 93, 54, 0.18);
 
   /* 装饰与代码高亮面板 */
-  --art: #eef2ff;
-  --art2: #e8eff8;
-  --art3: #f3eef8;
-  --art-ink: #2563eb;
-  --code: #161922;
-  --code-ink: #edf1f7;
-  --code-muted: #9aa3b5;
-  --code-highlight: #93c5fd;
+  --art: #fcedea;
+  --art2: #f3ebfa;
+  --art3: #eaf4f8;
+  --art-ink: #c94c27;
+  --code: #191720;
+  --code-ink: #efe9f4;
+  --code-muted: #a199ab;
+  --code-highlight: #ffbe98;
 
   /* 状态语义色 */
-  --success-bg: #e0f2fe;
-  --success-ink: #0369a1;
-  --error-bg: #fff1f2;
+  --success-bg: #ccfbf1;
+  --success-ink: #0f766e;
+  --error-bg: #ffe4e6;
   --error-ink: #be123c;
 
-  /* 卡片微立体光影、建筑感背景网格与氛围光 */
-  --surface-highlight: inset 0 1px 0 0 rgba(255, 255, 255, 0.85);
-  --card-shadow: 0 10px 26px -6px rgba(24, 24, 27, 0.07);
-  --bg-grid-line: rgba(24, 24, 27, 0.032);
+  /* 卡片微立体光影与背景氛围 */
+  --surface-highlight: inset 0 1px 0 0 rgba(255, 255, 255, 0.9);
+  --card-shadow: 0 12px 28px -6px rgba(45, 30, 22, 0.08);
+  --bg-grid-line: rgba(224, 93, 54, 0.05);
+  --bg-dot-color: rgba(224, 93, 54, 0.16);
   --page-ambient:
-    radial-gradient(ellipse 65% 280px at 50% -40px, rgba(37, 99, 235, 0.055), transparent 70%),
-    radial-gradient(ellipse 45% 220px at 85% 20px, rgba(124, 58, 237, 0.035), transparent 70%);
+    radial-gradient(ellipse 55% 300px at 18% -30px, rgba(255, 158, 108, 0.14), transparent 70%),
+    radial-gradient(ellipse 50% 280px at 82% 10px, rgba(239, 124, 141, 0.10), transparent 70%);
 }
 
 body {
@@ -169,6 +198,40 @@ body {
   color: var(--text-main);
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft Yahei", sans-serif;
   -webkit-font-smoothing: antialiased;
+}
+
+/* 全局强化所有下拉框 (<select>) 在暗色/浅色下的对比度与精致箭头 */
+select {
+  appearance: none;
+  -webkit-appearance: none;
+  background-color: var(--select-bg) !important;
+  color: var(--select-text) !important;
+  border: 1px solid var(--select-border) !important;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%23ffaf88' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E") !important;
+  background-repeat: no-repeat !important;
+  background-position: right 10px center !important;
+  padding-right: 32px !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08), 0 2px 6px rgba(0, 0, 0, 0.18);
+  cursor: pointer;
+  transition: border-color 0.18s ease, box-shadow 0.18s ease, transform 0.15s ease;
+}
+
+select:hover:not(:disabled) {
+  border-color: var(--select-hover-border) !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.12), 0 0 0 3px var(--brand-soft);
+}
+
+select:focus,
+select:focus-visible {
+  outline: none !important;
+  border-color: var(--brand) !important;
+  box-shadow: 0 0 0 3px var(--brand-soft) !important;
+}
+
+select option {
+  background-color: var(--popover-bg);
+  color: var(--ink);
+  padding: 8px;
 }
 
 a:focus-visible, button:focus-visible, [tabindex]:focus-visible {
