@@ -1,60 +1,41 @@
-// web/server/scripts/init-admin.mjs
-// AttackBox Controlled Admin Initializer
+// Called by scripts/manage.py admin. Password is supplied over stdin, never argv.
 import { hash, Algorithm } from '@node-rs/argon2';
 import postgres from 'postgres';
 
-const args = process.argv.slice(2);
-const email = args[0]?.trim().toLowerCase();
-const password = args[1];
-const displayName = args[2]?.trim() || 'System Administrator';
-
-if (!email || !password) {
-  console.error('Usage: node server/scripts/init-admin.mjs <email> <password> [displayName]');
-  process.exit(1);
-}
-
-const DATABASE_URL = process.env.DATABASE_URL || 'postgres://attackbox:attackbox_pwd_9a7b12@127.0.0.1:5432/attackbox_db';
-
 async function main() {
-  console.log(`[ADMIN-INIT] Initializing admin account: ${email}...`);
-  const sql = postgres(DATABASE_URL, { max: 1 });
-
+  if (process.argv.length !== 2 || !process.env.DATABASE_URL || process.stdin.isTTY) {
+    throw new Error('Use sudo scripts/manage.py admin');
+  }
+  let input = '';
+  for await (const chunk of process.stdin) {
+    input += chunk;
+    if (input.length > 16384) throw new Error('Invalid input');
+  }
+  const {email, password, displayName} = JSON.parse(input);
+  if (typeof email !== 'string' || email.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) ||
+      typeof password !== 'string' || password.length < 12 || password.length > 4096 ||
+      typeof displayName !== 'string' || !displayName.trim() || displayName.length > 100) {
+    throw new Error('Invalid input');
+  }
+  const passwordHash = await hash(password, {algorithm: Algorithm.Argon2id, memoryCost: 65536, timeCost: 3, parallelism: 1});
+  const sql = postgres(process.env.DATABASE_URL, {max: 1});
   try {
-    const passwordHash = await hash(password, {
-      algorithm: Algorithm.Argon2id,
-      memoryCost: 65536,
-      timeCost: 3,
-      parallelism: 1,
+    await sql.begin(async tx => {
+      // Serialize simultaneous bootstrap commands. Never reset an existing account.
+      await tx`SELECT pg_advisory_xact_lock(781452603)`;
+      const admins = await tx`SELECT id FROM users WHERE role = 'admin' LIMIT 1`;
+      if (admins.length) throw new Error('An administrator already exists');
+      const existing = await tx`SELECT id FROM users WHERE email = ${email.toLowerCase()} LIMIT 1`;
+      if (existing.length) throw new Error('Email already in use');
+      await tx`INSERT INTO users (email, display_name, password_hash, role, status, email_verified_at, updated_at)
+        VALUES (${email.toLowerCase()}, ${displayName.trim()}, ${passwordHash}, 'admin', 'active', now(), now())`;
     });
-    const now = new Date();
-
-    const [user] = await sql`
-      INSERT INTO users (email, display_name, password_hash, role, status, email_verified_at, updated_at)
-      VALUES (
-        ${email},
-        ${displayName},
-        ${passwordHash},
-        'admin',
-        'active',
-        ${now},
-        ${now}
-      )
-      ON CONFLICT (email) DO UPDATE
-      SET role = 'admin',
-          status = 'active',
-          password_hash = EXCLUDED.password_hash,
-          email_verified_at = EXCLUDED.email_verified_at,
-          updated_at = EXCLUDED.updated_at
-      RETURNING id, email, role, status, display_name;
-    `;
-
-    console.log(`[ADMIN-INIT] Success! Admin account active:`, user);
+    console.log('管理员已创建。此命令不会重置已有账号。');
   } finally {
     await sql.end();
   }
 }
-
-main().catch((err) => {
-  console.error('[ADMIN-INIT] Error:', err);
-  process.exit(1);
+main().catch(() => {
+  console.error('管理员初始化失败：检查输入、数据库连接和迁移状态；已有管理员或邮箱时拒绝创建。');
+  process.exitCode = 1;
 });

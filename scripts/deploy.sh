@@ -12,8 +12,8 @@ die() { printf 'ERROR: %s\n' "$*" >&2; exit 1; }
 
 cd "$REPO"
 [ -f go.mod ] || die "run from the repo root"
-[ -f "$ENV_FILE" ] || die "missing $ENV_FILE (see deploy/web.env.example)"
-[ -r configs/node.yaml ] || die "missing or unreadable configs/node.yaml (copy configs/node.yaml.example and configure it)"
+[ -f "$ENV_FILE" ] || die "run sudo scripts/setup.py first"
+sudo test -r configs/node.yaml || die "missing or unreadable configs/node.yaml (copy configs/node.yaml.example and configure it)"
 [ -z "$(git status --porcelain)" ] || die "working tree is dirty; commit or reset before deploying"
 
 log "sync $BRANCH"

@@ -9,7 +9,7 @@
 1. 准备空 PostgreSQL 数据库、Go、Node、Docker Engine 27.5+、稳定 Compose >=2.40.3 且 <3.0.0；本地构建另需 Docker Buildx 插件。
 2. 按 [部署文档](deploy.md) 配置 Web 和 Worker。Web 设置 DATABASE_URL、CONTENT_CREDENTIALS_KEY（32 字节十六进制密钥）和 LAB_DATA_DIR。
 3. LAB_DATA_DIR 使用 Web 服务用户拥有的专用持久目录，权限 0700，放在发布产物之外。密钥与数据库、部署包目录一起备份。
-4. 执行 `npm --prefix web run db:migrate` 或 `scripts/migrate.sh`。脚本验证迁移历史身份；重复初始化当前基线安全，遇到不匹配的库拒绝执行，不修改数据。当前工作没有清空任何远程数据库。
+4. 执行 `sudo scripts/manage.py migrate` 或 `sudo scripts/migrate.sh`。脚本验证迁移历史身份；重复初始化当前基线安全，遇到不匹配的库拒绝执行，不修改数据。当前工作没有清空任何远程数据库。
 5. 完成管理员初始化、前后端构建和服务启动。控制端与 Worker 使用 Compose 协议 2。
 
 Worker 的 compose_labs 默认关闭，network_verified 也默认关闭。先按 [真实网络夹具](lab-network-local.md) 验证主机环境，再显式启用。网络池默认 10.202.0.0/16，按实际路由选择空闲网段；不创建共享靶机桥，不添加跨桥例外。

@@ -6,4 +6,4 @@ set -euo pipefail
 : "${RESET_DATABASE:?Set RESET_DATABASE to the target database name; all data will be erased}"
 cd "$WEB_DIR"
 npm run db:reset
-echo 'Database initialized. Run npm run admin:init -- <email> <password> before restarting the application.'
+echo 'Database initialized. Run sudo scripts/manage.py admin before restarting the application.'

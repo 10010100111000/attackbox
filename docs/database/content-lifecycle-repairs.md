@@ -24,13 +24,13 @@
 export DATABASE_URL='postgres://USER:PASSWORD@HOST:5432/DATABASE'
 npm ci
 npm run db:migrate
-npm run admin:init -- 'admin@example.com' 'YOUR_PASSWORD'
+sudo scripts/manage.py admin
 npm run build
 node .output/server/index.mjs
 ```
 
 - `npm run db:migrate`：安全应用 Drizzle 迁移，幂等执行，内置初始化分类。
-- `npm run admin:init`：初始化管理员账号（角色设为 `admin`，状态设为 `active`）。
+- `sudo scripts/manage.py admin`：初始化管理员账号（角色设为 `admin`，状态设为 `active`）。
 
 ## 重置数据库
 
@@ -38,7 +38,7 @@ node .output/server/index.mjs
 
 ```bash
 RESET_DATABASE='DATABASE' npm run db:reset
-npm run admin:init -- 'admin@example.com' 'YOUR_PASSWORD'
+sudo scripts/manage.py admin
 ```
 
 该操作将清理 `public` 与 `drizzle` schema，并基于最新基线全量重建所有表结构与分类种子。
