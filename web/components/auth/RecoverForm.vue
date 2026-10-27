@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, watch, nextTick } from 'vue'
+import { ref, watch, nextTick, onMounted } from 'vue'
 import Button from '~/components/ui/Button.vue'
 import Input from '~/components/ui/Input.vue'
 
@@ -8,7 +8,7 @@ interface Props {
 }
 
 const props = withDefaults(defineProps<Props>(), {
-  modelValueEmail: ''
+  modelValueEmail: '',
 })
 
 const emit = defineEmits<{
@@ -18,15 +18,22 @@ const emit = defineEmits<{
 
 const email = ref(props.modelValueEmail)
 const busy = ref(false)
+const mounted = ref(false)
+onMounted(() => {
+  mounted.value = true
+})
 const hasSent = ref(false)
 const emailError = ref('')
 const statusMessage = ref('')
 
-watch(() => props.modelValueEmail, (val) => {
-  if (val !== undefined && val !== email.value) {
-    email.value = val
-  }
-})
+watch(
+  () => props.modelValueEmail,
+  (val) => {
+    if (val !== undefined && val !== email.value) {
+      email.value = val
+    }
+  },
+)
 
 function onEmailInput(val: string) {
   email.value = val
@@ -66,9 +73,11 @@ async function handleSubmit() {
   try {
     const res = await forgotPassword(cleanEmail)
     hasSent.value = true
-    statusMessage.value = res?.message || '重置密码链接已发送至你的邮箱，请查收邮件。'
+    statusMessage.value =
+      res?.message || '重置密码链接已发送至你的邮箱，请查收邮件。'
   } catch (err: any) {
-    statusMessage.value = err?.data?.statusMessage || err?.message || '发送失败，请稍后重试'
+    statusMessage.value =
+      err?.data?.statusMessage || err?.message || '发送失败，请稍后重试'
   } finally {
     busy.value = false
   }
@@ -81,50 +90,61 @@ async function handleSubmit() {
     <h1 id="form-title">找回密码。</h1>
     <p class="intro">输入注册邮箱，我们将帮助你重设密码。</p>
 
-    <form id="auth-form" novalidate @submit.prevent="handleSubmit">
-      <!-- 邮箱字段 -->
-      <div class="field">
-        <div class="field-head">
-          <label for="email">邮箱</label>
+    <form
+      id="auth-form"
+      method="post"
+      action="/api/auth/forgot-password"
+      novalidate
+      @submit.prevent="handleSubmit"
+    >
+      <fieldset :disabled="!mounted || busy" class="auth-fields">
+        <!-- 邮箱字段 -->
+        <div class="field">
+          <div class="field-head">
+            <label for="email">邮箱</label>
+          </div>
+          <Input
+            id="email"
+            name="email"
+            type="email"
+            inputmode="email"
+            autocapitalize="none"
+            autocorrect="off"
+            spellcheck="false"
+            autocomplete="email"
+            placeholder="you@example.com"
+            :model-value="email"
+            :error="emailError"
+            required
+            @update:model-value="onEmailInput"
+          />
         </div>
-        <Input
-          id="email"
-          name="email"
-          type="email"
-          inputmode="email"
-          autocapitalize="none"
-          autocorrect="off"
-          spellcheck="false"
-          autocomplete="email"
-          placeholder="you@example.com"
-          :model-value="email"
-          :error="emailError"
-          required
-          @update:model-value="onEmailInput"
-        />
-      </div>
 
-      <!-- 发送重置链接按钮 -->
-      <Button
-        variant="primary"
-        :loading="busy"
-        type="submit"
-        class="submit w-full h-[46px] text-xs font-semibold rounded-md gap-4"
-      >
-        <span>{{ busy ? '正在继续…' : (hasSent ? '再次发送重置链接' : '发送重置链接') }}</span>
+        <!-- 发送重置链接按钮 -->
+        <Button
+          variant="primary"
+          :loading="busy"
+          type="submit"
+          class="submit w-full h-[46px] text-xs font-semibold rounded-md gap-4"
+        >
+          <span>
+            {{
+              busy ? '正在继续…' : hasSent ? '再次发送重置链接' : '发送重置链接'
+            }}
+          </span>
+        </Button>
 
-      </Button>
-
-      <!-- 状态反馈提示 -->
-      <p
-        v-if="statusMessage"
-        id="status"
-        class="status"
-        role="status"
-        aria-live="polite"
-      >
-        {{ statusMessage }}
-      </p>
+        <!-- 状态反馈提示 -->
+        <p
+          v-if="statusMessage"
+          id="status"
+          class="status"
+          role="status"
+          aria-live="polite"
+        >
+          {{ statusMessage }}
+        </p>
+      </fieldset>
     </form>
 
     <!-- 返回登录 -->
@@ -133,15 +153,24 @@ async function handleSubmit() {
       type="button"
       @click="$emit('switch-mode', 'login')"
     >
-
       <span>返回登录</span>
     </button>
   </div>
 </template>
 
 <style scoped>
+.auth-fields {
+  border: 0;
+  margin: 0;
+  padding: 0;
+  min-width: 0;
+}
+
 .eyebrow {
-  font: 9px "SFMono-Regular", Consolas, monospace;
+  font:
+    9px 'SFMono-Regular',
+    Consolas,
+    monospace;
   color: #9c8275;
   letter-spacing: 2px;
   margin-bottom: 16px;

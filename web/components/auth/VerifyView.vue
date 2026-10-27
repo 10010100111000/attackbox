@@ -21,10 +21,11 @@ const emailParam = computed(() => {
 })
 
 onMounted(async () => {
-  const token = typeof route.query.token === 'string' ? route.query.token.trim() : ''
+  const token =
+    typeof route.query.token === 'string' ? route.query.token.trim() : ''
   if (!token) {
     status.value = 'missing'
-    errorMessage.value = '未提供激活凭据（Token），无法完成邮箱验证。'
+    errorMessage.value = '请打开验证邮件中的链接，或重新申请验证邮件。'
     return
   }
 
@@ -63,7 +64,8 @@ function goToLogin() {
       <div class="eyebrow">ACTIVATION SUCCESS</div>
       <h1 id="form-title">邮箱验证成功！</h1>
       <p class="intro">
-        您的 AttackBox 账号已完成激活。<br />
+        您的 AttackBox 账号已完成激活。
+        <br />
         现在可以登录账号，开始探索学习与实操。
       </p>
 
@@ -73,7 +75,6 @@ function goToLogin() {
         @click="goToLogin"
       >
         <span>立即前往登录</span>
-
       </Button>
     </div>
 
@@ -81,9 +82,12 @@ function goToLogin() {
     <div v-else class="verify-state">
       <div class="error-icon" aria-hidden="true">!</div>
       <div class="eyebrow">ACTIVATION FAILED</div>
-      <h1 id="form-title">激活未完成</h1>
+      <h1 id="form-title">
+        {{ status === 'missing' ? '查收验证邮件' : '激活未完成' }}
+      </h1>
       <p class="intro error-text">{{ errorMessage }}</p>
 
+      <AuthResendVerification :email="emailParam" />
       <div class="actions-stack">
         <Button
           variant="primary"
@@ -91,7 +95,6 @@ function goToLogin() {
           @click="goToLogin"
         >
           <span>尝试直接登录</span>
-
         </Button>
 
         <button
@@ -99,7 +102,6 @@ function goToLogin() {
           class="back-button"
           @click="$emit('switch-mode', 'register')"
         >
-
           <span>返回重新注册</span>
         </button>
       </div>
@@ -113,7 +115,10 @@ function goToLogin() {
 }
 
 .eyebrow {
-  font: 9px "SFMono-Regular", Consolas, monospace;
+  font:
+    9px 'SFMono-Regular',
+    Consolas,
+    monospace;
   color: #9c8275;
   letter-spacing: 2px;
   margin-bottom: 16px;

@@ -46,8 +46,8 @@ export function useAuth() {
     return data.user;
   }
 
-  async function register(email: string, password: string, displayName?: string): Promise<{ message: string; verifyToken?: string }> {
-    return await $fetch<{ message: string; verifyToken?: string }>('/api/auth/register', {
+  async function register(email: string, password: string, displayName?: string): Promise<{ message: string }> {
+    return await $fetch<{ message: string }>('/api/auth/register', {
       method: 'POST',
       body: { email, password, displayName },
     });
@@ -68,8 +68,8 @@ export function useAuth() {
     isInitialized.value = true;
   }
 
-  async function forgotPassword(email: string): Promise<{ message: string; resetToken?: string }> {
-    return await $fetch<{ message: string; resetToken?: string }>('/api/auth/forgot-password', {
+  async function forgotPassword(email: string): Promise<{ message: string }> {
+    return await $fetch<{ message: string }>('/api/auth/forgot-password', {
       method: 'POST',
       body: { email },
     });

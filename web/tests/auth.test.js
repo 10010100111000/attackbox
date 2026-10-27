@@ -92,7 +92,7 @@ test('LoginForm.vue defines credentials validation, ui components, and direct po
   assert.ok(content.includes('密码至少需要 6 位。'))
 })
 
-test('RegisterForm.vue renders registration fields, hints, and prototype preview', () => {
+test('RegisterForm.vue renders registration fields and email verification instructions', () => {
   const content = readFileSync(resolve(rootDir, 'components/auth/RegisterForm.vue'), 'utf-8')
 
   // Props and emits
@@ -106,7 +106,7 @@ test('RegisterForm.vue renders registration fields, hints, and prototype preview
   assert.ok(content.includes('创建账号，开始你的下一次探索。'))
   assert.ok(content.includes('继续创建账号'))
   assert.ok(content.includes('下一步验证邮箱，完成账号创建。'))
-  assert.ok(content.includes('邮箱验证邮件已发送') || content.includes('邮箱验证步骤预览'))
+  assert.ok(content.includes('验证邮件已发送')); assert.ok(!content.includes('verifyToken')); assert.ok(content.includes('AuthResendVerification'))
 
   // Password placeholder
   assert.ok(content.includes('设置密码，至少 6 位'))

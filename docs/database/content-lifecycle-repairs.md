@@ -72,7 +72,8 @@ CONTENT_TEST_BASE_URL='http://127.0.0.1:18884' npm run test:content
 ### 3. 生产环境端到端认证测试
 
 ```bash
-REMOTE_BASE_URL='http://77.67.1.106' node web/tests/auth-remote-e2e.mjs
+# 账户流程使用本地隔离测试库与邮件捕获器，见 docs/implementation/resend-mail.md
+CONTENT_TEST_DATABASE_URL=postgres://.../account_test npm --prefix web run test:auth-mail
 ```
 
 ## 学习进度浏览器验收

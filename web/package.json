@@ -7,7 +7,7 @@
     "generate": "nuxt generate",
     "dev": "nuxt dev",
     "preview": "nuxt preview",
-    "test": "node --experimental-strip-types --test tests/auth-crypto.test.js tests/composables.test.js tests/ui.test.js tests/landing.test.js tests/auth.test.js tests/markdown.test.js tests/learning-ui.test.js tests/admin-ui.test.js tests/quiz-crypto.test.js tests/learning-access.test.js tests/sandbox-nodes.test.js tests/sandbox-lifecycle.test.js tests/sandbox-settings.test.js tests/content-parser.test.mjs tests/content-repository.test.mjs tests/compose-packages.test.mjs tests/lab-git.test.mjs",
+    "test": "node --experimental-strip-types --test tests/auth-crypto.test.js tests/composables.test.js tests/ui.test.js tests/landing.test.js tests/auth.test.js tests/markdown.test.js tests/learning-ui.test.js tests/admin-ui.test.js tests/quiz-crypto.test.js tests/learning-access.test.js tests/sandbox-nodes.test.js tests/sandbox-lifecycle.test.js tests/sandbox-settings.test.js tests/content-parser.test.mjs tests/content-repository.test.mjs tests/compose-packages.test.mjs tests/lab-git.test.mjs tests/mailer.test.mjs",
     "db:generate": "drizzle-kit generate",
     "admin:init": "node server/scripts/init-admin.mjs",
     "postinstall": "nuxt prepare",
@@ -32,7 +32,8 @@
     "test:compose-labs": "node --test --test-concurrency=1 tests/compose-labs.test.mjs tests/compose-builds.test.mjs tests/compose-preparations.test.mjs",
     "test:baseline": "node --test --test-concurrency=1 tests/content-migration.test.mjs tests/fresh-baseline.test.mjs",
     "test:notifications": "node --test tests/notifications.test.mjs",
-    "test:personal-center": "node --test tests/personal-center.test.mjs"
+    "test:personal-center": "node --test tests/personal-center.test.mjs",
+    "test:auth-mail": "node --test tests/auth-mail.test.mjs"
   },
   "dependencies": {
     "@node-rs/argon2": "^2.2.2",
