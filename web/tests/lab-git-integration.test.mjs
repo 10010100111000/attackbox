@@ -12,7 +12,7 @@ test('GitHub import, explicit update confirmation and same-content revision reus
   const learner=await f.account();await f.request('/api/admin/lab-bundles/git',{actor:learner,method:'POST',body:{repository:'a/b'},status:403})
   await f.request('/api/admin/lab-bundles/git',{actor:f.admin,method:'POST',body:{repository:'https://evil.example/repo'},status:400})
   browser=await chromium.launch({executablePath:'/usr/bin/chromium',args:['--no-sandbox']});const ctx=await browser.newContext({viewport:{width:1440,height:1000}});await ctx.addCookies([{name:'attackbox_session',value:f.admin.token,url:f.base}]);const p=await ctx.newPage(),errors=[];p.on('pageerror',e=>errors.push(e.message))
-  await p.goto(f.base+'/admin/target-templates/new');await p.getByRole('button',{name:'从 GitHub 导入',exact:true}).click();await p.getByLabel('GitHub 仓库',{exact:true}).fill('10010100111000/attackbox');await p.getByLabel('仓库内目录',{exact:true}).fill('node/testdata/compose-lab')
+  await p.goto(f.base+'/admin/target-templates/new');await p.getByRole('button',{name:'从 GitHub 导入',exact:true}).click();await p.getByLabel('GitHub 仓库',{exact:true}).fill('10010100111000/attackbox');await p.getByLabel('仓库内目录',{exact:true}).fill('worker/node/testdata/compose-lab')
   await p.getByRole('button',{name:'导入并预览',exact:true}).click();await p.getByText('已导入，请确认部署入口并保存模板。',{exact:true}).waitFor({timeout:120000});await p.getByLabel('LAB_IMAGE',{exact:true}).fill('fixture:local');await p.getByRole('button',{name:'保存模板',exact:true}).click();await p.waitForURL(/\/target-templates\/[a-f0-9-]{36}$/)
   const id=p.url().split('/').at(-1);template=(await f.request(`/api/admin/target-templates/${id}`,{actor:f.admin})).data
   const originalBundle=template.bundleId

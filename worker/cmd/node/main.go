@@ -28,6 +28,7 @@ func main() {
 	}
 
 	configPath := flag.String("config", "/etc/attackbox/worker.yaml", "Path to worker node configuration file")
+	checkConfig := flag.Bool("check-config", false, "Validate configuration and exit without starting the worker")
 	buildBaseOnly := flag.Bool("build-base", false, "Force derive and sanitize golden base image, then exit")
 	flag.Parse()
 
@@ -39,6 +40,11 @@ func main() {
 	cfg, err := node.LoadNodeConfig(*configPath)
 	if err != nil {
 		log.Fatalf("[FATAL] Load configuration: %v", err)
+	}
+
+	if *checkConfig {
+		fmt.Println("Worker configuration parsed successfully")
+		return
 	}
 
 	if *buildBaseOnly {

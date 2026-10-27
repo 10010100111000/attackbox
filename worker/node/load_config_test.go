@@ -8,7 +8,7 @@ import (
 )
 
 func TestNodeConfigTemplateContainsOnlyHostConfiguration(t *testing.T) {
-	cfg, err := LoadNodeConfig(filepath.Join("..", "configs", "node.yaml.example"))
+	cfg, err := LoadNodeConfig(filepath.Join("..", "..", "deploy", "worker", "worker.yaml.example"))
 	if err != nil {
 		t.Fatal(err)
 	}
