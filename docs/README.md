@@ -11,6 +11,7 @@
 - [准备任务取消、重试与强制重建](implementation/compose-preparation-management.md)
 - [架构实施状态](implementation/compose-target-migration-plan.md)
 - [CLI／GUI 工作台](implementation/environment-workbench.md)
+- [统一运行策略](implementation/runtime-policy.md)
 - [Resend 账户邮件](implementation/resend-mail.md)
 - [账户菜单与站内通知](implementation/account-notifications.md)
 - [个人中心与学习记录](implementation/personal-center.md)

@@ -1,0 +1,319 @@
+<script setup lang="ts">
+import { Clock3, Terminal, Flag, Check } from 'lucide-vue-next'
+import type { RuntimePolicy } from '~/shared/runtime-policy'
+import { parseRuntimePolicy } from '~/shared/runtime-policy'
+definePageMeta({ layout: 'admin' })
+useHead({ title: '运行策略 — AttackBox' })
+const { data, pending, error, refresh } = await useLazyFetch<{
+  data: RuntimePolicy
+}>('/api/admin/runtime-policy', { key: 'admin:runtime-policy' })
+const draft = ref<RuntimePolicy | null>(null),
+  busy = ref(false),
+  message = ref(''),
+  failed = ref(false)
+watch(
+  data,
+  (value) => {
+    if (value && !busy.value) draft.value = { ...value.data }
+  },
+  { immediate: true },
+)
+const dirty = computed(
+  () =>
+    !!draft.value &&
+    JSON.stringify(draft.value) !== JSON.stringify(data.value?.data),
+)
+function reset() {
+  draft.value = data.value ? { ...data.value.data } : null
+  message.value = ''
+  failed.value = false
+}
+async function reload() {
+  await refresh()
+  if (!error.value) reset()
+}
+async function save() {
+  if (!draft.value || busy.value) return
+  try {
+    parseRuntimePolicy(draft.value)
+  } catch (e) {
+    message.value = (e as Error).message
+    failed.value = true
+    return
+  }
+  busy.value = true
+  message.value = ''
+  try {
+    const result = await $fetch<{ data: RuntimePolicy }>(
+      '/api/admin/runtime-policy',
+      { method: 'PUT', body: draft.value, retry: false },
+    )
+    data.value = result
+    draft.value = { ...result.data }
+    failed.value = false
+    message.value = '运行策略已保存'
+  } catch (e: any) {
+    failed.value = true
+    message.value = e?.data?.message || '保存失败，修改已保留'
+  } finally {
+    busy.value = false
+  }
+}
+</script>
+<template>
+  <div class="runtime-settings">
+    <header>
+      <div>
+        <span class="eyebrow">SYSTEM SETTINGS</span>
+        <h1>运行策略</h1>
+        <p>统一设置环境的使用时长与自动回收规则。</p>
+      </div>
+      <Clock3 :size="24" aria-hidden="true" />
+    </header>
+    <p v-if="pending && !draft" role="status">正在读取运行策略…</p>
+    <div v-else-if="error" role="alert">
+      读取失败。
+      <button @click="refresh()">重试</button>
+    </div>
+    <form v-else-if="draft" @submit.prevent="save" @input="message = ''">
+      <fieldset :disabled="busy">
+        <div class="policy-cards">
+          <section>
+            <h2>
+              <Terminal :size="19" />
+              沙箱
+            </h2>
+            <p>CLI 和 GUI 共用同一个沙箱。</p>
+            <label for="sandbox-ttl">使用时长</label>
+            <div class="number-field">
+              <input
+                id="sandbox-ttl"
+                v-model.number="draft.sandboxTtlMinutes"
+                type="number"
+                min="1"
+                max="1440"
+                required
+              />
+              <span>分钟</span>
+            </div>
+            <label for="sandbox-idle">空闲回收时间</label>
+            <div class="number-field">
+              <input
+                id="sandbox-idle"
+                v-model.number="draft.sandboxIdleMinutes"
+                type="number"
+                min="1"
+                :max="draft.sandboxTtlMinutes"
+                required
+              />
+              <span>分钟</span>
+            </div>
+            <small>无终端输入或桌面操作达到此时长后回收。</small>
+          </section>
+          <section>
+            <h2>
+              <Flag :size="19" />
+              靶场
+            </h2>
+            <p>学习与挑战中的私有靶场使用同一规则。</p>
+            <label for="target-ttl">使用时长</label>
+            <div class="number-field">
+              <input
+                id="target-ttl"
+                v-model.number="draft.targetTtlMinutes"
+                type="number"
+                min="1"
+                max="1440"
+                required
+              />
+              <span>分钟</span>
+            </div>
+            <small>到期后由 Worker 回收运行实例，不删除镜像。</small>
+          </section>
+        </div>
+        <div class="policy-note">
+          <Clock3 :size="16" />
+          <span>
+            修改仅影响新启动的环境。运行中的实例保留原到期时间，时长范围为
+            1–1440 分钟。
+          </span>
+        </div>
+        <footer>
+          <p
+            v-if="message"
+            :class="{ failure: failed }"
+            :role="failed ? 'alert' : 'status'"
+          >
+            <Check v-if="!failed" :size="15" />
+            {{ message }}
+            <button
+              v-if="failed"
+              type="button"
+              class="text-button"
+              @click="reload"
+            >
+              重新载入
+            </button>
+          </p>
+          <span v-else>{{ dirty ? '有尚未保存的修改' : '设置已同步' }}</span>
+          <div>
+            <button type="button" :disabled="!dirty" @click="reset">
+              取消修改
+            </button>
+            <button type="submit" class="primary" :disabled="!dirty">
+              {{ busy ? '正在保存…' : '保存设置' }}
+            </button>
+          </div>
+        </footer>
+      </fieldset>
+    </form>
+  </div>
+</template>
+<style scoped>
+header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 28px;
+}
+.eyebrow {
+  font-size: 10px;
+  letter-spacing: 1.5px;
+  color: var(--muted);
+}
+h1 {
+  font-size: 25px;
+  margin: 10px 0;
+}
+header p,
+section > p {
+  color: var(--muted);
+  font-size: 13px;
+  margin: 0;
+  line-height: 1.8;
+}
+header > svg {
+  color: var(--muted);
+}
+fieldset {
+  padding: 0;
+  margin: 0;
+  border: 0;
+  min-width: 0;
+}
+.policy-cards {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 24px;
+}
+section {
+  padding: 28px;
+  background: var(--paper);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+}
+h2 {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 16px;
+  margin: 0 0 14px;
+}
+h2 svg {
+  color: var(--muted);
+}
+label {
+  display: block;
+  font-size: 12px;
+  margin: 26px 0 10px;
+}
+.number-field {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 12px;
+  color: var(--muted);
+}
+input {
+  width: 116px;
+  box-sizing: border-box;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: var(--bg);
+  color: var(--ink);
+  font: inherit;
+  font-size: 14px;
+}
+small {
+  display: block;
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.8;
+  margin-top: 14px;
+}
+.policy-note {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin-top: 22px;
+  font-size: 12px;
+  color: var(--muted);
+  line-height: 1.8;
+}
+footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  border-top: 1px solid var(--line);
+  margin-top: 28px;
+  padding-top: 22px;
+  color: var(--muted);
+  font-size: 12px;
+}
+footer > div {
+  display: flex;
+  gap: 10px;
+}
+button {
+  border: 1px solid var(--line);
+  background: var(--paper);
+  color: var(--ink);
+  padding: 10px 16px;
+  border-radius: 7px;
+  cursor: pointer;
+  font: inherit;
+  font-size: 12px;
+}
+button.primary {
+  background: var(--green);
+  color: var(--on-accent);
+  border-color: var(--green);
+}
+button:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+footer p {
+  display: flex;
+  gap: 7px;
+  align-items: center;
+  color: var(--success-ink);
+  margin: 0;
+}
+footer p.failure {
+  color: var(--error-ink);
+}
+button.text-button {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  text-decoration: underline;
+}
+input:focus-visible,
+button:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 3px;
+}
+</style>

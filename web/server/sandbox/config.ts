@@ -1,7 +1,7 @@
 import { createPrivateKey, createPublicKey, timingSafeEqual, type KeyObject } from 'node:crypto'
 import type { SandboxPolicy } from '../../shared/sandbox.ts'
 export interface NodeConfig { id: string; label: string; publicDataUrl: string; maxSlots: number }
-export interface SandboxConfig { enabled: boolean; configurationError: string | null; secret: string; publicKey: string; signingKey: KeyObject | null; schedulingEnabled: boolean; ttlSeconds: number; idleSeconds: number; policy: SandboxPolicy; nodes: NodeConfig[] }
+export interface SandboxConfig { enabled: boolean; configurationError: string | null; secret: string; publicKey: string; signingKey: KeyObject | null; schedulingEnabled: boolean; policy: SandboxPolicy; nodes: NodeConfig[] }
 export const defaultPolicy: SandboxPolicy = {
   resources: { cpu_weight: 100, memory_max_mb: 2048, memory_swap_max_mb: 0, pids_max: 512, io_write_bytes_sec: 20971520, io_write_iops: 500 },
   storage: { tmpfs_tmp_size: '512M', tmpfs_run_size: '256M' },
@@ -14,7 +14,7 @@ function bounded(value: unknown, fallback: number, min: number, max: number) {
 }
 const identifier = /^[a-zA-Z0-9][a-zA-Z0-9_-]{0,63}$/
 export function sandboxConfig(env: NodeJS.ProcessEnv = process.env): SandboxConfig {
-  const disabled: SandboxConfig = { enabled: false, configurationError: null, secret: '', publicKey: '', signingKey: null, schedulingEnabled: false, ttlSeconds: 7200, idleSeconds: 1800, policy: structuredClone(defaultPolicy), nodes: [] }
+  const disabled: SandboxConfig = { enabled: false, configurationError: null, secret: '', publicKey: '', signingKey: null, schedulingEnabled: false, policy: structuredClone(defaultPolicy), nodes: [] }
   if (env.SANDBOX_CONTROL_ENABLED !== 'true') return disabled
   try {
     if (!env.SANDBOX_CLUSTER_SECRET || Buffer.byteLength(env.SANDBOX_CLUSTER_SECRET) < 32) throw new Error('SANDBOX_CLUSTER_SECRET 至少需要 32 字节')
@@ -31,12 +31,10 @@ export function sandboxConfig(env: NodeJS.ProcessEnv = process.env): SandboxConf
     if (new Set(nodes.map(n => n.id)).size !== nodes.length) throw new Error('节点 id 不能重复')
     const key = createPrivateKey({ key: Buffer.concat([Buffer.from('302e020100300506032b657004220420', 'hex'), Buffer.from(env.SANDBOX_SIGNING_SEED_HEX!, 'hex')]), format: 'der', type: 'pkcs8' })
     const publicKey = createPublicKey(key).export({ type: 'spki', format: 'der' }).subarray(-32).toString('hex')
-    const ttlSeconds = bounded(env.SANDBOX_TTL_SECONDS, 7200, 60, 86400)
-    const idleSeconds = bounded(env.SANDBOX_IDLE_SECONDS, 1800, 60, ttlSeconds)
     const policy = structuredClone(defaultPolicy)
     policy.resources.memory_max_mb = bounded(env.SANDBOX_MEMORY_MB, 2048, 128, 65536)
     policy.resources.pids_max = bounded(env.SANDBOX_PIDS_MAX, 512, 32, 4096)
-    return { enabled: true, configurationError: null, secret: env.SANDBOX_CLUSTER_SECRET, publicKey, signingKey: key, schedulingEnabled: env.SANDBOX_SCHEDULING_ENABLED === 'true', ttlSeconds, idleSeconds, policy, nodes }
+    return { enabled: true, configurationError: null, secret: env.SANDBOX_CLUSTER_SECRET, publicKey, signingKey: key, schedulingEnabled: env.SANDBOX_SCHEDULING_ENABLED === 'true', policy, nodes }
   } catch (error) {
     // JSON parsing and URL errors can include supplied values; never expose them.
     const safe = error instanceof Error && !(error instanceof SyntaxError) && !(error instanceof TypeError) ? error.message : '沙箱节点配置格式无效'

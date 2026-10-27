@@ -430,3 +430,25 @@ func TestRejectedStartCanStillBeReleasedWithVerifiedStopIdentity(t *testing.T) {
 		t.Fatal("foreign stop identity accepted")
 	}
 }
+
+func TestConfigurableLeaseBeyondOneHourAndBoundedAtOneDay(t *testing.T) {
+	m, _, _, b := fixtureManager(t)
+	d := prepare(t, m, b)
+	r := req(d, "long-lease", "alice")
+	r.ExpiresAt = time.Now().UTC().Add(3 * time.Hour)
+	if _, err := m.Start(context.Background(), r); err != nil {
+		t.Fatal("valid configured three-hour lease rejected", err)
+	}
+	tooLong := req(d, "too-long", "bob")
+	tooLong.ExpiresAt = time.Now().UTC().Add(25 * time.Hour)
+	if _, err := m.Start(context.Background(), tooLong); err == nil {
+		t.Fatal("unsafe unbounded lease accepted")
+	}
+	m.clock = func() time.Time { return r.ExpiresAt.Add(time.Second) }
+	if err := m.Reap(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if status, err := m.Inspect(context.Background(), r.ID); err != nil || status.State != "stopped" {
+		t.Fatal("configured lease was not reaped", status, err)
+	}
+}

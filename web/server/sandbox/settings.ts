@@ -8,6 +8,5 @@ export function parseNodeSettings(value: unknown): SandboxNodeSettings {
     if (typeof n !== 'number' || !Number.isSafeInteger(n) || n < min || n > max) throw new Error('节点资源或时限超出允许范围')
     return n
   }
-  const ttlSeconds = integer('ttlSeconds', 60, 86400)
-  return { label: v.label.trim(), draining: v.draining, maxSlots: integer('maxSlots', 1, 250), ttlSeconds, idleSeconds: integer('idleSeconds', 60, ttlSeconds), memoryMb: integer('memoryMb', 128, 65536), pidsMax: integer('pidsMax', 32, 4096), lockVersion: integer('lockVersion', 0, 2147483646) }
+  return { label: v.label.trim(), draining: v.draining, maxSlots: integer('maxSlots', 1, 250), memoryMb: integer('memoryMb', 128, 65536), pidsMax: integer('pidsMax', 32, 4096), lockVersion: integer('lockVersion', 0, 2147483646) }
 }

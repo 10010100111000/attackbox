@@ -10,6 +10,8 @@ export default defineEventHandler((e) => {
     ![
       '/api/me/',
       '/api/admin/notifications',
+      '/api/admin/runtime-policy',
+      '/admin/runtime-policy',
       '/notifications',
       '/me',
       '/admin/notifications',

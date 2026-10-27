@@ -56,10 +56,10 @@ func NewRuntimeManager(cfg RuntimeConfig) *RuntimeManager {
 		cfg.CgroupRoot = "/sys/fs/cgroup/attackbox"
 	}
 	if cfg.SandboxTTLSec <= 0 {
-		cfg.SandboxTTLSec = 7200
+		cfg.SandboxTTLSec = 3600
 	}
 	if cfg.SandboxIdleSec <= 0 {
-		cfg.SandboxIdleSec = 900
+		cfg.SandboxIdleSec = 600
 	}
 
 	rootDev := cfg.Limits.RootDeviceNumber

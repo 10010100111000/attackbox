@@ -138,13 +138,13 @@ test('GUI ticket binds vnc to the same owned instance without another create', a
 })
 test('draining preserves existing instances and new per-node policy only applies to future creates', async () => {
   const f = fixture(), running = await f.started('alice', 1), settings = f.hub.snapshot().nodes[0].settings
-  f.hub.applySettings('test-node', { ...settings, draining: true, memoryMb: 256, ttlSeconds: 3600, idleSeconds: 600, lockVersion: 1 })
+  f.hub.applySettings('test-node', { ...settings, draining: true, memoryMb: 256, lockVersion: 1 })
   assert.equal((await f.controller.start('alice', 1)).id, running.id)
   assert.equal(f.controller.status('alice').instance.policy.resources.memory_max_mb, 2048)
   await assert.rejects(f.controller.start('bob', 2), { statusCode: 503 })
   f.hub.applySettings('test-node', { ...settings, draining: false, lockVersion: 0 })
   assert.equal(f.hub.snapshot().nodes[0].settings.draining, true, 'stale save cannot undo draining')
-  f.hub.applySettings('test-node', { ...settings, draining: false, memoryMb: 256, ttlSeconds: 3600, idleSeconds: 600, lockVersion: 2 })
+  f.hub.applySettings('test-node', { ...settings, draining: false, memoryMb: 256, lockVersion: 2 })
   const task = f.controller.start('bob', 2), request = f.requests('create_box').at(-1)
   assert.equal(request.payload.policy.resources.memory_max_mb, 256); assert.equal(request.payload.ttl_seconds, 3600); assert.equal(request.payload.idle_seconds, 600)
   f.respond(request, { inventory_revision: 2, expires_at: 1700003600, sandbox_ip: '10.200.0.3' }); await task
@@ -170,4 +170,17 @@ test('suspension blocks in-flight account starts and both ticket types until res
   f.controller.setUserBlocked('alice', false)
   assert.equal((await f.started('alice', 10)).state, 'running')
   f.hub.shutdown()
+})
+
+test('global runtime policy is snapshotted for each new sandbox, never rewriting a running lease',async()=>{
+ const f=fixture(); let policy={sandboxTtlMinutes:120,sandboxIdleMinutes:20,targetTtlMinutes:60,lockVersion:1}
+ const controller=new SandboxController(f.hub,()=>1700000000000,30000,async()=>({...policy}))
+ const first=controller.start('alice',1);await Promise.resolve()
+ const a=f.requests('create_box').at(-1);assert.equal(a.payload.ttl_seconds,7200);assert.equal(a.payload.idle_seconds,1200)
+ f.respond(a,{inventory_revision:1,expires_at:1700007200,sandbox_ip:'10.200.0.2'});await first
+ policy={...policy,sandboxTtlMinutes:30,sandboxIdleMinutes:5,lockVersion:2}
+ assert.equal((await controller.start('alice',1)).expiresAt,new Date(1700007200000).toISOString())
+ const second=controller.start('bob',2);await Promise.resolve()
+ const b=f.requests('create_box').at(-1);assert.equal(b.payload.ttl_seconds,1800);assert.equal(b.payload.idle_seconds,300)
+ f.respond(b,{inventory_revision:2,expires_at:1700001800,sandbox_ip:'10.200.0.3'});await second
 })

@@ -26,7 +26,7 @@ export class SandboxHub {
   private now: () => number
   constructor(config: SandboxConfig, now = Date.now) {
     this.config = config; this.now = now
-    for (const n of config.nodes) this.records.set(n.id, { status: { settings: { label: n.label, maxSlots: n.maxSlots, ttlSeconds: config.ttlSeconds, idleSeconds: config.idleSeconds, memoryMb: config.policy.resources.memory_max_mb, pidsMax: config.policy.resources.pids_max, draining: false, lockVersion: 0 }, id: n.id, label: n.label, publicDataUrl: n.publicDataUrl, state: 'offline', bootId: null, lastHeartbeatAt: null, version: null, capabilities: null, telemetry: null, inventoryRevision: null, sandboxes: [] }, seq: 0, revision: 0, heartbeatAt: 0 })
+    for (const n of config.nodes) this.records.set(n.id, { status: { settings: { label: n.label, maxSlots: n.maxSlots, memoryMb: config.policy.resources.memory_max_mb, pidsMax: config.policy.resources.pids_max, draining: false, lockVersion: 0 }, id: n.id, label: n.label, publicDataUrl: n.publicDataUrl, state: 'offline', bootId: null, lastHeartbeatAt: null, version: null, capabilities: null, telemetry: null, inventoryRevision: null, sandboxes: [] }, seq: 0, revision: 0, heartbeatAt: 0 })
   }
   applySettings(nodeId: string, settings: SandboxNodeSettings) {
     const record = this.records.get(nodeId)

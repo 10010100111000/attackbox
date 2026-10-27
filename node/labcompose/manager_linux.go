@@ -216,8 +216,8 @@ func (m *Manager) allocate(req Request, d Deployment) (*entry, error) {
 		}
 		return e, nil
 	}
-	if !req.ExpiresAt.After(m.clock()) || req.ExpiresAt.After(m.clock().Add(time.Hour)) {
-		return nil, fmt.Errorf("new instance lease must expire within one hour")
+	if !req.ExpiresAt.After(m.clock()) || req.ExpiresAt.After(m.clock().Add(24*time.Hour)) {
+		return nil, fmt.Errorf("new instance lease must expire within 24 hours")
 	}
 	count := 0
 	for _, e := range m.entries {

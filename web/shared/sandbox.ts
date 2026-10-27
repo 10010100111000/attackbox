@@ -1,8 +1,6 @@
 export interface SandboxNodeSettings {
   label: string
   maxSlots: number
-  ttlSeconds: number
-  idleSeconds: number
   memoryMb: number
   pidsMax: number
   draining: boolean

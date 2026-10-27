@@ -11,8 +11,6 @@ export const sandboxNodeSettings = pgTable('sandbox_node_settings', {
   nodeId: varchar('node_id', { length: 64 }).primaryKey(),
   label: varchar('label', { length: 80 }).notNull(),
   maxSlots: integer('max_slots').notNull(),
-  ttlSeconds: integer('ttl_seconds').notNull(),
-  idleSeconds: integer('idle_seconds').notNull(),
   memoryMb: integer('memory_mb').notNull(),
   pidsMax: integer('pids_max').notNull(),
   draining: boolean('draining').notNull().default(false),
@@ -20,7 +18,7 @@ export const sandboxNodeSettings = pgTable('sandbox_node_settings', {
   updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'date' }).notNull().defaultNow(),
   updatedBy: uuid('updated_by').references(() => users.id, { onDelete: 'set null' }),
 }, table => [
-  check('sandbox_node_limits_check', sql`${table.maxSlots} between 1 and 250 and ${table.ttlSeconds} between 60 and 86400 and ${table.idleSeconds} between 60 and ${table.ttlSeconds} and ${table.memoryMb} between 128 and 65536 and ${table.pidsMax} between 32 and 4096`),
+  check('sandbox_node_limits_check', sql`${table.maxSlots} between 1 and 250 and ${table.memoryMb} between 128 and 65536 and ${table.pidsMax} between 32 and 4096`),
   check('sandbox_node_version_check', sql`${table.lockVersion} > 0`),
   check('sandbox_node_label_check', sql`length(btrim(${table.label})) > 0`),
 ])

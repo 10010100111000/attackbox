@@ -1,3 +1,4 @@
+import {defaultRuntimePolicy,type RuntimePolicy} from '../../shared/runtime-policy.ts'
 import { randomBytes, sign } from 'node:crypto'
 import { isIP } from 'node:net'
 import type { SandboxHub, WorkerResult } from './hub.ts'
@@ -19,9 +20,10 @@ export class SandboxController {
   private unknownCleanup = new Set<string>()
   private hub: SandboxHub
   private now: () => number
+  private runtimePolicy?: () => Promise<RuntimePolicy>
   private timeout: number
-  constructor(hub: SandboxHub, now = Date.now, timeoutMs = 30000) {
-    this.hub = hub; this.now = now; this.timeout = timeoutMs
+  constructor(hub: SandboxHub, now = Date.now, timeoutMs = 30000, runtimePolicy?: () => Promise<RuntimePolicy>) {
+    this.hub = hub; this.now = now; this.timeout = timeoutMs; this.runtimePolicy = runtimePolicy
     hub.onInventory = node => this.reconcile(node)
     hub.onLateCreate = (nodeId, result) => this.lateCreate(nodeId, result)
   }
@@ -52,6 +54,7 @@ export class SandboxController {
     return node.telemetry.availableMemoryMb - reservedMemory >= node.settings.memoryMb + 256
   }
   async start(userId: string, workerUserId: number, preferredNodeId?: string | null): Promise<SandboxInstance> {
+    const runtime = this.runtimePolicy ? await this.runtimePolicy() : defaultRuntimePolicy
     if (this.blockedUsers.has(userId)) throw new SandboxError(403, '账号已停用')
     if (!this.enabled()) throw new SandboxError(503, '练习环境尚未开放')
     if (!Number.isSafeInteger(workerUserId) || workerUserId <= 0) throw new SandboxError(500, '沙箱身份无效')
@@ -76,7 +79,7 @@ export class SandboxController {
     // Reservation is synchronous and precedes RPC: concurrent starts share one instance.
     this.instances.set(record.id, record); this.byUser.set(userId, record.id)
     try {
-      const result = await this.hub.rpc(node.id, record.bootId, 'create_box', { sandbox_id: record.id,owner_id:userId, user_id: workerUserId, slot_index: slot, ttl_seconds: node.settings.ttlSeconds, idle_seconds: node.settings.idleSeconds, policy: record.policy }, this.timeout)
+      const result = await this.hub.rpc(node.id, record.bootId, 'create_box', { sandbox_id: record.id,owner_id:userId, user_id: workerUserId, slot_index: slot, ttl_seconds: runtime.sandboxTtlMinutes * 60, idle_seconds: runtime.sandboxIdleMinutes * 60, policy: record.policy }, this.timeout)
       if (this.instances.get(record.id) !== record) throw new Error('Worker generation changed')
       if (!result.success || !Number.isSafeInteger(result.inventory_revision) || result.inventory_revision! < 1 || !Number.isSafeInteger(result.expires_at) || result.expires_at! * 1000 <= this.now() || result.expires_at! > 8640000000000 || !result.sandbox_ip || isIP(result.sandbox_ip) !== 4) throw new Error('Invalid create acknowledgement')
       record.confirmedRevision = result.inventory_revision!

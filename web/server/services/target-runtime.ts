@@ -1,3 +1,4 @@
+import {getRuntimePolicy} from './runtime-policy'
 import { experimentNode } from '../../shared/target-runtime'
 import { randomBytes } from 'node:crypto'
 import { and, eq, ne, sql } from 'drizzle-orm'
@@ -114,7 +115,7 @@ export async function targetOperation(
       nodeId: node.id,
       bootId: node.bootId!,
       state: 'starting',
-      expiresAt: new Date(Date.now() + 60 * 60 * 1000),
+      expiresAt: new Date(Date.now() + (await getRuntimePolicy()).targetTtlMinutes * 60 * 1000),
       deploymentId:prepared.find(p=>p.nodeId===node.id)!.deploymentId!,
       result: null,
       revision: (existing?.revision || 0) + 1,
