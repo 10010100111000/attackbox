@@ -33,9 +33,9 @@ LISTEN_ADDR="$(sudo awk -F'"' '/listen_addr:/{print $2}' "${WORKER_CONFIG}" | ta
 LISTEN_PORT="${LISTEN_ADDR##*:}"
 LISTEN_PORT="${LISTEN_PORT:-8443}"
 
-echo "==> [Deploy Worker] 执行健康检查 (http://127.0.0.1:${LISTEN_PORT}/healthz)..."
+echo "==> [Deploy Worker] 执行健康检查 (http://127.0.0.1:${LISTEN_PORT}/health)..."
 for _ in $(seq 1 30); do
-    if curl --fail --silent --show-error --max-time 2 "http://127.0.0.1:${LISTEN_PORT}/healthz" >/dev/null; then
+    if curl --fail --silent --show-error --max-time 2 "http://127.0.0.1:${LISTEN_PORT}/health" >/dev/null; then
         echo "==> [Deploy Worker] 部署成功，Worker 守护进程运行正常。"
         exit 0
     fi

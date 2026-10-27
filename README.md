@@ -137,7 +137,7 @@ sudo ./scripts/setup-worker.py \
 ./scripts/deploy-worker.sh
 ```
 
-该脚本会将 `dist/attackbox-worker` 安装至 `/usr/local/bin/attackbox-worker`，配置并启动 `attackbox-worker.service`，并校验本地 `:8443/healthz` 网关状态。
+该脚本会将 `dist/attackbox-worker` 安装至 `/usr/local/bin/attackbox-worker`，配置并启动 `attackbox-worker.service`，并校验本地 `:8443/health` 网关状态。
 
 ---
 
