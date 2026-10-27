@@ -443,14 +443,21 @@ input {
 }
 
 form button {
-  background: var(--ink);
-  color: var(--paper);
+  background: var(--btn-primary-bg);
+  color: var(--btn-primary-fg);
+  box-shadow: var(--btn-primary-shadow);
   border: 0;
-  border-radius: 6px;
-  padding: 10px 18px;
+  border-radius: 7px;
+  padding: 10px 20px;
   cursor: pointer;
   font-size: 12px;
-  font-weight: 550;
+  font-weight: 600;
+  transition: transform 0.15s ease, background 0.15s ease;
+}
+
+form button:hover:not(:disabled) {
+  transform: translateY(-1px);
+  background: var(--btn-primary-hover);
 }
 
 form button:disabled {

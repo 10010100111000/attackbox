@@ -1,12 +1,12 @@
 .learning-layout {
-  --learning-spark: #c85a32;
-  --tone-red: #cf3f52;
-  --tone-red-soft: #fdecef;
+  --learning-spark: var(--brand);
+  --tone-red: #e11d48;
+  --tone-red-soft: #ffe4e6;
   --tone-green: #0284c7;
   --tone-green-soft: #e0f2fe;
   --tone-blue: #4f46e5;
   --tone-blue-soft: #eef2ff;
-  --tone-on-accent: #fff;
+  --tone-on-accent: #ffffff;
   --learning-edge: clamp(24px, 4vw, 80px);
   --learning-brand-width: 128px;
   --learning-nav-gap: 36px;
@@ -16,6 +16,8 @@
   width: 100%;
   box-sizing: border-box;
   padding: 28px var(--learning-edge) 64px var(--learning-content-start);
+  position: relative;
+  z-index: 1;
 }
 .learning-shell--sidebar {
   padding-inline-start: var(--learning-edge);
@@ -35,12 +37,12 @@
 }
 
 :root[data-theme="midnight"] .learning-layout {
-  --learning-spark: #f59e6c;
+  --learning-spark: #f4f4f6;
   --tone-red: #fb7185;
   --tone-red-soft: rgba(251, 113, 133, 0.14);
   --tone-green: #38bdf8;
   --tone-green-soft: rgba(56, 189, 248, 0.14);
   --tone-blue: #818cf8;
   --tone-blue-soft: rgba(129, 140, 248, 0.15);
-  --tone-on-accent: #0f172a;
+  --tone-on-accent: #090a0f;
 }

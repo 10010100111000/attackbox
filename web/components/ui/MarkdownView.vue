@@ -136,7 +136,7 @@ function handleCopyClick(event: MouseEvent) {
   margin: 0;
 }
 
-/* Callout 学习目标与思考框 (冰川青蓝 & 暖铜琥珀，告别祖母绿) */
+/* Callout 学习目标与思考框 */
 .markdown-body .callout {
   margin: 24px 0;
   padding: 16px 20px;

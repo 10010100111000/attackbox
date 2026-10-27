@@ -103,7 +103,7 @@ button:focus-visible, .dock-grip:focus-visible { outline: 2px solid var(--focus)
 .sandbox-notice { margin: 0; padding: 8px 16px; font-size: 12px; color: var(--error-ink); background: var(--error-bg); }
 .sandbox-notice button { margin-left: 8px; text-decoration: underline; background: transparent; border: 0; cursor: pointer; }
 .sandbox-primary, .sandbox-secondary { display: inline-block; border-radius: 5px; padding: 9px 16px; font-size: 12px; text-decoration: none; border: 1px solid var(--line); cursor: pointer; }
-.sandbox-primary { background: var(--green); color: var(--on-accent); border-color: var(--green); }
+.sandbox-primary { background: var(--btn-primary-bg); color: var(--btn-primary-fg); border-color: transparent; box-shadow: var(--btn-primary-shadow); font-weight: 600; }
 .sandbox-secondary { background: transparent; color: var(--ink); }
 .sandbox-primary:disabled { opacity: .6; cursor: wait; }
 .terminal-tabs { display: flex; align-items: center; gap: 4px; min-height: 32px; padding: 0 12px; border-bottom: 1px solid var(--line); overflow-x: auto; flex-shrink: 0; }

@@ -27,7 +27,7 @@ const props = withDefaults(defineProps<Props>(), {
 const isLink = computed(() => !!props.to || props.as === 'NuxtLink')
 
 const variantClasses: Record<'primary' | 'outline' | 'ghost', string> = {
-  primary: 'bg-accent text-accent-foreground font-medium hover:bg-accent-hover shadow-sm active:opacity-90',
+  primary: 'bg-[var(--btn-primary-bg)] text-[var(--btn-primary-fg)] font-semibold hover:bg-[var(--btn-primary-hover)] shadow-[var(--btn-primary-shadow)] active:opacity-90 transition-all duration-150',
   outline: 'border border-line bg-transparent text-foreground hover:bg-card active:opacity-90',
   ghost: 'bg-transparent text-muted hover:text-foreground hover:bg-card active:opacity-90'
 }

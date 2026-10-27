@@ -248,7 +248,7 @@ async function handleSubmit() {
     9px 'SFMono-Regular',
     Consolas,
     monospace;
-  color: var(--accent-coral);
+  color: var(--text-muted);
   letter-spacing: 2px;
   margin-bottom: 16px;
 }
@@ -310,7 +310,7 @@ h1 {
 }
 
 .back-button:hover {
-  color: var(--accent-coral);
+  color: var(--text-main);
 }
 
 .hint {

@@ -109,10 +109,6 @@ function stagePercent(c: ChallengeSummary): number {
 </template>
 
 <style scoped>
-.challenge-list {
-  background: var(--page-ambient);
-}
-
 .empty-flag{color:var(--learning-spark);transform:rotate(-8deg);margin:0 auto 12px}.empty a{color:var(--green);font-size:13px}
 
 .page-head {
@@ -127,9 +123,10 @@ function stagePercent(c: ChallengeSummary): number {
   width: 38px;
   height: 38px;
   border-radius: 10px;
-  background: var(--brand-soft);
-  color: var(--brand);
-  border: 1px solid color-mix(in srgb, var(--brand) 25%, transparent);
+  background: var(--soft);
+  color: var(--ink);
+  border: 1px solid var(--line);
+  box-shadow: var(--surface-highlight);
 }
 
 h1 {
@@ -184,7 +181,7 @@ input {
 
 .card {
   position: relative;
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.025) 0%, rgba(255, 255, 255, 0) 100%), var(--paper);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.03) 0%, rgba(255, 255, 255, 0) 100%), var(--paper);
   border: 1px solid var(--line);
   border-radius: 12px;
   box-shadow: var(--surface-highlight);
@@ -194,7 +191,8 @@ input {
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  transition: border-color 0.2s ease, transform 0.2s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.2s ease;
+  animation: surface-rise 0.32s cubic-bezier(0.22, 1, 0.36, 1) both;
+  transition: border-color 0.22s ease, transform 0.22s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.22s ease;
 }
 
 .card::before {
@@ -214,7 +212,7 @@ input {
 .card[data-difficulty='advanced']::before { background: var(--tone-red); }
 
 .card:hover {
-  border-color: color-mix(in srgb, var(--brand) 50%, var(--line));
+  border-color: color-mix(in srgb, var(--ink) 28%, var(--line));
   transform: translateY(-3px);
   box-shadow: var(--surface-highlight), var(--card-shadow);
 }
@@ -310,7 +308,7 @@ footer {
 
 .card:hover .card-arrow {
   transform: translateX(3px);
-  color: var(--brand);
+  color: var(--ink);
 }
 
 .stage-bar {

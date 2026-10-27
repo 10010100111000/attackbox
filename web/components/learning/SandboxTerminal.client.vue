@@ -67,7 +67,7 @@ watch(() => props.active, async active => { if (active) { await nextTick(); fitT
 onMounted(async () => {
   const [{ Terminal: Xterm }, { FitAddon: Fit }] = await Promise.all([import('@xterm/xterm'), import('@xterm/addon-fit')])
   if (destroyed || !host.value) return
-  terminal = new Xterm({ cursorBlink: true, fontSize: 14, fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace', scrollback: 3000, theme: { background: '#101419', foreground: '#dce4eb', cursor: '#f59e6c', selectionBackground: '#3b5364' } })
+  terminal = new Xterm({ cursorBlink: true, fontSize: 14, fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace', scrollback: 3000, theme: { background: '#101419', foreground: '#dce4eb', cursor: '#f4f4f6', selectionBackground: '#3b5364' } })
   fit = new Fit(); terminal.loadAddon(fit); terminal.open(host.value)
   terminal.onData(value => {
     if (socket?.readyState !== WebSocket.OPEN) return
@@ -89,6 +89,6 @@ onBeforeUnmount(() => { destroyed = true; generation++; clearTimeout(retryTimer)
 .terminal-host { flex: 1; min-height: 0; padding: 12px 14px 4px; overflow: hidden; }
 .terminal-host :deep(.xterm) { height: 100%; }
 .terminal-status { flex-shrink: 0; min-height: 25px; padding: 3px 14px; border-top: 1px solid #26313b; font-size: 11px; display: flex; align-items: center; gap: 14px; }
-.terminal-status button { color: #f59e6c; background: transparent; border: 0; cursor: pointer; font-size: 11px; }
+.terminal-status button { color: #7dd3fc; background: transparent; border: 0; cursor: pointer; font-size: 11px; }
 .terminal-status button:disabled { opacity: .5; cursor: wait; }
 </style>

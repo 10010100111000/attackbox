@@ -134,21 +134,22 @@ const {currentUser}=useAuth()
   }
 
   .primary {
-    background: var(--accent-coral, #ffaf88);
-    color: var(--text-on-accent, #271a15);
-    padding: 13px 19px;
+    background: var(--btn-primary-bg, #f4f4f6);
+    color: var(--btn-primary-fg, #090a0e);
+    box-shadow: var(--btn-primary-shadow);
+    padding: 13px 20px;
     border-radius: var(--radius-md, 7px);
     font-size: 12px;
-    font-weight: 550;
+    font-weight: 600;
     display: inline-flex;
     gap: 38px;
     align-items: center;
-    transition: transform 0.2s, background 0.2s;
+    transition: transform 0.2s cubic-bezier(0.22, 1, 0.36, 1), background 0.2s, box-shadow 0.2s;
   }
 
   .primary:hover {
     transform: translateY(-2px);
-    background: var(--accent-hover, #ffc19e);
+    background: var(--btn-primary-hover, #ffffff);
   }
 
   .hero-vignette {

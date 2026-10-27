@@ -42,8 +42,8 @@ onUnmounted(() => { mounted = false; clearInterval(timer); media?.removeEventLis
   gap: 25px;
   align-items: center;
   padding: 22px 28px;
-  border: 1px solid color-mix(in srgb, var(--brand) 22%, var(--line));
-  background: radial-gradient(circle at 88% 30%, var(--brand-soft), transparent 52%), var(--paper);
+  border: 1px solid color-mix(in srgb, var(--ink) 12%, var(--line));
+  background: radial-gradient(circle at 88% 30%, var(--brand-soft), transparent 55%), var(--paper);
   box-shadow: var(--surface-highlight), var(--card-shadow);
   border-radius: 12px;
   min-height: 174px;
@@ -96,8 +96,9 @@ onUnmounted(() => { mounted = false; clearInterval(timer); media?.removeEventLis
   font-size: 12px;
   padding: 9px 18px;
   border-radius: 6px;
-  background: var(--green);
-  color: var(--on-accent);
+  background: var(--btn-primary-bg);
+  color: var(--btn-primary-fg);
+  box-shadow: var(--btn-primary-shadow);
   text-decoration: none;
   display: inline-flex;
   align-items: center;

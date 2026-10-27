@@ -245,7 +245,7 @@ function handleProvider(providerName: string) {
 <style scoped>
 .eyebrow {
   font: 9px "SFMono-Regular", Consolas, monospace;
-  color: var(--accent-coral);
+  color: var(--text-muted);
   letter-spacing: 2px;
   margin-bottom: 16px;
 }
@@ -294,7 +294,7 @@ h1 {
 
 .field-link:hover,
 .text-button:hover {
-  color: var(--accent-coral);
+  color: var(--text-main);
 }
 
 .remember {
@@ -360,7 +360,7 @@ h1 {
 
 .signup .text-button {
   font-size: 11px;
-  color: var(--accent-coral);
+  color: var(--text-main);
 }
 
 .status {
@@ -389,7 +389,7 @@ h1 {
 }
 
 .back-button:hover {
-  color: var(--accent-coral);
+  color: var(--text-main);
 }
 
 </style>

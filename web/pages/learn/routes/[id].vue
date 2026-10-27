@@ -167,12 +167,19 @@ h1 {
 }
 
 .cta {
-  background: var(--ink);
-  color: var(--paper);
-  border-radius: 6px;
-  padding: 12px 20px;
+  background: var(--btn-primary-bg);
+  color: var(--btn-primary-fg);
+  box-shadow: var(--btn-primary-shadow);
+  border-radius: 8px;
+  padding: 12px 22px;
   font-size: 13px;
   font-weight: 600;
+  transition: transform 0.16s ease, background 0.16s ease;
+}
+
+.cta:hover {
+  transform: translateY(-1px);
+  background: var(--btn-primary-hover);
 }
 
 .route-module {

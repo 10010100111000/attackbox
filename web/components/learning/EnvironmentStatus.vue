@@ -25,7 +25,7 @@ function toggle(){if(instance.value)void release();else void start()}
 </template>
 <style scoped>
 .environment-status{position:relative;min-height:32px;flex-shrink:0;display:flex;align-items:center;gap:10px;min-width:0}
-.environment-toggle{display:inline-flex;align-items:center;justify-content:center;gap:7px;height:32px;box-sizing:border-box;line-height:1;padding:7px 12px;border:1px solid var(--green);border-radius:6px;background:var(--green);color:var(--on-accent);font-size:12px;font-weight:600;white-space:nowrap;cursor:pointer;text-decoration:none;transition:background .15s,border-color .15s}
+.environment-toggle{display:inline-flex;align-items:center;justify-content:center;gap:7px;height:32px;box-sizing:border-box;line-height:1;padding:7px 12px;border:1px solid var(--btn-primary-bg);border-radius:6px;background:var(--btn-primary-bg);color:var(--btn-primary-fg);box-shadow:var(--btn-primary-shadow);font-size:12px;font-weight:600;white-space:nowrap;cursor:pointer;text-decoration:none;transition:background .15s,border-color .15s}
 .environment-toggle.running,.environment-toggle.cleanup{color:var(--environment-danger,#b42336);border-color:currentColor;background:var(--environment-danger-bg,#fff0f1)}
 :global([data-theme="midnight"]) .environment-toggle.running,:global([data-theme="midnight"]) .environment-toggle.cleanup{--environment-danger:#ff9da8;--environment-danger-bg:#39252c}
 .environment-toggle:hover:not(:disabled){filter:brightness(.94)}

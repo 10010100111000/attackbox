@@ -63,8 +63,8 @@ onBeforeUnmount(() => { disposed = true; generation++; clearTimeout(retryTimer);
 .desktop-toolbar { flex-shrink: 0; display: flex; align-items: center; gap: 14px; padding: 6px 14px; min-height: 30px; font-size: 11px; border-bottom: 1px solid #29343d; }
 .desktop-toolbar > span { margin-right: auto; }
 .desktop-toolbar label { display: inline-flex; align-items: center; gap: 5px; }
-.desktop-toolbar input { accent-color: #f59e6c; }
-.desktop-toolbar button { background: transparent; border: 0; color: #f59e6c; font-size: 11px; cursor: pointer; }
+.desktop-toolbar input { accent-color: #60a5fa; }
+.desktop-toolbar button { background: transparent; border: 0; color: #7dd3fc; font-size: 11px; cursor: pointer; }
 .desktop-toolbar button:disabled { opacity: .5; cursor: wait; }
 .desktop-host { flex: 1; min-height: 0; overflow: auto; }
 </style>

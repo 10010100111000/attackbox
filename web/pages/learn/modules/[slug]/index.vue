@@ -137,14 +137,15 @@ useHead({
 .module-back { margin-bottom: 36px; }
 .module-back a { display: inline-flex; align-items: center; gap: 8px; color: var(--muted); font-size: 13px; text-decoration: none; }
 .module-back a:hover { color: var(--ink); }
-.hero-section { display: flex; align-items: center; justify-content: space-between; gap: 36px; padding-bottom: 32px; border-bottom: 1px solid var(--line); }
+.hero-section { display: flex; align-items: center; justify-content: space-between; gap: 36px; padding: 28px 32px; background: linear-gradient(135deg, var(--paper) 0%, var(--soft) 100%); border: 1px solid var(--line); border-radius: 14px; box-shadow: var(--surface-highlight), var(--card-shadow); animation: surface-rise 0.3s cubic-bezier(0.22, 1, 0.36, 1) both; }
 .hero-content { min-width: 0; }
 h1 { font-size: clamp(28px, 3.3vw, 38px); font-weight: 700; line-height: 1.3; letter-spacing: -.7px; margin: 0; overflow-wrap: anywhere; }
 .module-meta { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 0; color: var(--muted); font-size: 12px; margin-top: 18px; line-height: 1.5; }
 .module-meta > span { display: inline-flex; align-items: center; }
 .module-meta > span + span::before { content: ''; width: 3px; height: 3px; margin: 0 13px; border-radius: 50%; background: var(--muted); opacity: .45; }
 .module-meta .category-tag { color: var(--ink); }
-.start-learning-btn { display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; min-height: 44px; padding: 12px 26px; background: var(--ink); color: var(--paper); border: 1px solid var(--ink); border-radius: 8px; font-size: 13px; font-weight: 600; text-decoration: none; transition: opacity .15s; }
+.start-learning-btn { display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; min-height: 44px; padding: 12px 26px; background: var(--btn-primary-bg); color: var(--btn-primary-fg); box-shadow: var(--btn-primary-shadow); border: 1px solid transparent; border-radius: 8px; font-size: 13px; font-weight: 600; text-decoration: none; transition: transform .16s ease, background .16s ease; }
+.start-learning-btn:hover { transform: translateY(-1px); background: var(--btn-primary-hover); }
 .start-learning-btn:hover { opacity: .85; }
 .module-content { padding-top: 32px; }
 .module-content.with-sidebar { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 40px; align-items: start; }

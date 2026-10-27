@@ -330,7 +330,8 @@ useHead({
 
 <style scoped>
 .chapter-action-row { display:flex; justify-content:flex-end; align-items:center; flex-wrap:wrap; gap:16px; margin-top:36px; padding-top:24px; border-top:1px solid var(--line); }
-.chapter-primary { display:inline-flex; align-items:center; justify-content:center; gap:10px; max-width:100%; min-height:42px; padding:10px 18px; border:0; border-radius:7px; background:var(--green); color:var(--on-accent); font-size:13px; font-weight:550; text-decoration:none; cursor:pointer; }
+.chapter-primary { display:inline-flex; align-items:center; justify-content:center; gap:10px; max-width:100%; min-height:42px; padding:10px 20px; border:0; border-radius:8px; background:var(--btn-primary-bg); color:var(--btn-primary-fg); box-shadow:var(--btn-primary-shadow); font-size:13px; font-weight:600; text-decoration:none; cursor:pointer; transition:transform .16s ease, background .16s ease; }
+.chapter-primary:hover:not(:disabled) { transform:translateY(-1px); background:var(--btn-primary-hover); }
 .chapter-primary:disabled { opacity:.45; cursor:not-allowed; }
 .completion-hint,.progress-notice { font-size:12px; color:var(--muted); }
 .completion-saved { display:inline-flex; align-items:center; gap:6px; margin-right:auto; color:var(--success-ink); font-size:12px; }
@@ -400,7 +401,7 @@ useHead({
 .auth-gate-card h1 { font-size: 21px; font-weight: 650; margin: 0 0 10px; color: var(--ink); }
 .auth-gate-card p { font-size: 13px; line-height: 1.8; margin: 0 0 24px; }
 .gate-btn { display: block; padding: 10px 14px; font-size: 12px; border-radius: 6px; text-decoration: none; }
-.gate-btn.primary { background: var(--green); color: var(--on-accent); margin-bottom: 10px; }
+.gate-btn.primary { background: var(--btn-primary-bg); color: var(--btn-primary-fg); box-shadow: var(--btn-primary-shadow); font-weight: 600; margin-bottom: 10px; }
 .gate-btn.secondary { border: 1px solid var(--line); color: var(--ink); }
 svg { flex-shrink: 0; }
 a:focus-visible, button:focus-visible, input:focus-visible { outline: 2px solid var(--focus); outline-offset: 3px; }

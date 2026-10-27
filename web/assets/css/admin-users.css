@@ -57,9 +57,11 @@ button,
 }
 
 .page-heading > a {
-  background: var(--ink);
-  color: var(--paper);
-  border-color: var(--ink);
+  background: var(--btn-primary-bg);
+  color: var(--btn-primary-fg);
+  border-color: transparent;
+  box-shadow: var(--btn-primary-shadow);
+  font-weight: 600;
 }
 
 .page-heading > a:hover {
@@ -88,7 +90,8 @@ a:hover {
 .panel {
   background: var(--paper);
   border: 1px solid var(--line);
-  border-radius: 10px;
+  border-radius: 12px;
+  box-shadow: var(--surface-highlight), var(--card-shadow);
 }
 
 .filters {

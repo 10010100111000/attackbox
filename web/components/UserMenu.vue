@@ -153,17 +153,24 @@ async function exit() {
   place-items: center;
   width: 36px;
   height: 36px;
-  border: 1px solid var(--line);
+  border: 1px solid var(--avatar-border);
   border-radius: 50%;
-  background: var(--soft);
-  color: var(--ink);
+  background: var(--avatar-bg);
+  color: var(--avatar-fg);
+  box-shadow: var(--avatar-shadow);
   font-size: 11px;
-  font-weight: 650;
+  font-weight: 700;
+  letter-spacing: 0.3px;
   cursor: pointer;
   flex-shrink: 0;
+  transition: transform 0.16s ease, border-color 0.16s ease, box-shadow 0.16s ease;
+}
+.account-trigger:hover {
+  transform: translateY(-1px);
+  border-color: var(--ink);
 }
 .account-trigger:focus-visible {
-  outline: 2px solid var(--green);
+  outline: 2px solid var(--focus);
   outline-offset: 3px;
 }
 .account-dot {

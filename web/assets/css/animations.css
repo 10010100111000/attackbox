@@ -6,10 +6,34 @@
   to { transform: rotate(360deg); }
 }
 
+@keyframes surface-rise {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes ambient-drift {
+  0% {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  100% {
+    transform: translate3d(0, 6px, 0) scale(1.03);
+  }
+}
+
 .animate-blink {
   animation: blink 0.8s steps(1) infinite;
 }
 
 .animate-spin-slow {
   animation: spin 0.7s linear infinite;
+}
+
+.animate-surface-rise {
+  animation: surface-rise 0.32s cubic-bezier(0.22, 1, 0.36, 1) both;
 }
