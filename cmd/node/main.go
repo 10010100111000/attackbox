@@ -27,7 +27,7 @@ func main() {
 		return
 	}
 
-	configPath := flag.String("config", "configs/node.yaml", "Path to node configuration file")
+	configPath := flag.String("config", "/etc/attackbox/node.yaml", "Path to node configuration file")
 	buildBaseOnly := flag.Bool("build-base", false, "Force derive and sanitize golden base image, then exit")
 	flag.Parse()
 

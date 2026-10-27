@@ -23,12 +23,11 @@ type NodeConfig struct {
 	Network     NetworkConfig    `yaml:"network"`
 }
 
-// LoadNodeConfig parses configs/node.yaml or falls back to production defaults.
+// LoadNodeConfig requires an explicit file; omitted host fields use local defaults.
 func LoadNodeConfig(path string) (*NodeConfig, error) {
 	cfg := &NodeConfig{
 		Node: NodeInfoConfig{
 			NodeID:               "node-primary",
-			ClusterSecret:        "attackbox_cluster_secret_change_me_in_prod!",
 			ControlURL:           "ws://127.0.0.1:3000/cluster/connect",
 			HeartbeatIntervalSec: 3,
 		},
@@ -40,38 +39,23 @@ func LoadNodeConfig(path string) (*NodeConfig, error) {
 			BaseRootfs:   "/var/lib/attackbox/base_rootfs",
 			InstancesDir: "/var/lib/attackbox/instances",
 			CgroupRoot:   "/sys/fs/cgroup/attackbox",
-			Limits: rt.RuntimeLimitsConfig{
-				PIDsMax:         256,
-				MemoryMaxMB:     1024,
-				MemorySwapMaxMB: 0,
-				CPUWeight:       100,
-				IOWriteBytesSec: 20971520,
-				IOWriteIOPS:     1000,
-			},
 			DiskGuard: rt.DiskGuardConfig{
 				Enabled:          true,
 				CheckIntervalSec: 3,
 				MinFreeSpaceMB:   5120,
 				WarnFreeSpaceMB:  10240,
 			},
-			Tmpfs: rt.TmpfsConfig{
-				TmpSize: "512M",
-				RunSize: "256M",
-			},
 		},
 		Network: NetworkConfig{
 			BridgeName: "br-attackbox",
 			GatewayIP:  "10.200.0.1",
 			SubnetCIDR: "10.200.0.0/16",
-			Interface:  "eth0",
+			Interface:  "",
 		},
 	}
 
 	data, err := os.ReadFile(path)
 	if err != nil {
-		if os.IsNotExist(err) {
-			return cfg, nil
-		}
 		return nil, fmt.Errorf("read node config %s: %w", path, err)
 	}
 

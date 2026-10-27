@@ -145,14 +145,6 @@ func (c *NodeControlClient) handleCreateBox(msg *protocol.Message) {
 		return
 	}
 
-	// Fallback to node config defaults if unspecified
-	if req.Policy.Storage.TmpfsTmpSize == "" && c.cfg.Runtime.Tmpfs.TmpSize != "" {
-		req.Policy.Storage.TmpfsTmpSize = c.cfg.Runtime.Tmpfs.TmpSize
-	}
-	if req.Policy.Storage.TmpfsRunSize == "" && c.cfg.Runtime.Tmpfs.RunSize != "" {
-		req.Policy.Storage.TmpfsRunSize = c.cfg.Runtime.Tmpfs.RunSize
-	}
-
 	ctx, cancel := context.WithTimeout(context.Background(), 25*time.Second)
 	defer cancel()
 

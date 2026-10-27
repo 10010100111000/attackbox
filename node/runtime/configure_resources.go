@@ -1,23 +1,8 @@
-﻿package runtime
+package runtime
 
 import (
 	"attackbox/protocol"
 )
-
-type RuntimeLimitsConfig struct {
-	PIDsMax          int64  `yaml:"pids_max"`
-	MemoryMaxMB      int64  `yaml:"memory_max_mb"`
-	MemorySwapMaxMB  int64  `yaml:"memory_swap_max_mb"`
-	CPUWeight        uint64 `yaml:"cpu_weight"`
-	IOWriteBytesSec  int64  `yaml:"io_write_bytes_sec"`
-	IOWriteIOPS      int64  `yaml:"io_write_iops"`
-	RootDeviceNumber string `yaml:"root_device_number"`
-}
-
-type TmpfsConfig struct {
-	TmpSize string `yaml:"tmp_size"`
-	RunSize string `yaml:"run_size"`
-}
 
 type DiskGuardConfig struct {
 	Enabled          bool  `yaml:"enabled"`
@@ -26,15 +11,13 @@ type DiskGuardConfig struct {
 	WarnFreeSpaceMB  int64 `yaml:"warn_free_space_mb"`
 }
 
+// RuntimeConfig contains host-local storage and protection settings only.
 type RuntimeConfig struct {
-	BaseRootfs     string              `yaml:"base_rootfs"`
-	InstancesDir   string              `yaml:"instances_dir"`
-	CgroupRoot     string              `yaml:"cgroup_root"`
-	Limits         RuntimeLimitsConfig `yaml:"limits"`
-	DiskGuard      DiskGuardConfig     `yaml:"disk_guard"`
-	Tmpfs          TmpfsConfig         `yaml:"tmpfs"`
-	SandboxTTLSec  int                 `yaml:"sandbox_ttl_sec"`
-	SandboxIdleSec int                 `yaml:"sandbox_idle_sec"`
+	BaseRootfs       string          `yaml:"base_rootfs"`
+	InstancesDir     string          `yaml:"instances_dir"`
+	CgroupRoot       string          `yaml:"cgroup_root"`
+	RootDeviceNumber string          `yaml:"root_device_number"`
+	DiskGuard        DiskGuardConfig `yaml:"disk_guard"`
 }
 
 type ResourceLimits struct {

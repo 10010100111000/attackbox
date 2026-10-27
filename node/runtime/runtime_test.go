@@ -30,10 +30,6 @@ func TestBtrfsAndCgroupSandboxLifecycle(t *testing.T) {
 		BaseRootfs:   "/var/lib/attackbox/base_rootfs",
 		InstancesDir: "/var/lib/attackbox/instances",
 		CgroupRoot:   "/sys/fs/cgroup/attackbox",
-		Limits: runtime.RuntimeLimitsConfig{
-			PIDsMax:     256,
-			MemoryMaxMB: 1024,
-		},
 		DiskGuard: runtime.DiskGuardConfig{
 			Enabled:        true,
 			MinFreeSpaceMB: 5120,

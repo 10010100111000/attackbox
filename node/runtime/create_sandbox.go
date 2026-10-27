@@ -22,11 +22,11 @@ func (m *RuntimeManager) CreateSandbox(ctx context.Context, scfg SandboxConfig) 
 	rec := &SandboxRecord{ID: scfg.ID, OwnerID: scfg.OwnerID, UserID: scfg.UserID, SlotIndex: scfg.SlotIndex, State: "creating", StartedAt: time.Now(), LastActiveAt: time.Now()}
 	ttl := scfg.TTLSeconds
 	if ttl <= 0 {
-		ttl = m.cfg.SandboxTTLSec
+		ttl = 3600 // Defensive default for internal callers without a controller policy.
 	}
 	idle := scfg.IdleSeconds
 	if idle <= 0 {
-		idle = m.cfg.SandboxIdleSec
+		idle = 600
 	}
 	rec.ExpiresAt = rec.StartedAt.Add(time.Duration(ttl) * time.Second)
 	rec.idleLimit = time.Duration(idle) * time.Second

@@ -1,7 +1,5 @@
 #!/usr/bin/env bash
 # Canonical single-server deploy: Go worker + Nuxt web.
-# Retired: the old Go control (cmd/control, control/, cmd/attackboxd) and the old
-# Vue SPA (frontend/) are archived under backup/, not built or installed.
 set -euo pipefail
 
 REPO="${REPO:-/home/laji/attackbox}"
@@ -15,6 +13,7 @@ die() { printf 'ERROR: %s\n' "$*" >&2; exit 1; }
 cd "$REPO"
 [ -f go.mod ] || die "run from the repo root"
 [ -f "$ENV_FILE" ] || die "missing $ENV_FILE (see deploy/web.env.example)"
+[ -f /etc/attackbox/node.yaml ] || die "missing /etc/attackbox/node.yaml (copy configs/node.yaml and configure it)"
 [ -z "$(git status --porcelain)" ] || die "working tree is dirty; commit or reset before deploying"
 
 # The legacy oneshot unit creates the same nft table as the worker and can wipe it.

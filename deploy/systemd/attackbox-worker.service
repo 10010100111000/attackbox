@@ -7,7 +7,7 @@ Wants=docker.service
 Type=simple
 User=root
 WorkingDirectory=/home/laji/attackbox
-ExecStart=/home/laji/attackbox/bin/node -config /home/laji/attackbox/configs/node.yaml
+ExecStart=/home/laji/attackbox/bin/node -config /etc/attackbox/node.yaml
 Restart=always
 RestartSec=3
 
