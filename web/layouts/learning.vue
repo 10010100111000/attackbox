@@ -11,6 +11,8 @@ import LearningHeader from '~/components/learning/LearningHeader.vue'
   </div>
 </template>
 
+<style src="~/assets/css/learning-shell.css"></style>
+
 <style scoped>
 .learning-layout {
   min-height: 100vh;

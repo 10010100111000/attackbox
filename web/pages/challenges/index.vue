@@ -10,10 +10,7 @@ useHead({ title: '挑战 — AttackBox' })
 const { currentUser } = useAuth()
 const learner = computed(() => currentUser.value?.id || '')
 
-const { data, error, refresh } = await useFetch<{ data: ChallengeSummary[] }>('/api/challenges', {
-  key: 'challenges:list',
-  watch: [learner],
-})
+const { data, pending, error, refresh } = useCatalogData<{ data: ChallengeSummary[] }>(() => `challenges:list:${learner.value || 'guest'}`, '/api/challenges')
 
 const query = ref('')
 const category = ref('')
@@ -41,7 +38,7 @@ const labels: Record<string, string> = {
 </script>
 
 <template>
-  <main class="challenge-list">
+  <div class="learning-shell challenge-list">
     <header class="page-head">
       <Flag :size="22" aria-hidden="true" />
       <h1>挑战</h1>
@@ -60,7 +57,8 @@ const labels: Record<string, string> = {
       </select>
     </div>
 
-    <p v-if="error" role="alert">
+    <LearningCatalogSkeleton v-if="pending && !data" label="正在读取挑战" />
+    <p v-else-if="error" role="alert">
       无法读取挑战。
       <button type="button" @click="refresh()">重试</button>
     </p>
@@ -90,18 +88,12 @@ const labels: Record<string, string> = {
       </NuxtLink>
     </div>
 
-    <p v-if="!error && !rows.length" class="empty">暂无符合条件的挑战。</p>
-  </main>
+    <div v-if="!pending && !error && !rows.length" class="empty"><Flag :size="27" class="empty-flag" aria-hidden="true"/><p>暂无符合条件的挑战。</p><NuxtLink to="/learn">先挑个模块热热身</NuxtLink></div>
+  </div>
 </template>
 
 <style scoped>
-.challenge-list {
-  width: 100%;
-  max-width: 1140px;
-  margin: 0 auto;
-  padding: 44px 28px 80px;
-  box-sizing: border-box;
-}
+.empty-flag{color:var(--learning-spark);transform:rotate(-8deg);margin:0 auto 12px}.empty a{color:var(--green);font-size:13px}
 
 .page-head {
   display: flex;

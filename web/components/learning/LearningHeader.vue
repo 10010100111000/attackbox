@@ -31,7 +31,7 @@ const isDiscussActive = computed(() => route.path.startsWith('/discuss'))
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0 4%;
+  padding: 0 var(--learning-edge);
   position: sticky;
   top: 0;
   z-index: 50;
@@ -41,11 +41,13 @@ const isDiscussActive = computed(() => route.path.startsWith('/discuss'))
 .header-left {
   display: flex;
   align-items: center;
-  gap: 36px;
+  gap: var(--learning-nav-gap);
   height: 100%;
 }
 
 .brand {
+  width: var(--learning-brand-width);
+  flex-shrink: 0;
   display: flex;
   align-items: center;
   gap: 10px;
@@ -58,6 +60,7 @@ const isDiscussActive = computed(() => route.path.startsWith('/discuss'))
 
 .brand-logo {
   display: block;
+  transition: transform .18s ease;
   border-radius: 6px;
 }
 
@@ -86,17 +89,19 @@ const isDiscussActive = computed(() => route.path.startsWith('/discuss'))
 
 .main-nav a.active {
   color: var(--ink);
-  border-bottom-color: var(--ink);
+  border-bottom-color: var(--learning-spark);
   font-weight: 600;
 }
 
+.brand:hover .brand-logo { transform: rotate(-7deg) translateY(-2px); }
+@media (prefers-reduced-motion: reduce) { .brand-logo { transition:none;transform:none!important; } }
 @media (max-width: 640px) {
   .learning-header {
     padding: 0 16px;
   }
   .header-left { gap: 14px; min-width: 0; }
   .brand > span { display: none; }
-  .brand { flex-shrink: 0; }
+  .brand { width:auto; flex-shrink: 0; }
   .main-nav { gap: 12px; }
   .main-nav a { font-size: 13px; white-space: nowrap; }
 }

@@ -2,7 +2,7 @@
 import { ArrowRight, BookOpen } from 'lucide-vue-next'
 import { useAuth } from '~/composables/useAuth'
 import type { LearningHistoryItem } from '~/shared/learning'
-import { ref, computed } from 'vue'
+import { ref, computed, watch } from 'vue'
 import { useLazyFetch, useHead } from '#imports'
 import type { ContentCategory } from '~/shared/content'
 
@@ -32,18 +32,18 @@ interface ModuleItem {
   chapterCount: number
 }
 
-const { data: routeResponse, pending: routesPending, error: routesError, refresh: refreshRoutes } = useLazyFetch<{data:{id:string;title:string;summary:string;moduleCount:number}[]}>('/api/routes')
+const { data: routeResponse, pending: routesPending, error: routesError, refresh: refreshRoutes } = useCatalogData<{data:{id:string;title:string;summary:string;moduleCount:number}[]}>('learning:catalog:routes', '/api/routes')
 const { currentUser } = useAuth()
 const learnerId = computed(() => currentUser.value?.id || '')
 const { data: historyResponse } = useLazyFetch<{ data: LearningHistoryItem[] }>('/api/me/learning', { key: 'learning:history', watch: [learnerId], immediate: !!learnerId.value })
 const recentLearning = computed(() => learnerId.value ? historyResponse.value?.data?.find(item => !item.progress.isCompleted) || null : null)
-const { data: response, pending, error, refresh } = useLazyFetch<{ ok: boolean; data: ModuleItem[] }>('/api/modules')
+const { data: response, pending, error, refresh } = useCatalogData<{ ok: boolean; data: ModuleItem[] }>('learning:catalog:modules', '/api/modules')
 
 const modules = computed<ModuleItem[]>(() => {
   return response.value?.data || []
 })
 
-const { data: homeResponse } = useLazyFetch<{ data: Omit<import('~/shared/learn-home').LearnHome,'lockVersion'> }>('/api/learn-home')
+const { data: homeResponse, pending: homePending } = useCatalogData<{ data: Omit<import('~/shared/learn-home').LearnHome,'lockVersion'> }>('learning:catalog:home', '/api/learn-home')
 
 const activeTab = ref<'modules' | 'paths'>(useRoute().query.tab === 'routes' ? 'paths' : 'modules')
 const selectedCategory = ref('全部模块')
@@ -53,8 +53,10 @@ const sortBy = ref('published')
 const historyByModule = computed(() => new Map((learnerId.value ? historyResponse.value?.data || [] : []).map(item => [item.moduleId, item.progress])))
 const failedCovers = ref(new Set<string>())
 
-const { data: categoryResponse, pending: categoriesPending, error: categoriesError, refresh: refreshCategories } = useLazyFetch<{ data: ContentCategory[] }>('/api/categories', {key:'content:categories'})
-const categories = computed(() => ['全部模块', ...(categoryResponse.value?.data || []).map(category => category.name)])
+const categories = computed(() => ['全部模块', ...new Set(modules.value.flatMap(m => m.category ? [m.category.name] : []))])
+watch(categories, values => { if (!values.includes(selectedCategory.value)) selectedCategory.value = '全部模块' })
+const hasFilters = computed(() => !!searchQuery.value || !!difficulty.value || selectedCategory.value !== '全部模块')
+function resetFilters() { searchQuery.value = ''; difficulty.value = ''; selectedCategory.value = '全部模块' }
 
 function difficultyToLabel(diff: string): string {
   switch (diff) {
@@ -127,7 +129,8 @@ function getModuleTheme(index: number) {
 
 <template>
   <div class="learn-page">
-    <div class="container">
+    <div class="learning-shell learn-container">
+      <div v-if="homePending && !homeResponse" class="home-placeholder" aria-hidden="true"/>
       <LearningHomeCarousel v-if="homeResponse?.data.enabled" :slides="homeResponse.data.slides" :autoplay="homeResponse.data.autoplay" :interval-seconds="homeResponse.data.intervalSeconds" />
 
       <NuxtLink v-if="recentLearning && activeTab === 'modules'" :to="`/learn/modules/${recentLearning.slug}/${recentLearning.progress.resumeChapterSlug}`" class="recent-learning">
@@ -157,15 +160,14 @@ function getModuleTheme(index: number) {
       <div v-if="activeTab === 'modules'" id="module-list" class="tab-content">
         <!-- 筛选与搜索工具栏 -->
         <div class="toolbar">
-          <div class="filters" role="tablist" aria-label="分类过滤" :aria-busy="categoriesPending">
-            <span v-if="categoriesPending" class="filter-status" role="status">正在加载分类…</span>
-            <button v-else-if="categoriesError" type="button" class="filter-btn" @click="() => refreshCategories()">重试加载分类</button>
+          <div class="filters" role="group" aria-label="分类过滤">
             <button
               v-for="cat in categories"
               :key="cat"
               type="button"
               class="filter-btn"
               :class="{ active: selectedCategory === cat }"
+              :aria-pressed="selectedCategory === cat"
               @click="selectedCategory = cat"
             >
               {{ cat }}
@@ -182,9 +184,7 @@ function getModuleTheme(index: number) {
 
         <div class="discovery-controls"><span>{{ filteredModules.length }} 个模块</span><label>难度<select v-model="difficulty" aria-label="筛选难度"><option value="">全部难度</option><option value="beginner">基础入门</option><option value="intermediate">中级进阶</option><option value="advanced">高阶实战</option></select></label><label>排序<select v-model="sortBy" aria-label="模块排序"><option value="published">最新发布</option><option value="updated">最近更新</option></select></label></div>
         <!-- 加载状态 -->
-        <div v-if="pending" class="state-panel" role="status" aria-live="polite">
-          正在加载模块列表…
-        </div>
+        <LearningCatalogSkeleton v-if="pending && !response" label="正在读取学习模块" />
 
         <!-- 错误状态 -->
         <div v-else-if="error" class="state-panel error">
@@ -268,13 +268,13 @@ function getModuleTheme(index: number) {
 
         <!-- 空搜索结果 -->
         <div v-else class="empty-notice">
-          <p>没有匹配的模块，试试其他关键词或分类。</p>
+          <BookOpen :size="28" class="empty-doodle" aria-hidden="true"/><p>{{ hasFilters ? '没找到合适的模块，换个方向试试？' : '这里还很安静。模块发布后，就会出现在这里。' }}</p><button v-if="hasFilters" type="button" class="filter-btn" @click="resetFilters">清除筛选</button>
         </div>
       </div>
 
       <!-- Tab 2: 学习路线 -->
       <div v-else class="tab-content">
-        <div v-if="routesPending" class="state-panel" role="status">正在加载学习路线…</div>
+        <LearningCatalogSkeleton v-if="routesPending && !routeResponse" label="正在读取学习路线" />
         <div v-else-if="routesError" class="state-panel error">
           <p>学习路线加载失败，请稍后重试。</p>
           <button type="button" class="btn secondary" @click="() => refreshRoutes()">重新加载</button>
@@ -291,6 +291,8 @@ function getModuleTheme(index: number) {
 </template>
 
 <style scoped>
+.home-placeholder{height:188px;background:var(--soft);border-radius:11px;margin-bottom:18px}.empty-doodle{color:var(--learning-spark);transform:rotate(-8deg);margin:0 auto 12px}.card:hover .art-index-pill{transform:rotate(-6deg)}.art-index-pill{transition:transform .16s ease}@media(prefers-reduced-motion:reduce){.art-index-pill{transition:none}.card:hover .art-index-pill{transform:none}}
+
 .module-cover{width:100%;height:100%;object-fit:cover;position:absolute;inset:0}.discovery-controls{display:flex;align-items:center;gap:20px;margin:-4px 0 18px;color:var(--muted);font-size:12px}.discovery-controls>span{margin-right:auto}.discovery-controls label{display:flex;align-items:center;gap:8px}.discovery-controls select{background:var(--paper);color:var(--ink);border:1px solid var(--line);padding:6px 9px;border-radius:6px}.resume-action{font-size:12px;white-space:nowrap}.recent-learning { display: flex; align-items: center; justify-content: space-between; gap: 24px; padding: 14px 20px; margin-bottom: 18px; border: 1px solid var(--line); border-radius: 10px; background: var(--mint); color: var(--ink); text-decoration: none; }
 .recent-copy { flex: 1; min-width: 0; display:grid;grid-template-columns:minmax(0,1fr) 140px;column-gap:20px; }
 .recent-label { grid-column:1; font-size: 11px; color: var(--muted); }
@@ -305,12 +307,6 @@ function getModuleTheme(index: number) {
   min-height: calc(100vh - 68px);
   background: var(--bg);
   color: var(--ink);
-}
-
-.container {
-  max-width: 1100px;
-  margin: 0 auto;
-  padding: 24px 32px 48px;
 }
 
 /* 二级 Tab 切换栏 */
@@ -358,7 +354,6 @@ function getModuleTheme(index: number) {
   flex-wrap: wrap;
 }
 
-.filter-status { font-size: 12px; color: var(--muted); align-self: center; }
 
 .filter-btn {
   padding: 6px 14px;
@@ -420,7 +415,7 @@ function getModuleTheme(index: number) {
 /* 卡片网格 (3 列，克制优雅) */
 .cards {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
   gap: 20px;
 }
 
@@ -616,9 +611,6 @@ function getModuleTheme(index: number) {
 
 @media (max-width: 640px) {
   .discovery-controls{flex-wrap:wrap;gap:10px}.recent-copy{display:block}.recent-progress{margin-top:8px}
-  .container {
-    padding: 20px 16px 48px;
-  }
   .cards {
     grid-template-columns: 1fr;
   }

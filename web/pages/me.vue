@@ -18,7 +18,7 @@ useHead({
 </script>
 
 <template>
-  <div class="personal-center">
+  <div class="learning-shell learning-shell--sidebar personal-center">
     <template v-if="currentUser">
       <aside class="personal-sidebar">
         <div class="personal-identity">

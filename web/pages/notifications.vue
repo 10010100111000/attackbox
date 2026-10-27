@@ -45,7 +45,7 @@ async function read(item: NotificationItem) {
 }
 </script>
 <template>
-  <div class="notification-page">
+  <div class="learning-shell notification-page">
     <header>
       <div>
         <h1>通知</h1>
@@ -104,10 +104,6 @@ async function read(item: NotificationItem) {
   </div>
 </template>
 <style scoped>
-.notification-page {
-  width: min(1100px, calc(100% - 48px));
-  margin: 46px auto;
-}
 .notification-page > header {
   display: flex;
   align-items: center;

@@ -1,19 +1,16 @@
 .personal-center {
   display: grid;
-  grid-template-columns: 204px minmax(0, 1fr);
   align-items: start;
-  gap: 56px;
-  width: min(1140px, calc(100% - 64px));
-  margin: 48px auto 88px;
+  padding-block: 32px 80px;
   color: var(--ink);
 }
 .personal-sidebar {
   position: sticky;
-  top: 32px;
+  top: 92px;
   min-width: 0;
 }
 .personal-identity {
-  padding: 4px 14px 30px;
+  padding: 4px 0 30px;
 }
 .personal-avatar {
   display: grid;
@@ -593,11 +590,6 @@
   outline-offset: 3px;
 }
 @media (max-width: 1020px) {
-  .personal-center {
-    grid-template-columns: 180px minmax(0, 1fr);
-    gap: 28px;
-    width: calc(100% - 48px);
-  }
   .personal-record {
     grid-template-columns: 36px minmax(0, 1fr) 130px;
     gap: 14px;
@@ -619,8 +611,7 @@
   .personal-center {
     grid-template-columns: minmax(0, 1fr);
     gap: 28px;
-    width: calc(100% - 32px);
-    margin-top: 26px;
+    padding-top: 26px;
   }
   .personal-sidebar {
     position: static;
