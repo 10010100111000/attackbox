@@ -15,7 +15,7 @@ REPO = Path(__file__).resolve().parent.parent
 
 def read_environment(path):
     values = {}
-    for line in path.read_text().splitlines():
+    for line in path.read_text(encoding='utf-8').splitlines():
         line = line.strip()
         if not line or line.startswith('#'):
             continue
@@ -41,17 +41,25 @@ def read_environment(path):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('operation', choices=['migrate', 'admin'])
+    parser.add_argument('--email', help='管理员邮箱（非交互模式）')
+    parser.add_argument('--name', default='Administrator', help='显示名称（非交互模式）')
+    parser.add_argument('--password', help='管理员密码（非交互模式，至少 12 位）')
     args = parser.parse_args()
     values = read_environment(Path('/etc/attackbox/web.env'))
     payload = None
     if args.operation == 'admin':
-        if not sys.stdin.isatty():
-            raise ValueError('请在交互终端中创建管理员')
-        email = input('管理员邮箱: ').strip().lower()
-        name = input('显示名称 [Administrator]: ').strip() or 'Administrator'
-        password = getpass.getpass('管理员密码（至少 12 位）: ')
-        if password != getpass.getpass('再次输入密码: '):
-            raise ValueError('两次密码不一致')
+        if args.email and args.password:
+            email = args.email.strip().lower()
+            name = (args.name or 'Administrator').strip()
+            password = args.password
+        else:
+            if not sys.stdin.isatty():
+                raise ValueError('请在交互终端中创建管理员，或通过 --email 与 --password 传参')
+            email = input('管理员邮箱: ').strip().lower()
+            name = input('显示名称 [Administrator]: ').strip() or 'Administrator'
+            password = getpass.getpass('管理员密码（至少 12 位）: ')
+            if password != getpass.getpass('再次输入密码: '):
+                raise ValueError('两次密码不一致')
         if not re.fullmatch(r'[^\s@]+@[^\s@]+\.[^\s@]+', email) or len(email) > 254 or len(password) < 12 or len(name) > 100:
             raise ValueError('邮箱、密码或显示名称不符合要求')
         payload = json.dumps(dict(email=email, password=password, displayName=name))
@@ -65,6 +73,6 @@ def main():
 if __name__ == '__main__':
     try:
         main()
-    except (ValueError, OSError):
-        print('操作失败：请检查配置文件、输入信息与依赖是否已安装。')
+    except (ValueError, OSError) as error:
+        print('操作失败：' + (str(error) if isinstance(error, ValueError) else '请检查配置文件、输入信息与依赖是否已安装。'))
         raise SystemExit(1)

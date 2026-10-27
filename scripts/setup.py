@@ -44,7 +44,7 @@ def configuration(database, origin, resend='', mail_from=''):
                   CONTENT_DATA_DIR='/var/lib/attackbox-web/content', LAB_DATA_DIR='/var/lib/attackbox-web/labs',
                   CONTENT_CREDENTIALS_KEY=secrets.token_hex(32), QUIZ_ANSWER_HMAC_SECRET=secrets.token_hex(32),
                   RESEND_API_KEY=resend, MAIL_FROM=mail_from, APP_BASE_URL=origin.rstrip('/'))
-    node = (REPO / 'configs/node.yaml.example').read_text()
+    node = (REPO / 'configs/node.yaml.example').read_text(encoding='utf-8')
     node = node.replace('CHANGE_ME_AT_LEAST_32_BYTES', cluster).replace('ws://127.0.0.1:8443', public)
     return values, node
 
@@ -60,7 +60,7 @@ def write_configuration(env_path, node_path, values, node):
         for path, content in [(env_path, ''.join(f'{k}={json.dumps(v, ensure_ascii=False)}\n' for k, v in values.items())), (node_path, node)]:
             fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
             written.append(path)
-            with os.fdopen(fd, 'w') as stream:
+            with os.fdopen(fd, 'w', encoding='utf-8') as stream:
                 stream.write(content)
     except BaseException:
         for path in written:
@@ -70,20 +70,47 @@ def write_configuration(env_path, node_path, values, node):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.parse_args()
-    if not sys.stdin.isatty():
-        raise ValueError("请在交互终端中运行安装向导")
+    parser.add_argument('--database', help='现有数据库 URL')
+    parser.add_argument('--origin', help='网站 origin，例如 http://localhost')
+    parser.add_argument('--resend', default='', help='Resend API Key（可选）')
+    parser.add_argument('--mail-from', default='', help='发件地址（可选）')
+    parser.add_argument('--worker-cert', default='', help='Worker TLS 证书路径（HTTPS 必填）')
+    parser.add_argument('--worker-key', default='', help='Worker TLS 私钥路径（HTTPS 必填）')
+    parser.add_argument('--force', action='store_true', help='强制覆盖已有配置')
+    args = parser.parse_args()
+
     env_path, node_path = Path('/etc/attackbox/web.env'), REPO / 'configs/node.yaml'
+    if args.force:
+        env_path.unlink(missing_ok=True)
+        node_path.unlink(missing_ok=True)
+
     if env_path.exists() or node_path.exists():
-        raise ValueError('配置已存在，初始化不会覆盖。')
-    database = prompt('现有数据库 URL（数据库需先创建，输入隐藏）', secret=True)
-    origin = prompt('网站 origin（本地测试可保留默认）', 'http://localhost')
-    resend = prompt('Resend API Key（可留空，稍后配置）', secret=True)
-    mail_from = prompt('发件地址') if resend else ''
+        raise ValueError('配置已存在，初始化不会覆盖。若需覆盖请指定 --force。')
+
+    if args.database:
+        database = args.database.strip()
+        origin = (args.origin or 'http://localhost').strip()
+        resend = (args.resend or '').strip()
+        mail_from = (args.mail_from or '').strip()
+        cert = args.worker_cert.strip() if args.worker_cert else ''
+        key = args.worker_key.strip() if args.worker_key else ''
+    else:
+        if not sys.stdin.isatty():
+            raise ValueError("请在交互终端中运行安装向导，或通过命令行参数指定配置")
+        database = prompt('现有数据库 URL（数据库需先创建，输入隐藏）', secret=True)
+        origin = prompt('网站 origin（本地测试可保留默认）', 'http://localhost')
+        resend = prompt('Resend API Key（可留空，稍后配置）', secret=True)
+        mail_from = prompt('发件地址') if resend else ''
+        cert = ''
+        key = ''
+
     values, node = configuration(database, origin, resend, mail_from)
     if origin.startswith('https://'):
-        cert = prompt('Worker TLS 证书完整路径')
-        key = prompt('Worker TLS 私钥完整路径')
+        if not cert or not key:
+            if not sys.stdin.isatty():
+                raise ValueError("HTTPS 站点必须通过 --worker-cert 和 --worker-key 提供 Worker TLS 凭据")
+            cert = prompt('Worker TLS 证书完整路径')
+            key = prompt('Worker TLS 私钥完整路径')
         if not Path(cert).is_file() or not Path(key).is_file():
             raise ValueError('Worker TLS 证书与私钥必须已存在；也可先用 localhost 完成本机部署')
         node = node.replace('tls_enabled: false', 'tls_enabled: true\n  tls_cert: ' + json.dumps(cert) + '\n  tls_key: ' + json.dumps(key))
