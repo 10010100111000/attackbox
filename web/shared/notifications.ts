@@ -1,5 +1,7 @@
 export interface NotificationItem {
   id: string
+  kind: 'announcement' | 'message'
+  sender: { id: string | null; name: string }
   title: string
   body: string
   link: string | null

@@ -1,244 +1,50 @@
 <script setup lang="ts">
-import type { NotificationItem, NotificationList } from '~/shared/notifications'
-import { Bell, Check } from 'lucide-vue-next'
-definePageMeta({ layout: 'learning' })
-useHead({ title: '通知 — AttackBox' })
-const { currentUser } = useAuth(),
-  { setUnread } = useNotifications(),
-  request = useRequestFetch(),
-  page = ref(1),
-  selected = ref<NotificationItem | null>(null),
-  message = ref('')
-const { data, pending, error } = await useLazyAsyncData(
-  () =>
-    `account:notifications:${currentUser.value?.id || 'guest'}:${page.value}`,
-  async () => {
-    if (!currentUser.value) return null
-    const owner = currentUser.value.id
-    const r = await request<{ data: NotificationList }>(
-      '/api/me/notifications',
-      { query: { page: page.value } },
-    )
-    return currentUser.value?.id === owner ? r.data : null
-  },
-)
-watch([page, () => currentUser.value?.id], () => {
-  selected.value = null
-  message.value = ''
+import type {NotificationItem,NotificationList} from '~/shared/notifications'
+import {Bell,Trash2,Mail,MessageCircle,ArrowLeft} from 'lucide-vue-next'
+definePageMeta({layout:'learning'})
+useHead({title:'通知 — AttackBox'})
+const {currentUser}=useAuth(),{setUnread}=useNotifications(),request=useRequestFetch()
+const container=ref<HTMLElement|null>(null)
+function positionMobile(){if(import.meta.client&&window.matchMedia('(max-width:760px)').matches)void nextTick(()=>container.value?.scrollIntoView({block:'start'}))}
+function back(){selected.value=null;positionMobile()}
+const page=ref(1),selected=ref<NotificationItem|null>(null),message=ref(''),deleting=ref(false)
+let mutations=Promise.resolve(),alive=true
+onBeforeUnmount(()=>{alive=false})
+const {data,pending,error,refresh}=await useLazyAsyncData(()=>`account:notifications:${currentUser.value?.id||'guest'}:${page.value}`,async()=>{
+ if(!currentUser.value)return null
+ const owner=currentUser.value.id,r=await request<{data:NotificationList}>('/api/me/notifications',{query:{page:page.value}})
+ if(currentUser.value?.id!==owner)return null
+ setUnread(r.data.unread)
+ return r.data
 })
-async function read(item: NotificationItem) {
-  selected.value = item
-  message.value = ''
-  const owner = currentUser.value?.id
-  try {
-    const r = await $fetch<{ unread: number }>(
-      `/api/me/notifications/${item.id}/read`,
-      { method: 'POST', retry: false },
-    )
-    if (currentUser.value?.id === owner) {
-      item.readAt = new Date().toISOString()
-      setUnread(r.unread)
-    }
-  } catch (e: any) {
-    message.value = e?.data?.message || '已读状态保存失败'
-  }
+watch([page,()=>currentUser.value?.id],()=>{selected.value=null;message.value=''})
+function enqueue(task:()=>Promise<void>){mutations=mutations.catch(()=>{}).then(task);return mutations}
+function read(item:NotificationItem){
+ selected.value=item;message.value='';positionMobile()
+ if(item.readAt)return
+ const owner=currentUser.value?.id
+ void enqueue(async()=>{
+  if(!alive||currentUser.value?.id!==owner||!data.value?.items.some(n=>n.id===item.id))return
+  try{const r=await $fetch<{unread:number}>(`/api/me/notifications/${item.id}/read`,{method:'POST',retry:false});if(alive&&currentUser.value?.id===owner){const readAt=new Date().toISOString();if(data.value)data.value={...data.value,unread:r.unread,items:data.value.items.map(n=>n.id===item.id?{...n,readAt}:n)};if(selected.value?.id===item.id)selected.value={...selected.value,readAt};setUnread(r.unread)}}catch(e:any){if(alive&&currentUser.value?.id===owner&&selected.value?.id===item.id)message.value=e?.data?.message||'已读状态保存失败'}
+ })
+}
+async function remove(){
+ if(!selected.value||deleting.value)return
+ const owner=currentUser.value?.id,id=selected.value.id
+ deleting.value=true;message.value=''
+ try{await enqueue(async()=>{
+  if(!alive||currentUser.value?.id!==owner)return
+  const r=await $fetch<{deleted:true;unread:number}>(`/api/me/notifications/${id}`,{method:'DELETE',retry:false})
+  if(!alive||currentUser.value?.id!==owner||!data.value)return
+  data.value={...data.value,items:data.value.items.filter(item=>item.id!==id),total:Math.max(0,data.value.total-1),unread:r.unread};setUnread(r.unread)
+  if(selected.value?.id===id)selected.value=null
+  if(!data.value.items.length&&page.value>1)page.value--
+ })}catch(e:any){if(alive&&currentUser.value?.id===owner)message.value=e?.data?.message||'删除失败，请重试'}finally{deleting.value=false}
 }
 </script>
 <template>
-  <div class="learning-shell notification-page">
-    <header>
-      <div>
-        <h1>通知</h1>
-        <p>课程更新与平台消息</p>
-      </div>
-      <Bell :size="23" />
-    </header>
-    <p v-if="!currentUser">
-      登录后查看通知。
-      <NuxtLink to="/auth">登录</NuxtLink>
-    </p>
-    <p v-else-if="error" role="alert">通知读取失败，请稍后重新进入。</p>
-    <UiBusyIndicator v-else-if="pending && !data" label="通知加载"/>
-    <div v-else-if="data?.items.length" class="notification-grid">
-      <section class="notification-list" aria-label="通知列表">
-        <button
-          v-for="item in data.items"
-          :key="item.id"
-          :class="{ selected: selected?.id === item.id, unread: !item.readAt }"
-          @click="read(item)"
-        >
-          <span class="item-heading">
-            <i v-if="!item.readAt" />
-            <strong>{{ item.title }}</strong>
-            <Check v-if="item.readAt" :size="13" />
-          </span>
-          <small>{{ item.publishedAt.slice(0, 10) }}</small>
-        </button>
-        <nav v-if="data.total > data.pageSize" class="pagination">
-          <button :disabled="page === 1" @click="page--">上一页</button>
-          <span>{{ page }}</span>
-          <button
-            :disabled="page * data.pageSize >= data.total"
-            @click="page++"
-          >
-            下一页
-          </button>
-        </nav>
-      </section>
-      <article v-if="selected">
-        <time>{{ selected.publishedAt.slice(0, 10) }}</time>
-        <h2>{{ selected.title }}</h2>
-        <p class="notification-body">{{ selected.body }}</p>
-        <NuxtLink v-if="selected.link" :to="selected.link" class="detail-link">
-          查看相关内容
-        </NuxtLink>
-        <p v-if="message" role="alert">{{ message }}</p>
-      </article>
-      <div v-else class="empty-detail">选择一条通知阅读</div>
-    </div>
-    <div v-else class="empty-state">
-      <Bell :size="26" />
-      <h2>暂无通知</h2>
-      <p>新的平台消息会显示在这里。</p>
-    </div>
-  </div>
+ <AccountShell section="notifications"><section ref="container" class="notification-section" aria-labelledby="notification-title"><header class="personal-section-heading"><h1 id="notification-title">通知</h1><span v-if="data?.unread" class="notification-count">{{data.unread}} 条未读</span></header><p v-if="error" role="alert">消息读取失败。<button class="personal-text-link" @click="refresh">重试</button></p><UiBusyIndicator v-else-if="pending&&!data" label="通知加载"/><div v-else-if="data?.items.length" class="notification-grid" :class="{'detail-open':!!selected}"><section class="notification-list" aria-label="通知列表"><button v-for="item in data.items" :key="item.id" :class="{selected:selected?.id===item.id,unread:!item.readAt}" :aria-pressed="selected?.id===item.id" @click="read(item)"><span class="notification-kind" :class="item.kind"><Bell v-if="item.kind==='announcement'" :size="12"/><MessageCircle v-else :size="12"/>{{item.kind==='announcement'?'平台通知':'消息'}}</span><strong>{{item.title}}</strong><small><span>{{item.sender.name}}</span><time>{{item.publishedAt.slice(0,10)}}</time></small><i v-if="!item.readAt" class="unread-dot" aria-label="未读"/></button><nav v-if="data.total>data.pageSize" class="notification-pagination"><button :disabled="page===1||pending" @click="page--">上一页</button><span>{{page}}</span><button :disabled="page*data.pageSize>=data.total||pending" @click="page++">下一页</button></nav></section><article v-if="selected" class="notification-detail"><button type="button" class="notification-back" @click="back"><ArrowLeft :size="15"/>全部消息</button><div class="notification-detail-meta"><span class="notification-kind" :class="selected.kind">{{selected.kind==='announcement'?'平台通知':'消息'}}</span><div class="notification-detail-actions"><time>{{selected.publishedAt.slice(0,10)}}</time><button class="notification-delete" :disabled="deleting" aria-label="删除消息" @click="remove"><UiBusyLabel :busy="deleting"><Trash2 :size="15"/>删除</UiBusyLabel></button></div></div><h2>{{selected.title}}</h2><div class="notification-sender"><span class="sender-initial" aria-hidden="true">{{selected.sender.name.slice(0,1)}}</span><span class="sender-name">{{selected.sender.name}}</span></div><p class="notification-body">{{selected.body}}</p><NuxtLink v-if="selected.link" :to="selected.link" class="personal-text-link">查看相关内容</NuxtLink><p v-if="message" role="alert" class="notification-error">{{message}}</p></article><div v-else class="notification-pick"><Mail :size="28"/><span>选择消息</span></div></div><div v-else class="personal-empty"><div class="personal-empty-icon"><Bell :size="28"/></div><h2>暂无通知</h2></div></section></AccountShell>
 </template>
 <style scoped>
-.notification-page > header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 28px;
-}
-h1 {
-  font-size: 26px;
-  margin: 0;
-}
-header p,
-.empty-state p {
-  color: var(--muted);
-  font-size: 13px;
-  margin: 10px 0 0;
-}
-.notification-grid {
-  display: grid;
-  grid-template-columns: 320px minmax(0, 1fr);
-  min-height: 420px;
-  border: 1px solid var(--line);
-  border-radius: 14px;
-  overflow: hidden;
-  background: var(--paper);
-}
-.notification-list {
-  border-right: 1px solid var(--line);
-}
-.notification-list > button {
-  display: grid;
-  gap: 10px;
-  text-align: left;
-  width: 100%;
-  padding: 20px;
-  border: 0;
-  border-bottom: 1px solid var(--line);
-  background: transparent;
-  color: var(--ink);
-  cursor: pointer;
-}
-.notification-list > button:hover,
-.notification-list > button.selected {
-  background: var(--soft);
-}
-.item-heading {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-.item-heading strong {
-  font-size: 13px;
-  font-weight: 500;
-  overflow-wrap: anywhere;
-}
-.unread strong {
-  font-weight: 650;
-}
-.item-heading i {
-  width: 6px;
-  height: 6px;
-  flex-shrink: 0;
-  background: var(--green);
-  border-radius: 50%;
-}
-.item-heading svg {
-  margin-left: auto;
-  color: var(--muted);
-}
-small,
-time {
-  font-size: 11px;
-  color: var(--muted);
-}
-article {
-  padding: 36px;
-  overflow-wrap: anywhere;
-}
-h2 {
-  font-size: 22px;
-  margin: 14px 0 24px;
-}
-.notification-body {
-  font-size: 15px;
-  line-height: 1.9;
-  white-space: pre-wrap;
-}
-.detail-link {
-  display: inline-block;
-  margin-top: 18px;
-  color: var(--green);
-  font-size: 13px;
-}
-.empty-detail,
-.empty-state {
-  display: grid;
-  place-content: center;
-  text-align: center;
-  color: var(--muted);
-  padding: 60px;
-}
-.empty-state svg {
-  margin: auto;
-}
-.pagination {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 14px;
-  font-size: 12px;
-}
-.pagination button {
-  border: 0;
-  background: transparent;
-  color: var(--ink);
-  cursor: pointer;
-}
-.pagination button:disabled {
-  opacity: 0.35;
-}
-button:focus-visible {
-  outline: 2px solid var(--green);
-  outline-offset: -3px;
-}
-@media (max-width: 760px) {
-  .notification-grid {
-    grid-template-columns: 1fr;
-  }
-  .notification-list {
-    border-right: 0;
-  }
-  article {
-    padding: 24px;
-  }
-  .empty-detail {
-    display: none;
-  }
-}
+.notification-section{scroll-margin-top:84px}.notification-back{display:none}.notification-detail-actions{display:flex;align-items:center;gap:12px}.notification-error{font-size:12px;color:var(--tone-red)}.sender-name{min-width:0;overflow-wrap:anywhere}.notification-count{font-size:12px;color:var(--personal-accent);background:var(--personal-soft);padding:6px 10px;border-radius:20px}.notification-grid{display:grid;grid-template-columns:280px minmax(0,1fr);min-height:420px;max-height:min(680px,calc(100dvh - 220px));border:1px solid var(--line);border-radius:12px;background:var(--paper);overflow:hidden}.notification-list{min-height:0;overflow:auto;border-right:1px solid var(--line)}.notification-list>button{position:relative;display:grid;gap:10px;width:100%;text-align:left;padding:20px 22px;border:0;border-bottom:1px solid var(--line);background:transparent;color:var(--ink);cursor:pointer}.notification-list>button.selected{background:var(--personal-soft);box-shadow:inset 3px 0 var(--personal-accent)}.notification-list>button:hover:not(.selected){background:var(--soft)}.notification-list strong{font-size:14px;font-weight:500;overflow-wrap:anywhere}.notification-list .unread strong{font-weight:650}.notification-list small{display:flex;justify-content:space-between;gap:12px;font-size:11px;color:var(--muted)}.notification-list small span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.unread-dot{position:absolute;right:18px;top:24px;width:6px;height:6px;border-radius:50%;background:var(--tone-red)}.notification-kind{display:inline-flex;align-items:center;gap:5px;width:fit-content;font-size:10px;font-weight:550;padding:4px 7px;border-radius:5px;color:var(--tone-red);background:var(--tone-red-soft)}.notification-kind.message{color:var(--tone-green);background:var(--tone-green-soft)}.notification-detail{min-height:0;overflow:auto;padding:28px 32px;overflow-wrap:anywhere;display:flex;flex-direction:column;min-width:0}.notification-detail-meta{display:flex;align-items:center;justify-content:space-between;gap:12px}.notification-detail time{color:var(--muted);font-size:11px}.notification-detail h2{font-size:23px;line-height:1.4;margin:22px 0 14px}.notification-sender{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--muted)}.sender-initial{flex-shrink:0;display:grid;place-items:center;width:26px;height:26px;border-radius:9px;background:var(--personal-soft);color:var(--personal-accent);font-weight:600}.notification-body{font-size:14px;line-height:1.9;white-space:pre-wrap;margin:24px 0}.notification-delete{border:1px solid var(--line);background:transparent;color:var(--tone-red);padding:8px 10px;border-radius:7px;font-size:12px;cursor:pointer}.notification-delete:disabled{opacity:.5;cursor:default}.notification-pick{display:grid;place-content:center;justify-items:center;gap:12px;color:var(--muted);font-size:12px}.notification-pick svg{color:var(--personal-accent);transform:rotate(-8deg)}.notification-pagination{display:flex;align-items:center;justify-content:space-between;padding:14px;font-size:12px}.notification-pagination button{background:transparent;color:var(--ink);border:0;cursor:pointer}.notification-pagination button:disabled{opacity:.4}button:focus-visible{outline:2px solid var(--personal-accent);outline-offset:-3px}@media(max-width:1100px){.notification-grid{grid-template-columns:230px minmax(0,1fr)}}@media(max-width:760px){.notification-grid{grid-template-columns:1fr;max-height:none}.notification-list{border-right:0;overflow:visible}.notification-grid.detail-open .notification-list{display:none}.notification-detail{padding:24px;min-height:420px;overflow:visible}.notification-back{display:inline-flex;align-items:center;gap:6px;width:fit-content;margin-bottom:18px;min-height:36px;border:0;background:transparent;color:var(--personal-accent);padding:0;font-size:12px;cursor:pointer}.notification-delete{min-height:44px}.notification-pick{display:none}}
 </style>

@@ -43,7 +43,6 @@ const visible = computed(() =>
   <section aria-labelledby="personal-challenges-title">
     <header class="personal-section-heading">
       <div>
-        <span class="personal-eyebrow">CHALLENGES</span>
         <h1 id="personal-challenges-title">挑战记录</h1>
       </div>
       <NuxtLink to="/challenges" class="personal-text-link">探索挑战</NuxtLink>

@@ -1,7 +1,8 @@
 <script setup lang="ts">
-import { Check, KeyRound, Mail, UserRound } from 'lucide-vue-next'
+import { Check, Mail, UserRound } from 'lucide-vue-next'
 import { onBeforeRouteLeave } from 'vue-router'
 
+withDefaults(defineProps<{active?:boolean}>(),{active:true})
 const { currentUser } = useAuth()
 const name = ref(currentUser.value?.displayName || '')
 const busy = ref(false)
@@ -60,11 +61,10 @@ async function save() {
   <section aria-labelledby="personal-profile-title">
     <header class="personal-section-heading">
       <div>
-        <span class="personal-eyebrow">ACCOUNT</span>
         <h1 id="personal-profile-title">账户资料</h1>
       </div>
     </header>
-    <form class="personal-settings" @submit.prevent="save">
+    <div class="profile-panels"><form class="personal-settings" @submit.prevent="save">
       <div class="personal-settings-heading">
         <UserRound :size="18" aria-hidden="true" />
         <h2>基本资料</h2>
@@ -78,7 +78,7 @@ async function save() {
             :disabled="busy"
             :aria-invalid="invalid"
             :aria-describedby="
-              invalid ? 'personal-name-error' : 'personal-name-hint'
+              invalid ? 'personal-name-error' : undefined
             "
             maxlength="64"
             required
@@ -91,9 +91,6 @@ async function save() {
           >
             昵称需为 1–64 个字符。
           </p>
-          <p v-else id="personal-name-hint" class="personal-field-hint">
-            用于个人中心与头像菜单，最多 64 个字符。
-          </p>
         </div>
       </div>
       <div class="personal-field">
@@ -103,7 +100,6 @@ async function save() {
             <Mail :size="15" aria-hidden="true" />
             {{ currentUser?.email }}
           </span>
-          <p class="personal-field-hint">当前登录邮箱</p>
         </div>
       </div>
       <div class="personal-save-row">
@@ -115,7 +111,7 @@ async function save() {
           {{ error }}
         </p>
         <span v-else class="personal-save-hint">
-          {{ dirty ? '有尚未保存的修改' : '资料已同步' }}
+          {{ dirty ? '有未保存的修改' : '' }}
         </span>
         <div class="personal-save-actions">
           <button
@@ -133,20 +129,10 @@ async function save() {
         </div>
       </div>
     </form>
-    <section
-      class="personal-security"
-      aria-labelledby="personal-security-title"
-    >
-      <div>
-        <KeyRound :size="18" aria-hidden="true" />
-        <div>
-          <h2 id="personal-security-title">登录与安全</h2>
-          <p>使用邮箱和密码登录</p>
-        </div>
-      </div>
-      <NuxtLink to="/auth?mode=recover" class="personal-text-link">
-        找回密码
-      </NuxtLink>
-    </section>
+    <AccountPassword v-if="active" /></div>
   </section>
 </template>
+
+<style scoped>
+.profile-panels{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:24px;align-items:stretch}.profile-panels :deep(.personal-settings){display:flex;flex-direction:column;min-width:0}.profile-panels :deep(.personal-save-row){margin-top:auto}@media(max-width:1100px){.profile-panels{grid-template-columns:minmax(0,1fr)}}
+</style>

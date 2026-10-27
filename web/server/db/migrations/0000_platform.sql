@@ -178,15 +178,13 @@ CREATE TABLE "sandbox_node_settings" (
 	"node_id" varchar(64) PRIMARY KEY NOT NULL,
 	"label" varchar(80) NOT NULL,
 	"max_slots" integer NOT NULL,
-	"ttl_seconds" integer NOT NULL,
-	"idle_seconds" integer NOT NULL,
 	"memory_mb" integer NOT NULL,
 	"pids_max" integer NOT NULL,
 	"draining" boolean DEFAULT false NOT NULL,
 	"lock_version" integer DEFAULT 1 NOT NULL,
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"updated_by" uuid,
-	CONSTRAINT "sandbox_node_limits_check" CHECK ("sandbox_node_settings"."max_slots" between 1 and 250 and "sandbox_node_settings"."ttl_seconds" between 60 and 86400 and "sandbox_node_settings"."idle_seconds" between 60 and "sandbox_node_settings"."ttl_seconds" and "sandbox_node_settings"."memory_mb" between 128 and 65536 and "sandbox_node_settings"."pids_max" between 32 and 4096),
+	CONSTRAINT "sandbox_node_limits_check" CHECK ("sandbox_node_settings"."max_slots" between 1 and 250 and "sandbox_node_settings"."memory_mb" between 128 and 65536 and "sandbox_node_settings"."pids_max" between 32 and 4096),
 	CONSTRAINT "sandbox_node_version_check" CHECK ("sandbox_node_settings"."lock_version" > 0),
 	CONSTRAINT "sandbox_node_label_check" CHECK (length(btrim("sandbox_node_settings"."label")) > 0)
 );
@@ -376,6 +374,48 @@ CREATE TABLE "lab_preparations" (
 	CONSTRAINT "lab_preparations_template_id_template_version_node_id_unique" UNIQUE("template_id","template_version","node_id")
 );
 --> statement-breakpoint
+CREATE TABLE "notification_receipts" (
+	"notification_id" uuid NOT NULL,
+	"user_id" uuid NOT NULL,
+	"read_at" timestamp with time zone,
+	"dismissed_at" timestamp with time zone,
+	CONSTRAINT "notification_receipts_notification_id_user_id_pk" PRIMARY KEY("notification_id","user_id")
+);
+--> statement-breakpoint
+CREATE TABLE "notifications" (
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"kind" varchar(20) NOT NULL,
+	"sender_id" uuid,
+	"recipient_id" uuid,
+	"title" varchar(120) NOT NULL,
+	"body" text NOT NULL,
+	"link" varchar(500),
+	"published_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"withdrawn_at" timestamp with time zone,
+	CONSTRAINT "notifications_recipient_check" CHECK (("notifications"."kind"='announcement' and "notifications"."recipient_id" is null) or ("notifications"."kind"='message' and "notifications"."recipient_id" is not null))
+);
+--> statement-breakpoint
+CREATE TABLE "runtime_policies" (
+	"id" varchar(16) PRIMARY KEY NOT NULL,
+	"sandbox_ttl_minutes" integer NOT NULL,
+	"sandbox_idle_minutes" integer NOT NULL,
+	"target_ttl_minutes" integer NOT NULL,
+	"lock_version" integer NOT NULL,
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"updated_by" uuid,
+	CONSTRAINT "runtime_policy_singleton" CHECK ("runtime_policies"."id"='global'),
+	CONSTRAINT "runtime_policy_limits" CHECK ("runtime_policies"."sandbox_ttl_minutes" between 1 and 1440 and "runtime_policies"."sandbox_idle_minutes" between 1 and "runtime_policies"."sandbox_ttl_minutes" and "runtime_policies"."target_ttl_minutes" between 1 and 1440 and "runtime_policies"."lock_version">0)
+);
+--> statement-breakpoint
+CREATE TABLE "learn_home_settings" (
+	"id" varchar(16) PRIMARY KEY NOT NULL,
+	"config" jsonb NOT NULL,
+	"lock_version" integer NOT NULL,
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"updated_by" uuid,
+	CONSTRAINT "learn_home_singleton" CHECK ("learn_home_settings"."id"='global' and "learn_home_settings"."lock_version">0)
+);
+--> statement-breakpoint
 ALTER TABLE "auth_sessions" ADD CONSTRAINT "auth_sessions_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "email_tokens" ADD CONSTRAINT "email_tokens_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "audit_logs" ADD CONSTRAINT "audit_logs_actor_user_id_users_id_fk" FOREIGN KEY ("actor_user_id") REFERENCES "public"."users"("id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
@@ -417,6 +457,12 @@ ALTER TABLE "module_images" ADD CONSTRAINT "module_images_module_id_modules_id_f
 ALTER TABLE "module_images" ADD CONSTRAINT "module_images_asset_id_assets_id_fk" FOREIGN KEY ("asset_id") REFERENCES "public"."assets"("id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "lab_bundles" ADD CONSTRAINT "lab_bundles_actor_id_users_id_fk" FOREIGN KEY ("actor_id") REFERENCES "public"."users"("id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "lab_preparations" ADD CONSTRAINT "lab_preparations_template_id_target_templates_id_fk" FOREIGN KEY ("template_id") REFERENCES "public"."target_templates"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "notification_receipts" ADD CONSTRAINT "notification_receipts_notification_id_notifications_id_fk" FOREIGN KEY ("notification_id") REFERENCES "public"."notifications"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "notification_receipts" ADD CONSTRAINT "notification_receipts_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "notifications" ADD CONSTRAINT "notifications_sender_id_users_id_fk" FOREIGN KEY ("sender_id") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "notifications" ADD CONSTRAINT "notifications_recipient_id_users_id_fk" FOREIGN KEY ("recipient_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "runtime_policies" ADD CONSTRAINT "runtime_policies_updated_by_users_id_fk" FOREIGN KEY ("updated_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "learn_home_settings" ADD CONSTRAINT "learn_home_settings_updated_by_users_id_fk" FOREIGN KEY ("updated_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 CREATE UNIQUE INDEX "auth_sessions_token_hash_unique_idx" ON "auth_sessions" USING btree ("token_hash");--> statement-breakpoint
 CREATE INDEX "auth_sessions_user_expires_idx" ON "auth_sessions" USING btree ("user_id","expires_at");--> statement-breakpoint
 CREATE UNIQUE INDEX "email_tokens_token_hash_unique_idx" ON "email_tokens" USING btree ("token_hash");--> statement-breakpoint
@@ -442,10 +488,7 @@ CREATE INDEX "target_instances_expiry_idx" ON "target_instances" USING btree ("e
 CREATE UNIQUE INDEX "chapter_sources_module_key_unique" ON "chapter_sources" USING btree ("module_id","match_key");--> statement-breakpoint
 CREATE UNIQUE INDEX "module_sources_origin_path_unique" ON "module_sources" USING btree ("origin","source_path");--> statement-breakpoint
 CREATE UNIQUE INDEX "question_sources_chapter_key_unique" ON "question_sources" USING btree ("chapter_id","match_key");--> statement-breakpoint
-CREATE INDEX "lab_preparations_node_idx" ON "lab_preparations" USING btree ("node_id");
---> statement-breakpoint
-INSERT INTO content_categories (slug, name, position) VALUES
-('web-security', 'Web 安全', 1), ('linux', 'Linux 基础', 2),
-('network', '网络安全', 3), ('cloud', '云原生安全', 4),
-('reverse', '逆向分析', 5), ('containers', '容器安全', 6)
-ON CONFLICT (slug) DO NOTHING;
+CREATE INDEX "lab_preparations_node_idx" ON "lab_preparations" USING btree ("node_id");--> statement-breakpoint
+CREATE INDEX "notification_receipts_user_idx" ON "notification_receipts" USING btree ("user_id");--> statement-breakpoint
+CREATE INDEX "notifications_published_idx" ON "notifications" USING btree ("published_at");--> statement-breakpoint
+CREATE INDEX "notifications_recipient_idx" ON "notifications" USING btree ("recipient_id","published_at");

@@ -1,5 +1,5 @@
 {
-  "id": "382ba7cb-140e-4d52-ac9a-011f01dc22a3",
+  "id": "265e49d2-6242-4e16-8a2d-1cdbbdc272a4",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
@@ -1648,18 +1648,6 @@
           "primaryKey": false,
           "notNull": true
         },
-        "ttl_seconds": {
-          "name": "ttl_seconds",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "idle_seconds": {
-          "name": "idle_seconds",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true
-        },
         "memory_mb": {
           "name": "memory_mb",
           "type": "integer",
@@ -1722,7 +1710,7 @@
       "checkConstraints": {
         "sandbox_node_limits_check": {
           "name": "sandbox_node_limits_check",
-          "value": "\"sandbox_node_settings\".\"max_slots\" between 1 and 250 and \"sandbox_node_settings\".\"ttl_seconds\" between 60 and 86400 and \"sandbox_node_settings\".\"idle_seconds\" between 60 and \"sandbox_node_settings\".\"ttl_seconds\" and \"sandbox_node_settings\".\"memory_mb\" between 128 and 65536 and \"sandbox_node_settings\".\"pids_max\" between 32 and 4096"
+          "value": "\"sandbox_node_settings\".\"max_slots\" between 1 and 250 and \"sandbox_node_settings\".\"memory_mb\" between 128 and 65536 and \"sandbox_node_settings\".\"pids_max\" between 32 and 4096"
         },
         "sandbox_node_version_check": {
           "name": "sandbox_node_version_check",
@@ -3196,6 +3184,374 @@
       },
       "policies": {},
       "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.notification_receipts": {
+      "name": "notification_receipts",
+      "schema": "",
+      "columns": {
+        "notification_id": {
+          "name": "notification_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "user_id": {
+          "name": "user_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "read_at": {
+          "name": "read_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "dismissed_at": {
+          "name": "dismissed_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {
+        "notification_receipts_user_idx": {
+          "name": "notification_receipts_user_idx",
+          "columns": [
+            {
+              "expression": "user_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "notification_receipts_notification_id_notifications_id_fk": {
+          "name": "notification_receipts_notification_id_notifications_id_fk",
+          "tableFrom": "notification_receipts",
+          "tableTo": "notifications",
+          "columnsFrom": [
+            "notification_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "notification_receipts_user_id_users_id_fk": {
+          "name": "notification_receipts_user_id_users_id_fk",
+          "tableFrom": "notification_receipts",
+          "tableTo": "users",
+          "columnsFrom": [
+            "user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "notification_receipts_notification_id_user_id_pk": {
+          "name": "notification_receipts_notification_id_user_id_pk",
+          "columns": [
+            "notification_id",
+            "user_id"
+          ]
+        }
+      },
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.notifications": {
+      "name": "notifications",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "kind": {
+          "name": "kind",
+          "type": "varchar(20)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "sender_id": {
+          "name": "sender_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "recipient_id": {
+          "name": "recipient_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "title": {
+          "name": "title",
+          "type": "varchar(120)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "body": {
+          "name": "body",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "link": {
+          "name": "link",
+          "type": "varchar(500)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "published_at": {
+          "name": "published_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "withdrawn_at": {
+          "name": "withdrawn_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {
+        "notifications_published_idx": {
+          "name": "notifications_published_idx",
+          "columns": [
+            {
+              "expression": "published_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "notifications_recipient_idx": {
+          "name": "notifications_recipient_idx",
+          "columns": [
+            {
+              "expression": "recipient_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "published_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "notifications_sender_id_users_id_fk": {
+          "name": "notifications_sender_id_users_id_fk",
+          "tableFrom": "notifications",
+          "tableTo": "users",
+          "columnsFrom": [
+            "sender_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        },
+        "notifications_recipient_id_users_id_fk": {
+          "name": "notifications_recipient_id_users_id_fk",
+          "tableFrom": "notifications",
+          "tableTo": "users",
+          "columnsFrom": [
+            "recipient_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "notifications_recipient_check": {
+          "name": "notifications_recipient_check",
+          "value": "(\"notifications\".\"kind\"='announcement' and \"notifications\".\"recipient_id\" is null) or (\"notifications\".\"kind\"='message' and \"notifications\".\"recipient_id\" is not null)"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.runtime_policies": {
+      "name": "runtime_policies",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "varchar(16)",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "sandbox_ttl_minutes": {
+          "name": "sandbox_ttl_minutes",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "sandbox_idle_minutes": {
+          "name": "sandbox_idle_minutes",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "target_ttl_minutes": {
+          "name": "target_ttl_minutes",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "lock_version": {
+          "name": "lock_version",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_by": {
+          "name": "updated_by",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "runtime_policies_updated_by_users_id_fk": {
+          "name": "runtime_policies_updated_by_users_id_fk",
+          "tableFrom": "runtime_policies",
+          "tableTo": "users",
+          "columnsFrom": [
+            "updated_by"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "runtime_policy_singleton": {
+          "name": "runtime_policy_singleton",
+          "value": "\"runtime_policies\".\"id\"='global'"
+        },
+        "runtime_policy_limits": {
+          "name": "runtime_policy_limits",
+          "value": "\"runtime_policies\".\"sandbox_ttl_minutes\" between 1 and 1440 and \"runtime_policies\".\"sandbox_idle_minutes\" between 1 and \"runtime_policies\".\"sandbox_ttl_minutes\" and \"runtime_policies\".\"target_ttl_minutes\" between 1 and 1440 and \"runtime_policies\".\"lock_version\">0"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.learn_home_settings": {
+      "name": "learn_home_settings",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "varchar(16)",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "config": {
+          "name": "config",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "lock_version": {
+          "name": "lock_version",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_by": {
+          "name": "updated_by",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "learn_home_settings_updated_by_users_id_fk": {
+          "name": "learn_home_settings_updated_by_users_id_fk",
+          "tableFrom": "learn_home_settings",
+          "tableTo": "users",
+          "columnsFrom": [
+            "updated_by"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "learn_home_singleton": {
+          "name": "learn_home_singleton",
+          "value": "\"learn_home_settings\".\"id\"='global' and \"learn_home_settings\".\"lock_version\">0"
+        }
+      },
       "isRLSEnabled": false
     }
   },

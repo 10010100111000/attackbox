@@ -165,7 +165,7 @@ test(
       )
       assert.equal(
         (
-          await f.sql`select count(*)::int as n from notification_reads where user_id=${a.id}`
+          await f.sql`select count(*)::int as n from notification_receipts where user_id=${a.id}`
         )[0].n,
         1,
       )
@@ -241,7 +241,7 @@ test(
       assert.deepEqual(errors, [])
     } finally {
       await browser?.close()
-      await f.sql`delete from announcements where author_id=${f.admin.id}`
+      await f.sql`delete from notifications where sender_id=${f.admin.id}`
       await f.cleanup()
     }
   },

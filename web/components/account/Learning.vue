@@ -48,7 +48,6 @@ function destination(item: LearningHistoryItem) {
   <section aria-labelledby="personal-learning-title">
     <header class="personal-section-heading">
       <div>
-        <span class="personal-eyebrow">LEARNING</span>
         <h1 id="personal-learning-title">学习记录</h1>
       </div>
       <NuxtLink to="/learn" class="personal-text-link">浏览模块</NuxtLink>

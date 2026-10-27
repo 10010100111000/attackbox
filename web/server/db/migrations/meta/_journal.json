@@ -5,36 +5,8 @@
     {
       "idx": 0,
       "version": "7",
-      "when": 1793042784464,
-      "tag": "0000_compose_platform",
-      "breakpoints": true
-    },
-    {
-      "idx": 1,
-      "version": "7",
-      "when": 1793044241905,
-      "tag": "0001_notifications",
-      "breakpoints": true
-    },
-    {
-      "idx": 2,
-      "version": "7",
-      "when": 1793084752496,
-      "tag": "0002_runtime_policy",
-      "breakpoints": true
-    },
-    {
-      "idx": 3,
-      "version": "7",
-      "when": 1793090115245,
-      "tag": "0003_thankful_sandman",
-      "breakpoints": true
-    },
-    {
-      "idx": 4,
-      "version": "7",
-      "when": 1793114438492,
-      "tag": "0004_remove_seed_categories",
+      "when": 1793117061411,
+      "tag": "0000_platform",
       "breakpoints": true
     }
   ]

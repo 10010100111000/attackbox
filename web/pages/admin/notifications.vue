@@ -108,7 +108,7 @@ async function withdraw(id: string) {
         <div>
           <strong>{{ item.title }}</strong>
           <small>
-            {{ item.publishedAt.slice(0, 10) }} ·
+            {{item.sender.name}} · {{ item.publishedAt.slice(0, 10) }} ·
             {{ item.withdrawnAt ? '已撤回' : '展示中' }}
           </small>
         </div>
