@@ -20,7 +20,7 @@
 | --- | --- |
 | `deploy/systemd/attackbox-web.service` | Nuxt 服务单元 |
 | `deploy/systemd/attackbox-worker.service` | Go Worker 单元 |
-| `deploy/nginx/attackbox.conf` | 单入口 nginx 配置 |
+| `deploy/nginx/attackbox.conf.template` | 单入口 nginx 模板，部署时生成实际转发地址 |
 | `configs/node.yaml.example` | Worker 配置模板（复制为 `configs/node.yaml`，实际配置不提交 Git） |
 | `deploy/web.env.example` | Web 环境变量模板(复制到 `/etc/attackbox/web.env`) |
 | `scripts/deploy.sh` | 服务器上的唯一部署脚本 |
@@ -58,7 +58,7 @@ cd /home/laji/attackbox
 ./scripts/deploy.sh
 ```
 
-脚本按顺序:校验干净工作区 → `git pull --ff-only` → 编译 Worker → `npm ci && npm run build` → 安装 unit/nginx → 发布到 `/var/www/attackbox-web` → 重启 → 健康检查(3000 / 8443 / Worker 注册 / nginx)。
+脚本按顺序:校验干净工作区 → `git pull --ff-only` → 编译 Worker → `npm ci && npm run build` → 安装 unit/nginx → 发布到 `/var/www/attackbox-web` → 重启 → 健康检查（实际 Web／Worker 地址、Worker 注册、nginx 服务状态）。
 
 **注意:重启 Worker 会销毁正在运行的沙箱。** 部署应安排在维护窗口;`/var/www/attackbox-web.prev` 保留上一版,可手工回滚。
 
@@ -88,3 +88,12 @@ CLI 和 GUI 都通过 Worker 自身的 `__enter__`／`__enter_root__` 进入沙�
 | 管理员后台 | 「运行策略」配置沙箱时长、空闲回收与靶场时长；「节点管理」配置节点容量与资源限额 |
 
 `compose_labs.enabled` 和 `network_verified` 在本机网络验收通过后开启，具体见 [Compose 部署说明](compose-platform-integration.md)。
+
+## 端口配置
+
+- Nuxt：在 `/etc/attackbox/web.env` 设置 `HOST`、`PORT`（默认 `127.0.0.1`、`3000`）。请使用单行 `KEY=value`，可加单引号或双引号；不要另设 `NITRO_HOST`、`NITRO_PORT`。
+- Worker：在 `configs/node.yaml` 设置 `gateway.listen_addr`。浏览器连接地址由 `gateway.public_data_url` 与 Web 的 `SANDBOX_NODES_JSON[].publicDataUrl` 对应设置。
+- Worker 的 `node.control_url` 指向 Nuxt 的实际监听地址及 `/cluster/connect`。
+- nginx 的网站入口端口由 `deploy/nginx/attackbox.conf.template` 的 `listen` 设置，默认 80；入口端口或协议改变时，同步调整域名与 `APP_BASE_URL`。
+
+部署脚本读取上述本机监听配置，生成 nginx upstream 与 Web／Worker 健康检查地址，无需手工修改检查端口。通配监听地址转换为对应的 loopback 地址；Worker 启用 TLS 时，通过 `public_data_url` 对应的 HTTPS 地址检查，保持证书校验。生成文件位于临时目录，部署结束删除，不包含邮件或数据库密钥。

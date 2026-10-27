@@ -5,7 +5,7 @@ set -euo pipefail
 REPO="${REPO:-/home/laji/attackbox}"
 BRANCH="${BRANCH:-main}"
 WEB_ROOT="/var/www/attackbox-web"
-ENV_FILE="${ENV_FILE:-/etc/attackbox/web.env}"
+ENV_FILE="/etc/attackbox/web.env"
 
 log() { printf '\n==> %s\n' "$*"; }
 die() { printf 'ERROR: %s\n' "$*" >&2; exit 1; }
@@ -23,6 +23,14 @@ git merge --ff-only "origin/$BRANCH"
 log "build worker"
 mkdir -p bin
 go build -trimpath -o bin/node ./cmd/node
+go build -trimpath -o bin/deploy-config ./cmd/deploy-config
+
+log "render deployment addresses"
+deploy_config_dir="$(mktemp -d)"
+trap 'rm -rf "$deploy_config_dir"' EXIT
+bin/deploy-config -env "$ENV_FILE" -config configs/node.yaml -out "$deploy_config_dir"
+web_health_url="$(cat "$deploy_config_dir/web-health")"
+worker_health_url="$(cat "$deploy_config_dir/worker-health")"
 
 log "build web"
 (cd web && npm ci --no-audit --no-fund && npm run build)
@@ -30,7 +38,7 @@ log "build web"
 log "install systemd units + nginx"
 sudo install -m 0644 deploy/systemd/attackbox-web.service /etc/systemd/system/attackbox-web.service
 sudo install -m 0644 deploy/systemd/attackbox-worker.service /etc/systemd/system/attackbox-worker.service
-sudo install -m 0644 deploy/nginx/attackbox.conf /etc/nginx/sites-available/attackbox
+sudo install -m 0644 "$deploy_config_dir/nginx.conf" /etc/nginx/sites-available/attackbox
 sudo ln -sfn /etc/nginx/sites-available/attackbox /etc/nginx/sites-enabled/attackbox
 sudo nginx -t
 sudo systemctl daemon-reload
@@ -53,17 +61,17 @@ sudo systemctl reload nginx
 
 log "health checks"
 for _ in $(seq 1 20); do
-  if curl -fsS http://127.0.0.1:3000/ >/dev/null 2>&1; then break; fi
+  if curl --connect-timeout 3 --max-time 5 -fsS "$web_health_url" >/dev/null 2>&1; then break; fi
   sleep 1
 done
-curl -fsS http://127.0.0.1:3000/ >/dev/null || die "web is not answering on :3000"
-curl -fsS http://127.0.0.1:8443/health >/dev/null || die "worker gateway is not answering on :8443"
+curl --connect-timeout 3 --max-time 5 -fsS "$web_health_url" >/dev/null || die "web health check failed"
+curl --connect-timeout 3 --max-time 5 -fsS "$worker_health_url" >/dev/null || die "worker gateway health check failed"
 sleep 2
 sudo systemctl is-active --quiet attackbox-web || die "attackbox-web is not active"
 sudo systemctl is-active --quiet attackbox-worker || die "attackbox-worker is not active"
 worker_pid="$(sudo systemctl show -p MainPID --value attackbox-worker)"
 sudo journalctl _PID="$worker_pid" --since "2 min ago" --no-pager | grep -q "Registration acknowledged" \
   || die "worker did not register with the hub"
-curl -fsS -o /dev/null http://127.0.0.1/ || die "nginx is not serving the site"
+sudo systemctl is-active --quiet nginx || die "nginx is not active"
 
 log "deployed $(git rev-parse --short HEAD)"
