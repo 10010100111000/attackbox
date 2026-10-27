@@ -218,10 +218,11 @@ cmd_admin() {
         | DATABASE_URL="${db_url}" node server/scripts/init-admin.mjs
 }
 
+STAGE_ROOT="/var/www/.attackbox-web-stage.$$"
+PREV_ROOT="/var/www/.attackbox-web-prev.$$"
+
 cmd_deploy() {
-    local stage_root="/var/www/.attackbox-web-stage.$$"
-    local prev_root="/var/www/.attackbox-web-prev.$$"
-    trap 'sudo rm -rf "${stage_root}"' EXIT
+    trap 'sudo rm -rf "${STAGE_ROOT}"' EXIT
 
     if ! sudo test -f "${ENV_FILE}"; then
         echo "错误: 缺少 ${ENV_FILE}，请先运行: sudo ./scripts/control.sh setup" >&2
@@ -254,10 +255,10 @@ cmd_deploy() {
         /var/lib/attackbox-web/labs
 
     echo "==> [Control Deploy] 发布 web/.output -> ${WEB_ROOT}/.output..."
-    sudo rm -rf "${stage_root}" "${prev_root}"
-    sudo mkdir -p "${stage_root}"
-    sudo cp -a "${REPO_ROOT}/web/.output" "${stage_root}/.output"
-    sudo chown -R root:root "${stage_root}"
+    sudo rm -rf "${STAGE_ROOT}" "${PREV_ROOT}"
+    sudo mkdir -p "${STAGE_ROOT}"
+    sudo cp -a "${REPO_ROOT}/web/.output" "${STAGE_ROOT}/.output"
+    sudo chown -R root:root "${STAGE_ROOT}"
 
     echo "==> [Control Deploy] 渲染 Nginx 与 systemd 单元..."
     sed "s|@@WEB_UPSTREAM@@|${web_upstream}|g" "${REPO_ROOT}/deploy/control/nginx.conf.template" \
@@ -270,10 +271,10 @@ cmd_deploy() {
     sudo systemctl daemon-reload
 
     if sudo test -d "${WEB_ROOT}"; then
-        sudo mv "${WEB_ROOT}" "${prev_root}"
+        sudo mv "${WEB_ROOT}" "${PREV_ROOT}"
     fi
-    sudo mv "${stage_root}" "${WEB_ROOT}"
-    sudo rm -rf "${prev_root}"
+    sudo mv "${STAGE_ROOT}" "${WEB_ROOT}"
+    sudo rm -rf "${PREV_ROOT}"
 
     echo "==> [Control Deploy] 启动 attackbox-web 与 nginx..."
     sudo systemctl enable attackbox-web nginx >/dev/null
