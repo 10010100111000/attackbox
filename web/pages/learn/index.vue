@@ -2,7 +2,7 @@
 import { ArrowRight, BookOpen } from 'lucide-vue-next'
 import { useAuth } from '~/composables/useAuth'
 import type { LearningHistoryItem } from '~/shared/learning'
-import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
+import { ref, computed } from 'vue'
 import { useLazyFetch, useHead } from '#imports'
 import type { ContentCategory } from '~/shared/content'
 
@@ -41,51 +41,7 @@ const modules = computed<ModuleItem[]>(() => {
   return response.value?.data || []
 })
 
-// 轮播内容数据 (完全忠于原型，去除多余验证性控制按钮)
-const featureSlides = computed(() => {
-  const picks = modules.value.slice(0, 3)
-  return picks.length ? picks.map((module, index) => ({
-    label: index === 0 ? '本期精选' : '模块推荐', title: module.title,
-    description: module.summary, cta: '查看模块', href: `/learn/modules/${module.slug}`,
-    command: '$ explore', caption: module.category?.name || 'AttackBox Learning',
-  })) : [{ label: '开始探索', title: '从理解原理，到独立解决问题。', description: '浏览已发布的学习模块，选择自己的起点。', cta: '浏览学习模块', href: '#module-list', command: '$ explore', caption: 'AttackBox Learning' }]
-})
-watch(() => featureSlides.value.length, length => { if (carouselIndex.value >= length) carouselIndex.value = 0 })
-
-const carouselIndex = ref(0)
-const isPaused = ref(false)
-let carouselTimer: ReturnType<typeof setInterval> | null = null
-
-function nextSlide() {
-  carouselIndex.value = (carouselIndex.value + 1) % featureSlides.value.length
-}
-
-function selectSlide(i: number) {
-  carouselIndex.value = i
-  restartTimer()
-}
-
-function startTimer() {
-  if (carouselTimer) clearInterval(carouselTimer)
-  carouselTimer = setInterval(() => {
-    if (!isPaused.value) {
-      nextSlide()
-    }
-  }, 6000)
-}
-
-function restartTimer() {
-  if (carouselTimer) clearInterval(carouselTimer)
-  startTimer()
-}
-
-onMounted(() => {
-  startTimer()
-})
-
-onUnmounted(() => {
-  if (carouselTimer) clearInterval(carouselTimer)
-})
+const { data: homeResponse } = useLazyFetch<{ data: Omit<import('~/shared/learn-home').LearnHome,'lockVersion'> }>('/api/learn-home')
 
 const activeTab = ref<'modules' | 'paths'>(useRoute().query.tab === 'routes' ? 'paths' : 'modules')
 const selectedCategory = ref('全部模块')
@@ -164,48 +120,7 @@ function getModuleTheme(index: number) {
 <template>
   <div class="learn-page">
     <div class="container">
-      <!-- 轮播 Banner (保留自动轮播与终端艺术卡片，去除验证性 carousel-controls) -->
-      <section
-        class="feature-banner feature-carousel"
-        aria-roledescription="轮播"
-        aria-label="推荐内容"
-        @mouseenter="isPaused = true"
-        @mouseleave="isPaused = false"
-      >
-        <div class="carousel-copy">
-          <div class="feature-label">{{ featureSlides[carouselIndex].label }}</div>
-          <h1>{{ featureSlides[carouselIndex].title }}</h1>
-          <p>{{ featureSlides[carouselIndex].description }}</p>
-          <NuxtLink :to="featureSlides[carouselIndex].href" class="btn">
-            {{ featureSlides[carouselIndex].cta }}
-          </NuxtLink>
-        </div>
-
-        <div class="banner-art" aria-hidden="true">
-          <div class="terminal-art">
-            <div class="dots"><i></i><i></i><i></i></div>
-            <div class="cmd">{{ featureSlides[carouselIndex].command }}</div>
-            <div class="dim">{{ featureSlides[carouselIndex].caption }}</div>
-            <div class="cursor-line">▍</div>
-          </div>
-        </div>
-
-        <!-- 轮播胶囊圆点指示器 (纯粹保留，无杂乱数字与暂停按钮) -->
-        <div class="carousel-pagination" aria-label="选择推荐内容">
-          <button
-            v-for="(s, i) in featureSlides"
-            :key="s.label"
-            class="carousel-dot"
-            :class="{ active: carouselIndex === i }"
-            :aria-label="`第 ${i + 1} 项：${s.label}`"
-            :aria-current="carouselIndex === i ? 'true' : undefined"
-            type="button"
-            @click="selectSlide(i)"
-          >
-            <span></span>
-          </button>
-        </div>
-      </section>
+      <LearningHomeCarousel v-if="homeResponse?.data.enabled" :slides="homeResponse.data.slides" :autoplay="homeResponse.data.autoplay" :interval-seconds="homeResponse.data.intervalSeconds" />
 
       <NuxtLink v-if="recentLearning && activeTab === 'modules'" :to="`/learn/modules/${recentLearning.slug}/${recentLearning.progress.resumeChapterSlug}`" class="recent-learning">
         <div class="recent-copy"><span class="recent-label">继续学习</span><h2>{{ recentLearning.title }}</h2><p>{{ recentLearning.chapterTitle }}</p><div class="recent-progress" :aria-label="`已完成 ${recentLearning.progress.completedChapters} / ${recentLearning.progress.totalChapters} 章节`"><span :style="{ width: `${recentLearning.progress.percent}%` }" /></div><span class="recent-count">已完成 {{ recentLearning.progress.completedChapters }} / {{ recentLearning.progress.totalChapters }} 章节</span></div><ArrowRight :size="20" aria-hidden="true" />
@@ -388,170 +303,6 @@ function getModuleTheme(index: number) {
   max-width: 1100px;
   margin: 0 auto;
   padding: 34px 32px 64px;
-}
-
-/* 轮播 Banner (完全匹配原型，移除了验证性的 controls) */
-.feature-banner {
-  display: grid;
-  grid-template-columns: 1fr 230px;
-  gap: 25px;
-  align-items: center;
-  padding: 29px 32px;
-  border: 1px solid var(--line);
-  background: var(--paper);
-  border-radius: 11px;
-  min-height: 230px;
-  position: relative;
-  overflow: hidden;
-  margin-bottom: 24px;
-}
-
-.carousel-copy {
-  min-width: 0;
-  z-index: 2;
-}
-
-.feature-label {
-  color: var(--muted);
-  font-size: 11px;
-  margin-bottom: 10px;
-  display: flex;
-  align-items: center;
-  gap: 9px;
-  letter-spacing: 0.5px;
-}
-
-.feature-label::before {
-  content: '';
-  display: block;
-  width: 5px;
-  height: 5px;
-  border-radius: 50%;
-  background: var(--green);
-}
-
-.feature-banner h1 {
-  font-size: 26px;
-  margin: 0 0 8px;
-  letter-spacing: -0.8px;
-  color: var(--ink);
-  line-height: 1.35;
-}
-
-.feature-banner p {
-  font-size: 13px;
-  margin: 0 0 18px;
-  max-width: 540px;
-  color: var(--muted);
-  line-height: 1.6;
-}
-
-.feature-banner .btn {
-  font-size: 12px;
-  padding: 9px 18px;
-  border-radius: 6px;
-  background: var(--green);
-  color: var(--on-accent);
-  text-decoration: none;
-  display: inline-flex;
-  align-items: center;
-  font-weight: 550;
-  transition: opacity 0.15s ease;
-}
-
-.feature-banner .btn:hover {
-  opacity: 0.9;
-}
-
-/* 轮播右侧倾斜终端艺术卡片 */
-.banner-art {
-  height: 130px;
-  position: relative;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.terminal-art {
-  width: 200px;
-  background: var(--code);
-  color: var(--code-ink);
-  border-radius: 8px;
-  padding: 12px 16px;
-  transform: rotate(-4deg);
-  box-shadow: 9px 10px 0 var(--soft);
-  font: 12px/2 ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-}
-
-.terminal-art .dots {
-  display: flex;
-  gap: 4px;
-  margin-bottom: 12px;
-}
-
-.terminal-art .dots i {
-  width: 5px;
-  height: 5px;
-  border-radius: 50%;
-  background: var(--code-muted);
-  opacity: 0.65;
-}
-
-.terminal-art .cmd {
-  color: var(--code-highlight);
-}
-
-.terminal-art .dim {
-  color: var(--code-muted);
-  font-size: 10px;
-}
-
-.cursor-line {
-  margin-top: 5px;
-  color: var(--green);
-  animation: blink 1s step-start infinite;
-}
-
-@keyframes blink {
-  50% { opacity: 0; }
-}
-
-/* 轮播分页胶囊指示器 (仅保留纯粹的分页点) */
-.carousel-pagination {
-  position: absolute;
-  bottom: 14px;
-  left: 28px;
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  z-index: 5;
-}
-
-.carousel-dot {
-  width: 26px;
-  height: 26px;
-  padding: 8px 4px;
-  background: transparent;
-  display: grid;
-  place-items: center;
-  border-radius: 5px;
-  border: none;
-  cursor: pointer;
-}
-
-.carousel-dot span {
-  height: 4px;
-  width: 6px;
-  border-radius: 5px;
-  background: var(--muted);
-  opacity: 0.35;
-  transition: width 0.2s ease, opacity 0.2s ease, background-color 0.2s ease;
-}
-
-.carousel-dot.active span {
-  width: 18px;
-  opacity: 1;
-  background: var(--ink);
 }
 
 /* 二级 Tab 切换栏 */
@@ -850,13 +601,6 @@ function getModuleTheme(index: number) {
 
 /* 响应式调整 */
 @media (max-width: 900px) {
-  .feature-banner {
-    grid-template-columns: 1fr;
-    min-height: auto;
-  }
-  .banner-art {
-    display: none;
-  }
   .cards {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }

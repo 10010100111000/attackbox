@@ -11,6 +11,8 @@ export default defineEventHandler((e) => {
       '/api/me/',
       '/api/admin/notifications',
       '/api/admin/runtime-policy',
+      '/api/admin/learn-home',
+      '/admin/learn-home',
       '/admin/runtime-policy',
       '/notifications',
       '/me',

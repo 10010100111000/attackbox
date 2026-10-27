@@ -120,3 +120,5 @@ CLI 和 GUI 都通过 Worker 自身的 `__enter__`／`__enter_root__` 进入沙�
 - `/etc/attackbox/web.env`：root 所有、权限 `0600`，由 systemd 读取并传入 Nuxt。部署渲染工具通过 sudo 读取，只输出连接地址和 nginx 配置，不输出密钥。
 
 如自行修改 `CONTENT_DATA_DIR` 或 `LAB_DATA_DIR`，需预先创建对应目录并授予 `attackbox` 写权限；目录须放在发布产物、用户 home 和系统只读路径之外。
+
+学习首页推荐区配置见 [学习首页管理](learn-home.md)；首次部署此功能需先执行 `sudo scripts/manage.py migrate`，再发布服务。

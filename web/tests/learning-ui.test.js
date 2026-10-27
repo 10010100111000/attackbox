@@ -38,8 +38,8 @@ test('pages/learn/index.vue defines learning layout, /api/modules fetch, and cat
   const content = fs.readFileSync(path.join(webDir, 'pages/learn/index.vue'), 'utf-8');
   assert.ok(content.includes("layout: 'learning'"));
   assert.ok(content.includes('/api/modules'));
-  assert.ok(content.includes('feature-banner'));
-  assert.ok(content.includes('carousel-pagination'));
+  assert.ok(content.includes('LearningHomeCarousel'));
+  assert.ok(content.includes('/api/learn-home'));
   assert.ok(content.includes('page-tabs'));
   assert.ok(content.includes('cards'));
   assert.ok(content.includes('card-art'));
