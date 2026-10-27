@@ -35,24 +35,43 @@ export async function resolveContentImage(rootDirectory: string, image: ContentI
   }
 }
 
-/** Local validation only: no DB, network, Git, image copying or publishing. */
+async function collectMarkdownFiles(root: string, relDir = ''): Promise<string[]> {
+  const currentDir = relDir ? path.join(root, relDir) : root
+  const entries = (await readdir(currentDir, { withFileTypes: true }))
+    .filter(e => !e.name.startsWith('.'))
+    .sort((a, b) => a.name.localeCompare(b.name))
+  const files: string[] = []
+  for (const entry of entries) {
+    const relPath = relDir ? `${relDir}/${entry.name}` : entry.name
+    const fullPath = path.join(root, relPath)
+    const stat = await lstat(fullPath)
+    if (stat.isSymbolicLink()) {
+      throw new ContentFormatError([{ file: relPath, line: 1, message: '模块不能包含符号链接' }])
+    }
+    if (stat.isDirectory()) {
+      files.push(...await collectMarkdownFiles(root, relPath))
+    } else if (stat.isFile() && entry.name.endsWith('.md') && entry.name.toLowerCase() !== 'readme.md') {
+      files.push(relPath)
+    }
+  }
+  return files
+}
+
+/** Local validation supporting both flat and nested module folders. */
 export async function checkContentDirectory(directory: string): Promise<CheckedModule[]> {
   const root = await realpath(directory)
-  const entries = (await readdir(root, { withFileTypes: true }))
-    .filter(e => e.name.endsWith('.md') && !e.name.startsWith('.') && e.name.toLowerCase() !== 'readme.md')
-    .sort((a, b) => a.name.localeCompare(b.name))
-  if (!entries.length) throw new ContentFormatError([{ file: '.', line: 1, message: '内容目录中没有模块 .md 文件' }])
+  const mdFiles = await collectMarkdownFiles(root)
+  if (!mdFiles.length) throw new ContentFormatError([{ file: '.', line: 1, message: '内容目录中没有模块 .md 文件' }])
   const result: CheckedModule[] = [], issues: ContentIssue[] = [], names = new Set<string>()
   let totalBytes = 0
-  for (const entry of entries) {
+  for (const relPath of mdFiles) {
     try {
-      const location = { file: entry.name, line: 1 }
-      if (!entry.isFile()) throw new ContentFormatError([{ ...location, message: '模块必须是普通文件，不能是目录或符号链接' }])
-      const file = path.join(root, entry.name), stat = await lstat(file)
+      const location = { file: relPath, line: 1 }
+      const file = path.join(root, relPath), stat = await lstat(file)
       if (stat.size > 2 * 1024 * 1024) throw new ContentFormatError([{ ...location, message: '单个教程不能超过 2 MiB' }])
       totalBytes += stat.size
       if (totalBytes > 64 * 1024 * 1024) throw new ContentFormatError([{ ...location, message: '单次校验的教程总大小不能超过 64 MiB' }])
-      const module = parseModuleMarkdown(entry.name, await readFile(file, 'utf8'))
+      const module = parseModuleMarkdown(relPath, await readFile(file, 'utf8'))
       const key = module.title.normalize('NFKC')
       if (names.has(key)) throw new ContentFormatError([{ ...location, message: '模块名称重复' }])
       names.add(key)
