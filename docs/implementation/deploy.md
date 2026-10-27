@@ -30,7 +30,13 @@
 ## 首次准备
 
 1. PostgreSQL、Docker、Go、Node、nginx 已安装。
-2. `cp deploy/web.env.example /etc/attackbox/web.env`,替换全部 `CHANGE_ME`。
+2. 创建服务端密钥配置，替换全部 `CHANGE_ME`：
+
+   ```bash
+   sudo install -d -m 0755 /etc/attackbox
+   sudo install -m 0600 deploy/web.env.example /etc/attackbox/web.env
+   sudoedit /etc/attackbox/web.env
+   ```
 3. 创建 Worker 本机配置并填写实际值：
 
    ```bash
@@ -97,3 +103,13 @@ CLI 和 GUI 都通过 Worker 自身的 `__enter__`／`__enter_root__` 进入沙�
 - nginx 的网站入口端口由 `deploy/nginx/attackbox.conf.template` 的 `listen` 设置，默认 80；入口端口或协议改变时，同步调整域名与 `APP_BASE_URL`。
 
 部署脚本读取上述本机监听配置，生成 nginx upstream 与 Web／Worker 健康检查地址，无需手工修改检查端口。通配监听地址转换为对应的 loopback 地址；Worker 启用 TLS 时，通过 `public_data_url` 对应的 HTTPS 地址检查，保持证书校验。生成文件位于临时目录，部署结束删除，不包含邮件或数据库密钥。
+
+## Nuxt 服务身份与权限
+
+构建由执行部署脚本的用户完成。脚本创建专用系统账号 `attackbox`（无登录 shell），Nuxt 的 systemd 服务以该账号运行；Worker 以 root 运行。
+
+- `/var/www/attackbox-web`：发布文件归 root 所有，Nuxt 只读。
+- `/var/lib/attackbox-web`：systemd 自动创建并交给 `attackbox`，权限 `0700`。教程与靶场包默认分别存放在其 `content`、`labs` 子目录，不与 Worker 的 `/var/lib/attackbox` 混用。
+- `/etc/attackbox/web.env`：root 所有、权限 `0600`，由 systemd 读取并传入 Nuxt。部署渲染工具通过 sudo 读取，只输出连接地址和 nginx 配置，不输出密钥。
+
+如自行修改 `CONTENT_DATA_DIR` 或 `LAB_DATA_DIR`，需预先创建对应目录并授予 `attackbox` 写权限；目录须放在发布产物、用户 home 和系统只读路径之外。

@@ -28,12 +28,22 @@ go build -trimpath -o bin/deploy-config ./cmd/deploy-config
 log "render deployment addresses"
 deploy_config_dir="$(mktemp -d)"
 trap 'rm -rf "$deploy_config_dir"' EXIT
-bin/deploy-config -env "$ENV_FILE" -config configs/node.yaml -out "$deploy_config_dir"
+sudo bin/deploy-config -env "$ENV_FILE" -config configs/node.yaml -out "$deploy_config_dir"
+sudo chmod 0644 "$deploy_config_dir/nginx.conf" "$deploy_config_dir/web-health" "$deploy_config_dir/worker-health"
 web_health_url="$(cat "$deploy_config_dir/web-health")"
 worker_health_url="$(cat "$deploy_config_dir/worker-health")"
 
 log "build web"
 (cd web && npm ci --no-audit --no-fund && npm run build)
+
+log "prepare web service account"
+if ! getent group attackbox >/dev/null; then
+  sudo groupadd --system attackbox
+fi
+if ! id attackbox >/dev/null 2>&1; then
+  sudo useradd --system --gid attackbox --home-dir /var/lib/attackbox-web --no-create-home --shell /usr/sbin/nologin attackbox
+fi
+[ "$(id -u attackbox)" -ne 0 ] || die "attackbox must not be root"
 
 log "install systemd units + nginx"
 sudo install -m 0644 deploy/systemd/attackbox-web.service /etc/systemd/system/attackbox-web.service
@@ -47,7 +57,8 @@ log "publish web build (previous kept as $WEB_ROOT.prev)"
 sudo rm -rf "$WEB_ROOT.new"
 sudo mkdir -p "$WEB_ROOT.new"
 sudo cp -a web/.output "$WEB_ROOT.new/"
-sudo chown -R laji:laji "$WEB_ROOT.new"
+sudo chown -R root:root "$WEB_ROOT.new"
+sudo chmod -R u=rwX,go=rX "$WEB_ROOT.new"
 sudo systemctl stop attackbox-web
 sudo rm -rf "$WEB_ROOT.prev"
 if [ -d "$WEB_ROOT" ]; then sudo mv "$WEB_ROOT" "$WEB_ROOT.prev"; fi

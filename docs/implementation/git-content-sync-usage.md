@@ -5,7 +5,7 @@
 ## 部署
 
 1. 部署新版 web，并执行 `npm --prefix web run db:migrate`，应用 0011、0012 两个迁移。无需修改 Go Worker。
-2. 设置环境变量 `CONTENT_DATA_DIR=/var/lib/attackbox/content`。这是持久目录，不能放进每次发布会替换的 `.output`；确保 web 服务用户可创建和读写此目录。
+2. 设置环境变量 `CONTENT_DATA_DIR=/var/lib/attackbox-web/content`。这是持久目录，不能放进每次发布会替换的 `.output`；确保 `attackbox` 服务用户可创建和读写此目录。
 3. 用 `openssl rand -hex 32` 在部署机器生成独立密钥，写入服务器环境变量 `CONTENT_CREDENTIALS_KEY`，不要写入 Git。保留该密钥用于后续解密，丢失后需重新填写仓库 Token。
 4. 重启 web 服务。环境变量示例在 `deploy/web.env.example`。
 

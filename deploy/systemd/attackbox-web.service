@@ -4,7 +4,15 @@ After=network.target postgresql.service
 
 [Service]
 Type=simple
-User=laji
+User=attackbox
+Group=attackbox
+StateDirectory=attackbox-web
+StateDirectoryMode=0700
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=full
 WorkingDirectory=/var/www/attackbox-web/.output
 EnvironmentFile=/etc/attackbox/web.env
 ExecStart=/usr/bin/node /var/www/attackbox-web/.output/server/index.mjs
