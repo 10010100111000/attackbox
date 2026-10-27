@@ -13,13 +13,8 @@ die() { printf 'ERROR: %s\n' "$*" >&2; exit 1; }
 cd "$REPO"
 [ -f go.mod ] || die "run from the repo root"
 [ -f "$ENV_FILE" ] || die "missing $ENV_FILE (see deploy/web.env.example)"
-[ -f /etc/attackbox/node.yaml ] || die "missing /etc/attackbox/node.yaml (copy configs/node.yaml and configure it)"
+[ -r configs/node.yaml ] || die "missing or unreadable configs/node.yaml (copy configs/node.yaml.example and configure it)"
 [ -z "$(git status --porcelain)" ] || die "working tree is dirty; commit or reset before deploying"
-
-# The legacy oneshot unit creates the same nft table as the worker and can wipe it.
-if systemctl is-enabled --quiet attackbox-fw.service 2>/dev/null; then
-  die "legacy attackbox-fw.service is still enabled; remove it before deploying"
-fi
 
 log "sync $BRANCH"
 git fetch origin "$BRANCH"

@@ -51,3 +51,6 @@ backup
 # Private tutorial snapshots and imported assets
 /data/content/
 /web/data/content/
+
+# Worker deployment configuration (contains cluster credentials)
+/configs/node.yaml

@@ -1,4 +1,4 @@
-# Worker 本机配置示例。复制到 /etc/attackbox/node.yaml 后修改，不在仓库中保存实际密钥。
+# 复制为 configs/node.yaml 后填写本机配置；实际配置不提交 Git。
 # 使用时长、空闲回收在后台「运行策略」设置；容量、内存和进程数在「节点管理」设置。
 node:
   node_id: "node-primary"
