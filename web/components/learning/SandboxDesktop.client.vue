@@ -5,14 +5,14 @@ import type RFB from '@novnc/novnc'
 import type { SandboxTicket } from '~/shared/sandbox'
 const props = defineProps<{ sandboxId: string; active: boolean; autoResize?: boolean }>()
 const {announceGUI}=useSandboxSession()
-const host = ref<HTMLElement | null>(null), state = ref('正在启动桌面'), connecting = ref(false), fit = ref(true)
+const host = ref<HTMLElement | null>(null), state = ref(''), connecting = ref(false), fit = ref(true)
 let viewer: RFB | undefined, retryTimer: ReturnType<typeof setTimeout> | undefined, connectTimer: ReturnType<typeof setTimeout> | undefined, stableTimer: ReturnType<typeof setTimeout> | undefined
 let disposed = false, generation = 0, retries = 0
 async function connect() {
   if (disposed || connecting.value || !host.value) return
   const ownGeneration = ++generation
   clearTimeout(retryTimer); clearTimeout(connectTimer); clearTimeout(stableTimer)
-  connecting.value = true; state.value = '正在启动桌面…'
+  connecting.value = true; state.value = ''
   const old = viewer; viewer = undefined; old?.disconnect()
   try {
     const [{ default: Desktop }, response] = await Promise.all([
@@ -55,7 +55,7 @@ onBeforeUnmount(() => { disposed = true; generation++; clearTimeout(retryTimer);
 </script>
 
 <template>
-  <div class="desktop-panel"><div class="desktop-toolbar"><span role="status">{{ state }}</span><label><input v-model="fit" type="checkbox" />自适应（取消后为原始尺寸）</label><button v-if="state === '桌面已连接'" type="button" @click="viewer?.sendCtrlAltDel()">Ctrl Alt Del</button><button v-else type="button" :disabled="connecting" @click="retries = 0; connect()">重新连接</button></div><div ref="host" class="desktop-host" aria-label="远程桌面" /></div>
+  <div class="desktop-panel"><div class="desktop-toolbar"><span v-if="state" role="status">{{ state }}</span><UiBusyIndicator v-else inline label="桌面连接"/><label><input v-model="fit" type="checkbox" />自适应（取消后为原始尺寸）</label><button v-if="state === '桌面已连接'" type="button" @click="viewer?.sendCtrlAltDel()">Ctrl Alt Del</button><button v-else-if="state" type="button" :disabled="connecting" @click="retries = 0; connect()">重新连接</button></div><div ref="host" class="desktop-host" aria-label="远程桌面" /></div>
 </template>
 
 <style scoped>

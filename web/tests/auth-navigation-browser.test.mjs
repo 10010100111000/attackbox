@@ -116,7 +116,7 @@ test('invalid credentials show an error, allow retry, and never navigate or subm
     try {
       await enterCredentials(page)
       await page.getByRole('button', { name: '登录', exact: true }).click()
-      const busy = page.getByRole('button', { name: '正在登录…', exact: true })
+      const busy = page.getByRole('button', { name: '登录', exact: true })
       await busy.waitFor()
       assert.ok(await busy.isDisabled())
       await page.locator('#auth-form').evaluate(form => { form.requestSubmit(); form.requestSubmit() })

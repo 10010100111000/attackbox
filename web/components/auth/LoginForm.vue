@@ -184,7 +184,7 @@ function handleProvider(providerName: string) {
           type="submit"
           class="submit w-full h-[46px] text-xs font-semibold rounded-md gap-4"
         >
-          <span>{{ busy ? '正在登录…' : '登录' }}</span>
+          <span>登录</span>
 
         </Button>
 

@@ -94,7 +94,7 @@ function submit() {
 
       <div v-if="!pending && !data?.data.items.length" class="empty">
         <Box :size="26" aria-hidden="true" />
-        <p>{{ pending ? '加载中…' : search ? '没有符合条件的模板' : '还没有靶场模板' }}</p>
+        <p>{{ search ? '没有符合条件的模板' : '还没有靶场模板' }}</p>
       </div>
     </div>
 

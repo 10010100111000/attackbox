@@ -52,10 +52,10 @@ function goToLogin() {
   <div class="auth-form-wrapper">
     <!-- 校验中 -->
     <div v-if="status === 'pending'" class="verify-state">
-      <div class="loading-spinner" aria-hidden="true"></div>
+      <UiBusyIndicator inline label="邮箱验证" class="verification-busy"/>
       <div class="eyebrow">ACCOUNT ACTIVATION</div>
-      <h1 id="form-title">正在验证您的邮箱…</h1>
-      <p class="intro">正在向安全服务端校验激活凭据，请稍候。</p>
+      <h1 id="form-title">邮箱验证</h1>
+
     </div>
 
     <!-- 激活成功 -->
@@ -172,21 +172,7 @@ h1 {
   margin-bottom: 22px;
 }
 
-.loading-spinner {
-  width: 32px;
-  height: 32px;
-  border: 3px solid var(--border-line);
-  border-top-color: var(--accent);
-  border-radius: 50%;
-  animation: spin 0.8s linear infinite;
-  margin-bottom: 22px;
-}
-
-@keyframes spin {
-  to {
-    transform: rotate(360deg);
-  }
-}
+.verification-busy{font-size:32px;margin-bottom:22px}
 
 .actions-stack {
   display: flex;

@@ -6,8 +6,8 @@ test('shared content alignment, empty-category filtering, lazy navigation, cache
  const f=await learningFixture();let browser,release
  try{
   const learner=await f.account()
-  const [category]=await f.sql`select id from content_categories where slug='web-security'`
-  assert.equal((await f.sql`select id from content_categories`).length,6)
+  assert.equal((await f.sql`select id from content_categories`).length,0)
+  const [category]=await f.sql`insert into content_categories (slug,name) values ('web-security','Web 安全') returning id`
   await f.createModule('publish',{title:'对齐与导航验收',categoryId:category.id})
   browser=await chromium.launch({executablePath:'/usr/bin/chromium',args:['--no-sandbox']})
   const context=await browser.newContext({viewport:{width:1920,height:1080}})
@@ -51,5 +51,5 @@ test('shared content alignment, empty-category filtering, lazy navigation, cache
   await page.getByRole('button',{name:/用户菜单/}).click();await page.getByRole('link',{name:'个人中心',exact:true}).click();await page.locator('.personal-sidebar').waitFor()
   assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=window.innerWidth),'personal center must fit mobile')
   assert.deepEqual(errors,[])
- }finally{release?.();await browser?.close();await f.cleanup()}
+ }finally{release?.();await browser?.close();await f.sql`delete from modules where category_id in (select id from content_categories where slug='web-security')`;await f.sql`delete from content_categories where slug='web-security'`;await f.cleanup()}
 })

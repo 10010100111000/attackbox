@@ -48,7 +48,7 @@ async function resend() {
         :disabled="busy"
       />
       <button :disabled="busy">
-        {{ busy ? '正在发送…' : '发送验证邮件' }}
+        <UiBusyLabel :busy="busy">发送验证邮件</UiBusyLabel>
       </button>
     </div>
     <p v-if="message" role="status">{{ message }}</p>

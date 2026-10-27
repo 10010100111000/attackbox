@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import {ref,computed,onMounted,watch,onBeforeUnmount} from 'vue'
 import {onBeforeRouteLeave} from 'vue-router'
-import {ArrowLeft,Upload,FileArchive,Check,Server,LoaderCircle,Trash2,Github,Download} from 'lucide-vue-next'
+import {ArrowLeft,Upload,FileArchive,Check,Server,Trash2,Github,Download} from 'lucide-vue-next'
 import type {TargetTemplate} from '~/shared/target-templates'
 import type {ComposePreview,ComposeSettings,ComposePreparation} from '~/shared/compose-labs'
 definePageMeta({layout:'admin',key:r=>r.fullPath})
@@ -42,7 +42,7 @@ function applyGitPreview(data:ComposePreview){
  variables.value=Object.create(null);clearVariables.value=[]
  if(!form.value.name)form.value.name=data.source?.directory.split('/').at(-1)||data.source?.repository.split('/').at(-1)||''
 }
-async function importGit(){busy.value=true;failed.value=false;message.value='正在读取仓库文件…';try{const {data}=await $fetch<{data:{bundle:ComposePreview}}>('/api/admin/lab-bundles/git',{method:'POST',body:gitForm.value,retry:false});applyGitPreview(data.bundle);gitForm.value.token='';gitOpen.value=false;message.value='已导入，请确认部署入口并保存模板。'}catch(e){showError(e,'Git 导入失败')}finally{busy.value=false}}
+async function importGit(){busy.value=true;failed.value=false;message.value='';try{const {data}=await $fetch<{data:{bundle:ComposePreview}}>('/api/admin/lab-bundles/git',{method:'POST',body:gitForm.value,retry:false});applyGitPreview(data.bundle);gitForm.value.token='';gitOpen.value=false;message.value='已导入，请确认部署入口并保存模板。'}catch(e){showError(e,'Git 导入失败')}finally{busy.value=false}}
 async function checkGit(){busy.value=true;failed.value=false;message.value='';try{const {data}=await $fetch<{data:{latestCommit:string;changed:boolean}}>(`/api/admin/lab-bundles/${bundleId.value}/git`,{method:'POST',body:{action:'check'},retry:false});checkedCommit.value=data.changed?data.latestCommit:'';message.value=data.changed?'发现新提交，确认后可导入更新。':'当前已是最新提交。'}catch(e){showError(e,'检查更新失败')}finally{busy.value=false}}
 async function importUpdate(){busy.value=true;failed.value=false;try{const {data}=await $fetch<{data:{bundle:ComposePreview;unchanged:boolean}}>(`/api/admin/lab-bundles/${bundleId.value}/git`,{method:'POST',body:{action:'import',expectedCommit:checkedCommit.value,file:settings.value.file},retry:false});applyGitPreview(data.bundle);message.value=data.unchanged?'提交已更新，文件内容相同，无需重新准备；保存后记录新来源。':'更新已导入编辑区，请确认并保存；新部署需要重新准备。'}catch(e){checkedCommit.value='';showError(e,'导入更新失败')}finally{busy.value=false}}
 async function selectFile(){if(!bundleId.value)return;busy.value=true;try{preview.value=(await $fetch<{data:ComposePreview}>(`/api/admin/lab-bundles/${bundleId.value}`,{query:{file:settings.value.file}})).data;settings.value.entryService=preview.value.services.find(s=>s.name==='web')?.name||preview.value.services[0]?.name||'';const service=preview.value.services.find(s=>s.name===settings.value.entryService);settings.value.entryNetwork=service?.networks[0]||'default';settings.value.entryPort=(service?.ports?.find(p=>p.protocol==='tcp')||service?.ports?.[0])?.port||8080;variables.value=Object.create(null);clearVariables.value=[]}catch(e){showError(e,'Compose 文件解析失败')}finally{busy.value=false}}
@@ -60,7 +60,7 @@ const preparation=(node:string)=>preparations.value.find(p=>p.nodeId===node)
 <template>
  <div class="compose-editor">
   <NuxtLink class="back" to="/admin/target-templates"><ArrowLeft :size="14"/>靶场模板</NuxtLink>
-  <header><div><h1>{{isNew?'新建靶场':'Compose 靶场'}}</h1><p>导入部署文件，按整套环境准备和管理。</p></div><button class="primary" :disabled="busy||!preview||!!issues.length" @click="save"><LoaderCircle v-if="busy" :size="15"/><Check v-else :size="15"/>保存模板</button></header>
+  <header><div><h1>{{isNew?'新建靶场':'Compose 靶场'}}</h1><p>导入部署文件，按整套环境准备和管理。</p></div><button class="primary" :disabled="busy||!preview||!!issues.length" @click="save"><UiBusyLabel :busy="busy"><Check :size="15"/>保存模板</UiBusyLabel></button></header>
   <p v-if="message" class="notice" :class="{failure:failed}" role="status">{{message}}</p>
   <AdminDataLoading :pending="busy" :has-data="loaded"/>
   <form v-if="loaded" @submit.prevent="save"><fieldset :disabled="busy">

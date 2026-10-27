@@ -58,7 +58,7 @@ async function read(item: NotificationItem) {
       <NuxtLink to="/auth">登录</NuxtLink>
     </p>
     <p v-else-if="error" role="alert">通知读取失败，请稍后重新进入。</p>
-    <p v-else-if="pending && !data" role="status">正在读取通知…</p>
+    <UiBusyIndicator v-else-if="pending && !data" label="通知加载"/>
     <div v-else-if="data?.items.length" class="notification-grid">
       <section class="notification-list" aria-label="通知列表">
         <button

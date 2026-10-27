@@ -48,8 +48,8 @@ const visible = computed(() =>
       </div>
       <NuxtLink to="/challenges" class="personal-text-link">探索挑战</NuxtLink>
     </header>
-    <div v-if="pending" class="personal-loading" role="status">
-      <span class="personal-skeleton personal-skeleton-title" />
+    <div v-if="pending && !data" class="personal-loading" role="status">
+      <UiBusyIndicator inline class="personal-loading-mark" aria-hidden="true"/><span class="personal-skeleton personal-skeleton-title" />
       <span class="personal-skeleton" />
       <span class="personal-skeleton" />
       <span class="personal-sr-only">正在读取挑战记录…</span>

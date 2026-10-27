@@ -57,7 +57,7 @@ useHead({
     <nav class="module-back" aria-label="返回学习模块">
       <NuxtLink to="/learn"><ArrowLeft :size="15" aria-hidden="true" />全部模块</NuxtLink>
     </nav>
-    <div v-if="pending" class="state-box" role="status">正在加载模块详情…</div>
+    <UiBusyIndicator v-if="pending && !moduleData" class="state-box" label="模块详情加载"/>
     <div v-else-if="error || !moduleData" class="state-box">
       <h1>模块暂不可用</h1>
       <NuxtLink to="/learn">返回学习模块</NuxtLink>

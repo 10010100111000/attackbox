@@ -139,7 +139,7 @@ async function exit() {
           @click="exit"
         >
           <LogOut :size="15" />
-          {{ leaving ? '正在退出…' : '退出登录' }}
+          <UiBusyLabel :busy="leaving">退出登录</UiBusyLabel>
         </button>
         <p v-if="error" role="alert">{{ error }}</p>
       </PopoverContent>

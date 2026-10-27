@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import {ref,computed,onMounted,onBeforeUnmount,watch} from 'vue'
-import {Box,Copy,Check,Power,Square,LoaderCircle,ChevronDown} from 'lucide-vue-next'
+import {Box,Copy,Check,Power,Square,ChevronDown} from 'lucide-vue-next'
 import type {LearningTarget} from '~/shared/learning-target'
 const props=defineProps<{context:Record<string,string>;target?:LearningTarget}>()
 const {currentUser}=useAuth()
@@ -22,14 +22,14 @@ const attackerAddress=computed(()=>current.value?.instance?.attachment==='connec
 const active=computed(()=>!!current.value && state.value!=='stopped')
 const canRetry=computed(()=>['missing','created'].includes(state.value))
 const status=computed(()=>{
- if(initializing.value)return '正在读取状态'
+ if(initializing.value)return ''
  if(active.value && remaining.value===0)return '租期已到期'
- if(action.value==='start')return '正在启动'
- if(action.value==='stop')return '正在停止'
+ if(action.value==='start')return ''
+ if(action.value==='stop')return ''
  if(state.value==='running'&&current.value?.instance?.attachment==='not_connected')return '服务运行中 · 尚未接入攻击环境'
  if(current.value?.instance?.ready && state.value==='running')return '已就绪'
  if(state.value==='running')return '运行中'
- return ({starting:'正在启动',incomplete:'启动未完成，请释放后重试',degraded:'部分服务未就绪',failed:'服务异常，请释放后重试',created:'尚未启动',stopping:'正在停止',cleanup_pending:'清理待确认',missing:'实例缺失',orphaned:'状态异常',unconfirmed:'状态待确认',stopped:'未启动'} as Record<string,string>)[state.value]||'状态待确认'
+ return ({starting:'',incomplete:'启动未完成，请释放后重试',degraded:'部分服务未就绪',failed:'服务异常，请释放后重试',created:'尚未启动',stopping:'',cleanup_pending:'清理待确认',missing:'实例缺失',orphaned:'状态异常',unconfirmed:'状态待确认',stopped:'未启动'} as Record<string,string>)[state.value]||'状态待确认'
 })
 async function run(operation:'inspect'|'start'|'stop'){
  if(requestPending.value || action.value || !currentUser.value || (unavailable.value&&operation==='start'))return
@@ -57,14 +57,14 @@ onBeforeUnmount(()=>{alive=false;clearInterval(clockTimer);clearTimeout(copyTime
  <section class="target-runtime" aria-label="实验靶机">
   <div class="target-row">
    <div class="target-heading"><Box :size="17" aria-hidden="true"/><div><span class="target-label">实验靶机</span><h2>{{config?.name || '实验环境'}}</h2></div></div>
-   <span v-if="!unavailable && currentUser" class="target-state" :class="{ready:current?.instance?.ready && state==='running' && remaining!==0}" role="status"><i/>{{status}}</span>
+   <span v-if="!unavailable && currentUser" class="target-state" :class="{ready:current?.instance?.ready && state==='running' && remaining!==0}" role="status"><UiBusyIndicator v-if="initializing || action || requestPending || ['starting','stopping'].includes(state)" inline label="靶机操作"/><template v-else><i/>{{status}}</template></span>
    <time v-if="active && countdown" class="target-countdown" :datetime="current?.expiresAt" title="到期自动释放">{{countdown}}</time>
    <div class="target-action">
     <span v-if="unavailable&&!active" class="target-state">暂不可用</span>
     <NuxtLink v-else-if="!currentUser" to="/auth">登录后启动</NuxtLink>
     <template v-else>
-     <button v-if="(!active || canRetry)&&!unavailable" type="button" :disabled="initializing || !!action || requestPending || (active && remaining===0)" class="start" @click="run('start')"><LoaderCircle v-if="action==='start'" :size="14" aria-hidden="true"/><Power v-else :size="14" aria-hidden="true"/>{{canRetry?'重试启动':'启动靶机'}}</button>
-     <button v-if="active" type="button" :disabled="!!action || requestPending" class="stop" @click="run('stop')"><Square :size="12" aria-hidden="true"/>{{state==='cleanup_pending'?'重试停止':'停止靶机'}}</button>
+     <button v-if="(!active || canRetry)&&!unavailable" type="button" :disabled="initializing || !!action || requestPending || (active && remaining===0)" class="start" @click="run('start')"><UiBusyLabel :busy="action==='start'"><Power :size="14" aria-hidden="true"/>{{canRetry?'重试启动':'启动靶机'}}</UiBusyLabel></button>
+     <button v-if="active" type="button" :disabled="!!action || requestPending" class="stop" @click="run('stop')"><UiBusyLabel :busy="action==='stop'"><Square :size="12" aria-hidden="true"/>{{state==='cleanup_pending'?'重试停止':'停止靶机'}}</UiBusyLabel></button>
     </template>
    </div>
   </div>

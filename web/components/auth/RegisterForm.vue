@@ -191,7 +191,7 @@ async function handleSubmit() {
             type="submit"
             class="submit w-full h-[46px] text-xs font-semibold rounded-md gap-4"
           >
-            <span>{{ busy ? '正在继续…' : '继续创建账号' }}</span>
+            <span>继续创建账号</span>
           </Button>
 
           <!-- 状态反馈提示 -->

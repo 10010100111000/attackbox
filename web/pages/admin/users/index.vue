@@ -26,7 +26,7 @@ function date(value: string | null) { return value ? new Date(value).toLocaleStr
       <table><thead><tr><th>用户</th><th>角色</th><th>状态</th><th>最近登录</th><th>当前环境</th><th class="actions">操作</th></tr></thead>
         <tbody><tr v-for="user in result?.items" :key="user.id"><td><NuxtLink :to="`/admin/users/${user.id}`" class="user-name">{{ user.displayName }}</NuxtLink><span class="secondary">{{ user.email }}</span></td><td>{{ user.role === 'admin' ? '管理员' : '用户' }}</td><td><span class="status" :class="user.status">{{ userStatusLabels[user.status] }}</span></td><td>{{ date(user.lastLoginAt) }}</td><td>{{ user.instance ? instanceStateLabels[user.instance.state] : '未运行' }}</td><td class="actions"><NuxtLink :to="`/admin/users/${user.id}`">查看</NuxtLink></td></tr></tbody>
       </table>
-      <div v-if="!pending && !result?.items.length" class="empty"><Users :size="26" aria-hidden="true" /><p>{{ pending ? '加载中…' : '没有符合条件的用户' }}</p></div>
+      <div v-if="!pending && !result?.items.length" class="empty"><Users :size="26" aria-hidden="true" /><p>没有符合条件的用户</p></div>
     </div>
     <footer v-if="result" class="pagination"><span class="muted">第 {{ page }} 页 · 每页 {{ result.pageSize }} 位</span><div><button :disabled="page <= 1 || pending" @click="page--">上一页</button><button :disabled="page * result.pageSize >= result.total || pending" @click="page++">下一页</button></div></footer>
   </div>

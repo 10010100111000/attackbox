@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, watch, onMounted, onBeforeUnmount, nextTick } from 'vue'
 import { useRoute, useFetch, useHead } from '#imports'
-import { ArrowLeft, ArrowRight, LockKeyhole, PanelLeft, Clock3, Terminal, Monitor, ChevronUp, CheckCircle2, CircleAlert, LoaderCircle, BookOpen } from 'lucide-vue-next'
+import { ArrowLeft, ArrowRight, LockKeyhole, PanelLeft, Clock3, Terminal, Monitor, ChevronUp, CheckCircle2, CircleAlert, BookOpen } from 'lucide-vue-next'
 import { DialogRoot, DialogTrigger, DialogPortal, DialogOverlay, DialogContent, DialogTitle, DialogDescription } from 'reka-ui'
 import ChapterOutline from '~/components/learning/ChapterOutline.vue'
 import PracticeDock from '~/components/learning/PracticeDock.vue'
@@ -211,7 +211,7 @@ async function handleCheckAnswer(q: QuestionItem) {
     return
   }
 
-  answerFeedbacks.value[q.id] = { status: 'checking', message: '正在校验…' }
+  answerFeedbacks.value[q.id] = { status: 'checking', message: '' }
   try {
     const res = await $fetch<{ ok: boolean; data: { correct: boolean; errorHint: string | null; progress: ChapterProgress } }>(
       `/api/modules/${moduleSlug.value}/chapters/${chapterSlug.value}/attempt`,
@@ -295,7 +295,7 @@ useHead({
                 <div :id="`question-${q.id}`" class="question-label"><span class="q-num">{{ qIndex + 1 }}.</span><div class="q-prompt" v-html="renderPrompt(q.promptMarkdown)" /></div>
                 <div v-if="!savedProgress.completedAt" class="answer-line">
                   <input :id="`answer-${q.id}`" v-model="userAnswers[q.id]" type="text" class="answer-input" placeholder="输入你的答案" maxlength="2000" autocomplete="off" autocapitalize="off" spellcheck="false" :aria-labelledby="`question-${q.id}`" :aria-describedby="`feedback-${q.id}`" :aria-invalid="answerFeedbacks[q.id]?.status === 'error'" :disabled="answerFeedbacks[q.id]?.status === 'checking'" @input="delete answerFeedbacks[q.id]" />
-                  <button type="submit" class="answer-check-btn" :disabled="answerFeedbacks[q.id]?.status === 'checking'"><LoaderCircle v-if="answerFeedbacks[q.id]?.status === 'checking'" :size="14" class="spinning" aria-hidden="true" />{{ answerFeedbacks[q.id]?.status === 'checking' ? '校验中' : '校验答案' }}</button>
+                  <button type="submit" class="answer-check-btn" :disabled="answerFeedbacks[q.id]?.status === 'checking'"><UiBusyLabel :busy="answerFeedbacks[q.id]?.status === 'checking'">校验答案</UiBusyLabel></button>
                 </div>
                 <div :id="`feedback-${q.id}`" class="answer-feedback" :class="savedProgress.completedAt ? 'success' : answerFeedbacks[q.id]?.status || (savedProgress.passedQuestionIds.includes(q.id) ? 'success' : undefined)" role="status" aria-live="polite"><template v-if="savedProgress.completedAt"><CheckCircle2 :size="14" aria-hidden="true" />已完成</template><template v-else-if="answerFeedbacks[q.id]"><CheckCircle2 v-if="answerFeedbacks[q.id].status === 'success'" :size="14" aria-hidden="true" /><CircleAlert v-else-if="answerFeedbacks[q.id].status === 'error'" :size="14" aria-hidden="true" />{{ answerFeedbacks[q.id].message }}</template><template v-else-if="savedProgress.passedQuestionIds.includes(q.id)"><CheckCircle2 :size="14" aria-hidden="true" />已通过</template></div>
               </form>
@@ -308,7 +308,7 @@ useHead({
                 <NuxtLink v-if="!learnerId" :to="'/auth?returnTo=' + encodeURIComponent(route.fullPath)" class="chapter-primary">{{ allAnswersCorrect ? '练习已通过 · 登录后保存进度' : '登录后保存进度' }}</NuxtLink>
                 <template v-else>
                   <span v-if="chapterData.questions.length && !allAnswersCorrect" class="completion-hint">通过全部练习后完成本章</span>
-                  <button type="button" class="chapter-primary" :disabled="completing || (!!chapterData.questions.length && !allAnswersCorrect)" @click="completeChapter"><LoaderCircle v-if="completing" :size="16" class="spinning" aria-hidden="true"/><CheckCircle2 v-else :size="16" aria-hidden="true"/>{{ completing ? '正在保存…' : '完成本章' }}</button>
+                  <button type="button" class="chapter-primary" :disabled="completing || (!!chapterData.questions.length && !allAnswersCorrect)" @click="completeChapter"><UiBusyLabel :busy="completing"><CheckCircle2 :size="16" aria-hidden="true"/>完成本章</UiBusyLabel></button>
                 </template>
               </template>
               <template v-else>
@@ -323,7 +323,7 @@ useHead({
         <button v-if="practiceVisible && practiceMinimized" type="button" class="dock-restore" aria-label="恢复练习面板" @click="practiceMinimized = false"><Terminal v-if="practiceMode === 'cli'" :size="14" aria-hidden="true" /><Monitor v-else :size="14" aria-hidden="true" />{{ practiceMode === 'cli' ? '终端' : '桌面' }}<ChevronUp :size="15" aria-hidden="true" /></button>
       </div>
     </div>
-    <div v-else class="reading-loading" role="status">正在加载章节…</div>
+    <UiBusyIndicator v-else class="reading-loading" label="章节加载"/>
     <LearningModuleCompletion v-model:open="celebrationOpen" :module-title="moduleData?.title || '学习模块'" :module-slug="moduleSlug" :chapter-count="moduleData?.chapters.length || 0" />
   </div>
 </template>
@@ -402,8 +402,6 @@ useHead({
 svg { flex-shrink: 0; }
 a:focus-visible, button:focus-visible, input:focus-visible { outline: 2px solid var(--focus); outline-offset: 3px; }
 .reading-scroll:focus-visible { outline: 2px solid var(--focus); outline-offset: -2px; }
-.spinning { animation: spin 1s linear infinite; }
-@keyframes spin { to { transform: rotate(360deg); } }
 @media (max-width: 900px) {
   .learn-shell, .learn-shell.outline-collapsed { grid-template-columns: minmax(0, 1fr); }
   .reading-sidebar { display: none; }
@@ -417,7 +415,6 @@ a:focus-visible, button:focus-visible, input:focus-visible { outline: 2px solid 
   .article-body { padding: 26px 20px 40px; }
   .answer-check-btn { padding: 10px 12px; }
 }
-@media (prefers-reduced-motion: reduce) { .spinning { animation: none; } }
 
 /* Global portalled mobile outline styles via :global */
 :global(.outline-overlay) {

@@ -282,10 +282,10 @@ function getModuleTheme(index: number) {
         <div v-else-if="routeResponse?.data.length" class="published-routes"><NuxtLink v-for="item in routeResponse.data" :key="item.id" :to="`/learn/routes/${item.id}`" class="published-route"><span>{{item.moduleCount}} 个模块</span><h2>{{item.title}}</h2><p>{{item.summary}}</p><ArrowRight :size="18" aria-hidden="true" /></NuxtLink></div><div v-else class="empty-notice"><BookOpen :size="24" aria-hidden="true"/><p>暂时没有已发布的路线。</p></div>
       </div>
 
-      <!-- 底部理念标语 (与原型一致) -->
-      <div class="footer-tagline">
+      <!-- 短页靠底，长页随正文排列 -->
+      <footer class="footer-tagline">
         LEARN WITH INTENTION. BUILD WITH CONFIDENCE.
-      </div>
+      </footer>
     </div>
   </div>
 </template>
@@ -303,11 +303,16 @@ function getModuleTheme(index: number) {
 .recent-count { grid-column:2;grid-row:3; display: block; margin-top: 0; font-size: 11px; color: var(--muted); }
 
 .learn-page {
+  flex:1;
+  display:flex;
+  flex-direction:column;
   width: 100%;
-  min-height: calc(100vh - 68px);
+  min-height: calc(100dvh - 68px);
   background: var(--bg);
   color: var(--ink);
 }
+
+.learn-container{flex:1;display:flex;flex-direction:column}
 
 /* 二级 Tab 切换栏 */
 .page-tabs {
@@ -598,7 +603,8 @@ function getModuleTheme(index: number) {
   letter-spacing: 1.5px;
   color: var(--muted);
   text-align: center;
-  margin-top: 60px;
+  margin-top: auto;
+  padding-top: 48px;
   opacity: 0.7;
 }
 

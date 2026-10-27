@@ -89,7 +89,7 @@ async function withdraw(id: string) {
           class="primary"
           :disabled="busy || !form.title.trim() || !form.body.trim()"
         >
-          {{ busy ? '正在处理…' : '发布通知' }}
+          <UiBusyLabel :busy="busy">发布通知</UiBusyLabel>
         </button>
       </form>
       <aside>
@@ -102,7 +102,7 @@ async function withdraw(id: string) {
     <section class="announcement-history">
       <h2>已发布通知</h2>
       <p v-if="error" role="alert">列表读取失败</p>
-      <p v-else-if="pending && !data">正在读取…</p>
+      <UiBusyIndicator v-else-if="pending && !data" label="通知管理加载"/>
       <p v-else-if="!data?.data.items.length">暂无通知</p>
       <div v-for="item in data?.data.items" :key="item.id" class="history-row">
         <div>

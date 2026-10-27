@@ -129,7 +129,7 @@ async function handleSubmit() {
         >
           <span>
             {{
-              busy ? '正在继续…' : hasSent ? '再次发送重置链接' : '发送重置链接'
+              hasSent ? '再次发送重置链接' : '发送重置链接'
             }}
           </span>
         </Button>

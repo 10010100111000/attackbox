@@ -6,9 +6,8 @@ import { fail, slugFor, validateModule, questionValues } from './content-input'
 import { type Tx, auditModule, checkTargetTemplate, lockModule, resolveChapterTarget, writePrerequisites } from './module-references'
 import type { ModuleInput, ChapterInput, AdminModuleDetail } from '../../shared/content'
 
-const presetCategorySlugs = ['web-security', 'linux', 'network', 'cloud', 'reverse', 'containers'] as const
 export async function pruneUnusedCategories(tx: Tx) {
-  await tx.execute(sql`delete from content_categories where id not in (select category_id from modules where category_id is not null) and slug not in ('web-security','linux','network','cloud','reverse','containers')`)
+  await tx.execute(sql`delete from content_categories where id not in (select category_id from modules where category_id is not null)`)
 }
 async function validateReferences(tx: Tx, input: ModuleInput) {
   if (input.categoryId) {

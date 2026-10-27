@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import { Loader2 } from 'lucide-vue-next'
 import { cn } from '~/utils/cn'
 
 interface Props {
@@ -39,12 +38,6 @@ const sizeClasses: Record<'sm' | 'md' | 'lg', string> = {
   lg: 'h-11 px-5 text-base rounded-lg gap-2.5'
 }
 
-const spinnerSizes: Record<'sm' | 'md' | 'lg', string> = {
-  sm: 'w-3.5 h-3.5',
-  md: 'w-4 h-4',
-  lg: 'w-5 h-5'
-}
-
 const buttonClasses = computed(() =>
   cn(
     'inline-flex items-center justify-center font-medium transition-colors select-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent disabled:opacity-50',
@@ -63,15 +56,11 @@ const buttonClasses = computed(() =>
     v-if="isLink"
     :to="disabled || loading ? undefined : to"
     :aria-disabled="disabled || loading ? 'true' : undefined"
+    :aria-busy="loading"
     :tabindex="disabled || loading ? -1 : undefined"
     :class="buttonClasses"
   >
-    <Loader2
-      v-if="loading"
-      :class="cn('animate-spin-slow shrink-0', spinnerSizes[size])"
-      aria-hidden="true"
-    />
-    <slot />
+    <UiBusyLabel :busy="loading"><slot /></UiBusyLabel>
   </NuxtLink>
 
   <component
@@ -80,13 +69,9 @@ const buttonClasses = computed(() =>
     :type="as === 'button' ? type : undefined"
     :disabled="disabled || loading"
     :aria-disabled="disabled || loading ? 'true' : undefined"
+    :aria-busy="loading"
     :class="buttonClasses"
   >
-    <Loader2
-      v-if="loading"
-      :class="cn('animate-spin-slow shrink-0', spinnerSizes[size])"
-      aria-hidden="true"
-    />
-    <slot />
+    <UiBusyLabel :busy="loading"><slot /></UiBusyLabel>
   </component>
 </template>

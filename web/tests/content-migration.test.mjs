@@ -6,7 +6,7 @@ import { drizzle } from 'drizzle-orm/postgres-js'
 import { migrate } from 'drizzle-orm/postgres-js/migrator'
 const target = process.env.CONTENT_MIGRATION_TEST_DATABASE_URL
 
-test('fresh baseline has direct content records, seeded categories and no revision tables', { skip: !target }, async () => {
+test('fresh baseline has direct content records, no seeded categories and no revision tables', { skip: !target }, async () => {
   const url = new URL(target)
   assert.ok(['127.0.0.1', 'localhost', '[::1]'].includes(url.hostname))
   assert.ok(url.pathname.endsWith('_test'))
@@ -26,7 +26,7 @@ test('fresh baseline has direct content records, seeded categories and no revisi
     assert.ok(tables.includes('sandbox_identities'))
     assert.ok(tables.includes('sandbox_node_settings'))
     assert.ok(!tables.some(t => t.includes('revision')))
-    assert.equal((await client`SELECT id FROM content_categories`).length, 6)
+    assert.equal((await client`SELECT id FROM content_categories`).length, 0)
     const columns = (await client`SELECT column_name FROM information_schema.columns WHERE table_name='modules' AND table_schema='public'`).map(c => c.column_name)
     assert.ok(columns.includes('status'))
     assert.ok(columns.includes('lock_version'))

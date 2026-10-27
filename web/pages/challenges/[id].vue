@@ -199,7 +199,7 @@ async function submit(stageId: string) {
                   :disabled="busy || !ready"
                 />
                 <button :disabled="busy || !ready || !answers[s.id]?.trim()">
-                  {{ busy ? '校验中…' : '提交 Flag' }}
+                  <UiBusyLabel :busy="busy">提交 Flag</UiBusyLabel>
                 </button>
               </form>
 

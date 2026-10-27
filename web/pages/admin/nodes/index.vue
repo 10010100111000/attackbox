@@ -39,7 +39,7 @@ onBeforeUnmount(() => { clearInterval(timer); window.removeEventListener('focus'
 
 <template>
   <div class="nodes-page">
-    <header class="page-head"><div><h1>节点管理</h1><p>查看 Worker 的连接、资源与实例清单。</p></div><button class="refresh-btn" :disabled="pending" @click="refresh()"><RefreshCw :size="14" aria-hidden="true" />{{ pending ? '刷新中' : '刷新' }}</button></header>
+    <header class="page-head"><div><h1>节点管理</h1><p>查看 Worker 的连接、资源与实例清单。</p></div><button class="refresh-btn" :disabled="pending" @click="refresh()"><RefreshCw :size="14" aria-hidden="true" /><UiBusyLabel :busy="pending">刷新</UiBusyLabel></button></header>
     <div v-if="error" class="notice error" role="alert"><CircleAlert :size="17" aria-hidden="true" /><div>节点状态加载失败，请检查网络或管理员登录状态。<button @click="refresh()">重试</button></div></div>
     <AdminDataLoading v-else-if="!status" :pending="pending" :has-data="!!data" />
     <template v-if="status">
@@ -48,7 +48,7 @@ onBeforeUnmount(() => { clearInterval(timer); window.removeEventListener('focus'
       <template v-else>
         <div class="summary"><span><strong>{{ online }}</strong> / {{ status.nodes.length }} 节点在线</span><span class="observe-tag">{{ status.schedulingEnabled ? '实例调度已启用' : '仅接入观察 · 尚未开放调度' }}</span></div>
         <section v-for="node in status.nodes" :key="node.id" class="node-card" :aria-labelledby="`node-${node.id}`">
-          <div class="node-head"><div class="node-identity"><Server :size="19" aria-hidden="true" /><div><h2 :id="`node-${node.id}`">{{ node.label }}</h2><code>{{ node.id }}</code></div></div><div class="node-head-actions"><span v-if="node.settings.draining" class="draining-tag">排空中</span><span class="node-state" :class="node.state"><i aria-hidden="true" />{{ labels[node.state] }}</span><button class="settings-btn" type="button" :disabled="saving" :aria-expanded="editing === node.id" @click="edit(node)"><SlidersHorizontal :size="14" aria-hidden="true" />设置</button></div></div>
+          <div class="node-head"><div class="node-identity"><Server :size="19" aria-hidden="true" /><div><h2 :id="`node-${node.id}`">{{ node.label }}</h2><code>{{ node.id }}</code></div></div><div class="node-head-actions"><span v-if="node.settings.draining" class="draining-tag">排空中</span><span class="node-state" :class="node.state"><UiBusyIndicator v-if="['registering','waiting'].includes(node.state)" inline :label="labels[node.state]"/><template v-else><i aria-hidden="true" />{{ labels[node.state] }}</template></span><button class="settings-btn" type="button" :disabled="saving" :aria-expanded="editing === node.id" @click="edit(node)"><SlidersHorizontal :size="14" aria-hidden="true" />设置</button></div></div>
           <div class="node-metrics" :class="{ stale: node.state !== 'online' }">
             <div><span>CPU 核心</span><strong>{{ node.capabilities?.cpuCores ?? '—' }}</strong></div>
             <div><span>可用 / 总内存</span><strong>{{ node.telemetry && node.capabilities ? `${memory(node.telemetry.availableMemoryMb)} / ${memory(node.capabilities.totalMemoryMb)}` : '—' }}</strong></div>
@@ -61,7 +61,7 @@ onBeforeUnmount(() => { clearInterval(timer); window.removeEventListener('focus'
             <div class="settings-grid"><label class="name-field">节点名称<input v-model="draft.label" required maxlength="80" /></label><label>并发实例上限<input v-model.number="draft.maxSlots" type="number" min="1" max="250" required /></label><label>单实例内存 · MB<input v-model.number="draft.memoryMb" type="number" min="128" max="65536" required /></label><label>进程数上限<input v-model.number="draft.pidsMax" type="number" min="32" max="4096" required /></label></div>
             <p class="settings-help">资源用于新建实例；时限统一在运行策略中设置。降低并发上限不会主动终止实例。</p>
             <p v-if="settingsError" class="settings-error" role="alert">{{ settingsError }} <button type="button" @click="reloadSettings">重新载入</button></p>
-            <div class="settings-actions"><button type="button" class="cancel-btn" @click="editing = ''; draft = null">取消</button><button type="submit" class="save-btn">{{ saving ? '保存中…' : '保存设置' }}</button></div></fieldset>
+            <div class="settings-actions"><button type="button" class="cancel-btn" @click="editing = ''; draft = null">取消</button><button type="submit" class="save-btn"><UiBusyLabel :busy="saving">保存设置</UiBusyLabel></button></div></fieldset>
           </form>
           <details class="inventory"><summary><span>实例清单 <b>{{ node.sandboxes.length }}</b></span><ChevronDown :size="15" aria-hidden="true" /></summary><p v-if="!node.lastHeartbeatAt">收到完整心跳后显示。</p><p v-else-if="!node.sandboxes.length">最近心跳中没有运行实例。</p><template v-else><p class="inventory-note">{{ node.state === 'online' ? status.schedulingEnabled ? '当前 Worker 上报的实例清单，归属与释放操作见运行实例。' : '当前仅观察，不执行清理或调度。' : '以下为离线前的最后清单，不代表实例当前仍在运行。' }}</p><table><thead><tr><th>实例</th><th>状态</th><th>最近活动</th><th>GUI</th></tr></thead><tbody><tr v-for="box in node.sandboxes" :key="box.id"><td><code>{{ box.id }}</code></td><td>{{ instanceLabels[box.state] }}</td><td>{{ date(box.lastActiveAt) }}</td><td>{{ box.guiRunning ? '运行中' : '未启动' }}</td></tr></tbody></table></template></details>
         </section>

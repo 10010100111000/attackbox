@@ -5,7 +5,7 @@ import type { FitAddon } from '@xterm/addon-fit'
 import type { SandboxTicket } from '~/shared/sandbox'
 import '@xterm/xterm/css/xterm.css'
 const props = defineProps<{ sandboxId: string; windowId: string; active: boolean }>()
-const host = ref<HTMLElement | null>(null), state = ref('正在连接'), reconnecting = ref(false)
+const host = ref<HTMLElement | null>(null), state = ref(''), reconnecting = ref(false)
 let terminal: Terminal | undefined, fit: FitAddon | undefined, socket: WebSocket | undefined
 let resize: ResizeObserver | undefined, retryTimer: ReturnType<typeof setTimeout> | undefined
 let stableTimer: ReturnType<typeof setTimeout> | undefined, connectTimer: ReturnType<typeof setTimeout> | undefined
@@ -19,7 +19,7 @@ async function connect() {
   if (destroyed || reconnecting.value) return
   clearTimeout(retryTimer)
   const ownGeneration = ++generation
-  reconnecting.value = true; state.value = '正在连接'
+  reconnecting.value = true; state.value = ''
   const old = socket; socket = undefined; old?.close()
   try {
     const response = await $fetch<{ data: SandboxTicket }>('/api/sandbox/ticket', { method: 'POST', body: { sandboxId: props.sandboxId } })
@@ -81,7 +81,7 @@ onBeforeUnmount(() => { destroyed = true; generation++; clearTimeout(retryTimer)
 </script>
 
 <template>
-  <div class="terminal-panel"><div ref="host" class="terminal-host" aria-label="交互终端" /><div class="terminal-status" role="status"><span>{{ state }}</span><button v-if="state !== '已连接'" type="button" :disabled="reconnecting" @click="retries = 0; connect()">重新连接</button></div></div>
+  <div class="terminal-panel"><div ref="host" class="terminal-host" aria-label="交互终端" /><div class="terminal-status" role="status"><span v-if="state">{{state}}</span><UiBusyIndicator v-else inline label="终端连接"/><button v-if="state && state !== '已连接'" type="button" :disabled="reconnecting" @click="retries = 0; connect()">重新连接</button></div></div>
 </template>
 
 <style scoped>

@@ -24,7 +24,7 @@ onMounted(()=>window.addEventListener('beforeunload',beforeUnload));onUnmounted(
 <template>
  <div class="home-manager">
   <header><div><h1>首页管理</h1><p>管理学习首页的推荐内容，保存后直接生效。</p></div><NuxtLink to="/learn" target="_blank" rel="noopener">查看学习首页</NuxtLink></header>
-  <p v-if="pending&&!draft">正在读取…</p><p v-else-if="error" role="alert">读取失败。<button @click="reload">重试</button></p>
+  <UiBusyIndicator v-if="pending&&!draft" label="首页设置加载"/><p v-else-if="error" role="alert">读取失败。<button @click="reload">重试</button></p>
   <form v-else-if="draft" @submit.prevent="save">
    <fieldset :disabled="busy">
     <section class="settings"><label><input v-model="draft.enabled" type="checkbox">显示推荐区</label><label><input v-model="draft.autoplay" type="checkbox">自动轮播</label><label>间隔 <input v-model.number="draft.intervalSeconds" type="number" min="5" max="30" required> 秒</label></section>
@@ -37,7 +37,7 @@ onMounted(()=>window.addEventListener('beforeunload',beforeUnload));onUnmounted(
     </div>
     <section v-if="item" class="preview"><h2>当前项预览 <small>未保存的修改仅在此处展示</small></h2><LearningHomeCarousel :slides="[item]" :autoplay="false" :interval-seconds="draft.intervalSeconds"/></section>
    </fieldset>
-   <footer><p :role="failed?'alert':'status'">{{ message|| (dirty?'有未保存的修改':'') }}</p><button type="button" :disabled="busy||!dirty" @click="reset">取消修改</button><button type="button" :disabled="busy" @click="reload">重新载入</button><button class="primary" :disabled="busy||!dirty">{{ busy?'保存中…':'保存首页' }}</button></footer>
+   <footer><p :role="failed?'alert':'status'">{{ message|| (dirty?'有未保存的修改':'') }}</p><button type="button" :disabled="busy||!dirty" @click="reset">取消修改</button><button type="button" :disabled="busy" @click="reload">重新载入</button><button class="primary" :disabled="busy||!dirty"><UiBusyLabel :busy="busy">保存首页</UiBusyLabel></button></footer>
   </form>
  </div>
 </template>

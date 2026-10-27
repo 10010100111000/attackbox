@@ -70,7 +70,7 @@ async function save() {
       </div>
       <Clock3 :size="24" aria-hidden="true" />
     </header>
-    <p v-if="pending && !draft" role="status">正在读取运行策略…</p>
+    <UiBusyIndicator v-if="pending && !draft" label="运行策略加载"/>
     <div v-else-if="error" role="alert">
       读取失败。
       <button @click="refresh()">重试</button>
@@ -161,7 +161,7 @@ async function save() {
               取消修改
             </button>
             <button type="submit" class="primary" :disabled="!dirty">
-              {{ busy ? '正在保存…' : '保存设置' }}
+              <UiBusyLabel :busy="busy">保存设置</UiBusyLabel>
             </button>
           </div>
         </footer>

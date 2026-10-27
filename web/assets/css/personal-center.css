@@ -421,6 +421,7 @@
   cursor: default;
 }
 .personal-loading {
+  position:relative;
   display: grid;
   gap: 18px;
   padding: 32px;
@@ -428,6 +429,7 @@
   border-radius: 14px;
   background: var(--paper);
 }
+.personal-loading-mark{position:absolute;right:32px;top:32px}
 .personal-skeleton {
   display: block;
   width: 100%;

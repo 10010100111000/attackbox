@@ -128,7 +128,7 @@ async function save() {
             取消修改
           </button>
           <button class="personal-button" :disabled="busy || invalid || !dirty">
-            {{ busy ? '正在保存…' : '保存资料' }}
+            <UiBusyLabel :busy="busy">保存资料</UiBusyLabel>
           </button>
         </div>
       </div>

@@ -53,8 +53,8 @@ function destination(item: LearningHistoryItem) {
       </div>
       <NuxtLink to="/learn" class="personal-text-link">浏览模块</NuxtLink>
     </header>
-    <div v-if="pending" class="personal-loading" role="status">
-      <span class="personal-skeleton personal-skeleton-title" />
+    <div v-if="pending && !data" class="personal-loading" role="status">
+      <UiBusyIndicator inline class="personal-loading-mark" aria-hidden="true"/><span class="personal-skeleton personal-skeleton-title" />
       <span class="personal-skeleton" />
       <span class="personal-skeleton" />
       <span class="personal-sr-only">正在读取学习记录…</span>

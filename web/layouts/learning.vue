@@ -15,7 +15,7 @@ import LearningHeader from '~/components/learning/LearningHeader.vue'
 
 <style scoped>
 .learning-layout {
-  min-height: 100vh;
+  min-height: 100dvh;
   background-color: var(--bg);
   color: var(--ink);
   display: flex;

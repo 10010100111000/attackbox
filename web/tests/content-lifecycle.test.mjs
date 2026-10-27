@@ -13,8 +13,8 @@ test('Git-managed content lifecycle: retired legacy write endpoints, quiz normal
     const retiredPost = await fetch(f.base + '/api/admin/modules', { method: 'POST', headers: { cookie: `attackbox_session=${f.admin.token}`, 'content-type': 'application/json' }, body: JSON.stringify({ title: 'Retired' }) })
     assert.ok([404, 405].includes(retiredPost.status), 'POST /api/admin/modules is retired')
 
-    const categories = await req('/api/categories', 'GET', undefined, 200, null)
-    const categoryId = categories.find(c => c.slug === 'web-security').id
+    const [category] = await f.sql`insert into content_categories (slug,name) values (${`lifecycle-web-${suffix}`},'Lifecycle Web') returning id`
+    const categoryId=category.id
     const slug = `lifecycle-${suffix}`
     let d = await f.createModule('draft', {
       title: 'Lifecycle module',
@@ -29,14 +29,14 @@ test('Git-managed content lifecycle: retired legacy write endpoints, quiz normal
     const id = d.module.id, path = `/api/admin/modules/${id}`, publicPath = `/api/modules/${slug}`
     const first = d.chapters[0].chapterId, second = d.chapters[1].chapterId, qid = d.chapters[0].questions[0].id
     assert.deepEqual(d.module.learningOutcomes, ['使用 Shell 查看系统信息', '定位常见权限问题'])
-    assert.equal(d.category.name, 'Web 安全'); assert.equal(d.module.status, 'unpublished')
+    assert.equal(d.category.name, 'Lifecycle Web'); assert.equal(d.module.status, 'unpublished')
     assert.equal(d.chapters[0].questions[0].answer, null, 'admin detail never returns plain answers')
     assert.equal(d.chapters[0].questions[0].hasAnswer, true)
     await f.request(publicPath, { status: 404 })
 
     await req(path + '/publish', 'POST', { lockVersion: d.module.lockVersion })
     d = await req(path); assert.equal(d.module.status, 'published')
-    assert.equal((await req('/api/modules', 'GET', undefined, 200, null)).find(m => m.id === id).category.slug, 'web-security')
+    assert.equal((await req('/api/modules', 'GET', undefined, 200, null)).find(m => m.id === id).category.slug, `lifecycle-web-${suffix}`)
     assert.deepEqual((await req(publicPath, 'GET', undefined, 200, null)).module.learningOutcomes, d.module.learningOutcomes)
 
     const publicChapter = await req(publicPath + '/chapters/first', 'GET', undefined, 200, null)
@@ -113,5 +113,5 @@ test('Git-managed content lifecycle: retired legacy write endpoints, quiz normal
     ].map(async ([rPath, current, targetId]) =>
       (await fetch(f.base + rPath, { method: 'PUT', headers: { cookie: `attackbox_session=${f.admin.token}`, 'content-type': 'application/json' }, body: JSON.stringify({ lockVersion: current.module.lockVersion, prerequisiteModuleIds: [targetId] }) })).status))
     assert.deepEqual(opposing.sort(), [200, 400], 'concurrent graph edits remain acyclic')
-  } finally { await f.cleanup() }
+  } finally { await f.sql`delete from modules where category_id in (select id from content_categories where slug=${`lifecycle-web-${suffix}`})`;await f.sql`delete from content_categories where slug=${`lifecycle-web-${suffix}`}`;await f.cleanup() }
 })
