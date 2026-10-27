@@ -1,10 +1,10 @@
-// Called by scripts/manage.py admin. Password is supplied over stdin, never argv.
+// Called by scripts/control.sh admin. Password is supplied over stdin, never argv.
 import { hash, Algorithm } from '@node-rs/argon2';
 import postgres from 'postgres';
 
 async function main() {
   if (process.argv.length !== 2 || !process.env.DATABASE_URL || process.stdin.isTTY) {
-    throw new Error('Use sudo scripts/manage.py admin');
+    throw new Error('Use sudo ./scripts/control.sh admin');
   }
   let input = '';
   for await (const chunk of process.stdin) {

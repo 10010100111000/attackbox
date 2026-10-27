@@ -1,6 +1,6 @@
 # AttackBox
 
-AttackBox 是一个面向网络安全实训的在线学习与容器沙箱实验平台，采用 **Control（Web 控制面）** 与 **Worker（Go 容器工作节点）** 分离式架构，编译流程与部署配置完全解耦。
+AttackBox 是一个面向网络安全实训的在线学习与容器沙箱实验平台，采用 **Control（Web 控制面）** 与 **Worker（Go 容器工作节点）** 分离式架构，编译流程与部署配置完全解耦，所有运维脚本统一为纯 `.sh` 脚本。
 
 ---
 
@@ -27,13 +27,10 @@ attackbox/
 │   └── worker/                 # Worker 端配置模板
 │       ├── worker.yaml.example # /etc/attackbox/worker.yaml 参考模板
 │       └── attackbox-worker.service
-└── scripts/                    # 独立拆分的编译、配置与部署脚本
-    ├── build.sh                # 纯编译脚本（支持 all | control | worker，不触碰生产配置）
-    ├── setup-control.py        # 生成 Control 配置文件 (/etc/attackbox/web.env)
-    ├── manage.py               # Control 数据库迁移 (migrate) 与管理员初始化 (admin)
-    ├── deploy-control.sh       # 部署并启动 Control 服务 (attackbox-web + nginx)
-    ├── setup-worker.py         # 生成 Worker 配置文件 (/etc/attackbox/worker.yaml)
-    └── deploy-worker.sh        # 部署并启动 Worker 服务 (attackbox-worker)
+└── scripts/                    # 纯 Shell 编译、配置与部署脚本（无 Python 依赖）
+    ├── build.sh                # 纯编译脚本（all | control | worker）
+    ├── control.sh              # Control 端管理与部署（setup | migrate | admin | deploy）
+    └── worker.sh               # Worker 端配置与部署（setup | deploy）
 ```
 
 ---
@@ -66,7 +63,7 @@ attackbox/
 
 ---
 
-## 第二阶段：Control 端配置与部署
+## 第二阶段：Control 端配置与部署（`scripts/control.sh`）
 
 ### 1. 生成 Control 配置文件 (`/etc/attackbox/web.env`)
 
@@ -74,10 +71,10 @@ attackbox/
 
 ```bash
 # 方式 A：交互式填写
-sudo ./scripts/setup-control.py
+sudo ./scripts/control.sh setup
 
-# 方式 B：命令行非交互生成（适合自动化部署）
-sudo ./scripts/setup-control.py \
+# 方式 B：命令行非交互生成
+sudo ./scripts/control.sh setup \
   --database "postgres://attackbox:YOUR_DB_PASSWORD@127.0.0.1:5432/attackbox_db" \
   --origin "http://YOUR_SERVER_IP_OR_DOMAIN" \
   --force
@@ -89,10 +86,10 @@ sudo ./scripts/setup-control.py \
 
 ```bash
 # 执行 PostgreSQL 数据库迁移
-sudo ./scripts/manage.py migrate
+sudo ./scripts/control.sh migrate
 
 # 创建初始管理员账号（支持交互式或命令行传参，密码至少 12 位）
-sudo ./scripts/manage.py admin \
+sudo ./scripts/control.sh admin \
   --email "admin@attackbox.local" \
   --password "YOUR_ADMIN_PASSWORD" \
   --name "Administrator"
@@ -101,29 +98,29 @@ sudo ./scripts/manage.py admin \
 ### 3. 部署并启动 Control 服务
 
 ```bash
-./scripts/deploy-control.sh
+./scripts/control.sh deploy
 ```
 
-该脚本会校验 `web/.output` 与 `/etc/attackbox/web.env`，原子发布静态与服务端产物至 `/var/www/attackbox-web`，渲染 Nginx 配置并启动 `attackbox-web` 与 `nginx`，最后自动执行 Web 健康检查。
+该命令会校验 `web/.output` 与 `/etc/attackbox/web.env`，原子发布产物至 `/var/www/attackbox-web`，渲染 Nginx 配置并启动 `attackbox-web` 与 `nginx`，最后自动执行 Web 健康检查。
 
 ---
 
-## 第三阶段：Worker 端配置与部署
+## 第三阶段：Worker 端配置与部署（`scripts/worker.sh`）
 
 Worker 节点既可以与 Control 部署在同一台服务器，也可以独立部署在多台弹性容器节点上。
 
 ### 1. 生成 Worker 配置文件 (`/etc/attackbox/worker.yaml`)
 
-- **同机部署**：`setup-worker.py` 会自动从本机 `/etc/attackbox/web.env` 读取 `SANDBOX_CLUSTER_SECRET`，无需手动复制密钥：
+- **同机部署**：`worker.sh setup` 会自动从本机 `/etc/attackbox/web.env` 读取 `SANDBOX_CLUSTER_SECRET`，无需手动复制密钥：
 
 ```bash
-sudo ./scripts/setup-worker.py --force
+sudo ./scripts/worker.sh setup --force
 ```
 
 - **异机独立部署**：指定 Control 节点的连接地址与集群密钥：
 
 ```bash
-sudo ./scripts/setup-worker.py \
+sudo ./scripts/worker.sh setup \
   --node-id "node-worker-01" \
   --control-url "ws://CONTROL_HOST:3000/cluster/connect" \
   --cluster-secret "CLUSTER_SECRET_FROM_CONTROL" \
@@ -134,26 +131,26 @@ sudo ./scripts/setup-worker.py \
 ### 2. 部署并启动 Worker 服务
 
 ```bash
-./scripts/deploy-worker.sh
+./scripts/worker.sh deploy
 ```
 
-该脚本会将 `dist/attackbox-worker` 安装至 `/usr/local/bin/attackbox-worker`，配置并启动 `attackbox-worker.service`，并校验本地 `:8443/health` 网关状态。
+该命令会将 `dist/attackbox-worker` 安装至 `/usr/local/bin/attackbox-worker`，配置并启动 `attackbox-worker.service`，并校验本地 `:8443/health` 网关状态。
 
 ---
 
 ## 日常更新流程
 
-代码更新后，仅需重新编译对应模块并执行对应部署脚本，**无需重新运行 `setup-*.py`**：
+代码更新后，仅需重新编译对应模块并执行对应部署命令，**无需重新运行 `setup`**：
 
 ```bash
 git pull
 
 # 更新 Control 端
 ./scripts/build.sh control
-sudo ./scripts/manage.py migrate
-./scripts/deploy-control.sh
+sudo ./scripts/control.sh migrate
+./scripts/control.sh deploy
 
 # 更新 Worker 端
 ./scripts/build.sh worker
-./scripts/deploy-worker.sh
+./scripts/worker.sh deploy
 ```

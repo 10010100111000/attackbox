@@ -1,4 +1,4 @@
-# 参考模板：实际运行配置请使用 sudo ./scripts/setup-worker.py 生成至 /etc/attackbox/worker.yaml。
+# 参考模板：实际运行配置请使用 sudo ./scripts/worker.sh setup 生成至 /etc/attackbox/worker.yaml。
 # 使用时长、空闲回收在后台「运行策略」设置；容量、内存和进程数在「节点管理」设置。
 node:
   node_id: "node-primary"
