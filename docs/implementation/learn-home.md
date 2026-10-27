@@ -21,3 +21,9 @@
 ## 本地验证
 
 `npm --prefix web test` 包含首页配置校验。`tests/learn-home-browser.test.mjs` 使用隔离的本机 `_test` 数据库和运行中的 Nuxt，通过 `CONTENT_TEST_DATABASE_URL`、`CONTENT_TEST_BASE_URL` 指定；验证管理员权限、真实保存和重载、冲突、隐藏项过滤、轮播与暂停。
+
+## 内容发现与模块卡片
+
+推荐区缩小，标题与说明各最多展示两行。新安装默认手动播放；已有后台保存的自动轮播设置保持不变。继续学习使用紧凑横条。模块列表支持难度筛选、最新发布／最近更新排序，并展示配置过的章节总时长。最近学习记录中的模块展示真实进度及继续入口，未获得进度的模块不伪造学习状态。
+
+模块封面由教程 Markdown 的 `cover` 字段维护，见 [Git 内容使用说明](git-content-sync-usage.md)，不需要新增数据库迁移。

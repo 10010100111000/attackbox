@@ -30,7 +30,7 @@ export interface ParsedChapter {
 export interface ParsedModule {
   sourcePath: string; sourceHash: string; title: string; summary: string; descriptionMarkdown: string
   learningOutcomes: string[]; categorySlug: string | null; difficulty: Difficulty; chapters: ParsedChapter[]
-  images: ContentImage[]
+  cover: string | null; images: ContentImage[]
 }
 
 const md = new MarkdownIt({ html: false })
@@ -96,7 +96,7 @@ export function parseModuleMarkdown(sourcePath: string, raw: string): ParsedModu
   const headerLocation = { file: sourcePath, line: 2 }
   const headerSource = lines.slice(1, closing).join('\n')
   const meta = headerSource.trim() ? yamlObject(headerSource, headerLocation) : {}
-  fields(meta, ['summary', 'description', 'category', 'difficulty', 'access', 'learningOutcomes', 'chapters'], headerLocation)
+  fields(meta, ['cover', 'summary', 'description', 'category', 'difficulty', 'access', 'learningOutcomes', 'chapters'], headerLocation)
   // Field nodes give authors an actual line, including for multiline values.
   const headerDocument = parseDocument(headerSource, { logLevel: 'silent' })
   const headerCounter = new LineCounter()
@@ -105,6 +105,8 @@ export function parseModuleMarkdown(sourcePath: string, raw: string): ParsedModu
     const node = headerDocument.get(field, true)
     return { file: sourcePath, line: node && typeof node === 'object' && 'range' in node && Array.isArray(node.range) ? headerCounter.linePos(node.range[0]).line + 1 : 2, field }
   }
+  const cover = meta.cover === undefined ? null : text(meta.cover, '', 500, fieldLocation('cover')).trim()
+  if (cover === '') fail(fieldLocation('cover'), '封面路径不能为空，未配置请省略 cover')
   const summary = text(meta.summary, '', 500, fieldLocation('summary'))
   const descriptionMarkdown = text(meta.description, '', maxSourceBytes, fieldLocation('description'))
   const difficulty = meta.difficulty ?? 'beginner'
@@ -137,6 +139,7 @@ export function parseModuleMarkdown(sourcePath: string, raw: string): ParsedModu
   const descriptionTokens = md.parse(descriptionMarkdown, {})
   if (descriptionTokens.some(t => t.type === 'fence' && /^quiz(?:\s|$)/i.test(t.info.trim()))) fail(fieldLocation('description'), '模块介绍不能包含 quiz，请将题目放在对应章节中')
   const images: ContentImage[] = imageReferences(descriptionTokens, sourcePath, fieldLocation('description').line)
+  if (cover) images.push({ ...fieldLocation('cover'), href: cover })
   const chapters = headings.map((heading, index): ParsedChapter => {
     const start = heading.map![0], end = headings[index + 1]?.map![0] ?? bodyLines.length
     const chapterTitle = titleText(tokens[tokens.indexOf(heading) + 1]!)
@@ -177,13 +180,13 @@ export function parseModuleMarkdown(sourcePath: string, raw: string): ParsedModu
     return { title: chapterTitle, matchKey, position: index + 1, access: access(settings.access, defaultAccess, { ...location, field: 'access' }), durationMinutes: duration as number | null, bodyMarkdown: prose, questions, source: location }
   })
   for (const key of Object.keys(chapterConfig)) if (!usedConfig.has(key)) fail({ ...fieldLocation('chapters'), field: `chapters.${key}` }, '没有对应的一级标题')
-  return { sourcePath, sourceHash: createHash('sha256').update(raw).digest('hex'), title, summary, descriptionMarkdown, learningOutcomes: outcomes.map(x => (x as string).trim()), categorySlug, difficulty: difficulty as Difficulty, chapters, images }
+  return { sourcePath, sourceHash: createHash('sha256').update(raw).digest('hex'), title, summary, descriptionMarkdown, learningOutcomes: outcomes.map(x => (x as string).trim()), categorySlug, difficulty: difficulty as Difficulty, chapters, cover, images }
 }
 
 /** Explicit allow-list. Private source, answer, hints and matching data stay on the server. */
 export function learnerContentPreview(module: ParsedModule) {
   return {
-    title: module.title, summary: module.summary, descriptionMarkdown: module.descriptionMarkdown,
+    cover: module.cover, title: module.title, summary: module.summary, descriptionMarkdown: module.descriptionMarkdown,
     learningOutcomes: module.learningOutcomes, difficulty: module.difficulty,
     chapters: module.chapters.map(c => ({ title: c.title, position: c.position, access: c.access, durationMinutes: c.durationMinutes, bodyMarkdown: c.bodyMarkdown, questions: c.questions.map(q => ({ promptMarkdown: q.promptMarkdown })) }))
   }

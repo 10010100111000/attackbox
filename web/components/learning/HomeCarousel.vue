@@ -41,14 +41,14 @@ onUnmounted(() => { mounted = false; clearInterval(timer); media?.removeEventLis
   grid-template-columns: 1fr 230px;
   gap: 25px;
   align-items: center;
-  padding: 29px 32px;
+  padding: 22px 28px;
   border: 1px solid var(--line);
   background: var(--paper);
   border-radius: 11px;
-  min-height: 230px;
+  min-height: 174px;
   position: relative;
   overflow: hidden;
-  margin-bottom: 24px;
+  margin-bottom: 18px;
 }
 
 .carousel-copy {
@@ -76,7 +76,7 @@ onUnmounted(() => { mounted = false; clearInterval(timer); media?.removeEventLis
 }
 
 .feature-banner h1 {
-  font-size: 26px;
+  font-size: 24px;
   margin: 0 0 8px;
   letter-spacing: -0.8px;
   color: var(--ink);
@@ -110,7 +110,7 @@ onUnmounted(() => { mounted = false; clearInterval(timer); media?.removeEventLis
 
 /* 轮播右侧倾斜终端艺术卡片 */
 .banner-art {
-  height: 130px;
+  height: 110px;
   position: relative;
   display: flex;
   align-items: center;
@@ -118,7 +118,7 @@ onUnmounted(() => { mounted = false; clearInterval(timer); media?.removeEventLis
 }
 
 .terminal-art {
-  width: 200px;
+  width: 172px;
   background: var(--code);
   color: var(--code-ink);
   border-radius: 8px;
@@ -200,7 +200,7 @@ onUnmounted(() => { mounted = false; clearInterval(timer); media?.removeEventLis
 }
 
 
-.carousel-copy {overflow-wrap:anywhere}.terminal-art {overflow-wrap:anywhere}.carousel-dot{color:var(--muted)}
+.carousel-copy {overflow-wrap:anywhere}.feature-banner h1,.feature-banner p{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow:hidden}.terminal-art {overflow-wrap:anywhere}.carousel-dot{color:var(--muted)}
 button:focus-visible,a:focus-visible{outline:2px solid var(--green);outline-offset:3px}
 @media(max-width:640px){.feature-banner{grid-template-columns:1fr;padding:24px 22px 46px}.banner-art{display:none}.feature-banner h1{font-size:23px}}
 @media(prefers-reduced-motion:reduce){.cursor-line{animation:none}.carousel-dot span{transition:none}}

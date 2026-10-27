@@ -112,3 +112,21 @@ test('CLI success and error output never print standard answers',async()=>{
   assert.ok(!failure.stderr.includes('PRIVATE_BAD_ANSWER'))
  }finally{await rm(root,{recursive:true,force:true})}
 })
+
+test('cover frontmatter joins the same validated repository image pipeline and can be removed', async()=>{
+ const root=await mkdtemp(path.join(os.tmpdir(),'cover-parse-'))
+ try{
+  await mkdir(path.join(root,'images'))
+  await writeFile(path.join(root,'images','cover.png'),Buffer.from([137,80,78,71]))
+  const source=module('# Chapter\n\n正文','cover: ./images/cover.png')
+  await writeFile(path.join(root,'教程.md'),source)
+  const [checked]=await checkContentDirectory(root)
+  assert.equal(checked.module.cover,'./images/cover.png')
+  assert.equal(checked.images[0].repositoryPath,'images/cover.png')
+  assert.equal(learnerContentPreview(checked.module).cover,'./images/cover.png')
+  assert.equal(parseModuleMarkdown('教程.md',module('# Chapter')).cover,null)
+  invalid(module('# Chapter','cover: ""'),/封面/)
+  await writeFile(path.join(root,'教程.md'),module('# Chapter','cover: https://example.com/cover.png'))
+  await assert.rejects(()=>checkContentDirectory(root),/相对路径/)
+ }finally{await rm(root,{recursive:true,force:true})}
+})

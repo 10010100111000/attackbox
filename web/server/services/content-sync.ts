@@ -160,8 +160,9 @@ export async function applyContentPreview(id:string,actor:string){
      let [asset]=await tx.select().from(assets).where(eq(assets.storageKey,file.hash))
      if(!asset)[asset]=await tx.insert(assets).values({storageKey:file.hash,originalName:path.basename(image.href),mediaType:file.mediaType,byteSize:file.bytes.length,sha256:Buffer.from(file.hash,'hex'),visibility:'private',uploadedBy:actor}).returning()
      assetMap.set(image.href,asset!.id)
-     await tx.insert(moduleImages).values({moduleId,href:image.href,assetId:asset!.id,public:descriptionImages.includes(image.href)})
+     await tx.insert(moduleImages).values({moduleId,href:image.href,assetId:asset!.id,public:descriptionImages.includes(image.href)||image.href===entry.parsed.cover})
     }
+    await tx.update(modules).set({coverAssetId:entry.parsed.cover ? assetMap.get(entry.parsed.cover)! : null}).where(eq(modules.id,moduleId))
     for(const c of entry.chapters){
      const stored=storedChapters.find(s=>s.position===c.parsed.position)!
      await tx.insert(chapterSources).values({chapterId:stored.id,moduleId,matchKey:c.parsed.matchKey})

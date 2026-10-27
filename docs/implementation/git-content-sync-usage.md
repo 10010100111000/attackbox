@@ -56,3 +56,15 @@ GitHub 拉取、图片准备在数据库事务之外；正式内容、来源关�
 - 本地独立 PostgreSQL 与已运行的 web：设置 `CONTENT_TEST_DATABASE_URL`（必须是 localhost 的 `_test` 库）、`CONTENT_TEST_BASE_URL`、`CONTENT_DATA_DIR` 和相同的 `CONTENT_CREDENTIALS_KEY`，运行 `npm --prefix web run test:content-sync`。
 
 集成覆盖重复导入、进度保留、答案修改、改名、运行配置保留、禁止删除与旧接口写入、图片权限、凭据不回显及浏览器页面。GitHub API 使用模拟响应；真实私有仓库需要管理员配置后进行实际连接验证。
+
+## 模块封面
+
+在单个模块 Markdown 的 YAML 配置头填写：
+
+```yaml
+cover: ./images/cover.webp
+```
+
+图片相对该 Markdown 文件定位，和教程一起提交私有仓库。与正文插图复用校验和本地同步机制，不支持外链、SVG 或越界路径，单图最多 10 MiB。建议使用 16:9 的 WebP／JPEG 图片。
+
+导入预览和后台模块详情可查看封面；模块发布后，封面作为公开介绍资源提供给访客，不受章节阅读权限限制。下一次同步省略 `cover` 即移除封面关联，前台恢复几何图案；图片加载失败也会回退。后台不单独上传或覆盖 Git 中的封面。

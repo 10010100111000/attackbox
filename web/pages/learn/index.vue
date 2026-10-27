@@ -26,6 +26,8 @@ interface ModuleItem {
   categoryId: string | null
   category: ContentCategory | null
   coverAssetId: string | null
+  updatedAt: string
+  durationMinutes: number
   publishedAt: string
   chapterCount: number
 }
@@ -46,6 +48,10 @@ const { data: homeResponse } = useLazyFetch<{ data: Omit<import('~/shared/learn-
 const activeTab = ref<'modules' | 'paths'>(useRoute().query.tab === 'routes' ? 'paths' : 'modules')
 const selectedCategory = ref('全部模块')
 const searchQuery = ref('')
+const difficulty = ref('')
+const sortBy = ref('published')
+const historyByModule = computed(() => new Map((learnerId.value ? historyResponse.value?.data || [] : []).map(item => [item.moduleId, item.progress])))
+const failedCovers = ref(new Set<string>())
 
 const { data: categoryResponse, pending: categoriesPending, error: categoriesError, refresh: refreshCategories } = useLazyFetch<{ data: ContentCategory[] }>('/api/categories', {key:'content:categories'})
 const categories = computed(() => ['全部模块', ...(categoryResponse.value?.data || []).map(category => category.name)])
@@ -68,6 +74,8 @@ const filteredModules = computed(() => {
     })
   }
 
+  if (difficulty.value) list = list.filter(m => m.difficulty === difficulty.value)
+  list = [...list].sort((a,b) => (sortBy.value === 'updated' ? b.updatedAt.localeCompare(a.updatedAt) : b.publishedAt.localeCompare(a.publishedAt)) || a.id.localeCompare(b.id))
   const query = searchQuery.value.trim().toLowerCase()
   if (query) {
     list = list.filter(m => {
@@ -123,7 +131,7 @@ function getModuleTheme(index: number) {
       <LearningHomeCarousel v-if="homeResponse?.data.enabled" :slides="homeResponse.data.slides" :autoplay="homeResponse.data.autoplay" :interval-seconds="homeResponse.data.intervalSeconds" />
 
       <NuxtLink v-if="recentLearning && activeTab === 'modules'" :to="`/learn/modules/${recentLearning.slug}/${recentLearning.progress.resumeChapterSlug}`" class="recent-learning">
-        <div class="recent-copy"><span class="recent-label">继续学习</span><h2>{{ recentLearning.title }}</h2><p>{{ recentLearning.chapterTitle }}</p><div class="recent-progress" :aria-label="`已完成 ${recentLearning.progress.completedChapters} / ${recentLearning.progress.totalChapters} 章节`"><span :style="{ width: `${recentLearning.progress.percent}%` }" /></div><span class="recent-count">已完成 {{ recentLearning.progress.completedChapters }} / {{ recentLearning.progress.totalChapters }} 章节</span></div><ArrowRight :size="20" aria-hidden="true" />
+        <div class="recent-copy"><span class="recent-label">继续学习</span><h2>{{ recentLearning.title }}</h2><p>{{ recentLearning.chapterTitle }}</p><div class="recent-progress" :aria-label="`已完成 ${recentLearning.progress.completedChapters} / ${recentLearning.progress.totalChapters} 章节`"><span :style="{ width: `${recentLearning.progress.percent}%` }" /></div><span class="recent-count">已完成 {{ recentLearning.progress.completedChapters }} / {{ recentLearning.progress.totalChapters }} 章节</span></div><span class="resume-action">继续学习</span>
       </NuxtLink>
       <!-- 二级标签栏 (学习模块 / 学习路线) -->
       <div class="page-tabs" role="tablist" aria-label="学习导航">
@@ -172,6 +180,7 @@ function getModuleTheme(index: number) {
           />
         </div>
 
+        <div class="discovery-controls"><span>{{ filteredModules.length }} 个模块</span><label>难度<select v-model="difficulty" aria-label="筛选难度"><option value="">全部难度</option><option value="beginner">基础入门</option><option value="intermediate">中级进阶</option><option value="advanced">高阶实战</option></select></label><label>排序<select v-model="sortBy" aria-label="模块排序"><option value="published">最新发布</option><option value="updated">最近更新</option></select></label></div>
         <!-- 加载状态 -->
         <div v-if="pending" class="state-panel" role="status" aria-live="polite">
           正在加载模块列表…
@@ -188,7 +197,7 @@ function getModuleTheme(index: number) {
           <NuxtLink
             v-for="(mod, index) in filteredModules"
             :key="mod.id"
-            :to="`/learn/modules/${mod.slug}`"
+            :to="historyByModule.get(mod.id)?.resumeChapterSlug && !historyByModule.get(mod.id)?.isCompleted ? `/learn/modules/${mod.slug}/${historyByModule.get(mod.id)?.resumeChapterSlug}` : `/learn/modules/${mod.slug}`"
             class="card"
           >
             <!-- 生成式渐变艺术区与微几何图腾 (保留发散设计) -->
@@ -197,7 +206,7 @@ function getModuleTheme(index: number) {
               :style="{ background: getModuleTheme(index).gradient }"
             >
               <!-- 几何 SVG 图腾 -->
-              <svg class="art-svg" viewBox="0 0 100 60" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+              <img v-if="mod.coverAssetId && !failedCovers.has(mod.id)" :src="`/api/modules/${mod.slug}/assets/${mod.coverAssetId}`" alt="" class="module-cover" loading="lazy" @error="failedCovers.add(mod.id)"/><svg v-else class="art-svg" viewBox="0 0 100 60" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
                 <!-- 节点网络 -->
                 <template v-if="getModuleTheme(index).type === 'nodes'">
                   <circle cx="20" cy="30" r="3" fill="currentColor" fill-opacity="0.3" />
@@ -246,13 +255,12 @@ function getModuleTheme(index: number) {
 
               <div class="card-meta">
                 <span>{{ mod.chapterCount }} 章节</span>
-                <span v-if="mod.category">{{ mod.category.name }}</span>
+                <span v-if="mod.category">{{ mod.category.name }}</span><span v-if="mod.durationMinutes">约 {{ mod.durationMinutes }} 分钟</span>
               </div>
 
               <!-- 卡片底栏 (保持克制，去除多余 ↗ 箭头) -->
               <div class="card-bottom">
-                <span class="status-action">查看模块</span>
-                <span class="status-label">已开放</span>
+                <span class="status-action">{{ historyByModule.get(mod.id)?.isCompleted ? '再次阅读' : historyByModule.has(mod.id) ? '继续学习' : '查看模块' }}</span><span v-if="historyByModule.has(mod.id)" class="status-label">{{ historyByModule.get(mod.id)?.percent }}%</span>
               </div>
             </div>
           </NuxtLink>
@@ -283,14 +291,14 @@ function getModuleTheme(index: number) {
 </template>
 
 <style scoped>
-.recent-learning { display: flex; align-items: center; justify-content: space-between; gap: 24px; padding: 24px 28px; margin-bottom: 24px; border: 1px solid var(--line); border-radius: 10px; background: var(--mint); color: var(--ink); text-decoration: none; }
-.recent-copy { flex: 1; min-width: 0; }
-.recent-label { font-size: 11px; color: var(--muted); }
-.recent-learning h2 { font-size: 20px; margin: 6px 0; font-weight: 650; }
-.recent-learning p { font-size: 12px; color: var(--muted); margin: 0 0 14px; }
-.recent-progress { height: 4px; width: min(100%, 320px); border-radius: 4px; background: var(--line); overflow: hidden; }
+.module-cover{width:100%;height:100%;object-fit:cover;position:absolute;inset:0}.discovery-controls{display:flex;align-items:center;gap:20px;margin:-4px 0 18px;color:var(--muted);font-size:12px}.discovery-controls>span{margin-right:auto}.discovery-controls label{display:flex;align-items:center;gap:8px}.discovery-controls select{background:var(--paper);color:var(--ink);border:1px solid var(--line);padding:6px 9px;border-radius:6px}.resume-action{font-size:12px;white-space:nowrap}.recent-learning { display: flex; align-items: center; justify-content: space-between; gap: 24px; padding: 14px 20px; margin-bottom: 18px; border: 1px solid var(--line); border-radius: 10px; background: var(--mint); color: var(--ink); text-decoration: none; }
+.recent-copy { flex: 1; min-width: 0; display:grid;grid-template-columns:minmax(0,1fr) 140px;column-gap:20px; }
+.recent-label { grid-column:1; font-size: 11px; color: var(--muted); }
+.recent-learning h2 { grid-column:1; font-size: 15px; margin: 3px 0; font-weight: 650; }
+.recent-learning p { grid-column:1; font-size: 12px; color: var(--muted); margin: 0 0 6px; }
+.recent-progress { grid-column:2;grid-row:2;align-self:center; height: 4px; width: min(100%, 320px); border-radius: 4px; background: var(--line); overflow: hidden; }
 .recent-progress span { display: block; height: 100%; background: var(--green); }
-.recent-count { display: block; margin-top: 8px; font-size: 11px; color: var(--muted); }
+.recent-count { grid-column:2;grid-row:3; display: block; margin-top: 0; font-size: 11px; color: var(--muted); }
 
 .learn-page {
   width: 100%;
@@ -302,7 +310,7 @@ function getModuleTheme(index: number) {
 .container {
   max-width: 1100px;
   margin: 0 auto;
-  padding: 34px 32px 64px;
+  padding: 24px 32px 48px;
 }
 
 /* 二级 Tab 切换栏 */
@@ -607,6 +615,7 @@ function getModuleTheme(index: number) {
 }
 
 @media (max-width: 640px) {
+  .discovery-controls{flex-wrap:wrap;gap:10px}.recent-copy{display:block}.recent-progress{margin-top:8px}
   .container {
     padding: 20px 16px 48px;
   }

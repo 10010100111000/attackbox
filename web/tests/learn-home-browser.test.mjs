@@ -10,7 +10,7 @@ test('learn homepage admin persistence, authorization, visibility, conflicts and
   await f.request(path,{status:401});await f.request(path,{actor:user,status:403})
   await f.request(path,{actor:user,method:'PUT',body:original,status:403})
   const slides=[{...original.slides[0],id:'first',title:'第一项测试',href:'/learn'},{...original.slides[0],id:'second',title:'第二项测试',href:'/learn'},{...original.slides[0],id:'hidden',title:'隐藏项',enabled:false}]
-  const config={...original,slides,intervalSeconds:5}
+  const config={...original,slides,autoplay:true,intervalSeconds:5}
   await f.request(path,{actor:f.admin,method:'PUT',body:{...config,intervalSeconds:1},status:400})
   const saved=(await f.request(path,{actor:f.admin,method:'PUT',body:config})).data
   assert.equal(saved.lockVersion,1)
