@@ -171,7 +171,7 @@ async function handleSubmit() {
     9px 'SFMono-Regular',
     Consolas,
     monospace;
-  color: #9c8275;
+  color: var(--accent-coral);
   letter-spacing: 2px;
   margin-bottom: 16px;
 }
@@ -204,7 +204,7 @@ h1 {
 
 .field label {
   font-size: 11px;
-  color: #c2b9c5;
+  color: var(--text-main);
 }
 
 .status {
@@ -220,7 +220,7 @@ h1 {
 
 .back-button {
   font-size: 11px;
-  color: #ad9487;
+  color: var(--text-muted);
   background: none;
   border: 0;
   padding: 0;
@@ -233,6 +233,6 @@ h1 {
 }
 
 .back-button:hover {
-  color: #e4bd9f;
+  color: var(--accent-coral);
 }
 </style>

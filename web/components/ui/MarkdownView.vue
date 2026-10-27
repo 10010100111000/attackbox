@@ -136,13 +136,13 @@ function handleCopyClick(event: MouseEvent) {
   margin: 0;
 }
 
-/* Callout 学习目标与思考框 */
+/* Callout 学习目标与思考框 (冰川青蓝 & 暖铜琥珀，告别祖母绿) */
 .markdown-body .callout {
   margin: 24px 0;
   padding: 16px 20px;
   border-radius: 8px;
-  border-left: 3px solid #25775a;
-  background: rgba(37, 119, 90, 0.08);
+  border-left: 3px solid #0284c7;
+  background: rgba(2, 132, 199, 0.07);
 }
 
 .markdown-body .callout strong {
@@ -152,18 +152,18 @@ function handleCopyClick(event: MouseEvent) {
   text-transform: uppercase;
   letter-spacing: 0.05em;
   margin-bottom: 6px;
-  color: #25775a;
+  color: #0284c7;
 }
 
 [data-theme='midnight'] .markdown-body .callout,
 :root:not([data-theme='graphite']) .markdown-body .callout {
-  border-left-color: #8ed6bd;
-  background: rgba(142, 214, 189, 0.08);
+  border-left-color: #38bdf8;
+  background: rgba(56, 189, 248, 0.09);
 }
 
 [data-theme='midnight'] .markdown-body .callout strong,
 :root:not([data-theme='graphite']) .markdown-body .callout strong {
-  color: #8ed6bd;
+  color: #7dd3fc;
 }
 
 .markdown-body .callout.callout-tip {
@@ -240,8 +240,8 @@ function handleCopyClick(event: MouseEvent) {
 }
 
 .markdown-body .copy-code-btn.copied {
-  border-color: #8ed6bd;
-  color: #8ed6bd;
+  border-color: var(--brand);
+  color: var(--brand);
 }
 
 .markdown-body pre {

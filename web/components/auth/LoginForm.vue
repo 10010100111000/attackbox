@@ -245,7 +245,7 @@ function handleProvider(providerName: string) {
 <style scoped>
 .eyebrow {
   font: 9px "SFMono-Regular", Consolas, monospace;
-  color: #9c8275;
+  color: var(--accent-coral);
   letter-spacing: 2px;
   margin-bottom: 16px;
 }
@@ -278,7 +278,7 @@ h1 {
 
 .field label {
   font-size: 11px;
-  color: #c2b9c5;
+  color: var(--text-main);
 }
 
 .field-link,
@@ -286,7 +286,7 @@ h1 {
   background: none;
   border: 0;
   padding: 0;
-  color: #a18d82;
+  color: var(--text-muted);
   font-size: 10px;
   cursor: pointer;
   transition: color 0.2s;
@@ -294,14 +294,14 @@ h1 {
 
 .field-link:hover,
 .text-button:hover {
-  color: #e4bd9f;
+  color: var(--accent-coral);
 }
 
 .remember {
   display: flex;
   align-items: center;
   gap: 8px;
-  color: #8d8494;
+  color: var(--text-muted);
   font-size: 10px;
   width: fit-content;
   margin: 2px 0 24px;
@@ -355,12 +355,12 @@ h1 {
   gap: 7px;
   margin-top: 28px;
   font-size: 11px;
-  color: #7f7688;
+  color: var(--text-muted);
 }
 
 .signup .text-button {
   font-size: 11px;
-  color: #d9af96;
+  color: var(--accent-coral);
 }
 
 .status {
@@ -376,7 +376,7 @@ h1 {
 
 .back-button {
   font-size: 11px;
-  color: #ad9487;
+  color: var(--text-muted);
   background: none;
   border: 0;
   padding: 0;
@@ -389,7 +389,7 @@ h1 {
 }
 
 .back-button:hover {
-  color: #e4bd9f;
+  color: var(--accent-coral);
 }
 
 </style>

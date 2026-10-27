@@ -119,7 +119,7 @@ function goToLogin() {
     9px 'SFMono-Regular',
     Consolas,
     monospace;
-  color: #9c8275;
+  color: var(--accent-coral);
   letter-spacing: 2px;
   margin-bottom: 16px;
 }
@@ -152,8 +152,8 @@ h1 {
   border-radius: 12px;
   display: grid;
   place-items: center;
-  color: #8ed6bd;
-  background: rgba(142, 214, 189, 0.1);
+  color: var(--brand);
+  background: var(--brand-soft);
   font-size: 20px;
   margin-bottom: 22px;
 }
@@ -182,7 +182,7 @@ h1 {
 
 .back-button {
   font-size: 11px;
-  color: #ad9487;
+  color: var(--text-muted);
   background: none;
   border: 0;
   padding: 0;
@@ -195,6 +195,6 @@ h1 {
 }
 
 .back-button:hover {
-  color: #e4bd9f;
+  color: var(--accent-coral);
 }
 </style>

@@ -29,6 +29,7 @@ const practiceOpened = ref(false)
 const practiceVisible = ref(false)
 const practiceMinimized = ref(false)
 const practiceExpanded = ref(false)
+const dockPlacement = ref<'bottom' | 'right'>('bottom')
 const dockHeight = ref(310)
 const viewportHeight = ref(900)
 const maxDockHeight = computed(() => Math.max(180, viewportHeight.value - 220))
@@ -102,7 +103,7 @@ async function submit(stageId: string) {
 </script>
 
 <template>
-  <div class="challenge-shell">
+  <div class="challenge-shell" :class="{ 'dock-is-right': practiceVisible && !practiceMinimized && dockPlacement === 'right' }">
     <div class="challenge-top-bar">
       <NuxtLink to="/challenges" class="back">
         <ArrowLeft :size="14" aria-hidden="true" />
@@ -110,6 +111,7 @@ async function submit(stageId: string) {
       </NuxtLink>
 
       <div class="toolbar-tools" role="group" aria-label="练习环境">
+        <LearningEnvironmentStatus />
         <button
           type="button"
           :disabled="!ready"
@@ -218,6 +220,7 @@ async function submit(stageId: string) {
       :key="learner"
       :active="practiceVisible && !practiceMinimized"
       v-model:height="dockHeight"
+      v-model:placement="dockPlacement"
       v-model:expanded="practiceExpanded"
       :mode="practiceMode"
       :max-height="maxDockHeight"
@@ -241,6 +244,23 @@ async function submit(stageId: string) {
 </template>
 
 <style scoped>
+.challenge-shell.dock-is-right {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-rows: 45px minmax(0, 1fr);
+}
+
+.challenge-shell.dock-is-right .challenge-top-bar {
+  grid-column: 1 / -1;
+}
+
+@media (max-width: 960px) {
+  .challenge-shell.dock-is-right {
+    display: flex;
+    flex-direction: column;
+  }
+}
+
 .challenge-shell {
   display: flex;
   flex-direction: column;

@@ -35,12 +35,19 @@ const labels: Record<string, string> = {
   intermediate: '进阶',
   advanced: '高级',
 }
+
+function stagePercent(c: ChallengeSummary): number {
+  if (!currentUser.value || !c.totalStages) return 0
+  return Math.min(100, Math.round((c.completedStages / c.totalStages) * 100))
+}
 </script>
 
 <template>
   <div class="learning-shell challenge-list">
     <header class="page-head">
-      <Flag :size="22" aria-hidden="true" />
+      <span class="head-badge" aria-hidden="true">
+        <Flag :size="20" />
+      </span>
       <h1>挑战</h1>
     </header>
     <p class="intro">从一个目标开始，逐步找到答案。</p>
@@ -64,26 +71,35 @@ const labels: Record<string, string> = {
     </p>
 
     <div v-else class="cards">
-      <NuxtLink v-for="c in rows" :key="c.id" :to="`/challenges/${c.id}`" class="card">
+      <NuxtLink v-for="c in rows" :key="c.id" :to="`/challenges/${c.id}`" class="card" :data-difficulty="c.difficulty">
         <div class="meta">
-          <span>{{ c.category || '综合' }} · {{ labels[c.difficulty] }}</span>
+          <div class="meta-tags">
+            <span class="diff-pill" :class="c.difficulty">{{ labels[c.difficulty] || '挑战' }}</span>
+            <span class="cat-label">{{ c.category || '综合' }}</span>
+          </div>
           <CheckCircle2
             v-if="currentUser && c.totalStages > 0 && c.completedStages === c.totalStages"
             :size="17"
+            class="completed-icon"
             aria-hidden="true"
           />
         </div>
         <h2>{{ c.title }}</h2>
         <p>{{ c.summary }}</p>
         <footer>
-          <span>
-            {{
-              currentUser
-                ? `${c.completedStages} / ${c.totalStages} 阶段已完成`
-                : `${c.totalStages} 个阶段`
-            }}
-          </span>
-          <ArrowRight :size="16" aria-hidden="true" />
+          <div class="footer-row">
+            <span class="stage-count">
+              {{
+                currentUser
+                  ? `${c.completedStages} / ${c.totalStages} 阶段已完成`
+                  : `${c.totalStages} 个阶段`
+              }}
+            </span>
+            <ArrowRight :size="16" class="card-arrow" aria-hidden="true" />
+          </div>
+          <div v-if="currentUser && c.totalStages > 0" class="stage-bar" aria-hidden="true">
+            <i :style="{ width: `${stagePercent(c)}%` }" />
+          </div>
         </footer>
       </NuxtLink>
     </div>
@@ -93,6 +109,10 @@ const labels: Record<string, string> = {
 </template>
 
 <style scoped>
+.challenge-list {
+  background: var(--page-ambient);
+}
+
 .empty-flag{color:var(--learning-spark);transform:rotate(-8deg);margin:0 auto 12px}.empty a{color:var(--green);font-size:13px}
 
 .page-head {
@@ -101,15 +121,27 @@ const labels: Record<string, string> = {
   align-items: center;
 }
 
+.head-badge {
+  display: grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  border-radius: 10px;
+  background: var(--brand-soft);
+  color: var(--brand);
+  border: 1px solid color-mix(in srgb, var(--brand) 25%, transparent);
+}
+
 h1 {
   font-size: 30px;
   margin: 0;
+  letter-spacing: -0.6px;
 }
 
 .intro {
   color: var(--muted);
   font-size: 14px;
-  margin: 15px 0 30px;
+  margin: 14px 0 28px;
 }
 
 .filters {
@@ -126,9 +158,16 @@ button {
   background: var(--paper);
   color: var(--ink);
   border: 1px solid var(--line);
-  border-radius: 6px;
+  border-radius: 7px;
   font-size: 13px;
   box-sizing: border-box;
+  transition: border-color 0.15s ease;
+}
+
+input:focus,
+select:focus {
+  outline: none;
+  border-color: var(--focus);
 }
 
 input {
@@ -144,24 +183,47 @@ input {
 }
 
 .card {
-  background: var(--paper);
+  position: relative;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.025) 0%, rgba(255, 255, 255, 0) 100%), var(--paper);
   border: 1px solid var(--line);
-  border-radius: 10px;
-  padding: 26px;
+  border-radius: 12px;
+  box-shadow: var(--surface-highlight);
+  padding: 24px 26px;
   text-decoration: none;
   color: var(--ink);
   display: flex;
   flex-direction: column;
-  transition: border-color 0.15s ease, transform 0.15s ease;
+  overflow: hidden;
+  transition: border-color 0.2s ease, transform 0.2s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.2s ease;
 }
+
+.card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: var(--brand);
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+
+.card[data-difficulty='beginner']::before { background: var(--tone-green); }
+.card[data-difficulty='intermediate']::before { background: var(--tone-blue); }
+.card[data-difficulty='advanced']::before { background: var(--tone-red); }
 
 .card:hover {
-  border-color: var(--focus);
-  transform: translateY(-2px);
+  border-color: color-mix(in srgb, var(--brand) 50%, var(--line));
+  transform: translateY(-3px);
+  box-shadow: var(--surface-highlight), var(--card-shadow);
 }
 
-.meta,
-footer {
+.card:hover::before {
+  opacity: 1;
+}
+
+.meta {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -169,13 +231,50 @@ footer {
   font-size: 12px;
 }
 
-.meta svg {
-  color: var(--green);
+.meta-tags {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.diff-pill {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 6px;
+  background: var(--soft);
+  color: var(--muted);
+}
+
+.diff-pill.beginner {
+  color: var(--tone-green);
+  background: var(--tone-green-soft);
+}
+
+.diff-pill.intermediate {
+  color: var(--tone-blue);
+  background: var(--tone-blue-soft);
+}
+
+.diff-pill.advanced {
+  color: var(--tone-red);
+  background: var(--tone-red-soft);
+}
+
+.cat-label {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.completed-icon {
+  color: var(--success-ink);
 }
 
 h2 {
-  font-size: 21px;
-  margin: 20px 0 12px;
+  font-size: 20px;
+  font-weight: 650;
+  letter-spacing: -0.3px;
+  margin: 18px 0 10px;
 }
 
 .card p {
@@ -184,12 +283,48 @@ h2 {
   line-height: 1.7;
   min-height: 44px;
   flex: 1;
+  margin: 0;
 }
 
 footer {
   border-top: 1px solid var(--line);
-  padding-top: 18px;
-  margin-top: 24px;
+  padding-top: 16px;
+  margin-top: 22px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.footer-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  color: var(--muted);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.card-arrow {
+  transition: transform 0.18s ease, color 0.18s ease;
+}
+
+.card:hover .card-arrow {
+  transform: translateX(3px);
+  color: var(--brand);
+}
+
+.stage-bar {
+  height: 4px;
+  border-radius: 4px;
+  background: var(--soft);
+  overflow: hidden;
+}
+
+.stage-bar i {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--brand);
 }
 
 .empty {

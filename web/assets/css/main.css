@@ -14,33 +14,48 @@
   --text-muted: #96939d;
   --border-line: rgba(255, 255, 255, 0.07);
 
-  /* 原型设计 Token 映射 (深海) */
-  --bg: #12171c;
-  --paper: #191f26;
-  --ink: #e7ecef;
-  --muted: #a0acb6;
-  --body: #bbc5ce;
-  --reader-bg: #1b1d20;
-  --reader-ink: #d2d4d7;
-  --line: #303a44;
-  --green: #8ed6bd;
-  --mint: #253b36;
-  --soft: #242d35;
-  --hover: #202a32;
-  --on-accent: #112a22;
-  --focus: #8ed6bd;
-  --art: #263b38;
-  --art2: #293645;
-  --art3: #3b3430;
-  --art-ink: #8ca9a0;
-  --code: #0e1318;
-  --code-ink: #e0e9ee;
-  --code-muted: #93a6b7;
-  --code-highlight: #a6e0c5;
-  --success-bg: #233b30;
-  --success-ink: #a2dbb5;
-  --error-bg: #402d25;
-  --error-ink: #f1bd95;
+  /* 统一设计 Token 映射 (深海曜石 · 熔岩琥珀 × 冰川青蓝) */
+  --bg: #0c0e14;
+  --paper: #131720;
+  --ink: #f2f0ed;
+  --muted: #949ba8;
+  --body: #c4cad4;
+  --reader-bg: #10131a;
+  --reader-ink: #d8dde6;
+  --line: #232938;
+
+  /* 主品牌交互色：以暖铜琥珀取代原本突兀的祖母绿，保持全站视觉基因统一 */
+  --brand: #f59e6c;
+  --brand-hover: #ffb387;
+  --brand-soft: rgba(245, 158, 108, 0.14);
+  --green: var(--brand);
+  --mint: var(--brand-soft);
+
+  --soft: #1a202c;
+  --hover: #171c27;
+  --on-accent: #1d120c;
+  --focus: #f59e6c;
+
+  /* 装饰与代码高亮面板 */
+  --art: #2a211d;
+  --art2: #1c2536;
+  --art3: #28202f;
+  --art-ink: #e0a989;
+  --code: #0b0e14;
+  --code-ink: #e6edf5;
+  --code-muted: #8b96a9;
+  --code-highlight: #ffb485;
+
+  /* 状态语义色：完成态采用清透冰川青蓝，告警态采用珊瑚绯红 */
+  --success-bg: rgba(56, 189, 248, 0.14);
+  --success-ink: #7dd3fc;
+  --error-bg: rgba(244, 63, 94, 0.15);
+  --error-ink: #fda4af;
+
+  /* 卡片微立体光影与顶栏氛围光 */
+  --surface-highlight: inset 0 1px 0 0 rgba(255, 255, 255, 0.05);
+  --card-shadow: 0 12px 32px -6px rgba(0, 0, 0, 0.45);
+  --page-ambient: radial-gradient(ellipse 80% 320px at 50% -60px, rgba(245, 158, 108, 0.08), transparent 70%);
 
   /* 品牌高亮与交互态 */
   --accent-coral: #ffaf88;
@@ -63,42 +78,59 @@
 [data-theme='light'],
 [data-theme='graphite'] {
   color-scheme: light;
-  --bg-app: #f9f8f6;
+  --bg-app: #f6f5f2;
   --bg-card: #ffffff;
-  --bg-input: #f2f0ed;
-  --text-main: #1d1b20;
-  --text-muted: #736d7a;
-  --border-line: rgba(0, 0, 0, 0.08);
-  --text-on-accent: #271a15;
+  --bg-input: #efede8;
+  --text-main: #1c1d22;
+  --text-muted: #686b75;
+  --border-line: rgba(28, 29, 34, 0.09);
+  --accent-coral: #c85a32;
+  --accent-hover: #b24b26;
+  --text-on-accent: #ffffff;
   --color-error: #c53030;
 
-  /* 原型设计 Token 映射 (石墨) */
-  --bg: #f7f7f8;
+  /* 统一设计 Token 映射 (暖曜石墨 · 赤陶琥珀 × 极光靛蓝) */
+  --bg: #f6f5f2;
   --paper: #ffffff;
-  --ink: #202127;
-  --muted: #666872;
-  --body: #454751;
-  --reader-bg: #faf9f6;
-  --reader-ink: #343638;
-  --line: #e2e2e7;
-  --green: #30323a;
-  --mint: #ebebef;
-  --soft: #f0f0f3;
-  --hover: #f6f6f8;
+  --ink: #1c1d22;
+  --muted: #646874;
+  --body: #3e414c;
+  --reader-bg: #faf9f5;
+  --reader-ink: #2c2f36;
+  --line: #e4e2dc;
+
+  /* 主品牌交互色：告别原本沉闷的死黑 #30323a 与祖母绿，采用高对比赤陶琥珀色 */
+  --brand: #c85a32;
+  --brand-hover: #b24b26;
+  --brand-soft: #fcf0eb;
+  --green: var(--brand);
+  --mint: var(--brand-soft);
+
+  --soft: #efede8;
+  --hover: #f4f2ee;
   --on-accent: #ffffff;
-  --focus: #7f8394;
-  --art: #e9eaef;
-  --art2: #e7ebef;
-  --art3: #eeebe8;
-  --art-ink: #707585;
-  --code: #22242c;
-  --code-ink: #e4e5ec;
-  --code-muted: #a1a6b8;
-  --code-highlight: #c0c9ff;
-  --success-bg: #eaf3ed;
-  --success-ink: #2e6242;
-  --error-bg: #fff0e5;
-  --error-ink: #8c491e;
+  --focus: #c85a32;
+
+  /* 装饰与代码高亮面板 */
+  --art: #f4ece6;
+  --art2: #eaeff7;
+  --art3: #f2ecf6;
+  --art-ink: #9c4c2d;
+  --code: #181c26;
+  --code-ink: #edf1f7;
+  --code-muted: #9aa3b5;
+  --code-highlight: #ffbe98;
+
+  /* 状态语义色 */
+  --success-bg: #e0f2fe;
+  --success-ink: #0369a1;
+  --error-bg: #fff1f2;
+  --error-ink: #be123c;
+
+  /* 卡片微立体光影与顶栏氛围光 */
+  --surface-highlight: inset 0 1px 0 0 rgba(255, 255, 255, 0.8);
+  --card-shadow: 0 10px 26px -6px rgba(28, 25, 23, 0.07);
+  --page-ambient: radial-gradient(ellipse 80% 280px at 50% -60px, rgba(200, 90, 50, 0.06), transparent 70%);
 }
 
 body {

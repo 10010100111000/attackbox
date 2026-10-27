@@ -1,10 +1,10 @@
 <script setup lang="ts">
 import { ref, onBeforeUnmount, watch } from 'vue'
-import { Terminal, Monitor, ExternalLink, Minus, X, Unplug, Plus } from 'lucide-vue-next'
+import { Terminal, Monitor, ExternalLink, Minus, X, Unplug, Plus, Columns2, Rows2 } from 'lucide-vue-next'
 import { useSandboxSession } from '~/composables/useSandboxSession'
 import { LearningSandboxTerminal as SandboxTerminal, LearningSandboxDesktop as SandboxDesktop } from '#components'
-const props = defineProps<{ active: boolean; mode: 'cli' | 'gui'; height: number; maxHeight: number }>()
-const emit = defineEmits<{ 'update:height': [height: number]; minimize: [] }>()
+const props = withDefaults(defineProps<{ active: boolean; mode: 'cli' | 'gui'; height: number; maxHeight: number; placement?: 'bottom' | 'right' }>(), { placement: 'bottom' })
+const emit = defineEmits<{ 'update:height': [height: number]; 'update:placement': [placement: 'bottom' | 'right']; minimize: [] }>()
 const {sandbox,loading,notice,refresh:refreshSandbox,guiElsewhere,resumeGUI,openViewer,currentUser}=useSandboxSession()
 const route = useRoute()
 const desktopOpened = ref(false)
@@ -56,11 +56,12 @@ onBeforeUnmount(stopResize)
 </script>
 
 <template>
-  <section class="practice-dock" :class="{ resizing }" :style="{ height: `${height}px` }" aria-label="练习环境面板">
-    <div class="dock-grip" role="separator" tabindex="0" aria-label="调整练习面板高度" aria-orientation="horizontal" :aria-valuemin="180" :aria-valuemax="maxHeight" :aria-valuenow="height" @pointerdown="startResize" @pointermove="moveResize" @pointerup="stopResize" @pointercancel="stopResize" @lostpointercapture="stopResize" @keydown="keyResize"><span /></div>
+  <section class="practice-dock" :class="{ resizing, 'dock-right': placement === 'right' }" :style="placement === 'right' ? undefined : { height: `${height}px` }" aria-label="练习环境面板">
+    <div v-if="placement !== 'right'" class="dock-grip" role="separator" tabindex="0" aria-label="调整练习面板高度" aria-orientation="horizontal" :aria-valuemin="180" :aria-valuemax="maxHeight" :aria-valuenow="height" @pointerdown="startResize" @pointermove="moveResize" @pointerup="stopResize" @pointercancel="stopResize" @lostpointercapture="stopResize" @keydown="keyResize"><span /></div>
     <div class="dock-header">
       <div class="dock-title"><Terminal v-if="mode === 'cli'" :size="15" aria-hidden="true" /><Monitor v-else :size="15" aria-hidden="true" />{{ mode === 'cli' ? '终端' : '桌面' }}<span v-if="sandbox.instance" class="sandbox-state">{{ sandbox.instance.connected ? stateLabels[sandbox.instance.state] : '节点断开' }}</span></div>
       <div class="dock-actions">
+        <button type="button" class="placement-toggle" :title="placement === 'right' ? '切换为底部停靠' : '切换为右侧分屏'" :aria-label="placement === 'right' ? '切换为底部停靠' : '切换为右侧分屏'" @click="emit('update:placement', placement === 'right' ? 'bottom' : 'right')"><Rows2 v-if="placement === 'right'" :size="15" aria-hidden="true"/><Columns2 v-else :size="15" aria-hidden="true"/></button>
         <button type="button" class="independent-open" @click="openViewer(mode)" title="在新标签页打开" aria-label="在新标签页打开"><ExternalLink :size="15" aria-hidden="true"/></button>
         <button type="button" aria-label="收起练习面板" @click="emit('minimize')"><Minus :size="16" aria-hidden="true" /></button>
       </div>
@@ -83,6 +84,8 @@ onBeforeUnmount(stopResize)
 
 <style scoped>
 .practice-dock { flex-shrink: 0; min-height: 180px; display: flex; flex-direction: column; border-top: 1px solid var(--line); background: var(--paper); z-index: 5; }
+.practice-dock.dock-right { width: min(46vw, 680px); height: 100% !important; border-top: 0; border-left: 1px solid var(--line); }
+@media (max-width: 960px) { .practice-dock.dock-right { width: 100%; height: 320px !important; border-left: 0; border-top: 1px solid var(--line); } }
 .dock-grip { height: 9px; flex-shrink: 0; display: grid; place-items: center; cursor: ns-resize; touch-action: none; }
 .dock-grip > span { width: 36px; height: 3px; background: var(--line); border-radius: 3px; }
 .dock-grip:hover > span, .resizing .dock-grip > span { background: var(--green); }

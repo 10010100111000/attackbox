@@ -95,8 +95,8 @@ const filteredModules = computed(() => {
 // 预设优雅的生成式渐变主题与图案配置 (保留发散设计)
 const artThemes = [
   {
-    gradient: 'linear-gradient(135deg, rgba(20, 184, 166, 0.16) 0%, rgba(56, 189, 248, 0.12) 100%), radial-gradient(circle at 85% 15%, rgba(16, 185, 129, 0.22), transparent 60%)',
-    border: 'rgba(20, 184, 166, 0.25)',
+    gradient: 'linear-gradient(135deg, rgba(245, 158, 108, 0.20) 0%, rgba(244, 63, 94, 0.12) 100%), radial-gradient(circle at 85% 15%, rgba(234, 88, 12, 0.24), transparent 60%)',
+    border: 'rgba(245, 158, 108, 0.3)',
     type: 'radar'
   },
   {
@@ -249,7 +249,7 @@ function getModuleTheme(index: number) {
 
             <!-- 卡片主体 -->
             <div class="card-body">
-              <span class="tag">{{ difficultyToLabel(mod.difficulty) }}</span>
+              <span class="tag" :class="mod.difficulty">{{ difficultyToLabel(mod.difficulty) }}</span>
               <h2 class="card-title">{{ mod.title }}</h2>
               <p v-if="mod.summary" class="card-desc">{{ mod.summary }}</p>
 
@@ -293,7 +293,8 @@ function getModuleTheme(index: number) {
 <style scoped>
 .home-placeholder{height:188px;background:var(--soft);border-radius:11px;margin-bottom:18px}.empty-doodle{color:var(--learning-spark);transform:rotate(-8deg);margin:0 auto 12px}.card:hover .art-index-pill{transform:rotate(-6deg)}.art-index-pill{transition:transform .16s ease}@media(prefers-reduced-motion:reduce){.art-index-pill{transition:none}.card:hover .art-index-pill{transform:none}}
 
-.module-cover{width:100%;height:100%;object-fit:cover;position:absolute;inset:0}.discovery-controls{display:flex;align-items:center;gap:20px;margin:-4px 0 18px;color:var(--muted);font-size:12px}.discovery-controls>span{margin-right:auto}.discovery-controls label{display:flex;align-items:center;gap:8px}.discovery-controls select{background:var(--paper);color:var(--ink);border:1px solid var(--line);padding:6px 9px;border-radius:6px}.resume-action{font-size:12px;white-space:nowrap}.recent-learning { display: flex; align-items: center; justify-content: space-between; gap: 24px; padding: 14px 20px; margin-bottom: 18px; border: 1px solid var(--line); border-radius: 10px; background: var(--mint); color: var(--ink); text-decoration: none; }
+.module-cover{width:100%;height:100%;object-fit:cover;position:absolute;inset:0}.discovery-controls{display:flex;align-items:center;gap:20px;margin:-4px 0 18px;color:var(--muted);font-size:12px}.discovery-controls>span{margin-right:auto}.discovery-controls label{display:flex;align-items:center;gap:8px}.discovery-controls select{background:var(--paper);color:var(--ink);border:1px solid var(--line);padding:6px 9px;border-radius:6px}.resume-action{font-size:12px;white-space:nowrap}.recent-learning { display: flex; align-items: center; justify-content: space-between; gap: 24px; padding: 16px 22px; margin-bottom: 20px; border: 1px solid color-mix(in srgb, var(--brand) 32%, var(--line)); border-radius: 12px; background: linear-gradient(105deg, var(--mint) 0%, var(--paper) 85%); box-shadow: var(--surface-highlight), var(--card-shadow); color: var(--ink); text-decoration: none; transition: transform 0.18s ease, border-color 0.18s ease; }
+.recent-learning:hover { transform: translateY(-2px); border-color: var(--brand); }
 .recent-copy { flex: 1; min-width: 0; display:grid;grid-template-columns:minmax(0,1fr) 140px;column-gap:20px; }
 .recent-label { grid-column:1; font-size: 11px; color: var(--muted); }
 .recent-learning h2 { grid-column:1; font-size: 15px; margin: 3px 0; font-weight: 650; }
@@ -308,7 +309,7 @@ function getModuleTheme(index: number) {
   flex-direction:column;
   width: 100%;
   min-height: calc(100dvh - 68px);
-  background: var(--bg);
+  background: var(--page-ambient), var(--bg);
   color: var(--ink);
 }
 
@@ -425,21 +426,22 @@ function getModuleTheme(index: number) {
 }
 
 .card {
-  background: var(--paper);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.025) 0%, rgba(255, 255, 255, 0) 100%), var(--paper);
   border: 1px solid var(--line);
   border-radius: 12px;
+  box-shadow: var(--surface-highlight);
   overflow: hidden;
   text-decoration: none;
   color: var(--ink);
   display: flex;
   flex-direction: column;
-  transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
+  transition: transform 0.2s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.2s ease, border-color 0.2s ease;
 }
 
 .card:hover {
-  transform: translateY(-2px);
-  border-color: var(--focus);
-  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.05);
+  transform: translateY(-3px);
+  border-color: color-mix(in srgb, var(--brand) 55%, var(--line));
+  box-shadow: var(--surface-highlight), var(--card-shadow);
 }
 
 /* 专属艺术渐变区 */
@@ -485,13 +487,33 @@ function getModuleTheme(index: number) {
 
 .tag {
   align-self: flex-start;
-  display: inline-block;
-  border: 1px solid var(--line);
-  border-radius: 5px;
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid transparent;
+  border-radius: 6px;
   padding: 2px 8px;
   font-size: 11px;
+  font-weight: 550;
   color: var(--muted);
   background: var(--soft);
+}
+
+.tag.beginner {
+  color: var(--tone-green);
+  background: var(--tone-green-soft);
+  border-color: color-mix(in srgb, var(--tone-green) 22%, transparent);
+}
+
+.tag.intermediate {
+  color: var(--tone-blue);
+  background: var(--tone-blue-soft);
+  border-color: color-mix(in srgb, var(--tone-blue) 22%, transparent);
+}
+
+.tag.advanced {
+  color: var(--tone-red);
+  background: var(--tone-red-soft);
+  border-color: color-mix(in srgb, var(--tone-red) 22%, transparent);
 }
 
 .card-title {

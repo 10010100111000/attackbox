@@ -42,9 +42,10 @@ onUnmounted(() => { mounted = false; clearInterval(timer); media?.removeEventLis
   gap: 25px;
   align-items: center;
   padding: 22px 28px;
-  border: 1px solid var(--line);
-  background: var(--paper);
-  border-radius: 11px;
+  border: 1px solid color-mix(in srgb, var(--brand) 22%, var(--line));
+  background: radial-gradient(circle at 88% 30%, var(--brand-soft), transparent 52%), var(--paper);
+  box-shadow: var(--surface-highlight), var(--card-shadow);
+  border-radius: 12px;
   min-height: 174px;
   position: relative;
   overflow: hidden;
