@@ -1,0 +1,15 @@
+[Unit]
+Description=AttackBox Go Worker
+After=network.target docker.service
+Wants=docker.service
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/var/lib/attackbox
+ExecStart=/usr/local/bin/attackbox-worker -config /etc/attackbox/worker.yaml
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target

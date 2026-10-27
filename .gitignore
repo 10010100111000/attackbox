@@ -53,4 +53,4 @@ backup
 /web/data/content/
 
 # Worker deployment configuration (contains cluster credentials)
-/configs/node.yaml
+dist/
