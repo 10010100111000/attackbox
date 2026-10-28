@@ -52,7 +52,7 @@ test('real login/register endpoints enforce Turnstile and atomic limits; widget 
     assert.ok(ready, logs)
     const publicConfig = await request('/api/auth/challenge')
     assert.deepEqual(publicConfig.json, { enabled:true, siteKey:'test-public-key' })
-    assert.equal(publicConfig.response.headers.get('cache-control'), 'no-store')
+    assert.equal(publicConfig.response.headers.get('cache-control'), 'private, no-store')
     const credentials = { email:learner.email, password:learner.password }
     const sessions = Number((await fixture.sql`select count(*) from auth_sessions where user_id=${learner.id}`)[0].count)
     for (const turnstileToken of [undefined, true, 'invalid', 'valid-wrong-host', 'valid-register-wrong-action']) {

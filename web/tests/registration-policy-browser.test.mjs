@@ -7,7 +7,7 @@ test('registration rejects temporary domains before account creation and recheck
  const f=await learningFixture();let browser
  try{
   const publicPolicy=await fetch(f.base+'/api/auth/registration-policy')
-  assert.equal(publicPolicy.status,200);assert.equal(publicPolicy.headers.get('cache-control'),'no-store')
+  assert.equal(publicPolicy.status,200);assert.equal(publicPolicy.headers.get('cache-control'),'private, no-store')
   const {domains}=await publicPolicy.json();assert.ok(domains.includes('gmail.com'));assert.ok(!domains.includes('mailinator.com'))
   for(const domain of ['mailinator.com','gmail.com.evil.test','sub.gmail.com']){
    const email=`blocked-${crypto.randomUUID()}@${domain}`

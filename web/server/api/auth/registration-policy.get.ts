@@ -1,6 +1,5 @@
-import { defineEventHandler, setResponseHeader } from 'h3'
+import { defineEventHandler } from 'h3'
 import { registrationDomains } from '../../utils/registration-policy'
-export default defineEventHandler(event => {
-  setResponseHeader(event, 'Cache-Control', 'no-store')
+export default defineEventHandler(() => {
   return { domains: registrationDomains() }
 })
