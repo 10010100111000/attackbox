@@ -25,6 +25,9 @@ const email = ref(props.modelValueEmail)
 const password = ref('')
 const rememberMe = ref(false)
 const busy = ref(false)
+const turnstileToken = ref('')
+const challengeReady = ref(false)
+const challengeReset = ref(0)
 const emailError = ref('')
 const passwordError = ref('')
 const statusMessage = ref('')
@@ -83,7 +86,7 @@ function validate(): boolean {
 const { login } = useAuth()
 
 async function handleSubmit() {
-  if (!mounted.value || busy.value) return
+  if (!mounted.value || busy.value || !challengeReady.value) return
   if (!validate()) return
 
   const cleanEmail = email.value.trim()
@@ -93,13 +96,14 @@ async function handleSubmit() {
   busy.value = true
   statusMessage.value = ''
   try {
-    await login(cleanEmail, password.value, rememberMe.value)
+    await login(cleanEmail, password.value, rememberMe.value, turnstileToken.value)
     password.value = ''
     await navigateTo('/learn', { replace: true })
   } catch (err: any) {
-    statusMessage.value = err?.data?.statusMessage || err?.message || '登录失败，请检查邮箱与密码'
+    statusMessage.value = err?.data?.message || err?.data?.statusMessage || err?.message || '登录失败，请检查邮箱与密码'
   } finally {
     busy.value = false
+    challengeReset.value++
   }
 }
 
@@ -173,10 +177,12 @@ async function handleSubmit() {
           <span>保持登录状态</span>
         </label>
 
+        <AuthChallenge v-model="turnstileToken" v-model:ready="challengeReady" action="login" :reset-key="challengeReset" :disabled="busy" />
         <!-- 登录提交按钮 -->
         <Button
           variant="primary"
           :loading="busy"
+          :disabled="!challengeReady"
           type="submit"
           class="submit w-full h-[46px] text-xs font-semibold rounded-md gap-4"
         >

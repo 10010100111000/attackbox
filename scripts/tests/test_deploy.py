@@ -70,6 +70,58 @@ class DeploymentTests(unittest.TestCase):
         d.setup_worker(d.parser().parse_args(['worker','setup','--tls-terminated','--listen-addr','127.0.0.1:9443']))
         self.assertFalse(d.yaml.safe_load(d.WORKER.read_text())['gateway']['tls_enabled'])
 
+    def cloudflare_values(self):
+        values = d.read_env()
+        cert = self.root/'origin.pem'
+        key = self.root/'origin.key'
+        cert.write_text('nginx -t validates the real certificate')
+        key.write_text('test placeholder')
+        items = d.nodes(values)
+        items[0]['publicDataUrl'] = 'wss://microsb.de'
+        values.update(CLOUDFLARE_ENABLED='true', APP_BASE_URL='https://microsb.de',
+                      ORIGIN_TLS_CERT=str(cert), ORIGIN_TLS_KEY=str(key), SANDBOX_NODES_JSON=json.dumps(items))
+        return values
+
+    def test_cloudflare_headers_peer_allowlist_and_same_origin_websockets(self):
+        values = self.cloudflare_values()
+        config = d.render_nginx(values, '127.0.0.1:3000')
+        self.assertIn('geo $realip_remote_addr $attackbox_cloudflare_peer', config)
+        self.assertIn('real_ip_header CF-Connecting-IP;', config)
+        self.assertIn('proxy_set_header X-Forwarded-For $remote_addr;', config)
+        self.assertNotIn('$proxy_add_x_forwarded_for', config)
+        self.assertNotIn('@@', config)
+        self.assertIn('location = /ws/cli', config)
+        self.assertIn('location = /ws/gui', config)
+        self.assertIn('server 127.0.0.1:8443;', config)
+        self.assertIn('ssl_reject_handshake on;', config)
+        self.assertIn('location = /cluster/connect { return 404; }', config)
+
+    def test_cloudflare_rejects_exposed_ports_wrong_origins_and_config_injection(self):
+        values = self.cloudflare_values()
+        for key, value in [('HOST','0.0.0.0'), ('WORKER_PROXY_UPSTREAM','0.0.0.0:8443'),
+                           ('WORKER_PROXY_UPSTREAM','localhost:8443;bad'), ('ORIGIN_TLS_KEY','/tmp/a;bad'),
+                           ('APP_BASE_URL','https://microsb.de:8443'), ('APP_BASE_URL','https://microsb.de/path'),
+                           ('APP_BASE_URL','http://microsb.de'), ('CLOUDFLARE_ENABLED','yes'),
+                           ('TURNSTILE_SITE_KEY','site-without-secret')]:
+            with self.subTest(key=key, value=value), self.assertRaises((d.ConfigError, ValueError)):
+                d.render_nginx({**values, key:value}, '127.0.0.1:3000')
+        with self.assertRaises(d.ConfigError):
+            d.render_nginx({**values, 'SANDBOX_NODES_JSON':d.read_env()['SANDBOX_NODES_JSON']}, '127.0.0.1:3000')
+
+    def test_cloudflare_worker_must_be_loopback_without_native_tls(self):
+        values = self.cloudflare_values()
+        d.atomic(d.ENV, d.env_text(values))
+        d.setup_worker(d.parser().parse_args(['worker','setup','--tls-terminated','--listen-addr','127.0.0.1:8443']))
+        d.render_nginx(values, '127.0.0.1:3000')
+        config = d.yaml.safe_load(d.WORKER.read_text())
+        for updates in [dict(listen_addr='0.0.0.0:8443'), dict(tls_enabled=True), dict(listen_addr='127.0.0.1:9443')]:
+            modified = {**config, 'gateway':{**config['gateway'], **updates}}
+            d.atomic(d.WORKER, d.yaml.safe_dump(modified))
+            with self.assertRaises(d.ConfigError):d.render_nginx(values, '127.0.0.1:3000')
+        config['node']['control_url'] = 'wss://microsb.de/cluster/connect'
+        d.atomic(d.WORKER, d.yaml.safe_dump(config))
+        with self.assertRaises(d.ConfigError):d.render_nginx(values, '127.0.0.1:3000')
+
     def prepare_publish(self):
         artifact=self.root/'web/.output/server';artifact.mkdir(parents=True)
         (artifact/'index.mjs').write_text('new')

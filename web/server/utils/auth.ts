@@ -1,6 +1,7 @@
+import { clientIp } from './client-ip.ts';
 import { hash, verify } from '@node-rs/argon2';
 import crypto from 'node:crypto';
-import { type H3Event, getCookie, setCookie, deleteCookie, getRequestIP, getRequestHeader } from 'h3';
+import { type H3Event, getCookie, setCookie, deleteCookie, getRequestHeader } from 'h3';
 
 export const SESSION_COOKIE_NAME = 'attackbox_session';
 
@@ -81,5 +82,5 @@ export function getSessionToken(event: H3Event): string | undefined {
  * 获取客户端 IP 地址
  */
 export function getEventIp(event: H3Event): string | undefined {
-  return getRequestIP(event, { xForwardedFor: true }) || undefined;
+  return clientIp(event) || undefined;
 }

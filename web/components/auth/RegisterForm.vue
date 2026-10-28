@@ -21,6 +21,9 @@ const { data: registrationPolicy } = useLazyFetch<{domains:string[]}>('/api/auth
 const email = ref(props.modelValueEmail)
 const password = ref('')
 const busy = ref(false)
+const turnstileToken = ref('')
+const challengeReady = ref(false)
+const challengeReset = ref(0)
 const mounted = ref(false)
 onMounted(() => {
   mounted.value = true
@@ -90,7 +93,7 @@ function validate(): boolean {
 const { register } = useAuth()
 
 async function handleSubmit() {
-  if (busy.value) return
+  if (busy.value || !challengeReady.value) return
   if (!validate()) return
 
   const cleanEmail = email.value.trim()
@@ -100,7 +103,7 @@ async function handleSubmit() {
   busy.value = true
   statusMessage.value = ''
   try {
-    const res = await register(cleanEmail, password.value)
+    const res = await register(cleanEmail, password.value, undefined, turnstileToken.value)
     password.value = ''
     hasRegistered.value = true
     statusMessage.value = res.message
@@ -109,6 +112,7 @@ async function handleSubmit() {
       err?.data?.message || err?.data?.statusMessage || err?.message || '注册失败，请稍后重试'
   } finally {
     busy.value = false
+    challengeReset.value++
   }
 }
 </script>
@@ -190,10 +194,12 @@ async function handleSubmit() {
             />
           </div>
 
+        <AuthChallenge v-model="turnstileToken" v-model:ready="challengeReady" action="register" :reset-key="challengeReset" :disabled="busy" />
           <!-- 注册提交按钮 -->
           <Button
             variant="primary"
             :loading="busy"
+          :disabled="!challengeReady"
             type="submit"
             class="submit w-full h-[46px] text-xs font-semibold rounded-md gap-4"
           >

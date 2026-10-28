@@ -34,6 +34,7 @@ test('login navigates before learning APIs finish; slow routes do not block modu
     let routesAvailable = false
     await page.route('**/api/**', async route => {
       const path = new URL(route.request().url()).pathname
+      if (path === '/api/auth/challenge') return reply(route, { enabled: false, siteKey: '' })
       requested.add(path)
       if (path === '/api/auth/me') return reply(route, {}, 401)
       if (path === '/api/auth/login') return reply(route, { user })
@@ -74,6 +75,7 @@ test('slow initial session lookup does not disable login or overwrite a successf
     const session = deferred(), sessionStarted = deferred(), sessionDone = deferred()
     await page.route('**/api/**', async route => {
       const path = new URL(route.request().url()).pathname
+      if (path === '/api/auth/challenge') return reply(route, { enabled: false, siteKey: '' })
       if (path === '/api/auth/me') {
         sessionStarted.resolve()
         await session.promise
@@ -105,6 +107,7 @@ test('invalid credentials show an error, allow retry, and never navigate or subm
     let attempts = 0
     await page.route('**/api/**', async route => {
       const path = new URL(route.request().url()).pathname
+      if (path === '/api/auth/challenge') return reply(route, { enabled: false, siteKey: '' })
       if (path === '/api/auth/me') return reply(route, {}, 401)
       if (path === '/api/auth/login') {
         attempts++

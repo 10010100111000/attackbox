@@ -1,4 +1,5 @@
 import { defineEventHandler, readBody, createError, getRequestHeader } from 'h3';
+import { protectAuth } from '../../services/auth-protection';
 import { db } from '../../db';
 import { users, authSessions } from '../../db/schema';
 import { eq } from 'drizzle-orm';
@@ -16,13 +17,14 @@ export default defineEventHandler(async (event) => {
   const password = typeof body?.password === 'string' ? body.password : '';
   const rememberMe = Boolean(body?.rememberMe);
 
-  if (!rawEmail || !password) {
+  if (!rawEmail || rawEmail.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(rawEmail) || !password || password.length > 1024) {
     throw createError({
       statusCode: 400,
       statusMessage: '请输入邮箱和密码',
     });
   }
 
+  const clearRateLimit = await protectAuth(event, 'login', rawEmail, body?.turnstileToken);
   const [user] = await db
     .select()
     .from(users)
@@ -30,6 +32,14 @@ export default defineEventHandler(async (event) => {
     .limit(1);
 
   if (!user || !user.passwordHash) {
+    throw createError({
+      statusCode: 401,
+      statusMessage: '邮箱或密码错误',
+    });
+  }
+
+  const isPasswordValid = await verifyPassword(user.passwordHash, password);
+  if (!isPasswordValid) {
     throw createError({
       statusCode: 401,
       statusMessage: '邮箱或密码错误',
@@ -48,14 +58,6 @@ export default defineEventHandler(async (event) => {
     throw createError({
       statusCode: 403,
       statusMessage: '账号已被暂停使用，请联系管理员',
-    });
-  }
-
-  const isPasswordValid = await verifyPassword(user.passwordHash, password);
-  if (!isPasswordValid) {
-    throw createError({
-      statusCode: 401,
-      statusMessage: '邮箱或密码错误',
     });
   }
 
@@ -80,6 +82,7 @@ export default defineEventHandler(async (event) => {
     await tx.update(users).set({ lastLoginAt: now }).where(eq(users.id, user.id));
   });
 
+  await clearRateLimit();
   // 写入 HttpOnly Cookie
   setSessionCookie(event, rawSessionToken, rememberMe);
 

@@ -144,6 +144,71 @@ def match_worker(values, config):
         raise ConfigError('两端节点 ID、集群密钥或 public_data_url 不一致；先配置 Control 节点名单')
 
 
+def render_nginx(values, upstream):
+    enabled = values.get('CLOUDFLARE_ENABLED', 'false')
+    if enabled not in ('true', 'false'):
+        raise ConfigError('CLOUDFLARE_ENABLED 必须为 true 或 false')
+    if bool(values.get('TURNSTILE_SITE_KEY', '').strip()) != bool(values.get('TURNSTILE_SECRET_KEY', '').strip()):
+        raise ConfigError('Turnstile Site Key 与 Secret Key 必须同时配置')
+    if enabled == 'false':
+        template = (ROOT/'deploy/control/nginx.conf.template').read_text()
+        if template.count('@@WEB_UPSTREAM@@') != 1:
+            raise ConfigError('nginx 模板占位符无效')
+        return template.replace('@@WEB_UPSTREAM@@', upstream)
+
+    origin = urlsplit(values.get('APP_BASE_URL', ''))
+    domain = origin.hostname or ''
+    if (origin.scheme != 'https' or origin.port not in (None, 443) or origin.username or origin.password
+            or origin.path not in ('', '/') or origin.query or origin.fragment
+            or not re.fullmatch(r'[a-zA-Z0-9](?:[a-zA-Z0-9.-]*[a-zA-Z0-9])?', domain)
+            or '.' not in domain):
+        raise ConfigError('Cloudflare 入口需要有效的 HTTPS APP_BASE_URL，不带路径或自定义端口')
+    if values.get('HOST', '127.0.0.1') not in ('127.0.0.1', '::1', 'localhost'):
+        raise ConfigError('Cloudflare 同机部署的 Nuxt HOST 必须为 loopback，避免绕过入口')
+    worker_raw = values.get('WORKER_PROXY_UPSTREAM', '127.0.0.1:8443')
+    worker_url = urlsplit('http://' + worker_raw)
+    if (worker_url.hostname not in ('127.0.0.1', '::1', 'localhost') or worker_url.username
+            or worker_url.password or worker_url.path or worker_url.query or worker_url.fragment
+            or not worker_url.port):
+        raise ConfigError('WORKER_PROXY_UPSTREAM 必须为 loopback host:port')
+    worker_upstream = endpoint(worker_url.hostname, worker_url.port)
+    public = 'wss://' + domain
+    entries = nodes(values)
+    if len(entries) != 1 or entries[0]['publicDataUrl'] not in (public, public + ':443'):
+        raise ConfigError('Cloudflare 同机模板只支持一个 Worker，publicDataUrl 应为 wss://网站域名')
+    if WORKER.exists():
+        config = yaml.safe_load(WORKER.read_text())
+        gateway = config['gateway']
+        raw_host, raw_port = gateway['listen_addr'].rsplit(':', 1)
+        host = raw_host.strip('[]')
+        if (host not in ('127.0.0.1', '::1', 'localhost') or gateway.get('tls_enabled')
+                or endpoint(host, raw_port) != worker_upstream):
+            raise ConfigError('Worker 必须在匹配的 loopback 地址监听明文，由 nginx 终止 TLS')
+        if config['node']['control_url'] != f'ws://{upstream}/cluster/connect':
+            raise ConfigError('Cloudflare 同机模板的 Worker control_url 必须直连本机 Nuxt /cluster/connect')
+    replacements = {'WEB_UPSTREAM': upstream, 'WORKER_UPSTREAM': worker_upstream, 'DOMAIN': domain}
+    for field, placeholder in [('ORIGIN_TLS_CERT', 'TLS_CERT'), ('ORIGIN_TLS_KEY', 'TLS_KEY')]:
+        value = values.get(field, '')
+        if not re.fullmatch(r'/[a-zA-Z0-9_./-]+', value) or not Path(value).is_file():
+            raise ConfigError(f'{field} 必须为现有证书文件的绝对路径，不支持空格或特殊字符')
+        replacements[placeholder] = value
+    cidrs = []
+    for line in (ROOT/'deploy/control/cloudflare-ips.txt').read_text().splitlines():
+        line = line.strip()
+        if line and not line.startswith('#'):
+            cidrs.append(str(ipaddress.ip_network(line, strict=True)))
+    if not cidrs or any(ipaddress.ip_network(c).prefixlen == 0 for c in cidrs):
+        raise ConfigError('Cloudflare 地址范围为空或包含全网范围')
+    replacements['CLOUDFLARE_GEO'] = '\n'.join(f'    {c} 1;' for c in cidrs)
+    replacements['CLOUDFLARE_REAL_IP'] = '\n'.join(f'set_real_ip_from {c};' for c in cidrs)
+    template = (ROOT/'deploy/control/nginx-cloudflare.conf.template').read_text()
+    for key, value in replacements.items():
+        template = template.replace('@@' + key + '@@', value)
+    if '@@' in template:
+        raise ConfigError('Cloudflare nginx 模板存在未替换占位符')
+    return template
+
+
 def prompt(value, label, default='', secret=False):
     if value is not None:
         return value
@@ -321,6 +386,7 @@ def deploy_control():
         raise ConfigError('请统一使用 HOST 和 PORT，不要另设 NITRO_HOST/NITRO_PORT')
     if WORKER.exists():
         match_worker(values,yaml.safe_load(WORKER.read_text()))
+    nginx_config = render_nginx(values, upstream)
     artifact = ROOT/'web/.output'
     if not (artifact/'server/index.mjs').is_file():
         raise ConfigError('先运行 scripts/build.sh control')
@@ -345,10 +411,7 @@ def deploy_control():
                 p=Path(directory)/name
                 if not p.is_symlink():
                     os.chmod(p,0o755 if p.stat().st_mode & 0o111 else 0o644)
-        template=(ROOT/'deploy/control/nginx.conf.template').read_text()
-        if template.count('@@WEB_UPSTREAM@@') != 1:
-            raise ConfigError('nginx 模板占位符无效')
-        atomic(config,template.replace('@@WEB_UPSTREAM@@',upstream),0o644)
+        atomic(config,nginx_config,0o644)
         restore(link,('link',str(config)))
         restore(default,None)
         atomic(unit,(ROOT/'deploy/control/attackbox-web.service').read_text(),0o644)
@@ -396,7 +459,10 @@ def deploy_worker():
     cfg = yaml.safe_load(WORKER.read_text())
     url = worker_health(cfg)
     if ENV.exists():
-        match_worker(read_env(),cfg)
+        values = read_env()
+        match_worker(values,cfg)
+        if values.get('CLOUDFLARE_ENABLED') == 'true':
+            render_nginx(values, endpoint(values.get('HOST', '127.0.0.1'), values.get('PORT', '3000')))
     artifact = ROOT/'dist/attackbox-worker'
     if not artifact.is_file():
         raise ConfigError('先运行 scripts/build.sh worker')

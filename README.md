@@ -50,6 +50,8 @@ sudo ./scripts/worker.sh setup
 
 ## 公网 HTTPS 与 Worker 网关
 
+同机部署且已接入 Cloudflare 的站点，优先参考 [Cloudflare 部署指南](docs/deployment/cloudflare.md)：统一 443 入口、复用已有证书、Turnstile、登录限流与源站限制。
+
 公网启用邮件验证时 `APP_BASE_URL` 必须为 HTTPS；未配置邮件时可先用 HTTP 完成初始部署。nginx 模板默认监听 80，不自动配置公网证书：请在 `deploy/control/nginx.conf.template` 中配置自己的 HTTPS 入口，或在外层反向代理终止 TLS；保留唯一的 `@@WEB_UPSTREAM@@` 占位符。`/cluster/connect` 已配置 WebSocket Upgrade，供异机 Worker 建立控制通道。
 
 例如，Control 与 Worker 同机、域名相同，Worker 直接提供 TLS：

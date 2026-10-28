@@ -442,6 +442,13 @@ CREATE TABLE "reference_images" (
 	CONSTRAINT "reference_images_reference_id_href_pk" PRIMARY KEY("reference_id","href")
 );
 --> statement-breakpoint
+CREATE TABLE "auth_rate_limits" (
+	"key" varchar(64) PRIMARY KEY NOT NULL,
+	"attempts" integer NOT NULL,
+	"window_at" timestamp with time zone NOT NULL,
+	CONSTRAINT "auth_rate_limits_attempts_check" CHECK ("auth_rate_limits"."attempts" > 0)
+);
+--> statement-breakpoint
 ALTER TABLE "auth_sessions" ADD CONSTRAINT "auth_sessions_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "email_tokens" ADD CONSTRAINT "email_tokens_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "audit_logs" ADD CONSTRAINT "audit_logs_actor_user_id_users_id_fk" FOREIGN KEY ("actor_user_id") REFERENCES "public"."users"("id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
@@ -522,4 +529,5 @@ CREATE INDEX "notification_receipts_user_idx" ON "notification_receipts" USING b
 CREATE INDEX "notifications_published_idx" ON "notifications" USING btree ("published_at");--> statement-breakpoint
 CREATE INDEX "notifications_recipient_idx" ON "notifications" USING btree ("recipient_id","published_at");--> statement-breakpoint
 CREATE UNIQUE INDEX "references_slug_unique" ON "reference_documents" USING btree ("slug");--> statement-breakpoint
-CREATE UNIQUE INDEX "references_source_unique" ON "reference_documents" USING btree ("source_origin","source_path");
+CREATE UNIQUE INDEX "references_source_unique" ON "reference_documents" USING btree ("source_origin","source_path");--> statement-breakpoint
+CREATE INDEX "auth_rate_limits_window_idx" ON "auth_rate_limits" USING btree ("window_at");

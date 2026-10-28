@@ -19,6 +19,7 @@ test('fresh baseline has direct content records, no seeded categories and no rev
     const tables = (await client`SELECT tablename FROM pg_tables WHERE schemaname='public'`).map(t => t.tablename)
     assert.ok(tables.includes('module_prerequisites'))
     assert.ok(tables.includes('modules'))
+    assert.ok(tables.includes('auth_rate_limits'))
     assert.ok(tables.includes('reference_documents'))
     assert.ok(tables.includes('reference_images'))
     assert.ok(tables.includes('chapters'))

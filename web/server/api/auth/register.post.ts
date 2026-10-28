@@ -1,4 +1,5 @@
 import { defineEventHandler, readBody, createError } from 'h3'
+import { protectAuth } from '../../services/auth-protection'
 import { db } from '../../db'
 import { users } from '../../db/schema'
 import { eq } from 'drizzle-orm'
@@ -38,6 +39,7 @@ export default defineEventHandler(async (event) => {
   }
 
   assertRegistrationEmail(rawEmail)
+  await protectAuth(event, 'register', rawEmail, body?.turnstileToken)
   configuredMailer()
 
   // 检查邮箱是否已被注册

@@ -34,10 +34,10 @@ export function useAuth() {
     }
   }
 
-  async function login(email: string, password: string, rememberMe: boolean = false): Promise<AuthUser> {
+  async function login(email: string, password: string, rememberMe: boolean = false, turnstileToken = ''): Promise<AuthUser> {
     const data = await $fetch<{ user: AuthUser }>('/api/auth/login', {
       method: 'POST',
-      body: { email, password, rememberMe },
+      body: { email, password, rememberMe, turnstileToken },
     });
     identityVersion.value++;
     clearLearningData();
@@ -46,10 +46,10 @@ export function useAuth() {
     return data.user;
   }
 
-  async function register(email: string, password: string, displayName?: string): Promise<{ message: string }> {
+  async function register(email: string, password: string, displayName?: string, turnstileToken = ''): Promise<{ message: string }> {
     return await $fetch<{ message: string }>('/api/auth/register', {
       method: 'POST',
-      body: { email, password, displayName },
+      body: { email, password, displayName, turnstileToken },
     });
   }
 
