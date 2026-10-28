@@ -36,7 +36,9 @@ export async function userDetail(id: string) {
       where p.user_id=${id} and m.status='published'`)
   return { user, activeSessions: sessions!.count, progress, history: await learningHistory(id), instance: sandboxController().status(id).instance }
 }
-// Serialize status changes through the DB commit and the in-memory scheduler update.
+// Order the DB commit and the local scheduler fence together. Worker cleanup
+// completion is outside this queue. The DB lock additionally protects actor
+// eligibility and the active-admin invariant across concurrent transactions.
 let mutationTail: Promise<unknown> = Promise.resolve()
 export function changeUserStatus(actorId: string, id: string, suspended: boolean) {
   const task = mutationTail.then(async () => {

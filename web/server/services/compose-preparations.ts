@@ -8,16 +8,24 @@ import {openVariables} from '../labs/credentials'
 import {bundleRecord,uuid} from './compose-templates'
 export type PreparationAction='status'|'prepare'|'cancel'|'rebuild'
 const active=(state:string)=>['preparing','cancelling','unknown'].includes(state)
-export async function preparationAction(id:string,nodeId:string,action:PreparationAction,expectedAttemptId?:string){
- const hub=sandboxHub(),node=hub.snapshot().nodes.find(n=>n.id===nodeId&&n.state==='online'&&n.bootId)
- if(!node||!hub.composeNodes.has(node.id))throw createError({statusCode:409,message:'节点未启用当前版本 Compose 能力，请一起升级控制端与 Worker'})
- if(['prepare','rebuild'].includes(action)&&node.settings.draining)throw createError({statusCode:409,message:'节点已暂停新任务'})
- const reservation=await db.transaction(async tx=>{
+// One statement gives a consistent template/revision/job snapshot without
+// joining the mutation queue. Status RPC results still use attempt/version CAS.
+async function readPreparation(id:string,nodeId:string){
+ const [snapshot]=await db.select({t:targetTemplates,job:labPreparations})
+  .from(targetTemplates)
+  .leftJoin(labPreparations,and(eq(labPreparations.templateId,targetTemplates.id),eq(labPreparations.templateVersion,targetTemplates.revision),eq(labPreparations.nodeId,nodeId)))
+  .where(eq(targetTemplates.id,uuid(id)))
+ if(!snapshot)throw createError({statusCode:404,message:'Compose 模板不存在'})
+ return {...snapshot,dispatch:!!snapshot.job}
+}
+async function reservePreparation(id:string,nodeId:string,bootId:string,action:Exclude<PreparationAction,'status'>,expectedAttemptId?:string){
+ return db.transaction(async tx=>{
+  // Keep template revisions and preparation reservations ordered. Worker RPC
+  // runs after this short transaction, outside the shared mutation lock.
   await tx.execute(sql`select pg_advisory_xact_lock(72486212)`)
   const [t]=await tx.select().from(targetTemplates).where(eq(targetTemplates.id,uuid(id)));if(!t)throw createError({statusCode:404,message:'Compose 模板不存在'})
-  const [old]=await tx.select().from(labPreparations).where(and(eq(labPreparations.templateId,t.id),eq(labPreparations.templateVersion,t.revision),eq(labPreparations.nodeId,node.id)))
-  if(!old){if(action!=='prepare')return {t,job:null,dispatch:false};const [job]=await tx.insert(labPreparations).values({templateId:t.id,templateVersion:t.revision,nodeId:node.id,bootId:node.bootId!,state:'preparing'}).returning();return {t,job:job!,dispatch:true}}
-  if(action==='status')return {t,job:old,dispatch:true}
+  const [old]=await tx.select().from(labPreparations).where(and(eq(labPreparations.templateId,t.id),eq(labPreparations.templateVersion,t.revision),eq(labPreparations.nodeId,nodeId)))
+  if(!old){if(action!=='prepare')return {t,job:null,dispatch:false};const [job]=await tx.insert(labPreparations).values({templateId:t.id,templateVersion:t.revision,nodeId:nodeId,bootId:bootId,state:'preparing'}).returning();return {t,job:job!,dispatch:true}}
   if(expectedAttemptId!==old.attemptId)throw createError({statusCode:409,message:'准备任务已变化，请重新读取节点准备状态'})
   if(action==='cancel'){
    if(!active(old.state))return {t,job:old,dispatch:false}
@@ -28,6 +36,14 @@ export async function preparationAction(id:string,nodeId:string,action:Preparati
   const [job]=await tx.update(labPreparations).set({attemptId:randomUUID(),mode:action==='rebuild'||old.mode==='refresh'?'refresh':'cached',state:'preparing',logs:[],error:null,version:old.version+1,updatedAt:new Date()}).where(eq(labPreparations.id,old.id)).returning()
   return {t,job:job!,dispatch:true}
  })
+}
+export async function preparationAction(id:string,nodeId:string,action:PreparationAction,expectedAttemptId?:string){
+ const hub=sandboxHub(),node=hub.snapshot().nodes.find(n=>n.id===nodeId&&n.state==='online'&&n.bootId)
+ if(!node||!hub.composeNodes.has(node.id))throw createError({statusCode:409,message:'节点未启用当前版本 Compose 能力，请一起升级控制端与 Worker'})
+ if(['prepare','rebuild'].includes(action)&&node.settings.draining)throw createError({statusCode:409,message:'节点已暂停新任务'})
+ const reservation=action==='status'
+  ? await readPreparation(id,node.id)
+  : await reservePreparation(id,node.id,node.bootId!,action,expectedAttemptId)
  const {t,job}=reservation;if(!job||!reservation.dispatch)return job
  const type=action==='status'?'compose_prepare_status':action==='cancel'?'compose_prepare_cancel':'compose_prepare'
  let result

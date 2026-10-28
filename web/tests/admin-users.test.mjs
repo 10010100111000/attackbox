@@ -11,6 +11,13 @@ test('user administration: real accounts, progress, lifecycle, permissions and b
   try {
     const alice = await f.account(), bob = await f.account(), pending = await f.account()
     await f.sql`UPDATE users SET status='pending',email_verified_at=null WHERE id=${pending.id}`
+    // No status API call populates the controller's blockedUsers set here.
+    // Even an otherwise-valid session must fail against persisted suspension.
+    const suspended = await f.account()
+    await f.sql`UPDATE users SET status='suspended' WHERE id=${suspended.id}`
+    await f.request('/api/auth/me', { actor:suspended, status:401 })
+    await f.request('/api/sandbox/start', { actor:suspended, method:'POST', status:401 })
+    for (const stream of ['cli','gui']) await f.request('/api/sandbox/ticket', { actor:suspended, method:'POST', body:{sandboxId:'sbx_'+'a'.repeat(24),stream}, status:401 })
     await f.request('/api/admin/users', { status: 401 })
     await f.request('/api/admin/users', { actor: alice, status: 403 })
     await f.request('/api/admin/users?page=-1', { actor: f.admin, status: 400 })

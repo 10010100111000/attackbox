@@ -9,6 +9,8 @@ export class SandboxError extends Error {
 }
 interface InstanceRecord extends Omit<SandboxInstance, 'connected'> { userId: string; workerUserId: number; bootId: string; confirmedRevision: number | null }
 export class SandboxController {
+  // Database-backed request auth owns account eligibility. This set also fences
+  // requests already admitted in this process when a suspension commits.
   private blockedUsers = new Set<string>()
   setUserBlocked(userId: string, blocked: boolean) {
     if (blocked) this.blockedUsers.add(userId)
@@ -123,6 +125,8 @@ export class SandboxController {
     this.stopping.set(record.id, task)
     return task
   }
+  // Deliberate restart policy: without a durable lease/owner record, do not
+  // adopt a sandbox from its inventory ID. Reclaim it before scheduling again.
   private cleanUnknown(nodeId: string, bootId: string, id: string) {
     const key = `${nodeId}:${bootId}:${id}`
     if (this.unknownCleanup.has(key)) return
