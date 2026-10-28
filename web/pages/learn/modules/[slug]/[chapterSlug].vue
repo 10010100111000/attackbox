@@ -19,6 +19,7 @@ interface QuestionItem {
   id: string
   position: number
   promptMarkdown: string
+  promptHtml?: string
   errorHint: string | null
   normalization: string | null
 }
@@ -79,6 +80,10 @@ const { data: moduleResponse, refresh: refreshModule } = await useFetch<{
   { key: `learning:outline:${moduleSlug.value}`, watch: [learnerId] }
 )
 
+function renderPrompt(markdown: string, imageUrls = chapterResponse.value?.data.imageUrls): string {
+  return renderMarkdown(markdown || '', imageUrls, { copyCode: false }).html
+}
+
 const chapterData = computed<ChapterDetail | null>(() => {
   const data = chapterResponse.value?.data
   if (!data) return null
@@ -86,7 +91,10 @@ const chapterData = computed<ChapterDetail | null>(() => {
     title: data.chapter.title,
     bodyMarkdown: data.chapter.bodyMarkdown,
     durationMinutes: data.chapter.durationMinutes,
-    questions: data.questions || []
+    questions: (data.questions || []).map(q => ({
+      ...q,
+      promptHtml: renderPrompt(q.promptMarkdown, data.imageUrls)
+    }))
   }
 })
 
@@ -205,10 +213,6 @@ const nextChapter = computed(() => {
   return idx < chapters.length - 1 ? chapters[idx + 1] : null
 })
 
-function renderPrompt(markdown: string): string {
-  return renderMarkdown(markdown || '', chapterResponse.value?.data.imageUrls, { copyCode: false }).html
-}
-
 async function handleCheckAnswer(q: QuestionItem) {
   if (savedProgress.value.completedAt || answerFeedbacks.value[q.id]?.status === 'checking') return
   const generation = chapterGeneration
@@ -304,7 +308,7 @@ useHead({
             <section v-if="chapterData.questions.length" id="quiz" class="quiz-card" aria-labelledby="quiz-title">
               <div class="quiz-head"><h2 id="quiz-title">章节练习</h2><span class="quiz-badge" :class="{ passed: allAnswersCorrect || savedProgress.completedAt }"><CheckCircle2 v-if="allAnswersCorrect || savedProgress.completedAt" :size="14" aria-hidden="true" />{{ savedProgress.completedAt ? '已完成' : allAnswersCorrect ? '全部通过' : `${chapterData.questions.length} 道题` }}</span></div>
               <form v-for="(q, qIndex) in chapterData.questions" :key="q.id" class="question-item" @submit.prevent="handleCheckAnswer(q)">
-                <div :id="`question-${q.id}`" class="question-label"><span class="q-num">{{ qIndex + 1 }}.</span><div class="q-prompt" v-html="renderPrompt(q.promptMarkdown)" /></div>
+                <div :id="`question-${q.id}`" class="question-label"><span class="q-num">{{ qIndex + 1 }}.</span><div class="q-prompt" v-html="q.promptHtml" /></div>
                 <div v-if="!savedProgress.completedAt" class="answer-line">
                   <input :id="`answer-${q.id}`" v-model="userAnswers[q.id]" type="text" class="answer-input" placeholder="输入你的答案" maxlength="2000" autocomplete="off" autocapitalize="off" spellcheck="false" :aria-labelledby="`question-${q.id}`" :aria-describedby="`feedback-${q.id}`" :aria-invalid="answerFeedbacks[q.id]?.status === 'error'" :disabled="answerFeedbacks[q.id]?.status === 'checking'" @input="delete answerFeedbacks[q.id]" />
                   <button type="submit" class="answer-check-btn" :disabled="answerFeedbacks[q.id]?.status === 'checking'"><UiBusyLabel :busy="answerFeedbacks[q.id]?.status === 'checking'">校验答案</UiBusyLabel></button>

@@ -3,7 +3,7 @@ import { AUTH_BG_DATA_URI } from './authBgData'
 
 // Auth visual side panel presenting mission taglines and background illustration
 // Source asset: /images/auth-explore.webp
-// 内联 Base64 背景图，随首屏 HTML 同步交付与同步解码，消除跨网往返与 hydration 导致的闪现延迟
+// 使用独立静态 WebP 资产与异步解码，避免 Base64 膨胀 JS Bundle 及主线程同步解码阻塞
 const bgImage = AUTH_BG_DATA_URI
 </script>
 
@@ -18,7 +18,7 @@ const bgImage = AUTH_BG_DATA_URI
         width="400"
         height="439"
         loading="eager"
-        decoding="sync"
+        decoding="async"
         fetchpriority="high"
       />
     </div>

@@ -27,12 +27,13 @@ test('renderMarkdown strictly prevents XSS by escaping raw html tags', () => {
   assert.ok(!result.html.includes('href="javascript:alert(3)"'), 'javascript: scheme must be sanitized');
 });
 
-test('renderMarkdown generates code blocks with highlight and copy data attribute', () => {
+test('renderMarkdown generates code blocks with highlight and without redundant data-code payload', () => {
   const codeMd = "```bash\npwd\necho 'hello world'\n```";
   const result = renderMarkdown(codeMd);
 
   assert.ok(result.html.includes('class="code-block"'), 'Should wrap in code-block container');
   assert.ok(result.html.includes('class="copy-code-btn"'), 'Should include copy button');
+  assert.ok(!result.html.includes('data-code='), 'Should not duplicate raw code into data-code attribute');
   assert.ok(result.html.includes('BASH'), 'Should display language');
   assert.ok(result.html.includes('pwd'));
   assert.equal((result.html.match(/<pre(?:\s|>)/g) || []).length, 1, 'code card must have a single pre element');
