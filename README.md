@@ -222,3 +222,11 @@ summary: TCP 握手、状态与排障的阅读笔记。
 账户资料使用单一设置面板，个人信息和登录安全保持相同字段布局。通过仅本人可读的 `/api/me/profile` 获取 `hasPassword` 能力标记，不返回密码哈希；只有设置了本地密码的账号显示修改入口。无本地密码不等同于已绑定某个第三方身份。
 
 当前只实现邮箱密码登录；GitHub OAuth 和通用单点登录尚未接入，登录页不展示不可用的占位按钮。`web.env` 当前没有生效的 GitHub OAuth 配置项，Git 教程／资料同步的只读 Token 也不能用于用户登录。后续接入需要完整的 GitHub OAuth App、服务端回调和身份绑定流程，届时再增加仅服务端读取的 Client ID／Client Secret 配置。
+
+### 注册邮箱白名单
+
+新注册默认仅允许以下精确域名：`gmail.com`、`googlemail.com`、`outlook.com`、`hotmail.com`、`live.com`、`msn.com`、`icloud.com`、`me.com`、`mac.com`、`qq.com`、`foxmail.com`、`163.com`、`126.com`、`yeah.net`、`yahoo.com`、`aliyun.com`。邮箱验证仍然必需。白名单覆盖注册、重发激活邮件和激活确认；已有账号的登录与密码找回、CLI 初始化管理员不受影响。未通过验证的账号会按当前白名单重新检查。
+
+无需新增安装配置即可使用默认名单。若要修改，在 `/etc/attackbox/web.env` 中添加 `AUTH_REGISTRATION_EMAIL_DOMAINS="gmail.com,outlook.com,qq.com,163.com"` 并重新部署／重启 Nuxt；配置值**替换**默认名单，不是追加。企业自有域名需明确列入。只支持逗号分隔的域名，不允许通配符或子域名自动继承；空值或无效值会关闭注册能力并返回配置错误，不会放开限制。
+
+注册页从运行中的服务端读取公开名单，因此自定义域名在服务重启后生效，无需重新构建预渲染的登录页面。未来第三方登录创建新账号时也需要复用此策略；当前尚未接入第三方登录。

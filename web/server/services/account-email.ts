@@ -1,4 +1,5 @@
 import { createError } from 'h3'
+import { canSendActivationEmail } from '../utils/registration-policy'
 import { client } from '../db'
 import { createResendMailer, mailConfig } from '../utils/mailer'
 import { generateSecureToken, hashToken } from '../utils/auth'
@@ -21,6 +22,7 @@ export async function sendAccountEmail(
   email: string,
   purpose: 'verify_email' | 'reset_password',
 ) {
+  if (purpose === 'verify_email' && !canSendActivationEmail(email)) return emailResult
   const mailer = configuredMailer()
   try {
     await client.begin(async (tx) => {

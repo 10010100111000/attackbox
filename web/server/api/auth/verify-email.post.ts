@@ -2,6 +2,7 @@ import { defineEventHandler, readBody, createError } from 'h3';
 import { db } from '../../db';
 import { users, emailTokens } from '../../db/schema';
 import { eq, and, gt, isNull } from 'drizzle-orm';
+import { assertRegistrationEmail } from '../../utils/registration-policy';
 import { hashToken } from '../../utils/auth';
 
 export default defineEventHandler(async (event) => {
@@ -44,6 +45,7 @@ export default defineEventHandler(async (event) => {
     if (!user || user.status !== 'pending' || user.email !== tokenRecord.targetEmail) {
       throw createError({ statusCode: 403, statusMessage: '账号当前无法激活，请联系管理员' });
     }
+    assertRegistrationEmail(user.email);
     const [valid] = await tx.select().from(emailTokens).where(and(eq(emailTokens.id, tokenRecord.id), isNull(emailTokens.consumedAt), gt(emailTokens.expiresAt, new Date()))).for('update');
     if (!valid) throw createError({ statusCode: 400, statusMessage: '无效或已过期的激活凭证' });
     await tx

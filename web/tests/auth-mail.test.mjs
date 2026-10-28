@@ -77,8 +77,11 @@ test(
           env: {
             ...process.env,
             NODE_ENV: 'test',
+            AUTH_REGISTRATION_EMAIL_DOMAINS: 'example.test',
             DATABASE_URL: database,
             PORT: String(port),
+            NITRO_PORT: String(port),
+            NITRO_HOST: '127.0.0.1',
             HOST: '127.0.0.1',
             SANDBOX_CONTROL_ENABLED: 'false',
             RESEND_API_KEY: 'test-resend-only',
@@ -225,6 +228,13 @@ test(
       const browserEmail = `browser-${crypto.randomUUID()}@example.test`
       registered.push(browserEmail)
       await page.goto(base+'/auth?mode=register')
+      await page.getByText('支持的邮箱',{exact:true}).click()
+      assert.equal(await page.locator('.registration-policy p').innerText(),'example.test')
+      await page.locator('#email:enabled').fill('blocked@mailinator.com')
+      await page.locator('#password').fill(password)
+      await page.getByRole('button',{name:'继续创建账号',exact:true}).click()
+      await page.getByText('该邮箱域名暂不支持注册，请查看支持的邮箱。',{exact:true}).waitFor()
+      assert.equal((await req('/api/auth/register',{email:'blocked@mailinator.com',password})).status,403)
       await page.locator('#email:enabled').fill(browserEmail)
       await page.locator('#password').fill(password)
       await page.getByRole('button',{name:'继续创建账号',exact:true}).click()
@@ -232,6 +242,11 @@ test(
       assert.equal(await page.getByText('一键激活并登录',{exact:true}).count(),0)
       assert.equal(emails.at(-1).to[0],browserEmail)
       assert.equal((await sql`select status from users where email=${browserEmail}`)[0].status,'pending')
+      const outside=`existing-${crypto.randomUUID()}@outside.test`
+      registered.push(outside)
+      await sql`insert into users(email,display_name,password_hash,status,email_verified_at) select ${outside},'Existing User',password_hash,'active',now() from users where email=${email}`
+      assert.equal((await req('/api/auth/forgot-password',{email:outside})).status,200)
+      assert.equal(emails.at(-1).to[0],outside,'existing accounts outside the registration list can still recover passwords')
       assert.ok(!logs.includes('test-resend-only'))
       assert.ok(!logs.includes(verify))
       assert.ok(!logs.includes(resetToken))

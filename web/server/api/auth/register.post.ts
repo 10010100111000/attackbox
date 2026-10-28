@@ -2,6 +2,7 @@ import { defineEventHandler, readBody, createError } from 'h3'
 import { db } from '../../db'
 import { users } from '../../db/schema'
 import { eq } from 'drizzle-orm'
+import { assertRegistrationEmail } from '../../utils/registration-policy'
 import { hashPassword } from '../../utils/auth'
 import {
   configuredMailer,
@@ -36,6 +37,7 @@ export default defineEventHandler(async (event) => {
     })
   }
 
+  assertRegistrationEmail(rawEmail)
   configuredMailer()
 
   // 检查邮箱是否已被注册
