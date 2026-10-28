@@ -1,4 +1,5 @@
 <script setup lang="ts">
+const confirmAction = useConfirm()
 import {ref,computed,onMounted,onBeforeUnmount,watch} from 'vue'
 import {Box,Copy,Check,Power,Square,ChevronDown} from 'lucide-vue-next'
 import type {LearningTarget} from '~/shared/learning-target'
@@ -34,7 +35,9 @@ const status=computed(()=>{
 async function run(operation:'inspect'|'start'|'stop'){
  if(requestPending.value || action.value || !currentUser.value || (unavailable.value&&operation==='start'))return
  if(operation==='start' && active.value && remaining.value===0)return
- if(operation==='stop'&&!confirm('停止靶机会清除其中的修改，确认停止？'))return
+ const expectedId=current.value?.id, expectedGeneration=identityGeneration, expectedContext=JSON.stringify(props.context)
+ if(operation==='stop'&&!(await confirmAction({title:'停止靶机？',description:'当前靶机实例将释放，其中的修改会被清除。',confirmLabel:'停止靶机'})))return
+ if(!alive||requestPending.value||action.value||!currentUser.value||identityGeneration!==expectedGeneration||current.value?.id!==expectedId||JSON.stringify(props.context)!==expectedContext)return
  requestPending.value=true
  const generation=identityGeneration
  if(operation!=='inspect'){action.value=operation;message.value=''}

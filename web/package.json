@@ -7,7 +7,7 @@
     "generate": "nuxt generate",
     "dev": "nuxt dev",
     "preview": "nuxt preview",
-    "test": "node --experimental-strip-types --test tests/auth-crypto.test.js tests/composables.test.js tests/ui.test.js tests/landing.test.js tests/auth.test.js tests/markdown.test.js tests/learning-ui.test.js tests/admin-ui.test.js tests/quiz-crypto.test.js tests/learning-access.test.js tests/sandbox-nodes.test.js tests/sandbox-lifecycle.test.js tests/sandbox-settings.test.js tests/content-parser.test.mjs tests/content-repository.test.mjs tests/compose-packages.test.mjs tests/lab-git.test.mjs tests/mailer.test.mjs tests/runtime-policy.test.mjs tests/learn-home.test.mjs",
+    "test": "node --experimental-strip-types --test tests/auth-crypto.test.js tests/composables.test.js tests/ui.test.js tests/landing.test.js tests/auth.test.js tests/markdown.test.js tests/learning-ui.test.js tests/admin-ui.test.js tests/quiz-crypto.test.js tests/learning-access.test.js tests/sandbox-nodes.test.js tests/sandbox-lifecycle.test.js tests/sandbox-settings.test.js tests/content-parser.test.mjs tests/content-repository.test.mjs tests/compose-packages.test.mjs tests/lab-git.test.mjs tests/mailer.test.mjs tests/runtime-policy.test.mjs tests/learn-home.test.mjs tests/confirmation.test.mjs",
     "db:generate": "drizzle-kit generate",
     "admin:init": "bash ../scripts/control.sh admin",
     "postinstall": "nuxt prepare",
@@ -39,6 +39,7 @@
     "test:personal-center": "node --test tests/personal-center.test.mjs",
     "test:auth-mail": "node --test tests/auth-mail.test.mjs",
     "test:runtime-policy": "node --test tests/runtime-policy-browser.test.mjs",
+    "test:confirmation": "node --test tests/confirmation-browser.test.mjs",
     "test:landing": "node --test tests/landing-browser.test.mjs"
   },
   "dependencies": {

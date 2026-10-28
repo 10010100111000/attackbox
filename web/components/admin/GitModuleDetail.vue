@@ -1,4 +1,5 @@
 <script setup lang="ts">
+const confirmAction = useConfirm()
 import { computed, ref, watch } from 'vue'
 import { onBeforeRouteLeave } from 'vue-router'
 import { ArrowLeft, GitBranch, ExternalLink, RefreshCw } from 'lucide-vue-next'
@@ -56,7 +57,7 @@ const { data: moduleOptions } = useLazyFetch<{ data: { id: string; title: string
 )
 const chapter = computed(() => props.detail.chapters[selected.value])
 
-onBeforeRouteLeave(() => !dirty.value || confirm('放弃未保存的运行配置？'))
+onBeforeRouteLeave(() => !dirty.value || confirmAction({title:'放弃运行配置？',description:'当前未保存的运行配置将丢失。',confirmLabel:'放弃修改',cancelLabel:'继续编辑'}))
 
 async function operate(task: () => Promise<void>) {
   if (busy.value) return

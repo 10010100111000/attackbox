@@ -1,4 +1,5 @@
 <script setup lang="ts">
+const confirmAction = useConfirm()
 import { ref, computed } from 'vue'
 import { Plus, Search } from 'lucide-vue-next'
 import type { ChallengeSummary } from '~/shared/challenges'
@@ -12,6 +13,7 @@ const { data, pending, error, refresh } = await useLazyFetch<{ data: ChallengeSu
 
 const query = ref('')
 const notice = ref('')
+const deleting = ref('')
 
 const rows = computed(() =>
   data.value?.data.filter(c =>
@@ -20,7 +22,10 @@ const rows = computed(() =>
 )
 
 async function remove(c: ChallengeSummary) {
-  if (!confirm(`删除“${c.title}”及阶段完成记录？`)) return
+  if (deleting.value) return
+  if (!(await confirmAction({title:'删除挑战？',description:`“${c.title}”及其阶段完成记录将被永久删除。`,confirmLabel:'删除挑战'}))) return
+  deleting.value = c.id
+  notice.value = ''
   try {
     await $fetch(`/api/admin/challenges/${c.id}`, {
       method: 'DELETE',
@@ -30,6 +35,7 @@ async function remove(c: ChallengeSummary) {
   } catch (e: any) {
     notice.value = e?.data?.message || '删除失败'
   }
+  finally { deleting.value = '' }
 }
 </script>
 
@@ -87,7 +93,7 @@ async function remove(c: ChallengeSummary) {
             </td>
             <td class="actions">
               <NuxtLink :to="`/admin/challenges/${c.id}`">编辑</NuxtLink>
-              <button type="button" @click="remove(c)">删除</button>
+              <button type="button" :disabled="!!deleting" @click="remove(c)"><UiBusyLabel :busy="deleting === c.id">删除</UiBusyLabel></button>
             </td>
           </tr>
         </tbody>

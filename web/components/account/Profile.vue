@@ -1,4 +1,5 @@
 <script setup lang="ts">
+const confirmAction = useConfirm()
 import { Check, Mail, UserRound } from 'lucide-vue-next'
 import { onBeforeRouteLeave } from 'vue-router'
 
@@ -28,7 +29,7 @@ function reset() {
   error.value = ''
 }
 onBeforeRouteLeave(
-  () => !dirty.value || window.confirm('昵称修改尚未保存，确认离开？'),
+  () => !dirty.value || confirmAction({title:'放弃昵称修改？',description:'未保存的昵称修改将丢失。',confirmLabel:'放弃修改',cancelLabel:'继续编辑'}),
 )
 async function save() {
   if (busy.value || invalid.value || !dirty.value || !currentUser.value) return

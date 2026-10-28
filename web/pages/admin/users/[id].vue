@@ -1,4 +1,5 @@
 <script setup lang="ts">
+const confirmAction = useConfirm()
 import { computed, ref, onMounted, onBeforeUnmount } from 'vue'
 import { ArrowLeft, RefreshCw, ShieldCheck, BookOpen, Monitor } from 'lucide-vue-next'
 import { userStatusLabels, instanceStateLabels, type AdminUserDetail } from '~/shared/admin-users'
@@ -19,7 +20,7 @@ function date(value: string | null) { return value ? new Date(value).toLocaleStr
 async function changeStatus() {
   if (!detail.value || busy.value) return
   const suspended = detail.value.user.status !== 'suspended'
-  if (!confirm(suspended ? '停用账号将撤销全部网页登录并释放当前环境。确认停用？' : '恢复账号？未验证邮箱的账号仍需完成验证。')) return
+  if (!(await confirmAction({title:suspended?'停用账号？':'恢复账号？',description:suspended?'撤销该账号的全部网页登录并释放当前环境。':'未验证邮箱的账号仍需完成验证。',confirmLabel:suspended?'停用账号':'恢复账号',tone:suspended?'danger':'neutral'}))) return
   busy.value = true; notice.value = ''
   try {
     const result = await $fetch<{ data: { cleanup: string } }>(`/api/admin/users/${id}/status`, { method: 'PUT', body: { suspended } })
@@ -28,7 +29,7 @@ async function changeStatus() {
   finally { busy.value = false; await refresh() }
 }
 async function revoke() {
-  if (busy.value || !confirm('撤销该账号的全部网页登录？当前环境和已连接的终端不会因此关闭；如需关闭，请释放环境。')) return
+  if (busy.value || !(await confirmAction({title:'撤销全部网页登录？',description:'当前环境和已连接的终端会保留。如需关闭，请释放环境。',confirmLabel:'撤销登录'}))) return
   busy.value = true; notice.value = ''
   try { await $fetch(`/api/admin/users/${id}/revoke-sessions`, { method: 'POST' }); notice.value = '全部网页登录已撤销。' }
   catch (e: any) { notice.value = e?.data?.message || '操作失败，请重试。' }

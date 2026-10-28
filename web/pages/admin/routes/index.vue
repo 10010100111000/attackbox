@@ -1,4 +1,5 @@
 <script setup lang="ts">
+const confirmAction = useConfirm()
 import { ref } from 'vue'
 import type { RouteSummary } from '~/shared/routes'
 import { Plus, Route } from 'lucide-vue-next'
@@ -10,9 +11,13 @@ const { data, pending, error, refresh } = await useLazyFetch<{ data: RouteSummar
   key: 'admin:routes',
 })
 const notice = ref('')
+const deleting = ref('')
 
 async function remove(route: RouteSummary) {
-  if (!confirm(`删除路线“${route.title}”？模块与学习记录会保留。`)) return
+  if (deleting.value) return
+  if (!(await confirmAction({title:'删除学习路线？',description:`删除“${route.title}”，模块与学习记录会保留。`,confirmLabel:'删除路线'}))) return
+  deleting.value = route.id
+  notice.value = ''
   try {
     await $fetch(`/api/admin/routes/${route.id}`, {
       method: 'DELETE',
@@ -22,6 +27,7 @@ async function remove(route: RouteSummary) {
   } catch (e: any) {
     notice.value = e?.data?.message || '删除失败'
   }
+  finally { deleting.value = '' }
 }
 </script>
 
@@ -69,7 +75,7 @@ async function remove(route: RouteSummary) {
             <td>{{ item.moduleCount }}</td>
             <td class="actions">
               <NuxtLink :to="`/admin/routes/${item.id}`">编辑</NuxtLink>
-              <button type="button" @click="remove(item)">删除</button>
+              <button type="button" :disabled="!!deleting" @click="remove(item)"><UiBusyLabel :busy="deleting === item.id">删除</UiBusyLabel></button>
             </td>
           </tr>
         </tbody>

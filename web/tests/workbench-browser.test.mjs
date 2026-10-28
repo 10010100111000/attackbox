@@ -28,7 +28,7 @@ test('workbenches reuse environment, preserve CLI windows, transfer GUI and expo
   assert.equal(await gui.locator('.environment-workbench').evaluate(e=>e.clientHeight),1000)
   await page.bringToFront();await page.getByRole('button',{name:'在此继续操作',exact:true}).click();await page.getByText('桌面已连接',{exact:true}).waitFor();await gui.getByText('桌面已在其他页面操作',{exact:true}).waitFor()
   await page.getByRole('button',{name:'收起练习面板',exact:true}).click()
-  page.once('dialog',d=>d.accept());await page.getByRole('button',{name:'停止环境',exact:true}).click()
+  await page.getByRole('button',{name:'停止环境',exact:true}).click();await page.getByRole('alertdialog').getByRole('button',{name:'释放环境',exact:true}).click()
   await page.getByRole('button',{name:'启动环境',exact:true}).waitFor();await wait(()=>!worker.boxes.has(instance.id));assert.equal(worker.requests.filter(r=>r.type==='create_box').length,1)
   assert.deepEqual(errors,[])
  }finally{if(browser)await browser.close();if(worker)await worker.close();await f.cleanup()}

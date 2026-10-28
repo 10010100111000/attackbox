@@ -1,4 +1,5 @@
 <script setup lang="ts">
+const confirmAction = useConfirm()
 import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
 import { ArrowLeft, Plus, ArrowUp, ArrowDown, X } from 'lucide-vue-next'
 import { onBeforeRouteLeave, onBeforeRouteUpdate } from 'vue-router'
@@ -41,7 +42,7 @@ const form = ref({
 const original = ref(JSON.stringify(form.value))
 const dirty = computed(() => loaded.value && JSON.stringify(form.value) !== original.value)
 
-const leave = () => (busy.value ? false : !dirty.value || confirm('有未保存修改，确认离开？'))
+const leave = () => (busy.value ? false : !dirty.value || confirmAction({title:'放弃挑战修改？',description:'未保存的修改将丢失。',confirmLabel:'放弃修改',cancelLabel:'继续编辑'}))
 onBeforeRouteLeave(leave)
 onBeforeRouteUpdate(leave)
 
@@ -121,7 +122,7 @@ function move(i: number, delta: number) {
 }
 
 async function reload() {
-  if (dirty.value && !confirm('重新读取将放弃当前输入，确认继续？')) return
+  if (dirty.value && !(await confirmAction({title:'重新读取挑战？',description:'当前未保存的输入将被替换。',confirmLabel:'重新读取',cancelLabel:'继续编辑'}))) return
   await load()
 }
 

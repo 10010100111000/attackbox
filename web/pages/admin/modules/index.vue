@@ -1,4 +1,5 @@
 <script setup lang="ts">
+const confirmAction = useConfirm()
 import { ref, computed } from 'vue'
 import { useLazyFetch, useHead } from '#imports'
 import { ExternalLink } from 'lucide-vue-next'
@@ -23,6 +24,8 @@ const modules = computed<AdminModuleItem[]>(() => {
   return response.value?.data || []
 })
 
+const notice = ref('')
+const deleting = ref('')
 const filterTab = ref<'全部' | '已发布' | '未发布'>('全部')
 const searchQuery = ref('')
 
@@ -48,14 +51,18 @@ const filteredModules = computed(() => {
 })
 
 async function deleteModule(id: string) {
-  if (!confirm('永久删除该模块及其全部章节和题目？此操作无法撤销。')) return
+  if (deleting.value) return
+  if (!(await confirmAction({title:'永久删除模块？',description:'模块及其全部章节、题目和学习记录将被删除，此操作无法撤销。',confirmLabel:'删除模块'}))) return
+  deleting.value = id; notice.value = ''
   try { await $fetch(`/api/admin/modules/${id}`, { method: 'DELETE', body: { lockVersion: modules.value.find(m => m.id === id)?.lockVersion } }); await refresh() }
-  catch (error: any) { alert(error?.data?.message || '删除失败') }
+  catch (error: any) { notice.value = error?.data?.message || '删除失败' }
+  finally { deleting.value = '' }
 }
 </script>
 
 <template>
   <div class="admin-modules-page">
+    <p v-if="notice" class="notice" role="alert">{{ notice }}</p>
     <div class="page-head">
       <div>
         <h1 class="page-title">学习模块</h1>
@@ -134,7 +141,7 @@ async function deleteModule(id: string) {
                 <NuxtLink :to="`/admin/modules/${m.id}`" class="action-btn edit-btn">
                   查看详情
                 </NuxtLink>
-                <button v-if="m.status !== 'published'" class="action-btn delete-btn" type="button" @click="deleteModule(m.id)">删除</button>
+                <button v-if="m.status !== 'published'" class="action-btn delete-btn" type="button" :disabled="!!deleting" @click="deleteModule(m.id)"><UiBusyLabel :busy="deleting === m.id">删除</UiBusyLabel></button>
                 <NuxtLink
                   v-if="m.status === 'published'"
                   :to="`/learn/modules/${m.slug}`"

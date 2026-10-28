@@ -1,4 +1,5 @@
 <script setup lang="ts">
+const confirmAction = useConfirm()
 import {ref,computed,onMounted,watch,onBeforeUnmount} from 'vue'
 import {onBeforeRouteLeave} from 'vue-router'
 import {ArrowLeft,Upload,FileArchive,Check,Server,Trash2,Github,Download} from 'lucide-vue-next'
@@ -26,7 +27,7 @@ watch(()=>settings.value.entryService,()=>{if(!loaded.value||busy.value)return;c
 function baseline(){variables.value=Object.create(null);clearVariables.value=[];configuration.value=contentKey();initial.value=stateKey()}
 function showError(e:any,fallback:string){message.value=e?.data?.message||fallback;failed.value=true}
 function beforeUnload(e:BeforeUnloadEvent){if(dirty.value){e.preventDefault();e.returnValue=''}}
-onBeforeRouteLeave(()=>!dirty.value||confirm('有未保存的修改，确定离开？'))
+onBeforeRouteLeave(()=>!dirty.value||confirmAction({title:'放弃靶场配置？',description:'当前未保存的配置将丢失。',confirmLabel:'放弃修改',cancelLabel:'继续编辑'}))
 onBeforeUnmount(()=>{alive=false;window.removeEventListener('beforeunload',beforeUnload)})
 async function loadPreparation(){const {data}=await request<{data:{items:ComposePreparation[];nodes:typeof nodes.value}}>(`/api/admin/target-templates/${id}/preparations`);if(alive){preparations.value=data.items;nodes.value=data.nodes}}
 async function load(){busy.value=true;try{const {data:t}=await request<{data:TargetTemplate}>(`/api/admin/target-templates/${id}`);form.value={name:t.name,description:t.description,accessInstructions:t.accessInstructions,enabled:t.enabled};bundleId.value=t.bundleId!;settings.value={...t.settings!};version.value=t.lockVersion;storedKeys.value=t.variableKeys||[];preview.value=(await request<{data:ComposePreview}>(`/api/admin/lab-bundles/${bundleId.value}`,{query:{file:settings.value.file}})).data;loaded.value=true;baseline();await loadPreparation()}catch(e){showError(e,'模板读取失败')}finally{busy.value=false}}
@@ -49,7 +50,7 @@ async function selectFile(){if(!bundleId.value)return;busy.value=true;try{previe
 async function save(){if(!preview.value||issues.value.length)return;busy.value=true;message.value='';failed.value=false;try{const variablesInput=Object.fromEntries(Object.entries(variables.value).filter(([,v])=>v!==''));const {data}=await $fetch<{data:TargetTemplate}>(isNew?'/api/admin/target-templates':`/api/admin/target-templates/${id}`,{method:isNew?'POST':'PUT',body:{...form.value,bundleId:bundleId.value,settings:settings.value,variables:variablesInput,clearVariables:clearVariables.value,lockVersion:version.value},retry:false});version.value=data.lockVersion;storedKeys.value=data.variableKeys||[];baseline();clearNuxtData('admin:target-templates');if(isNew)await navigateTo(`/admin/target-templates/${data.id}`);else{await loadPreparation();message.value='模板已保存'}}catch(e){showError(e,'保存失败，输入已保留')}finally{busy.value=false}}
 async function prepare(nodeId:string,action:'prepare'|'status'|'cancel'|'rebuild'){
  if(nodeBusy.value||(dirty.value&&['prepare','rebuild'].includes(action)))return
- if(action==='rebuild'&&!confirm('强制重建会重新拉取镜像并忽略构建缓存，现有部署和运行实例会保留。确认继续？'))return
+ if(action==='rebuild'&&!(await confirmAction({title:'强制重建靶场？',description:'重新拉取镜像并忽略构建缓存。现有部署和运行实例会保留。',confirmLabel:'强制重建',tone:'neutral'})))return
  nodeBusy.value=nodeId;failed.value=false
  try{const {data}=await $fetch<{data:ComposePreparation|null}>(`/api/admin/target-templates/${id}/preparations`,{method:'POST',body:{nodeId,action,expectedAttemptId:preparation(nodeId)?.attemptId},retry:false});if(data){preparations.value=preparations.value.filter(p=>p.nodeId!==nodeId).concat(data);message.value=data.state==='preparing'?'准备任务已提交，可手动查询结果。':data.state==='cancelling'?'已请求取消，请手动查询确认。':data.error||labels[data.state]||'状态已更新';failed.value=data.state==='failed'||data.state==='unknown'}else message.value='该节点尚未提交准备任务'}catch(e){showError(e,'节点操作失败')}finally{nodeBusy.value=''}
 }

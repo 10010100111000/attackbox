@@ -222,8 +222,8 @@ test(
         ),
       )
       await page.keyboard.press('Escape')
-      editor.once('dialog', (d) => d.accept())
       await editor.getByRole('button', { name: '撤回', exact: true }).click()
+      await editor.getByRole('alertdialog').getByRole('button',{name:'撤回通知',exact:true}).click()
       await editor.getByText('通知已撤回', { exact: true }).waitFor()
       assert.equal(
         (await json('/api/me/notifications', b)).data.data.items.length,

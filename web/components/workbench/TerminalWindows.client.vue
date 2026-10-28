@@ -1,4 +1,5 @@
 <script setup lang="ts">
+const confirmAction = useConfirm()
 import {ref,onMounted,onBeforeUnmount} from 'vue'
 import {Plus,LayoutGrid,Layers,Minus,Maximize2,X} from 'lucide-vue-next'
 import {LearningSandboxTerminal as SandboxTerminal} from '#components'
@@ -13,7 +14,7 @@ function add(){
  const w:WindowState={id:globalThis.crypto?.randomUUID?.()||`terminal-${Date.now()}-${++z}`,name:`终端 ${++sequence}`,x:Math.min(24+offset,Math.max(0,width-360)),y:Math.min(20+offset,Math.max(0,height-240)),width:Math.min(850,width),height:Math.min(500,height),z:++z,minimized:false,maximized:false}
  windows.value.push(w);focused.value=w.id
 }
-function closeAll(){if(confirm('关闭全部终端连接？沙箱环境仍会保留。')){windows.value=[];focused.value=''}}
+async function closeAll(){if(await confirmAction({title:'关闭全部终端？',description:'仅关闭终端连接，沙箱环境仍会保留。',confirmLabel:'关闭终端',tone:'neutral'})){windows.value=[];focused.value=''}}
 function close(w:WindowState){windows.value=windows.value.filter(item=>item.id!==w.id);if(focused.value===w.id)focused.value=windows.value.at(-1)?.id||''}
 function arrange(tile:boolean){
  const width=area.value?.clientWidth||1000,height=area.value?.clientHeight||700

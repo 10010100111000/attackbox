@@ -1,4 +1,5 @@
 <script setup lang="ts">
+const confirmAction = useConfirm()
 import { computed, ref, watch } from 'vue'
 import { ArrowLeft, GitBranch, Download, RefreshCw, CheckCircle2, FolderGit2 } from 'lucide-vue-next'
 import type { RepoScanReport, RepoModuleEntry, SyncModuleResult } from '~/shared/content-sync'
@@ -79,8 +80,8 @@ function save() {
   })
 }
 
-function clearToken() {
-  if (!confirm('清除只读 Token？已经导入的教程不受影响。')) return
+async function clearToken() {
+  if (!(await confirmAction({title:'清除只读 Token？',description:'已经导入的教程不受影响。再次同步私有仓库前需要重新配置凭据。',confirmLabel:'清除 Token'}))) return
   void perform('清除凭据', async () => {
     await $fetch('/api/admin/content/repository', {
       method: 'PUT',

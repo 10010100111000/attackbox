@@ -1,4 +1,5 @@
 <script setup lang="ts">
+const confirmAction = useConfirm()
 import type { NotificationList } from '~/shared/notifications'
 definePageMeta({ layout: 'admin' })
 useHead({ title: '站内通知 — AttackBox' })
@@ -30,7 +31,8 @@ async function publish() {
   }
 }
 async function withdraw(id: string) {
-  if (!confirm('撤回后，用户将无法再看到这条通知。确认撤回？')) return
+  if (busy.value) return
+  if (!(await confirmAction({title:'撤回通知？',description:'撤回后，用户将无法再看到这条通知。',confirmLabel:'撤回通知'}))) return
   busy.value = true
   try {
     await $fetch(`/api/admin/notifications/${id}/withdraw`, {

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+const confirmAction = useConfirm()
 import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
 import { useLazyFetch, useHead } from '#imports'
 import { RefreshCw, Monitor, CircleAlert } from 'lucide-vue-next'
@@ -11,7 +12,7 @@ const stopping = ref<string[]>([]), notice = ref('')
 const labels = { creating: '创建中', running: '运行中', stopping: '释放中', cleanup_failed: '清理待确认' }
 function date(value: string | null) { return value ? new Date(value).toLocaleString('zh-CN', { hour12: false }) : '—' }
 async function stop(instance: AdminSandboxInstance) {
-  if (stopping.value.includes(instance.id) || !confirm(`释放 ${instance.email || instance.userId} 的环境？环境中的文件与进程会被清理。`)) return
+  if (stopping.value.includes(instance.id) || !(await confirmAction({title:'释放用户环境？',description:`${instance.email || instance.userId} 的环境文件与进程会被清理。`,confirmLabel:'释放环境'}))) return
   stopping.value.push(instance.id); notice.value = ''
   try { await $fetch(`/api/admin/instances/${instance.id}/stop`, { method: 'POST' }) }
   catch (error: any) { notice.value = error?.data?.message || '释放未确认，请刷新状态' }

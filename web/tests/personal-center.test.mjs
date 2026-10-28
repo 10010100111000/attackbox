@@ -212,8 +212,8 @@ test(
         .getByRole('link', { name: '账户资料', exact: true })
         .click()
       assert.equal(await name.inputValue(), '草稿昵称')
-      page.once('dialog', (dialog) => dialog.dismiss())
       await navigation.getByRole('link', {name:'通知',exact:true}).click()
+      await page.getByRole('alertdialog').getByRole('button', {name:'继续编辑',exact:true}).click()
       assert.equal(
         new URL(page.url()).pathname,
         '/me',

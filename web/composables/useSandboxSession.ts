@@ -4,6 +4,7 @@ import {useAuth} from './useAuth'
 import type {SandboxStatus,SandboxInstance} from '~/shared/sandbox'
 const runtimes=new WeakMap<object,{users:number;generation:number;fetching:boolean;timer?:ReturnType<typeof setInterval>;clock?:ReturnType<typeof setInterval>;channel?:BroadcastChannel;refresh:()=>Promise<void>;client:string;focus?:()=>void}>()
 export function useSandboxSession(){
+ const confirmAction=useConfirm()
  const app=useNuxtApp(),{currentUser}=useAuth()
  const sandbox=useState<SandboxStatus>('sandbox:session',()=>({available:false,instance:null}))
  const loading=useState('sandbox:loading',()=>true),busy=useState('sandbox:busy',()=>false),notice=useState('sandbox:notice',()=>''),now=useState('sandbox:clock',Date.now),guiElsewhere=useState('sandbox:gui-elsewhere',()=>false),owner=useState('sandbox:owner',()=>currentUser.value?.id||'')
@@ -29,8 +30,9 @@ export function useSandboxSession(){
   catch(e:any){if(generation===runtime.generation)notice.value=e?.data?.message||'启动失败，请稍后重试'}finally{busy.value=false;await refresh()}
  }
  async function release(){
-  const id=sandbox.value.instance?.id
-  if(!id||busy.value||!confirm('释放环境会关闭所有终端和桌面，并清理沙箱文件与进程。确认释放？'))return
+  const id=sandbox.value.instance?.id, actor=currentUser.value?.id, expectedGeneration=runtime.generation
+  if(!id||busy.value||!(await confirmAction({title:'释放环境？',description:'所有终端和桌面连接将关闭，沙箱中的文件与进程会被清理。',confirmLabel:'释放环境'})))return
+  if(busy.value||currentUser.value?.id!==actor||sandbox.value.instance?.id!==id||runtime.generation!==expectedGeneration)return
   busy.value=true;runtime.generation++;notice.value='';const generation=runtime.generation
   try{const r=await $fetch<{data:SandboxStatus}>('/api/sandbox/stop',{method:'POST',body:{sandboxId:id}});if(generation===runtime.generation)sandbox.value=r.data;notify()}
   catch(e:any){if(generation===runtime.generation)notice.value=e?.data?.message||'释放尚未确认，状态将自动更新'}finally{busy.value=false;await refresh()}
