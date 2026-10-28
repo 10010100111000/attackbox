@@ -80,9 +80,8 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div class="auth-challenge" :class="{ visible: configuration?.enabled || loading || message }" :inert="disabled || undefined">
+  <div class="auth-challenge" :class="{ visible: configuration?.enabled || message }" :inert="disabled || undefined">
     <div ref="container" />
-    <UiBusyIndicator v-if="loading" inline label="人机验证加载" />
     <div v-if="message" class="challenge-error">
       <span role="alert">{{ message }}</span>
       <button type="button" :disabled="loading" @click="setup">重试验证</button>
@@ -93,6 +92,7 @@ onBeforeUnmount(() => {
 <style scoped>
 .auth-challenge { display: none; }
 .auth-challenge.visible { display: grid; gap: 8px; margin: 0 0 18px; min-width: 0; }
+.auth-challenge.visible:has(> div:empty):not(:has(.challenge-error)) { display: none; margin: 0; }
 .auth-challenge > div { max-width: 100%; }
 .challenge-error { display: flex; align-items: center; gap: 10px; font-size: 12px; line-height: 1.8; color: var(--color-error); }
 .challenge-error button { flex-shrink: 0; background: none; border: 0; padding: 2px; color: var(--text-main); text-decoration: underline; cursor: pointer; }
