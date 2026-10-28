@@ -66,7 +66,6 @@ test('LoginForm.vue defines credentials validation, ui components, and direct po
   assert.ok(content.includes('Input'))
   assert.ok(content.includes('Checkbox'))
   assert.ok(content.includes('Button'))
-  assert.ok(content.includes('Separator'))
 
   // Copywriting
   assert.ok(content.includes('YOUR NEXT DISCOVERY'))
@@ -74,9 +73,8 @@ test('LoginForm.vue defines credentials validation, ui components, and direct po
   assert.ok(content.includes('登录，继续你的学习与探索。'))
   assert.ok(content.includes('忘记密码？'))
   assert.ok(content.includes('保持登录状态'))
-  assert.ok(content.includes('或使用以下方式'))
-  assert.ok(content.includes('GitHub'))
-  assert.ok(content.includes('单点登录'))
+  assert.ok(!content.includes('data-provider='))
+  assert.ok(!content.includes('handleProvider'))
   assert.ok(content.includes('还没有账号？'))
   assert.ok(content.includes('创建账号 ↗') || content.includes('创建账号'))
 

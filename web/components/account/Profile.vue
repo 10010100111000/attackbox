@@ -1,10 +1,22 @@
 <script setup lang="ts">
 const confirmAction = useConfirm()
-import { Check, Mail, UserRound } from 'lucide-vue-next'
+import { Check, Mail, UserRound, ShieldCheck } from 'lucide-vue-next'
 import { onBeforeRouteLeave } from 'vue-router'
 
-withDefaults(defineProps<{active?:boolean}>(),{active:true})
+const props = withDefaults(defineProps<{active?:boolean}>(),{active:true})
 const { currentUser } = useAuth()
+const owner = computed(() => currentUser.value?.id || '')
+const { data: accountResponse, pending: accountPending, error: accountError, execute: loadAccount } = useLazyFetch<{data:{id:string;hasPassword:boolean}}>('/api/me/profile', {
+  key: 'account:profile', immediate: props.active && !!owner.value, watch: false,
+})
+const account = computed(() => accountResponse.value?.data.id === owner.value ? accountResponse.value.data : null)
+const passwordOpen = ref(false), passwordTrigger = ref<HTMLButtonElement|null>(null)
+watch([() => props.active, owner], ([active]) => {
+  passwordOpen.value = false
+  if (active && owner.value) void loadAccount({dedupe:'cancel'})
+})
+async function closePassword() { passwordOpen.value = false; await nextTick(); passwordTrigger.value?.focus() }
+
 const name = ref(currentUser.value?.displayName || '')
 const busy = ref(false)
 const message = ref('')
@@ -65,10 +77,10 @@ async function save() {
         <h1 id="personal-profile-title">账户资料</h1>
       </div>
     </header>
-    <div class="profile-panels"><form class="personal-settings" @submit.prevent="save">
+    <div class="personal-settings"><form class="profile-section" @submit.prevent="save">
       <div class="personal-settings-heading">
         <UserRound :size="18" aria-hidden="true" />
-        <h2>基本资料</h2>
+        <h2>个人信息</h2>
       </div>
       <div class="personal-field">
         <label for="personal-nickname">昵称</label>
@@ -130,10 +142,21 @@ async function save() {
         </div>
       </div>
     </form>
-    <AccountPassword v-if="active" /></div>
+    <section class="profile-section account-security" aria-labelledby="account-security-title">
+      <div class="personal-settings-heading"><ShieldCheck :size="18" aria-hidden="true"/><h2 id="account-security-title">登录与安全</h2></div>
+      <UiBusyIndicator v-if="accountPending && !account" class="account-security-state" label="登录设置加载"/>
+      <div v-else-if="accountError || !account" class="account-security-state"><p role="alert">登录设置暂时无法读取。</p><button type="button" class="personal-button secondary" @click="loadAccount()">重试</button></div>
+      <template v-else>
+        <div class="personal-field account-password-row"><span class="personal-field-label">本地密码</span><div class="account-login-method"><span>{{account.hasPassword?'已设置':'未设置'}}</span><button v-if="account.hasPassword && !passwordOpen" ref="passwordTrigger" type="button" class="personal-button secondary" :aria-expanded="passwordOpen" aria-controls="account-password-editor" @click="passwordOpen=true">修改密码</button></div></div>
+        <AccountPassword v-if="active && account.hasPassword && passwordOpen" id="account-password-editor" @close="closePassword"/>
+      </template>
+    </section></div>
   </section>
 </template>
 
 <style scoped>
-.profile-panels{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:24px;align-items:stretch}.profile-panels :deep(.personal-settings){display:flex;flex-direction:column;min-width:0}.profile-panels :deep(.personal-save-row){margin-top:auto}@media(max-width:1100px){.profile-panels{grid-template-columns:minmax(0,1fr)}}
+.profile-section + .profile-section { border-top: 1px solid var(--line); }
+.account-login-method { display:flex;align-items:center;justify-content:space-between;gap:20px;min-height:38px;font-size:13px; }
+.account-password-row .personal-field-label { padding-top:10px; }
+.account-security-state { display:flex;align-items:center;gap:16px;padding:24px 28px;font-size:12px;color:var(--muted); }
 </style>

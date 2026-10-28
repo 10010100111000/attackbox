@@ -4,7 +4,6 @@ import { navigateTo } from '#imports'
 import Button from '~/components/ui/Button.vue'
 import Input from '~/components/ui/Input.vue'
 import Checkbox from '~/components/ui/Checkbox.vue'
-import Separator from '~/components/ui/Separator.vue'
 
 interface Props {
   modelValueEmail?: string
@@ -104,9 +103,6 @@ async function handleSubmit() {
   }
 }
 
-function handleProvider(providerName: string) {
-  statusMessage.value = `${providerName} 登录尚未在当前节点启用，请使用邮箱登录。`
-}
 
 </script>
 
@@ -201,32 +197,6 @@ function handleProvider(providerName: string) {
         </fieldset>
       </form>
 
-      <!-- 第三方认证 -->
-      <Separator class="my-6">或使用以下方式</Separator>
-
-      <div class="providers">
-        <button
-          type="button"
-          class="provider"
-          data-provider="GitHub"
-          @click="handleProvider('GitHub')"
-        >
-          <svg viewBox="0 0 24 24" aria-hidden="true">
-            <path d="M12 .8a11.3 11.3 0 0 0-3.57 22c.56.1.77-.24.77-.54v-2.1c-3.14.68-3.8-1.33-3.8-1.33-.51-1.3-1.26-1.65-1.26-1.65-1.03-.71.08-.69.08-.69 1.14.08 1.74 1.17 1.74 1.17 1 1.73 2.65 1.23 3.3.94.1-.73.4-1.23.72-1.51-2.51-.28-5.15-1.26-5.15-5.59 0-1.24.44-2.25 1.17-3.04-.12-.29-.51-1.44.11-2.99 0 0 .96-.31 3.11 1.16a10.84 10.84 0 0 1 5.66 0c2.16-1.47 3.11-1.16 3.11-1.16.62 1.55.23 2.7.11 2.99.73.79 1.16 1.8 1.16 3.04 0 4.34-2.64 5.3-5.16 5.58.4.35.77 1.04.77 2.1v3.08c0 .3.21.65.78.54A11.3 11.3 0 0 0 12 .8Z"/>
-          </svg>
-          GitHub
-        </button>
-        <button
-          type="button"
-          class="provider"
-          data-provider="单点登录"
-          @click="handleProvider('单点登录')"
-        >
-          <span class="sso" aria-hidden="true">⟷</span>
-          单点登录
-        </button>
-      </div>
-
       <!-- 底部切换注册链接 -->
       <div class="signup">
         还没有账号？
@@ -307,45 +277,6 @@ h1 {
   margin: 2px 0 24px;
   cursor: pointer;
   user-select: none;
-}
-
-.providers {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 12px;
-}
-
-.provider {
-  height: 42px;
-  border: 1px solid var(--border-line);
-  border-radius: 7px;
-  background: transparent;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 9px;
-  font-size: 10px;
-  color: var(--text-muted);
-  cursor: pointer;
-  transition: background 0.2s, border-color 0.2s, color 0.2s;
-}
-
-.provider:hover {
-  background: var(--brand-warm-soft);
-  border-color: var(--brand-warm);
-  color: var(--text-main);
-}
-
-.provider svg {
-  width: 15px;
-  height: 15px;
-  fill: currentColor;
-}
-
-.provider .sso {
-  font: 11px "SFMono-Regular", Consolas, monospace;
-  letter-spacing: -2px;
-  padding-right: 2px;
 }
 
 .signup {

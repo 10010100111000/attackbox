@@ -608,7 +608,7 @@
   white-space: nowrap;
 }
 
-/* 账户资料与密码设置面板：去除杂乱渐变条，统一干净现代卡片 */
+/* One account surface; profile and security share the same field geometry. */
 .personal-settings {
   overflow: hidden;
   border: 1px solid var(--line);
@@ -624,8 +624,7 @@
   align-items: center;
   gap: 10px;
   padding: 20px 28px;
-  background: var(--soft);
-  border-bottom: 1px solid var(--line);
+  padding-bottom: 0;
 }
 
 .personal-settings-heading > svg {
@@ -721,8 +720,7 @@
   align-items: center;
   gap: 16px;
   padding: 18px 28px;
-  border-top: 1px solid var(--line);
-  background: var(--hover);
+  padding-top: 0;
 }
 
 .personal-save-row > p {

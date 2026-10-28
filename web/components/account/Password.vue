@@ -1,6 +1,7 @@
 <script setup lang="ts">
-import { KeyRound, Check } from 'lucide-vue-next'
+import { Check } from 'lucide-vue-next'
 
+const emit = defineEmits<{close:[]}>()
 const { currentUser } = useAuth()
 const current = ref('')
 const password = ref('')
@@ -64,11 +65,7 @@ async function save() {
 </script>
 
 <template>
-  <form class="personal-settings password-settings" @submit.prevent="save">
-    <div class="personal-settings-heading">
-      <KeyRound :size="18" aria-hidden="true" />
-      <h2>修改密码</h2>
-    </div>
+  <form class="password-settings" @submit.prevent="save">
     <fieldset :disabled="busy">
       <div class="personal-field">
         <label for="account-current-password">当前密码</label>
@@ -114,12 +111,13 @@ async function save() {
         {{ message }}
       </p>
       <span v-else />
+      <div class="personal-save-actions"><button type="button" class="personal-button secondary" :disabled="busy" @click="emit('close')">取消修改密码</button>
       <button
         class="personal-button"
         :disabled="busy || !current || !password || !confirmation"
       >
         <UiBusyLabel :busy="busy">更新密码</UiBusyLabel>
-      </button>
+      </button></div>
     </div>
   </form>
 </template>

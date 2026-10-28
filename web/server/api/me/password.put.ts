@@ -11,7 +11,8 @@ export default defineEventHandler(async event=>{
  if(typeof current!=='string'||!current||current.length>1024||typeof password!=='string'||password.length<6||password.length>1024)
   throw createError({statusCode:400,message:'请填写当前密码，新密码需为 6–1024 位'})
  const [user]=await db.select().from(users).where(eq(users.id,owner))
- if(!user?.passwordHash||!await verifyPassword(user.passwordHash,current))throw createError({statusCode:400,message:'当前密码不正确'})
+ if(!user?.passwordHash)throw createError({statusCode:409,message:'此账户未设置本地密码'})
+ if(!await verifyPassword(user.passwordHash,current))throw createError({statusCode:400,message:'当前密码不正确'})
  const passwordHash=await hashPassword(password), now=new Date()
  await db.transaction(async tx=>{
   const [locked]=await tx.select().from(users).where(eq(users.id,owner)).for('update')
