@@ -143,3 +143,31 @@ func TestPreparationCancelBypassesSaturatedStartDispatch(t *testing.T) {
 	waitPreparation(t, p, req, "cancelled")
 	labs.wg.Wait()
 }
+
+func TestFailedCreateBoxReleasesSandboxMailbox(t *testing.T) {
+	c := &NodeControlClient{
+		bootID:    "boot-1",
+		mailboxes: make(map[string]*sandboxMailbox),
+		stopCh:    make(chan struct{}),
+	}
+	msg, err := protocol.NewMessage(protocol.MsgTypeCreateBox, protocol.CreateBoxReq{
+		SandboxID: "sbx-failed-create",
+		BootID:    "boot-1",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	c.dispatchMessage(msg)
+
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		c.mailboxesMu.Lock()
+		_, exists := c.mailboxes["sbx-failed-create"]
+		c.mailboxesMu.Unlock()
+		if !exists {
+			return
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	t.Fatal("sandboxMailbox leaked after failed CreateBox")
+}

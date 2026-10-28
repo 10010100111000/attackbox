@@ -9,42 +9,40 @@ import {composeTargetOperation} from './compose-target-runtime'
 import { chapterContext } from './learning'
 import { sandboxHub, sandboxController } from '../sandbox'
 
-export async function targetScope(user: string, input: Record<string, unknown>) {
-  return db.transaction(async tx => {
-    if (input.kind === 'challenge') {
-      if (typeof input.challengeId !== 'string' || !/^[a-f0-9-]{36}$/.test(input.challengeId)) {
-        throw createError({ statusCode: 400, message: '挑战参数无效' })
-      }
-      const [c] = await tx
-        .select()
-        .from(challenges)
-        .where(and(eq(challenges.id, input.challengeId), eq(challenges.status, 'published')))
-      if (!c) {
-        throw createError({ statusCode: 404, message: '挑战不可用' })
-      }
-      return { scope: 'challenge:' + c.id, templateId: c.targetTemplateId }
+export async function targetScope(user: string, input: Record<string, unknown>, runner: typeof db = db) {
+  if (input.kind === 'challenge') {
+    if (typeof input.challengeId !== 'string' || !/^[a-f0-9-]{36}$/.test(input.challengeId)) {
+      throw createError({ statusCode: 400, message: '挑战参数无效' })
     }
+    const [c] = await runner
+      .select()
+      .from(challenges)
+      .where(and(eq(challenges.id, input.challengeId), eq(challenges.status, 'published')))
+    if (!c) {
+      throw createError({ statusCode: 404, message: '挑战不可用' })
+    }
+    return { scope: 'challenge:' + c.id, templateId: c.targetTemplateId }
+  }
 
-    if (input.kind !== 'chapter' || typeof input.moduleSlug !== 'string' || typeof input.chapterSlug !== 'string') {
-      throw createError({ statusCode: 400, message: '章节参数无效' })
-    }
-    const { chapter } = await chapterContext(tx, input.moduleSlug, input.chapterSlug, user)
-    const [c] = await tx
-      .select({
-        mode: chapters.targetMode,
-        template: chapters.targetTemplateId,
-        moduleTemplate: modules.defaultTargetTemplateId,
-        module: modules.id,
-      })
-      .from(chapters)
-      .innerJoin(modules, eq(modules.id, chapters.moduleId))
-      .where(eq(chapters.id, chapter.id))
+  if (input.kind !== 'chapter' || typeof input.moduleSlug !== 'string' || typeof input.chapterSlug !== 'string') {
+    throw createError({ statusCode: 400, message: '章节参数无效' })
+  }
+  const { chapter } = await chapterContext(runner, input.moduleSlug, input.chapterSlug, user)
+  const [c] = await runner
+    .select({
+      mode: chapters.targetMode,
+      template: chapters.targetTemplateId,
+      moduleTemplate: modules.defaultTargetTemplateId,
+      module: modules.id,
+    })
+    .from(chapters)
+    .innerJoin(modules, eq(modules.id, chapters.moduleId))
+    .where(eq(chapters.id, chapter.id))
 
-    return {
-      scope: c!.mode === 'custom' ? 'chapter:' + chapter.id : 'module:' + c!.module,
-      templateId: c!.mode === 'none' ? null : c!.mode === 'custom' ? c!.template : c!.moduleTemplate,
-    }
-  })
+  return {
+    scope: c!.mode === 'custom' ? 'chapter:' + chapter.id : 'module:' + c!.module,
+    templateId: c!.mode === 'none' ? null : c!.mode === 'custom' ? c!.template : c!.moduleTemplate,
+  }
 }
 
 function view(row: typeof targetInstances.$inferSelect) {
@@ -65,9 +63,8 @@ export async function targetOperation(
   const hub = sandboxHub()
   const scope = action === 'stop' ? null : await targetScope(user, input)
 
-  const row = await db.transaction(async tx => {
-    await tx.execute(sql`select pg_advisory_xact_lock(19842, hashtext(${user}))`)
-    const [existing] = await tx
+  if (action !== 'start') {
+    const [existing] = await db
       .select()
       .from(targetInstances)
       .where(
@@ -76,8 +73,23 @@ export async function targetOperation(
           action === 'stop' ? eq(targetInstances.id, String(input.id || '')) : eq(targetInstances.scope, scope!.scope)
         )
       )
+    if (!existing) return null
+    if (existing.state === 'stopped') return view(existing)
+    if (existing.expiresAt.getTime() <= Date.now()) action = 'stop'
+    return composeTargetOperation(existing, action)
+  }
 
-    if (action !== 'start') return existing
+  const row = await db.transaction(async tx => {
+    await tx.execute(sql`select pg_advisory_xact_lock(19842, hashtext(${user}))`)
+    const [existing] = await tx
+      .select()
+      .from(targetInstances)
+      .where(
+        and(
+          eq(targetInstances.userId, user),
+          eq(targetInstances.scope, scope!.scope)
+        )
+      )
 
     if (!scope?.templateId) {
       throw createError({ statusCode: 409, message: '未关联靶机模板' })

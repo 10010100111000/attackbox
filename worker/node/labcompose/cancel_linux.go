@@ -18,7 +18,7 @@ func (m *Manager) StopRequest(ctx context.Context, req Request) (Status, error) 
 	if !idPattern.MatchString(req.ID) || !idPattern.MatchString(req.OwnerID) || req.ExpiresAt.IsZero() {
 		return Status{}, fmt.Errorf("invalid stop identity")
 	}
-	d, err := m.loadDeployment(req.DeploymentID)
+	d, err := m.loadDeploymentMetadata(req.DeploymentID)
 	if err != nil {
 		return Status{}, err
 	}
@@ -31,7 +31,7 @@ func (m *Manager) StopRequest(ctx context.Context, req Request) (Status, error) 
 			m.mu.Unlock()
 			return Status{}, err
 		}
-		e = &entry{record: r}
+		e = &entry{record: r, deployment: d}
 		m.entries[req.ID] = e
 		err = m.persist(e)
 	} else {

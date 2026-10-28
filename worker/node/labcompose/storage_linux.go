@@ -217,14 +217,30 @@ func (m *Manager) Prepare(ctx context.Context, b Bundle) (Deployment, error) {
 	if err := syncDir(filepath.Dir(dir)); err != nil {
 		return Deployment{}, err
 	}
+	m.mu.Lock()
+	m.deployments[dep.ID] = dep
+	m.mu.Unlock()
 	return dep, nil
 }
 
-func (m *Manager) loadDeployment(id string) (Deployment, error) {
+func (m *Manager) entryDeployment(e *entry, id string) (Deployment, error) {
+	if e != nil && e.deployment.ID == id {
+		return e.deployment, nil
+	}
+	return m.loadDeploymentMetadata(id)
+}
+
+func (m *Manager) loadDeploymentMetadata(id string) (Deployment, error) {
 	var d Deployment
 	if !deploymentPattern.MatchString(id) {
 		return d, fmt.Errorf("invalid deployment ID")
 	}
+	m.mu.Lock()
+	if cached, ok := m.deployments[id]; ok {
+		m.mu.Unlock()
+		return cached, nil
+	}
+	m.mu.Unlock()
 	root := filepath.Join(m.cfg.StateDir, "deployments", id)
 	path, err := safePath(root, "deployment.json")
 	if err != nil {
@@ -237,6 +253,18 @@ func (m *Manager) loadDeployment(id string) (Deployment, error) {
 	if err != nil || d.ID != id || "dep_"+digest(b) != id {
 		return d, fmt.Errorf("deployment digest mismatch")
 	}
+	m.mu.Lock()
+	m.deployments[id] = d
+	m.mu.Unlock()
+	return d, nil
+}
+
+func (m *Manager) loadDeployment(id string) (Deployment, error) {
+	d, err := m.loadDeploymentMetadata(id)
+	if err != nil {
+		return d, err
+	}
+	root := filepath.Join(m.cfg.StateDir, "deployments", id)
 	for rel, hash := range d.Definition.Files {
 		if strings.HasPrefix(rel, "/") {
 			return d, fmt.Errorf("invalid asset reference")

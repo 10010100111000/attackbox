@@ -102,7 +102,7 @@ func (m *Manager) reconnect(ctx context.Context, e *entry) error {
 	if !r.Desired || r.Cleaned || !r.StartIssued || !r.Request.ExpiresAt.After(m.clock()) {
 		return nil
 	}
-	d, err := m.loadDeployment(r.Request.DeploymentID)
+	d, err := m.entryDeployment(e, r.Request.DeploymentID)
 	if err != nil {
 		return err
 	}

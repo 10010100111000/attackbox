@@ -6,7 +6,11 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"log"
+	"net"
+	"net/http"
+	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -19,7 +23,10 @@ import (
 
 // CLIConfig is trusted node configuration, never filled from a student's API.
 type CLIConfig struct{ DockerBinary, DockerSocket, DockerConfig string }
-type CLI struct{ cfg CLIConfig }
+type CLI struct {
+	cfg        CLIConfig
+	httpClient *http.Client
+}
 
 func NewCLI(cfg CLIConfig) (*CLI, error) {
 	if cfg.DockerBinary == "" {
@@ -42,7 +49,20 @@ func NewCLI(cfg CLIConfig) (*CLI, error) {
 	if !filepath.IsAbs(cfg.DockerConfig) {
 		return nil, fmt.Errorf("Docker config must be absolute")
 	}
-	return &CLI{cfg: cfg}, nil
+	socketPath := cfg.DockerSocket
+	transport := &http.Transport{
+		DialContext: func(ctx context.Context, _, _ string) (net.Conn, error) {
+			var d net.Dialer
+			return d.DialContext(ctx, "unix", socketPath)
+		},
+		MaxIdleConns:        16,
+		MaxIdleConnsPerHost: 16,
+		IdleConnTimeout:     90 * time.Second,
+	}
+	return &CLI{
+		cfg:        cfg,
+		httpClient: &http.Client{Transport: transport},
+	}, nil
 }
 
 type limitedOutput struct {
@@ -191,7 +211,79 @@ type inspectedContainer struct {
 	}
 }
 
+func (c *CLI) dockerGet(ctx context.Context, pathAndQuery string, out any) error {
+	ctx, cancel := context.WithTimeout(ctx, 15*time.Second)
+	defer cancel()
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, "http://docker"+pathAndQuery, nil)
+	if err != nil {
+		return err
+	}
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		if ctx.Err() != nil {
+			return ctx.Err()
+		}
+		return fmt.Errorf("Docker operation failed")
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		_, _ = io.Copy(io.Discard, io.LimitReader(resp.Body, 4<<20))
+		return fmt.Errorf("Docker operation failed")
+	}
+	body, err := io.ReadAll(io.LimitReader(resp.Body, (4<<20)+1))
+	if err != nil {
+		return fmt.Errorf("Docker operation failed")
+	}
+	if len(body) > 4<<20 {
+		return fmt.Errorf("Docker response too large")
+	}
+	if err := json.Unmarshal(body, out); err != nil {
+		return fmt.Errorf("invalid container inventory")
+	}
+	return nil
+}
+
+func (c *CLI) inventorySocket(ctx context.Context, r Record) ([]inspectedContainer, error) {
+	filterJSON, err := json.Marshal(map[string][]string{
+		"label": {"com.docker.compose.project=" + r.Project},
+	})
+	if err != nil {
+		return nil, err
+	}
+	var listed []struct {
+		ID string `json:"Id"`
+	}
+	query := "/containers/json?all=1&filters=" + url.QueryEscape(string(filterJSON))
+	if err := c.dockerGet(ctx, query, &listed); err != nil {
+		return nil, err
+	}
+	if len(listed) == 0 {
+		return nil, nil
+	}
+	if len(listed) > 32 {
+		return nil, fmt.Errorf("unexpected project container count")
+	}
+	containers := make([]inspectedContainer, 0, len(listed))
+	for _, item := range listed {
+		if len(item.ID) != 12 && len(item.ID) != 64 {
+			return nil, fmt.Errorf("invalid container identity")
+		}
+		var detail inspectedContainer
+		if err := c.dockerGet(ctx, "/containers/"+url.PathEscape(item.ID)+"/json", &detail); err != nil {
+			return nil, err
+		}
+		if err := checkLabels(detail.Config.Labels, r); err != nil {
+			return nil, err
+		}
+		containers = append(containers, detail)
+	}
+	return containers, nil
+}
+
 func (c *CLI) inventory(ctx context.Context, r Record) ([]inspectedContainer, error) {
+	if c.httpClient != nil && filepath.Base(c.cfg.DockerBinary) != "docker-fixture" {
+		return c.inventorySocket(ctx, r)
+	}
 	b, err := c.run(ctx, "container", "ls", "-aq", "--filter", "label=com.docker.compose.project="+r.Project)
 	if err != nil {
 		return nil, err

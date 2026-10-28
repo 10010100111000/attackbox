@@ -2,7 +2,10 @@ package labcompose
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"net"
+	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
@@ -140,5 +143,60 @@ esac
 	}
 	if _, err := os.Stat(marker); err != nil {
 		t.Fatal("force refresh did not pull")
+	}
+}
+
+func TestInventoryUsesUnixSocketWithoutSpawningSubprocess(t *testing.T) {
+	dir := t.TempDir()
+	sockPath := filepath.Join(dir, "d.sock")
+	ln, err := net.Listen("unix", sockPath)
+	if err != nil {
+		t.Skipf("unix socket listen unavailable: %v", err)
+	}
+	defer ln.Close()
+
+	r := Record{
+		NodeID:  "node-a",
+		Project: "ab_project",
+		Request: Request{ID: "one", OwnerID: "alice", DeploymentID: "dep_test"},
+	}
+	cid := strings.Repeat("a", 64)
+	mux := http.NewServeMux()
+	mux.HandleFunc("/containers/json", func(w http.ResponseWriter, req *http.Request) {
+		_ = json.NewEncoder(w).Encode([]map[string]any{{"Id": cid}})
+	})
+	mux.HandleFunc("/containers/"+cid+"/json", func(w http.ResponseWriter, req *http.Request) {
+		labels := map[string]string{"com.docker.compose.project": r.Project, "com.docker.compose.service": "web"}
+		for k, v := range ownedLabels(r.NodeID, r) {
+			labels[k] = v.(string)
+		}
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"Id":     cid,
+			"Config": map[string]any{"Labels": labels},
+			"State":  map[string]any{"Status": "running", "ExitCode": 0, "Health": map[string]any{"Status": "healthy"}},
+			"NetworkSettings": map[string]any{
+				"Networks": map[string]any{"net_1": map[string]any{"IPAddress": "10.201.0.2"}},
+			},
+		})
+	})
+	srv := &http.Server{Handler: mux}
+	go func() { _ = srv.Serve(ln) }()
+	defer srv.Close()
+
+	// Use a binary path named "docker" that exits 1 if executed, proving zero subprocesses are spawned.
+	binPath := filepath.Join(dir, "docker")
+	if err := os.WriteFile(binPath, []byte("#!/bin/sh\nexit 1\n"), 0700); err != nil {
+		t.Fatal(err)
+	}
+	cli, err := NewCLI(CLIConfig{DockerBinary: binPath, DockerSocket: sockPath, DockerConfig: dir})
+	if err != nil {
+		t.Fatal(err)
+	}
+	services, err := cli.Inspect(context.Background(), r)
+	if err != nil {
+		t.Fatalf("Inspect over unix socket failed: %v", err)
+	}
+	if len(services) != 1 || services[0].Name != "web" || services[0].State != "running" || services[0].Health != "healthy" || services[0].IPs["net_1"] != "10.201.0.2" {
+		t.Fatalf("unexpected services: %+v", services)
 	}
 }
