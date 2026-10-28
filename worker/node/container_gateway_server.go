@@ -255,7 +255,10 @@ func (s *ContainerGatewayServer) keepalive(c *SafeConn, stop <-chan struct{}) {
 		case <-stop:
 			return
 		case <-ticker.C:
-			_ = c.WriteControl(websocket.PingMessage, nil, time.Now().Add(5*time.Second))
+			if err := c.WriteControl(websocket.PingMessage, nil, time.Now().Add(5*time.Second)); err != nil {
+				_ = c.Close()
+				return
+			}
 		}
 	}
 }
@@ -318,11 +321,10 @@ func (s *ContainerGatewayServer) handleGUI(w http.ResponseWriter, r *http.Reques
 		log.Printf("[DATA] WebSocket upgrade error for GUI %s: %v", claims.Sbx, err)
 		return
 	}
-	conn := NewSafeConn(rawConn)
-	defer conn.Close()
-
 	// 4. 注册 GUI 会话并执行单连接互斥抢占
 	rawConn.SetReadLimit(protocol.MaxWebSocketMessageSize)
+	conn := NewSafeConn(rawConn)
+	defer conn.Close()
 	s.sessions.RegisterGUI(sbx.ID, conn)
 	defer s.sessions.UnregisterGUI(sbx.ID, conn)
 
