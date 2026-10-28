@@ -13,17 +13,18 @@ export default defineNuxtConfig({
     strict: true
   },
   css: [
-    '~/assets/css/animations.css'
+    '~/assets/css/animations.css',
+    '~/assets/css/brand-experience.css'
   ],
   routeRules: {
-    '/': { prerender: true },
+    '/': { prerender: false },
     '/auth': { prerender: true }
   },
   nitro: {
     experimental: { websocket: true },
     prerender: {
       crawlLinks: false,
-      routes: ['/', '/auth']
+      routes: ['/auth']
     }
   },
   app: {

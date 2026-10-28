@@ -1,5 +1,5 @@
 <template>
-  <div class="auth-layout">
+  <div class="auth-layout brand-experience">
     <div class="shell">
       <header class="header">
         <NuxtLink to="/" class="brand">
@@ -21,7 +21,7 @@
 <style scoped>
 .auth-layout {
   min-height: 100svh;
-  background: var(--bg-app);
+  background: radial-gradient(ellipse at 18% 40%, var(--brand-warm-soft), transparent 55%), var(--bg-app);
   color: var(--text-main);
 }
 
@@ -66,7 +66,7 @@
   justify-content: space-between;
   align-items: center;
   height: 48px;
-  color: #58515f;
+  color: var(--text-muted);
   font-size: 9px;
   flex-shrink: 0;
 }

@@ -1,23 +1,26 @@
 <script setup lang="ts">
 import { handleCardPointerMove } from '~/composables/useModuleRail'
+import type { PublicModule } from '~/shared/module-catalog'
+defineProps<{ module: PublicModule }>()
+const failedCover = ref(false)
 </script>
 
 <template>
   <NuxtLink
-    to="/auth?mode=login"
+    :to="`/learn/modules/${module.slug}`"
     class="module-card featured-module"
-    data-module="cloud"
-    data-level="advanced"
+    :data-module="module.slug"
     style="--tone: #d8a57b; --glow: #d8a57b"
-    aria-label="进入云原生攻防模块"
+    :aria-label="`浏览${module.title}模块`"
     @pointermove="handleCardPointerMove"
   >
     <div class="module-art cloud-art">
       <div class="card-topline">
-        <span>03 / CLOUD NATIVE</span>
-        <span class="level advanced">进阶</span>
+        <span>{{ module.category?.name || '学习模块' }}</span>
+        <span class="level">{{ {beginner: '基础', intermediate: '进阶', advanced: '高阶'}[module.difficulty] }}</span>
       </div>
-      <svg
+      <img v-if="module.coverAssetId && !failedCover" :src="`/api/modules/${module.slug}/assets/${module.coverAssetId}`" alt="" loading="lazy" @error="failedCover = true" />
+      <svg v-else
         class="diagram"
         viewBox="0 0 400 176"
         fill="none"
@@ -29,14 +32,14 @@ import { handleCardPointerMove } from '~/composables/useModuleRail'
         <circle cx="200" cy="30" r="4" fill="currentColor"/>
         <circle cx="80" cy="66" r="3" fill="currentColor"/>
         <circle cx="321" cy="66" r="3" fill="currentColor"/>
-        <text x="170" y="88" fill="currentColor" stroke="none" font-size="10" font-family="monospace">CLUSTER</text>
+        <text x="170" y="88" fill="currentColor" stroke="none" font-size="10" font-family="monospace">ATTACKBOX</text>
       </svg>
     </div>
     <div class="card-copy">
-      <h3>云原生攻防</h3>
-      <p>沿着身份、服务与集群寻找攻击路径。</p>
+      <h3>{{ module.title }}</h3>
+      <p v-if="module.summary">{{ module.summary }}</p>
       <div class="card-foot">
-        <span>10 章节 · 5 次实践</span>
+        <span>{{ module.chapterCount }} 章节<span v-if="module.durationMinutes"> · {{ module.durationMinutes }} 分钟</span></span>
 
       </div>
     </div>

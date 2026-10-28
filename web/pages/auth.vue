@@ -12,6 +12,8 @@ definePageMeta({
   layout: 'auth'
 })
 
+useSeoMeta({ robots: 'noindex, follow' })
+
 const route = useRoute()
 
 const currentMode = computed<'login' | 'register' | 'recover' | 'verify' | 'reset'>(() => {

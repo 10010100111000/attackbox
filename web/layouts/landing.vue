@@ -2,14 +2,14 @@
 const {currentUser}=useAuth()
 </script>
 <template>
-  <div class="landing-layout" data-theme="midnight">
+  <div class="landing-layout brand-experience" data-theme="midnight">
     <div class="wrap">
       <header class="header">
         <NuxtLink to="/" class="brand">
           <img src="/logo.png" alt="AttackBox Logo" class="brand-logo" width="31" height="31" />
           <span>AttackBox</span>
         </NuxtLink>
-        <UserMenu v-if="currentUser"/><NuxtLink v-else to="/auth" class="platform-link">
+        <UserMenu v-if="currentUser"/><NuxtLink v-else to="/learn" class="platform-link">
           <span>进入平台</span>
         </NuxtLink>
       </header>
@@ -261,30 +261,9 @@ const {currentUser}=useAuth()
     opacity: 0.65;
   }
 
-  .art-code {
-    position: absolute;
-    top: 37px;
-    left: 30px;
-    right: 20px;
-    z-index: 1;
-    font: 12px / 1.9 monospace;
-    color: var(--tone);
-    transform: translateY(7px);
-    transition: transform 0.5s;
-    white-space: pre;
-  }
 
-  .module-card:hover .art-code {
-    transform: translateY(0);
-  }
 
-  .art-code .quiet {
-    opacity: 0.35;
-  }
 
-  .art-code .bright {
-    color: #efe1d4;
-  }
 
   .card-topline {
     position: absolute;
@@ -310,10 +289,6 @@ const {currentUser}=useAuth()
     background: rgba(23, 21, 26, 0.5);
   }
 
-  .level.advanced {
-    color: var(--tone);
-    border-color: color-mix(in srgb, var(--tone) 25%, transparent);
-  }
 
   .card-copy {
     padding: 0 23px 21px;
@@ -350,13 +325,7 @@ const {currentUser}=useAuth()
     background: radial-gradient(ellipse at 55% 30%, rgba(138, 91, 71, 0.2), transparent 66%), #121318;
   }
 
-  .reverse-art {
-    background: radial-gradient(ellipse at 45% 30%, rgba(103, 86, 134, 0.19), transparent 65%), #121318;
-  }
 
-  .container-art {
-    background: radial-gradient(ellipse at 60% 20%, rgba(69, 119, 120, 0.19), transparent 65%), #121318;
-  }
 
   .diagram {
     position: absolute;
@@ -445,6 +414,16 @@ const {currentUser}=useAuth()
     outline-offset: 6px;
   }
 
+  .catalog-empty { display: grid; justify-items: center; gap: 18px; padding: 60px 24px; color: var(--text-muted); border: 1px solid var(--border-line); border-radius: 11px; background: radial-gradient(ellipse at 50% 100%, var(--brand-warm-soft), transparent 70%); }
+  .catalog-empty svg { color: var(--brand-warm); }
+  .catalog-empty p { font-size: 14px; }
+  .catalog-link { display: flex; justify-content: center; margin-top: 30px; }
+  .catalog-link a { color: var(--brand-warm); font-size: 12px; padding: 10px 16px; border-radius: 7px; border: 1px solid var(--border-line); }
+  .catalog-link a:hover { background: var(--brand-warm-soft); }
+  .module-art > img { position: absolute; inset: 0; }
+  .card-copy h3, .card-topline > span:first-child { overflow-wrap: anywhere; }
+  .card-copy p { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+
   .footer {
     border-top: 1px solid var(--border-line, rgba(255, 255, 255, 0.07));
     padding: 26px 0 30px;
@@ -486,10 +465,6 @@ const {currentUser}=useAuth()
     }
     .card-copy p {
       font-size: 10px;
-    }
-    .art-code {
-      font-size: 10px;
-      left: 23px;
     }
   }
 
@@ -579,9 +554,6 @@ const {currentUser}=useAuth()
     .module-rail .card-copy h3 {
       font-size: 20px;
     }
-    .module-rail .art-code {
-      font-size: 11px;
-    }
     .footer {
       font-size: 10px;
     }
@@ -601,7 +573,6 @@ const {currentUser}=useAuth()
     .module-card,
     .module-art img,
     .module-art:before,
-    .art-code,
     .diagram {
       transition: none;
     }

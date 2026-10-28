@@ -15,7 +15,7 @@ import TerminalBackdrop from './TerminalBackdrop.vue'
           <span class="warm">亲手验证。</span>
         </h1>
         <div class="hero-actions">
-          <NuxtLink to="/auth" class="primary">
+          <NuxtLink to="/learn" class="primary">
             <span>开始学习</span>
             <ArrowRight class="w-4 h-4" />
           </NuxtLink>

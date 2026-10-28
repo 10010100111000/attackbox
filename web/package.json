@@ -38,7 +38,8 @@
     "test:notifications": "node --test tests/notifications.test.mjs",
     "test:personal-center": "node --test tests/personal-center.test.mjs",
     "test:auth-mail": "node --test tests/auth-mail.test.mjs",
-    "test:runtime-policy": "node --test tests/runtime-policy-browser.test.mjs"
+    "test:runtime-policy": "node --test tests/runtime-policy-browser.test.mjs",
+    "test:landing": "node --test tests/landing-browser.test.mjs"
   },
   "dependencies": {
     "@node-rs/argon2": "^2.2.2",

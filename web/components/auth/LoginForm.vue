@@ -245,7 +245,7 @@ function handleProvider(providerName: string) {
 <style scoped>
 .eyebrow {
   font: 9px "SFMono-Regular", Consolas, monospace;
-  color: var(--text-muted);
+  color: var(--brand-warm);
   letter-spacing: 2px;
   margin-bottom: 16px;
 }
@@ -317,7 +317,7 @@ h1 {
 
 .provider {
   height: 42px;
-  border: 1px solid rgba(255, 255, 255, 0.09);
+  border: 1px solid var(--border-line);
   border-radius: 7px;
   background: transparent;
   display: flex;
@@ -325,15 +325,15 @@ h1 {
   justify-content: center;
   gap: 9px;
   font-size: 10px;
-  color: #a79da9;
+  color: var(--text-muted);
   cursor: pointer;
   transition: background 0.2s, border-color 0.2s, color 0.2s;
 }
 
 .provider:hover {
-  background: rgba(255, 255, 255, 0.02);
-  border-color: rgba(255, 255, 255, 0.19);
-  color: #d4c9d5;
+  background: var(--brand-warm-soft);
+  border-color: var(--brand-warm);
+  color: var(--text-main);
 }
 
 .provider svg {
@@ -365,7 +365,7 @@ h1 {
 
 .status {
   font-size: 11px;
-  color: #c5aa97;
+  color: var(--brand-warm);
   line-height: 1.8;
   padding: 12px 14px;
   border: 1px solid rgba(201, 160, 124, 0.13);

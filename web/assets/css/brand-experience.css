@@ -1,0 +1,22 @@
+.brand-experience {
+  --brand-warm: #a66b49;
+  --brand-warm-soft: rgba(166, 107, 73, .08);
+}
+[data-theme='midnight'] .brand-experience,
+.brand-experience[data-theme='midnight'] {
+  --brand-warm: #d8a57b;
+  --brand-warm-soft: rgba(216, 165, 123, .08);
+  --bg-app: #090a0e;
+  --bg-card: #111217;
+  --bg-input: #15151b;
+  --text-main: #f2f0ed;
+  --text-muted: #a59ba7;
+  --border-line: rgba(255, 255, 255, .1);
+  --accent-coral: #d8a57b;
+  --accent-hover: #ecc39d;
+  --text-on-accent: #21160f;
+  --btn-primary-bg: #f2e8df;
+  --btn-primary-hover: #fff3e8;
+  --btn-primary-fg: #21160f;
+  --btn-primary-shadow: 0 3px 16px rgba(216, 165, 123, .08);
+}
