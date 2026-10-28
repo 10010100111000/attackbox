@@ -4,6 +4,7 @@ package labnetwork
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/netip"
@@ -432,5 +433,36 @@ func TestReservationSurvivesPrepareFailureAndDetectsForeignAddressPool(t *testin
 	m2 := h2.open(t)
 	if _, err := m2.CreateNetwork(ctx, spec("blocked")); err == nil || h2.d.calls != 0 {
 		t.Fatal("overlapping host route accepted")
+	}
+}
+
+func TestCleanedTombstonesAreNotPersistedToDisk(t *testing.T) {
+	h := newHarness(t)
+	m := h.open(t)
+	ctx := context.Background()
+	n, err := m.CreateNetwork(ctx, spec("target-0001"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	a, err := m.Attach(ctx, n.ID, sandbox())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := m.Detach(ctx, a.ID); err != nil {
+		t.Fatal(err)
+	}
+	if err := m.ReleaseNetwork(ctx, n.ID); err != nil {
+		t.Fatal(err)
+	}
+	raw, err := os.ReadFile(filepath.Join(h.cfg.StateDir, "state.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var saved state
+	if err := json.Unmarshal(raw, &saved); err != nil {
+		t.Fatal(err)
+	}
+	if len(saved.Networks) != 0 || len(saved.Attachments) != 0 {
+		t.Fatalf("expected state.json to have 0 records, got %d nets, %d attachments", len(saved.Networks), len(saved.Attachments))
 	}
 }

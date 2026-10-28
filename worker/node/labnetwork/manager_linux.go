@@ -313,6 +313,11 @@ func (m *Manager) cleanupNetwork(ctx context.Context, n Network) error {
 	n.Cleaned = true
 	n.Desired = false
 	m.state.Networks[n.ID] = n
+	for id, a := range m.state.Attachments {
+		if a.NetworkID == n.ID && a.Cleaned {
+			delete(m.state.Attachments, id)
+		}
+	}
 	return m.save()
 }
 

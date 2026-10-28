@@ -182,6 +182,9 @@ func (m *Manager) removeInstanceAssets(r Record) error {
 	if err := os.Remove(filepath.Join(root, "assets.json")); err != nil && !os.IsNotExist(err) {
 		return err
 	}
+	if err := os.Remove(filepath.Join(root, "compose.json")); err != nil && !os.IsNotExist(err) {
+		return err
+	}
 	return syncDir(root)
 }
 

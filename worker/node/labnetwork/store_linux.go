@@ -13,6 +13,7 @@ import (
 	"golang.org/x/sys/unix"
 )
 
+
 type state struct {
 	Version     int                   `json:"version"`
 	NodeID      string                `json:"node_id"`
@@ -89,8 +90,19 @@ func openStore(dir, node string) (*store, state, error) {
 		s.close()
 		return nil, empty, err
 	}
+	for id, n := range loaded.Networks {
+		if n.Cleaned {
+			delete(loaded.Networks, id)
+		}
+	}
+	for id, a := range loaded.Attachments {
+		if a.Cleaned {
+			delete(loaded.Attachments, id)
+		}
+	}
 	return s, loaded, nil
 }
+
 
 func validateState(s state, node string) error {
 	if s.Version != 1 || s.NodeID != node || s.Networks == nil || s.Attachments == nil {
@@ -142,7 +154,23 @@ func validateState(s state, node string) error {
 }
 
 func (s *store) save(value state) error {
-	b, err := json.Marshal(value)
+	toPersist := state{
+		Version:     value.Version,
+		NodeID:      value.NodeID,
+		Networks:    make(map[string]Network),
+		Attachments: make(map[string]Attachment),
+	}
+	for k, v := range value.Networks {
+		if !v.Cleaned {
+			toPersist.Networks[k] = v
+		}
+	}
+	for k, v := range value.Attachments {
+		if !v.Cleaned {
+			toPersist.Attachments[k] = v
+		}
+	}
+	b, err := json.Marshal(toPersist)
 	if err != nil {
 		return err
 	}

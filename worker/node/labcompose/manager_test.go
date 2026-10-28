@@ -234,6 +234,9 @@ func TestPreparedProjectLifecycleAndFrozenIdentity(t *testing.T) {
 	if status, err = m.Stop(ctx, r.ID); err != nil || status.State != "stopped" {
 		t.Fatal(status, err)
 	}
+	if _, err := os.Stat(filepath.Join(m.cfg.StateDir, "instances", r.ID)); !os.IsNotExist(err) {
+		t.Fatalf("expected instances/%s to be removed from disk, got: %v", r.ID, err)
+	}
 	if status, err = m.Start(ctx, r); err != nil || status.State != "stopped" {
 		t.Fatal("tombstone revived", status, err)
 	}
@@ -450,5 +453,15 @@ func TestConfigurableLeaseBeyondOneHourAndBoundedAtOneDay(t *testing.T) {
 	}
 	if status, err := m.Inspect(context.Background(), r.ID); err != nil || status.State != "stopped" {
 		t.Fatal("configured lease was not reaped", status, err)
+	}
+	if _, err := os.Stat(filepath.Join(m.cfg.StateDir, "instances", r.ID)); !os.IsNotExist(err) {
+		t.Fatal("stopped instance directory was not removed from disk", err)
+	}
+	m.clock = func() time.Time { return r.ExpiresAt.Add(time.Second) }
+	if err := m.Reap(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := m.Inspect(context.Background(), r.ID); err == nil {
+		t.Fatal("expired instance was not evicted from memory")
 	}
 }

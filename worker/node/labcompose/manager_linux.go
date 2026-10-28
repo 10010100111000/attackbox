@@ -30,6 +30,7 @@ type Config struct {
 type entry struct {
 	mu, op         sync.Mutex
 	record         Record
+	deployment     Deployment
 	cancel         context.CancelFunc
 	writeErr       error
 	attachmentWake chan struct{} // guarded by Manager.mu
@@ -39,6 +40,7 @@ type Manager struct {
 	cfg                       Config
 	lock                      *os.File
 	entries                   map[string]*entry
+	deployments               map[string]Deployment
 	sandboxes                 map[string]labnetwork.Sandbox
 	starts, cleanups, prepare chan struct{}
 	closed                    bool
@@ -88,7 +90,7 @@ func New(ctx context.Context, cfg Config) (*Manager, error) {
 	if err := cfg.Engine.Check(ctx); err != nil {
 		return fail(err)
 	}
-	m := &Manager{cfg: cfg, lock: lock, entries: map[string]*entry{}, sandboxes: map[string]labnetwork.Sandbox{}, starts: make(chan struct{}, cfg.Concurrency), cleanups: make(chan struct{}, cfg.Concurrency), prepare: make(chan struct{}, 1), clock: time.Now}
+	m := &Manager{cfg: cfg, lock: lock, entries: map[string]*entry{}, deployments: map[string]Deployment{}, sandboxes: map[string]labnetwork.Sandbox{}, starts: make(chan struct{}, cfg.Concurrency), cleanups: make(chan struct{}, cfg.Concurrency), prepare: make(chan struct{}, 1), clock: time.Now}
 	m.lifetime, m.cancelLifetime = context.WithCancel(context.Background())
 	dirs, err := os.ReadDir(filepath.Join(cfg.StateDir, "instances"))
 	if err != nil {
@@ -109,22 +111,27 @@ func New(ctx context.Context, cfg Config) (*Manager, error) {
 		if r.Request.ID != dir.Name() || !idPattern.MatchString(r.Request.OwnerID) || !deploymentPattern.MatchString(r.Request.DeploymentID) || r.Request.ExpiresAt.IsZero() || r.NodeID != cfg.NodeID || r.Project != projectName(cfg.NodeID, r.Request.ID) || r.Networks == nil || r.Desired && r.Cleaned {
 			return fail(fmt.Errorf("invalid instance identity"))
 		}
-		d, err := m.loadDeployment(r.Request.DeploymentID)
+		d, err := m.loadDeploymentMetadata(r.Request.DeploymentID)
 		if err != nil {
 			return fail(err)
 		}
 		if !sameStrings(r.VolumeNames, volumeNames(r.Project, d)) {
 			return fail(fmt.Errorf("invalid instance volumes"))
 		}
+		if r.Cleaned {
+			_ = os.RemoveAll(filepath.Join(cfg.StateDir, "instances", dir.Name()))
+			continue
+		}
 		for key, n := range r.Networks {
 			if n.ID != r.Request.ID+"/"+key || n.Spec.TargetID != r.Request.ID || n.Spec.OwnerID != r.Request.OwnerID {
 				return fail(fmt.Errorf("invalid instance network ownership"))
 			}
 		}
-		m.entries[r.Request.ID] = &entry{record: r}
+		m.entries[r.Request.ID] = &entry{record: r, deployment: d}
 	}
 	return m, nil
 }
+
 func projectName(node, id string) string { return "ab_" + digest([]byte(node + "/" + id))[:24] }
 func volumeNames(project string, d Deployment) []string {
 	var out []string
@@ -190,6 +197,9 @@ func (m *Manager) persist(e *entry) error {
 	if e.writeErr != nil {
 		return e.writeErr
 	}
+	if e.record.Cleaned {
+		return nil
+	}
 	err := writeJSON(filepath.Join(m.cfg.StateDir, "instances", e.record.Request.ID, "record.json"), e.record)
 	if err != nil {
 		e.writeErr = fmt.Errorf("instance persistence failed; reopen runtime")
@@ -234,7 +244,7 @@ func (m *Manager) allocate(req Request, d Deployment) (*entry, error) {
 	if err := privateDir(dir); err != nil {
 		return nil, err
 	}
-	e := &entry{record: r}
+	e := &entry{record: r, deployment: d}
 	m.entries[req.ID] = e
 	if err := m.persist(e); err != nil {
 		return nil, err
@@ -387,6 +397,11 @@ func (m *Manager) stopEntry(ctx context.Context, e *entry, d Deployment) (Status
 		e.mu.Unlock()
 		return Status{}, err
 	}
+	if e.record.Cleaned {
+		r := copyRecord(e.record)
+		e.mu.Unlock()
+		return m.status(ctx, r, d)
+	}
 	e.record.Desired = false
 	err := m.persist(e)
 	e.mu.Unlock()
@@ -394,9 +409,6 @@ func (m *Manager) stopEntry(ctx context.Context, e *entry, d Deployment) (Status
 		return Status{}, err
 	}
 	r := e.snapshot()
-	if r.Cleaned {
-		return m.status(ctx, r, d)
-	}
 	if err := acquire(ctx, m.cleanups); err != nil {
 		return Status{}, err
 	}
@@ -437,12 +449,10 @@ func (m *Manager) stopEntry(ctx context.Context, e *entry, d Deployment) (Status
 	}
 	e.mu.Lock()
 	e.record.Cleaned = true
-	err = m.persist(e)
 	r = copyRecord(e.record)
 	e.mu.Unlock()
-	if err != nil {
-		return pending(r), err
-	}
+	_ = os.RemoveAll(filepath.Join(m.cfg.StateDir, "instances", r.Request.ID))
+	_ = syncDir(filepath.Join(m.cfg.StateDir, "instances"))
 	return m.status(ctx, r, d)
 }
 func pending(r Record) Status {
@@ -471,7 +481,7 @@ func (m *Manager) Stop(ctx context.Context, id string) (Status, error) {
 	e.op.Lock()
 	defer e.op.Unlock()
 	r := e.snapshot()
-	d, err := m.loadDeployment(r.Request.DeploymentID)
+	d, err := m.entryDeployment(e, r.Request.DeploymentID)
 	if err != nil {
 		return pending(r), err
 	}
@@ -488,7 +498,7 @@ func (m *Manager) Inspect(ctx context.Context, id string) (Status, error) {
 		return Status{}, err
 	}
 	r := e.snapshot()
-	d, err := m.loadDeployment(r.Request.DeploymentID)
+	d, err := m.entryDeployment(e, r.Request.DeploymentID)
 	if err != nil {
 		return Status{}, err
 	}
@@ -585,9 +595,16 @@ func (m *Manager) Reap(ctx context.Context) error {
 	defer m.leave()
 	m.mu.Lock()
 	var ids []string
+	now := m.clock()
 	for id, e := range m.entries {
 		r := e.snapshot()
-		if !r.Cleaned && (!r.Desired || !r.Request.ExpiresAt.After(m.clock())) {
+		if r.Cleaned {
+			if !r.Request.ExpiresAt.After(now) {
+				delete(m.entries, id)
+			}
+			continue
+		}
+		if !r.Desired || !r.Request.ExpiresAt.After(now) {
 			ids = append(ids, id)
 		}
 	}
