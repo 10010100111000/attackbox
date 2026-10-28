@@ -5,7 +5,7 @@ import type { FitAddon } from '@xterm/addon-fit'
 import type { SandboxTicket } from '~/shared/sandbox'
 import '@xterm/xterm/css/xterm.css'
 const props = defineProps<{ sandboxId: string; windowId: string; active: boolean }>()
-const host = ref<HTMLElement | null>(null), state = ref(''), reconnecting = ref(false)
+const host = ref<HTMLElement | null>(null), state = ref(''), clipboardNotice = ref(''), reconnecting = ref(false)
 let terminal: Terminal | undefined, fit: FitAddon | undefined, socket: WebSocket | undefined
 let resize: ResizeObserver | undefined, retryTimer: ReturnType<typeof setTimeout> | undefined
 let stableTimer: ReturnType<typeof setTimeout> | undefined, connectTimer: ReturnType<typeof setTimeout> | undefined
@@ -68,6 +68,16 @@ onMounted(async () => {
   const [{ Terminal: Xterm }, { FitAddon: Fit }] = await Promise.all([import('@xterm/xterm'), import('@xterm/addon-fit')])
   if (destroyed || !host.value) return
   terminal = new Xterm({ cursorBlink: true, fontSize: 14, fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace', scrollback: 3000, theme: { background: '#101419', foreground: '#dce4eb', cursor: '#f4f4f6', selectionBackground: '#3b5364' } })
+  terminal.attachCustomKeyEventHandler(event => {
+    const copy = (event.ctrlKey && event.shiftKey && !event.altKey) || (event.metaKey && !event.altKey)
+    if (event.type !== 'keydown' || !copy || event.key.toLowerCase() !== 'c' || !terminal?.hasSelection()) return true
+    event.preventDefault()
+    clipboardNotice.value = ''
+    if (navigator.clipboard?.writeText) {
+      void navigator.clipboard.writeText(terminal.getSelection()).catch(() => { clipboardNotice.value = '请通过终端右键菜单复制。' })
+    } else if (!document.execCommand('copy')) clipboardNotice.value = '请通过终端右键菜单复制。'
+    return false
+  })
   fit = new Fit(); terminal.loadAddon(fit); terminal.open(host.value)
   terminal.onData(value => {
     if (socket?.readyState !== WebSocket.OPEN) return
@@ -81,7 +91,7 @@ onBeforeUnmount(() => { destroyed = true; generation++; clearTimeout(retryTimer)
 </script>
 
 <template>
-  <div class="terminal-panel"><div ref="host" class="terminal-host" aria-label="交互终端" /><div class="terminal-status" role="status"><span v-if="state">{{state}}</span><UiBusyIndicator v-else inline label="终端连接"/><button v-if="state && state !== '已连接'" type="button" :disabled="reconnecting" @click="retries = 0; connect()">重新连接</button></div></div>
+  <div class="terminal-panel"><div ref="host" class="terminal-host" aria-label="交互终端" /><div class="terminal-status" role="status"><span v-if="state">{{state}}</span><span v-if="clipboardNotice" role="status">{{clipboardNotice}}</span><UiBusyIndicator v-else inline label="终端连接"/><button v-if="state && state !== '已连接'" type="button" :disabled="reconnecting" @click="retries = 0; connect()">重新连接</button></div></div>
 </template>
 
 <style scoped>

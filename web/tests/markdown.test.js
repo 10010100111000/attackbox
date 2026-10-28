@@ -87,3 +87,17 @@ test('callout recognition is limited to a leading supported marker, not code or 
   assert.ok(!attack.includes('<script>'));
   assert.ok(attack.includes('&lt;script&gt;'));
 });
+
+test('heading anchors are unique across duplicates and suffix collisions, and labels use rendered text', () => {
+  const result = renderMarkdown('## **Foo** `bar`\n\n## Foo bar\n\n## Foo bar-1\n\n## Foo bar\n\n```md\n## not a heading\n```\n\n## 你好 世界\n\n### [Child](https://example.org)')
+  assert.deepEqual(result.headings.map(h => h.id), ['foo-bar','foo-bar-1','foo-bar-1-1','foo-bar-2','你好-世界','child'])
+  assert.equal(result.headings[0].text, 'Foo bar')
+})
+test('tutorial rendering omits copy controls without changing code text or default renderers', () => {
+  const source = '```bash\necho practice\n```'
+  const tutorial = renderMarkdown(source, {}, { copyCode: false }).html
+  assert.ok(tutorial.includes('echo'))
+  assert.ok(!tutorial.includes('copy-code-btn'))
+  assert.ok(!tutorial.includes('data-code'))
+  assert.ok(renderMarkdown(source).html.includes('copy-code-btn'))
+})

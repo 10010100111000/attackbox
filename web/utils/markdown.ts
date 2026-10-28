@@ -50,12 +50,14 @@ function slugify(text: string): string {
   return text
     .toLowerCase()
     .trim()
-    .replace(/[^\w\u4e00-\u9fa5\s-]/g, '')
+    .replace(/[^\p{L}\p{N}\s_-]/gu, '')
     .replace(/[\s_-]+/g, '-')
     .replace(/^-+|-+$/g, '') || 'section'
 }
 
-export function createMarkdownRenderer() {
+export interface MarkdownOptions { copyCode?: boolean }
+
+export function createMarkdownRenderer(options: MarkdownOptions = {}) {
   const md = new MarkdownIt({
     html: false, // 严格转义任何原生 HTML，杜绝 XSS 注入
     linkify: true,
@@ -74,7 +76,8 @@ export function createMarkdownRenderer() {
       } else {
         highlighted = md.utils.escapeHtml(str)
       }
-      return `<div class="code-block"><div class="code-top"><span>${displayLang}</span><button type="button" class="copy-code-btn" data-code="${encodeURIComponent(str)}">复制代码</button></div><pre><code class="hljs ${langName ? 'language-' + md.utils.escapeHtml(langName) : ''}">${highlighted}</code></pre></div>`
+      const copyButton = options.copyCode === false ? '' : `<button type="button" class="copy-code-btn" data-code="${encodeURIComponent(str)}">复制代码</button>`
+      return `<div class="code-block"><div class="code-top"><span>${displayLang}</span>${copyButton}</div><pre><code class="hljs ${langName ? 'language-' + md.utils.escapeHtml(langName) : ''}">${highlighted}</code></pre></div>`
     },
   })
 
@@ -115,12 +118,12 @@ export function createMarkdownRenderer() {
   return md
 }
 
-export function renderMarkdown(content: string, imageUrls: Record<string,string> = {}): MarkdownRenderResult {
+export function renderMarkdown(content: string, imageUrls: Record<string,string> = {}, options: MarkdownOptions = {}): MarkdownRenderResult {
   if (!content) {
     return { html: '', headings: [] }
   }
 
-  const md = createMarkdownRenderer()
+  const md = createMarkdownRenderer(options)
   const renderImage = md.renderer.rules.image!
   md.renderer.rules.image = (tokens, index, options, env, self) => {
     const token = tokens[index]!, href = String(token.attrGet('src') || '')
@@ -128,7 +131,7 @@ export function renderMarkdown(content: string, imageUrls: Record<string,string>
     return renderImage(tokens,index,options,env,self)
   }
   const headings: MarkdownHeading[] = []
-  const usedSlugs = new Map<string, number>()
+  const usedSlugs = new Set<string>()
 
   // 提取 headings 并附加 id
   const defaultHeadingOpen =
@@ -141,12 +144,12 @@ export function renderMarkdown(content: string, imageUrls: Record<string,string>
     const token = tokens[idx]
     const level = parseInt(token.tag.slice(1), 10) || 2
     const nextToken = tokens[idx + 1]
-    const titleText = nextToken && nextToken.type === 'inline' ? nextToken.content : ''
+    const titleText = nextToken?.type === 'inline' ? (nextToken.children || []).map(child => ['text', 'code_inline', 'image'].includes(child.type) ? child.content : ['softbreak', 'hardbreak'].includes(child.type) ? ' ' : '').join('') : ''
 
-    let baseSlug = slugify(titleText)
-    const count = usedSlugs.get(baseSlug) || 0
-    usedSlugs.set(baseSlug, count + 1)
-    const id = count === 0 ? baseSlug : `${baseSlug}-${count}`
+    const baseSlug = slugify(titleText)
+    let id = baseSlug, suffix = 1
+    while (usedSlugs.has(id)) id = `${baseSlug}-${suffix++}`
+    usedSlugs.add(id)
 
     headings.push({ id, text: titleText, level })
     token.attrSet('id', id)

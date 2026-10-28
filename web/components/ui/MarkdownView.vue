@@ -1,14 +1,16 @@
 <script setup lang="ts">
-import { computed, watch, onMounted, ref } from 'vue'
+import { computed, watch, ref } from 'vue'
 import { renderMarkdown, type MarkdownHeading } from '~/utils/markdown'
 
 interface Props {
   content?: string
   imageUrls?: Record<string,string>
+  copyable?: boolean
 }
 
 const props = withDefaults(defineProps<Props>(), {
   content: '',
+  copyable: true,
 })
 
 const emit = defineEmits<{
@@ -18,7 +20,7 @@ const emit = defineEmits<{
 const containerRef = ref<HTMLElement | null>(null)
 
 const parsed = computed(() => {
-  return renderMarkdown(props.content || '', props.imageUrls)
+  return renderMarkdown(props.content || '', props.imageUrls, { copyCode: props.copyable })
 })
 
 watch(
@@ -30,6 +32,7 @@ watch(
 )
 
 function handleCopyClick(event: MouseEvent) {
+  if (!props.copyable) return
   const target = event.target as HTMLElement
   const btn = target.closest('.copy-code-btn') as HTMLButtonElement | null
   if (!btn || !btn.dataset.code) return

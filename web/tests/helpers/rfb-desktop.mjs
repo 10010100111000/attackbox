@@ -41,6 +41,14 @@ export function testDesktop(socket, inputs) {
         if (buffer.length < size) return
         if (type === 3 && (!drawn || buffer[1] === 0)) frame()
         if (type === 4) inputs.push({ type: 'key', down: !!buffer[1], key: buffer.readUInt32BE(4) })
+        if (type === 6) {
+          const text = buffer.subarray(8, size).toString('latin1')
+          inputs.push({ type: 'clipboard', text })
+          // Echo a server clipboard update to exercise both RFB directions.
+          const contents = Buffer.from('desktop:' + text, 'latin1'), header = Buffer.alloc(8)
+          header[0] = 3; header.writeUInt32BE(contents.length, 4)
+          socket.send(Buffer.concat([header, contents]))
+        }
         if (type === 5) inputs.push({ type: 'pointer', buttons: buffer[1], x: buffer.readUInt16BE(2), y: buffer.readUInt16BE(4) })
         buffer = buffer.subarray(size)
       }

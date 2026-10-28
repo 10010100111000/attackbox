@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, watch, onMounted, onBeforeUnmount, nextTick } from 'vue'
+import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue'
 import { useRoute, useFetch, useHead } from '#imports'
 import { ArrowLeft, ArrowRight, LockKeyhole, PanelLeft, Clock3, Terminal, Monitor, ChevronUp, CheckCircle2, CircleAlert, BookOpen } from 'lucide-vue-next'
 import { DialogRoot, DialogTrigger, DialogPortal, DialogOverlay, DialogContent, DialogTitle, DialogDescription } from 'reka-ui'
@@ -9,7 +9,7 @@ import MarkdownView from '~/components/ui/MarkdownView.vue'
 import { useAuth } from '~/composables/useAuth'
 import type { LearningTarget } from '~/shared/learning-target'
 import type { ChapterProgress, LearningChapter } from '~/shared/learning'
-import { renderMarkdown } from '~/utils/markdown'
+import { renderMarkdown, type MarkdownHeading } from '~/utils/markdown'
 
 definePageMeta({
   layout: 'learning'
@@ -99,6 +99,20 @@ const moduleData = computed<ModuleOutline | null>(() => {
 const sidebarCollapsed = ref(false)
 const mobileOutlineOpen = ref(false)
 const scrollElement = ref<HTMLElement | null>(null)
+const articleElement = ref<HTMLElement | null>(null)
+const sections = ref<MarkdownHeading[]>([])
+const readerIdentity = computed(() => chapterResponse.value?.data.chapter.id ? `${learnerId.value || 'guest'}:${chapterResponse.value.data.chapter.id}` : '')
+const readerContent = computed(() => chapterData.value?.bodyMarkdown || '')
+const { activeSection, goToSection } = useReaderNavigation(scrollElement, articleElement, readerIdentity, readerContent, sections)
+function headingsLoaded(headings: MarkdownHeading[]) { sections.value = headings.filter(heading => heading.level === 2) }
+function protectTutorialCopy(event: ClipboardEvent) {
+  const target = event.target as Element | null
+  if (target?.closest?.('input,textarea,[contenteditable="true"],.terminal-panel,.desktop-panel')) return
+  const selection = window.getSelection()
+  if (!articleElement.value || !selection?.rangeCount) return
+  const range = selection.getRangeAt(0)
+  if (Array.from(articleElement.value.querySelectorAll('.markdown-body,.chapter-main-title,.q-prompt')).some(element => range.intersectsNode(element))) event.preventDefault()
+}
 const {sandbox: readerSandbox} = useSandboxSession()
 const environmentReady = computed(() => readerSandbox.value.instance?.state === 'running' && readerSandbox.value.instance.connected)
 const practiceMode = ref<'cli' | 'gui'>('cli')
@@ -146,10 +160,9 @@ const allAnswersCorrect = computed(() => !!chapterData.value?.questions.length &
 watch(() => chapterResponse.value?.data, data => {
   if (data?.chapter.slug === chapterSlug.value) savedProgress.value = data.progress
 }, { immediate: true })
-watch([moduleSlug, chapterSlug, learnerId], async () => {
+watch([moduleSlug, chapterSlug, learnerId], () => {
   chapterGeneration++; celebrationOpen.value = false; completing.value = false; userAnswers.value = {}; answerFeedbacks.value = {}; mobileOutlineOpen.value = false
   savedProgress.value = { completedAt: null, passedQuestionIds: [], isSaved: false }; progressNotice.value = ''; completionError.value = ''; lastVisitKey = ''
-  await nextTick(); scrollElement.value?.scrollTo({ top: 0 })
 })
 async function recordVisit() {
   const data = chapterResponse.value?.data
@@ -193,7 +206,7 @@ const nextChapter = computed(() => {
 })
 
 function renderPrompt(markdown: string): string {
-  return renderMarkdown(markdown || '', chapterResponse.value?.data.imageUrls).html
+  return renderMarkdown(markdown || '', chapterResponse.value?.data.imageUrls, { copyCode: false }).html
 }
 
 async function handleCheckAnswer(q: QuestionItem) {
@@ -245,7 +258,7 @@ useHead({
 </script>
 
 <template>
-  <div class="reading-page">
+  <div class="reading-page" @copy.capture="protectTutorialCopy" @cut.capture="protectTutorialCopy">
     <div v-if="chapterError || (!chapterPending && !chapterData)" class="auth-gate-container">
       <section class="auth-gate-card">
         <LockKeyhole v-if="chapterError?.statusCode === 401" :size="28" aria-hidden="true" /><BookOpen v-else :size="28" aria-hidden="true" />
@@ -257,7 +270,7 @@ useHead({
     </div>
     <div v-else-if="chapterData" class="learn-shell" :class="{ 'outline-collapsed': sidebarCollapsed }">
       <aside class="reading-sidebar" aria-label="模块目录">
-        <ChapterOutline :module-slug="moduleSlug" :module-title="moduleData?.title || '学习模块'" :current-slug="chapterSlug" :chapters="moduleData?.chapters || []" :collapsed="sidebarCollapsed" @toggle="toggleSidebar" />
+        <ChapterOutline :module-slug="moduleSlug" :module-title="moduleData?.title || '学习模块'" :current-slug="chapterSlug" :chapters="moduleData?.chapters || []" :sections="sections" :active-section="activeSection" @section="goToSection" :collapsed="sidebarCollapsed" @toggle="toggleSidebar" />
       </aside>
       <div class="reading-main">
         <div class="reading-top-bar">
@@ -268,7 +281,7 @@ useHead({
                 <DialogOverlay class="outline-overlay" />
                 <DialogContent class="mobile-outline">
                   <DialogTitle class="sr-only">模块目录</DialogTitle><DialogDescription class="sr-only">选择章节，或关闭目录以继续阅读。</DialogDescription>
-                  <ChapterOutline :module-slug="moduleSlug" :module-title="moduleData?.title || '学习模块'" :current-slug="chapterSlug" :chapters="moduleData?.chapters || []" @toggle="mobileOutlineOpen = false" @navigate="mobileOutlineOpen = false" />
+                  <ChapterOutline :module-slug="moduleSlug" :module-title="moduleData?.title || '学习模块'" :current-slug="chapterSlug" :chapters="moduleData?.chapters || []" :sections="sections" :active-section="activeSection" @section="goToSection" @toggle="mobileOutlineOpen = false" @navigate="mobileOutlineOpen = false" />
                 </DialogContent>
               </DialogPortal>
             </DialogRoot>
@@ -282,11 +295,11 @@ useHead({
         </div>
         <div ref="workspace" class="reading-workspace" :class="{ 'dock-is-right': practiceVisible && !practiceMinimized && dock.placement.value === 'right' }">
         <div ref="scrollElement" class="reading-scroll" tabindex="0" aria-label="章节正文">
-          <article class="article-body">
+          <article ref="articleElement" class="article-body">
             <div class="chapter-meta"><span>第 {{ chapterIndex + 1 }} / {{ moduleData?.chapters.length || 1 }} 章</span><span v-if="chapterData.durationMinutes"><Clock3 :size="13" aria-hidden="true" />约 {{ chapterData.durationMinutes }} 分钟</span></div>
             <h1 class="chapter-main-title">{{ chapterData.title }}</h1>
-            <MarkdownView :content="chapterData.bodyMarkdown" :image-urls="chapterResponse?.data.imageUrls" />
-            <TargetEnvironment v-if="chapterResponse?.data.target" :key="String(route.fullPath)" :target="chapterResponse.data.target" :context="{kind: 'chapter', moduleSlug: String(route.params.slug), chapterSlug: String(route.params.chapterSlug)}" />
+            <MarkdownView :content="chapterData.bodyMarkdown" :copyable="false" @headings-loaded="headingsLoaded" :image-urls="chapterResponse?.data.imageUrls" />
+            <TargetEnvironment v-if="chapterResponse?.data.target" :key="chapterResponse.data.chapter.id" :target="chapterResponse.data.target" :context="{kind: 'chapter', moduleSlug: String(route.params.slug), chapterSlug: String(route.params.chapterSlug)}" />
 
             <section v-if="chapterData.questions.length" id="quiz" class="quiz-card" aria-labelledby="quiz-title">
               <div class="quiz-head"><h2 id="quiz-title">章节练习</h2><span class="quiz-badge" :class="{ passed: allAnswersCorrect || savedProgress.completedAt }"><CheckCircle2 v-if="allAnswersCorrect || savedProgress.completedAt" :size="14" aria-hidden="true" />{{ savedProgress.completedAt ? '已完成' : allAnswersCorrect ? '全部通过' : `${chapterData.questions.length} 道题` }}</span></div>
