@@ -12,6 +12,7 @@ import {
   ExternalLink,
   LockKeyhole,
   Bell,
+  MessageSquarePlus,
 } from 'lucide-vue-next'
 import { useAuth } from '~/composables/useAuth'
 
@@ -38,6 +39,7 @@ type AdminSectionKey =
   | 'runtime-policy'
   | 'learn-home'
   | 'notifications'
+  | 'feedback'
   | 'challenges'
   | 'target-templates'
   | 'instances'
@@ -51,6 +53,7 @@ const currentSection = computed<AdminSectionKey>(() => {
   if (route.path.startsWith('/admin/runtime-policy')) return 'runtime-policy'
   if (route.path.startsWith('/admin/learn-home')) return 'learn-home'
   if (route.path.startsWith('/admin/notifications')) return 'notifications'
+  if (route.path.startsWith('/admin/feedback')) return 'feedback'
   if (route.path.startsWith('/admin/challenges')) return 'challenges'
   if (route.path.startsWith('/admin/target-templates')) return 'target-templates'
   if (route.path.startsWith('/admin/instances')) return 'instances'
@@ -66,6 +69,7 @@ const sectionMeta: Record<AdminSectionKey, { groupLabel: string; groupHref: stri
   'runtime-policy': { groupLabel: '系统管理', groupHref: '/admin/runtime-policy', title: '运行策略' },
   'learn-home': { groupLabel: '内容管理', groupHref: '/admin/learn-home', title: '首页管理' },
   notifications: { groupLabel: '系统管理', groupHref: '/admin/notifications', title: '站内通知' },
+  feedback: { groupLabel: '账户管理', groupHref: '/admin/feedback', title: '用户反馈' },
   challenges: { groupLabel: '内容管理', groupHref: '/admin/challenges', title: '挑战管理' },
   references: { groupLabel: '内容管理', groupHref: '/admin/references', title: '参考资料' },
   modules: { groupLabel: '内容管理', groupHref: '/admin/modules', title: '学习模块' },
@@ -151,6 +155,7 @@ const currentBreadcrumb = computed(() => sectionMeta[currentSection.value])
             <Users :size="16" class="nav-icon" aria-hidden="true" />
             <span>用户管理</span>
           </NuxtLink>
+          <NuxtLink to="/admin/feedback" class="admin-nav-link" :class="{ active: currentSection === 'feedback' }"><MessageSquarePlus :size="16" class="nav-icon" aria-hidden="true" /><span>用户反馈</span></NuxtLink>
 
           <div class="nav-group-label">环境管理</div>
           <NuxtLink

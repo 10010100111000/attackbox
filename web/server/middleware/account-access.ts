@@ -12,6 +12,8 @@ export default defineEventHandler((e) => {
       '/api/admin/references',
       '/admin/references',
       '/api/admin/notifications',
+      '/api/admin/feedback',
+      '/admin/feedback',
       '/api/admin/runtime-policy',
       '/api/admin/learn-home',
       '/admin/learn-home',

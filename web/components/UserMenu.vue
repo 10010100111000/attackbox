@@ -5,11 +5,13 @@ import {
   PopoverPortal,
   PopoverContent,
 } from 'reka-ui'
-import { Bell, UserRound, Shield, LogOut, Sun, Moon } from 'lucide-vue-next'
+import { Bell, UserRound, Shield, LogOut, Sun, Moon, MessageSquarePlus } from 'lucide-vue-next'
 const { currentUser, logout } = useAuth(),
   { currentTheme, setTheme, initTheme } = useTheme(),
   { unread, refreshUnread } = useNotifications()
 const open = ref(false),
+  feedbackOpen = ref(false),
+  menuTrigger = ref<{ $el: HTMLElement } | null>(null),
   leaving = ref(false),
   error = ref(''),
   themeId = useId(),
@@ -22,6 +24,7 @@ watch(
   () => currentUser.value?.id,
   () => {
     open.value = false
+    feedbackOpen.value = false
     void refreshUnread()
   },
 )
@@ -30,8 +33,14 @@ watch(open, (v) => {
 })
 watch(
   () => route.fullPath,
-  () => (open.value = false),
+  () => { open.value = false; feedbackOpen.value = false },
 )
+async function composeFeedback() {
+  open.value = false
+  // Let the popover release its focus trap before opening the dialog.
+  await nextTick()
+  feedbackOpen.value = true
+}
 async function exit() {
   leaving.value = true
   error.value = ''
@@ -49,6 +58,7 @@ async function exit() {
 <template>
   <PopoverRoot v-model:open="open" :modal="true">
     <PopoverTrigger
+      ref="menuTrigger"
       class="account-trigger"
       :aria-label="unread ? `用户菜单，${unread} 条未读通知` : '用户菜单'"
     >
@@ -86,6 +96,10 @@ async function exit() {
               {{ unread > 99 ? '99+' : unread }}
             </span>
           </NuxtLink>
+          <button type="button" @click="composeFeedback">
+            <MessageSquarePlus :size="16" />
+            问题反馈
+          </button>
           <NuxtLink v-if="currentUser.role === 'admin'" to="/admin/modules">
             <Shield :size="16" />
             后台管理
@@ -145,6 +159,7 @@ async function exit() {
       </PopoverContent>
     </PopoverPortal>
   </PopoverRoot>
+  <FeedbackComposer v-model:open="feedbackOpen" @restore-focus="menuTrigger?.$el.focus()" />
 </template>
 <style scoped>
 .account-trigger {
@@ -212,6 +227,7 @@ async function exit() {
   overflow-wrap: anywhere;
 }
 .account-panel nav a,
+.account-panel nav button,
 .account-exit {
   display: flex;
   align-items: center;
@@ -228,6 +244,7 @@ async function exit() {
   cursor: pointer;
 }
 .account-panel nav a:hover,
+.account-panel nav button:hover,
 .account-exit:hover {
   background: var(--soft);
 }
