@@ -258,7 +258,7 @@ test(
         .getByRole('dialog', { name: '用户菜单' })
         .getByText('River', { exact: true })
         .waitFor()
-      await page.getByRole('radio', { name: '深海', exact: true }).check()
+      await page.getByRole('button', { name: '深色外观', exact: true }).click()
       await page.keyboard.press('Escape')
       await snapshot(page, 'profile-midnight')
       await navigation

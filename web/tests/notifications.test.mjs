@@ -111,7 +111,11 @@ test(
         .locator('.account-count')
         .getByText('1', { exact: true })
         .waitFor()
-      await popup.getByRole('radio', { name: '深海', exact: true }).check()
+      const appearance = popup.getByRole('button', { name: '深色外观', exact: true })
+      assert.doesNotMatch(await popup.innerText(), /外观|石墨|深海/)
+      assert.equal(await appearance.getAttribute('title'), null)
+      await appearance.focus()
+      await page.keyboard.press('Space')
       assert.equal(
         await page.locator('html').getAttribute('data-theme'),
         'midnight',
@@ -126,14 +130,14 @@ test(
       )
       await page.reload()
       await page.getByRole('button', { name: /用户菜单/ }).click()
-      await page.getByRole('radio', { name: '深海', exact: true }).waitFor()
+      await page.getByRole('button', { name: '深色外观', exact: true }).waitFor()
       assert.equal(
         await page
-          .getByRole('radio', { name: '深海', exact: true })
-          .isChecked(),
-        true,
+          .getByRole('button', { name: '深色外观', exact: true })
+          .getAttribute('aria-pressed'),
+        'true',
       )
-      await page.getByRole('radio', { name: '石墨', exact: true }).check()
+      await page.getByRole('button', { name: '深色外观', exact: true }).click()
       await page.screenshot({ path: '/tmp/attackbox-user-menu.png', animations: 'disabled' })
       await page.mouse.click(100, 300)
       await popup.waitFor({ state: 'hidden' })

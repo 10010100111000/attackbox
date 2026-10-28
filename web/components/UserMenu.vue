@@ -5,16 +5,15 @@ import {
   PopoverPortal,
   PopoverContent,
 } from 'reka-ui'
-import { Bell, UserRound, Shield, LogOut, Sun, Moon, MessageSquarePlus } from 'lucide-vue-next'
+import { Bell, UserRound, Shield, LogOut, MessageSquarePlus } from 'lucide-vue-next'
 const { currentUser, logout } = useAuth(),
-  { currentTheme, setTheme, initTheme } = useTheme(),
+  { initTheme } = useTheme(),
   { unread, refreshUnread } = useNotifications()
 const open = ref(false),
   feedbackOpen = ref(false),
   menuTrigger = ref<{ $el: HTMLElement } | null>(null),
   leaving = ref(false),
   error = ref(''),
-  themeId = useId(),
   route = useRoute()
 onMounted(() => {
   initTheme()
@@ -111,50 +110,18 @@ async function exit() {
             登录 / 注册
           </NuxtLink>
         </nav>
-        <div class="account-appearance">
-          <span>外观</span>
-          <div class="appearance-control" role="radiogroup" aria-label="外观">
-            <i
-              class="appearance-thumb"
-              :class="{ dark: currentTheme === 'midnight' }"
-            />
-            <label>
-              <input
-                type="radio"
-                :name="themeId"
-                value="graphite"
-                :checked="currentTheme === 'graphite'"
-                @change="setTheme('graphite')"
-              />
-              <span>
-                <Sun :size="13" />
-                石墨
-              </span>
-            </label>
-            <label>
-              <input
-                type="radio"
-                :name="themeId"
-                value="midnight"
-                :checked="currentTheme === 'midnight'"
-                @change="setTheme('midnight')"
-              />
-              <span>
-                <Moon :size="13" />
-                深海
-              </span>
-            </label>
-          </div>
+        <div class="account-actions">
+          <button
+            v-if="currentUser"
+            class="account-exit"
+            :disabled="leaving"
+            @click="exit"
+          >
+            <LogOut :size="15" />
+            <UiBusyLabel :busy="leaving">退出登录</UiBusyLabel>
+          </button>
+          <UiThemeToggle />
         </div>
-        <button
-          v-if="currentUser"
-          class="account-exit"
-          :disabled="leaving"
-          @click="exit"
-        >
-          <LogOut :size="15" />
-          <UiBusyLabel :busy="leaving">退出登录</UiBusyLabel>
-        </button>
         <p v-if="error" role="alert">{{ error }}</p>
       </PopoverContent>
     </PopoverPortal>
@@ -255,80 +222,22 @@ async function exit() {
   padding: 1px 7px;
   border-radius: 20px;
 }
-.account-appearance {
+.account-actions {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  padding: 12px;
+  justify-content: flex-end;
+  gap: 12px;
+  padding: 6px 4px 4px;
   border-top: 1px solid var(--line);
   margin-top: 6px;
-  color: var(--muted);
-  font-size: 12px;
-}
-.appearance-control {
-  position: relative;
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  padding: 3px;
-  background: var(--soft);
-  border-radius: 10px;
-  width: 148px;
-}
-.appearance-thumb {
-  position: absolute;
-  left: 3px;
-  top: 3px;
-  bottom: 3px;
-  width: calc(50% - 3px);
-  border-radius: 7px;
-  background: var(--paper);
-  box-shadow: 0 1px 4px #0002;
-  transition: transform 0.18s ease;
-}
-.appearance-thumb.dark {
-  transform: translateX(100%);
-}
-.appearance-control label {
-  position: relative;
-  cursor: pointer;
-}
-.appearance-control input {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  margin: 0;
-  opacity: 0;
-  z-index: 1;
-  cursor: pointer;
-}
-.appearance-control label span {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 5px;
-  padding: 6px 0;
-}
-.appearance-control input:checked + span {
-  color: var(--ink);
-}
-.appearance-control input:focus-visible + span {
-  outline: 2px solid var(--green);
-  border-radius: 7px;
 }
 .account-exit {
+  width: auto;
+  margin-right: auto;
   color: var(--error-ink);
-  border-top: 1px solid var(--line);
-  margin-top: 2px;
-  border-radius: 0 0 9px 9px;
 }
 .account-panel p {
   padding: 0 12px;
   color: var(--error-ink);
-}
-@media (prefers-reduced-motion: reduce) {
-  .appearance-thumb {
-    transition: none;
-  }
 }
 </style>

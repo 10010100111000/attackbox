@@ -146,7 +146,7 @@ test('user administration: real accounts, progress, lifecycle, permissions and b
     await page.getByRole('heading', { name: '学习记录', exact: true }).waitFor()
     assert.equal(await page.locator('progress').getAttribute('value'), '1')
     await page.getByRole('button', { name: /用户菜单/ }).click()
-    await page.getByRole('radio', { name: '深海', exact: true }).check()
+    await page.getByRole('button', { name: '深色外观', exact: true }).click()
     await page.keyboard.press('Escape')
     await page.screenshot({ path: '/tmp/attackbox-user-detail-dark.png', fullPage: true })
     assert.deepEqual(errors, [])

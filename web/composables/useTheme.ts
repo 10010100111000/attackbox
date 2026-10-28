@@ -1,9 +1,8 @@
-import { ref, onMounted } from 'vue'
+import { ref } from 'vue'
 
 export type ThemeMode = 'midnight' | 'graphite'
 
 const currentTheme = ref<ThemeMode>('graphite')
-const isInitialized = ref(false)
 
 export function useTheme() {
   function setTheme(theme: ThemeMode) {
