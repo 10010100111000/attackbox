@@ -93,30 +93,31 @@ const filteredModules = computed(() => {
 })
 
 // 预设优雅的生成式渐变主题与图案配置 (保留发散设计)
+// 与 landing.vue 卡片完全同源的低饱和度暗调微光主题 (克制、内敛、耐看)
 const artThemes = [
   {
-    gradient: 'linear-gradient(135deg, rgba(255, 175, 136, 0.24) 0%, rgba(239, 124, 141, 0.18) 100%), radial-gradient(circle at 85% 15%, rgba(255, 224, 176, 0.25), transparent 60%)',
-    border: 'rgba(255, 175, 136, 0.35)',
+    gradient: 'radial-gradient(ellipse at 65% 25%, rgba(163, 107, 66, 0.20), transparent 68%), linear-gradient(180deg, rgba(216, 165, 123, 0.06), transparent)',
+    border: 'rgba(216, 165, 123, 0.22)',
     type: 'radar'
   },
   {
-    gradient: 'linear-gradient(135deg, rgba(99, 102, 241, 0.16) 0%, rgba(139, 92, 246, 0.12) 100%), radial-gradient(circle at 80% 20%, rgba(79, 70, 229, 0.22), transparent 60%)',
-    border: 'rgba(99, 102, 241, 0.25)',
+    gradient: 'radial-gradient(ellipse at 65% 25%, rgba(110, 135, 160, 0.18), transparent 68%), linear-gradient(180deg, rgba(154, 176, 199, 0.06), transparent)',
+    border: 'rgba(154, 176, 199, 0.22)',
     type: 'grid'
   },
   {
-    gradient: 'linear-gradient(135deg, rgba(245, 158, 11, 0.16) 0%, rgba(244, 63, 94, 0.12) 100%), radial-gradient(circle at 85% 20%, rgba(234, 88, 12, 0.2), transparent 60%)',
-    border: 'rgba(245, 158, 11, 0.25)',
+    gradient: 'radial-gradient(ellipse at 65% 25%, rgba(175, 110, 108, 0.18), transparent 68%), linear-gradient(180deg, rgba(211, 145, 143, 0.06), transparent)',
+    border: 'rgba(211, 145, 143, 0.22)',
     type: 'waves'
   },
   {
-    gradient: 'linear-gradient(135deg, rgba(168, 85, 247, 0.16) 0%, rgba(236, 72, 153, 0.12) 100%), radial-gradient(circle at 75% 25%, rgba(192, 38, 211, 0.2), transparent 60%)',
-    border: 'rgba(168, 85, 247, 0.25)',
+    gradient: 'radial-gradient(ellipse at 65% 25%, rgba(69, 119, 120, 0.19), transparent 68%), linear-gradient(180deg, rgba(135, 184, 177, 0.06), transparent)',
+    border: 'rgba(135, 184, 177, 0.22)',
     type: 'nodes'
   },
   {
-    gradient: 'linear-gradient(135deg, rgba(14, 165, 233, 0.16) 0%, rgba(45, 212, 191, 0.12) 100%), radial-gradient(circle at 80% 20%, rgba(6, 182, 212, 0.22), transparent 60%)',
-    border: 'rgba(14, 165, 233, 0.25)',
+    gradient: 'radial-gradient(ellipse at 65% 25%, rgba(130, 115, 155, 0.17), transparent 68%), linear-gradient(180deg, rgba(182, 156, 219, 0.05), transparent)',
+    border: 'rgba(182, 156, 219, 0.20)',
     type: 'rings'
   }
 ]
@@ -291,10 +292,9 @@ function getModuleTheme(index: number) {
 </template>
 
 <style scoped>
-.home-placeholder{height:188px;background:var(--soft);border-radius:11px;margin-bottom:18px}.empty-doodle{color:var(--learning-spark);transform:rotate(-8deg);margin:0 auto 12px}.card:hover .art-index-pill{transform:rotate(-8deg) scale(1.08);border-color:var(--brand);color:var(--brand)}.art-index-pill{transition:transform .22s cubic-bezier(0.34,1.56,0.64,1),border-color .18s ease,color .18s ease}@media(prefers-reduced-motion:reduce){.art-index-pill{transition:none}.card:hover .art-index-pill{transform:none}}
+.home-placeholder{height:188px;background:var(--soft);border-radius:11px;margin-bottom:18px}.empty-doodle{color:var(--learning-spark);transform:rotate(-8deg);margin:0 auto 12px}.card:hover .art-index-pill{transform:rotate(-5deg);border-color:var(--brand-border);color:var(--ink)}.art-index-pill{transition:transform .18s ease,border-color .18s ease,color .18s ease}@media(prefers-reduced-motion:reduce){.art-index-pill{transition:none}.card:hover .art-index-pill{transform:none}}
 
-.module-cover{width:100%;height:100%;object-fit:cover;position:absolute;inset:0}.discovery-controls{display:flex;align-items:center;gap:20px;margin:-4px 0 18px;color:var(--muted);font-size:12px}.discovery-controls>span{margin-right:auto}.discovery-controls label{display:flex;align-items:center;gap:8px}.discovery-controls select{background:var(--paper);color:var(--ink);border:1px solid var(--line);padding:6px 9px;border-radius:6px}.resume-action{font-size:12px;white-space:nowrap}.recent-learning { position: relative; overflow: hidden; display: flex; align-items: center; justify-content: space-between; gap: 24px; padding: 18px 24px; margin-bottom: 22px; border: 1px solid var(--border-playful); border-radius: 14px; background: linear-gradient(105deg, rgba(255, 175, 136, 0.16) 0%, rgba(239, 124, 141, 0.08) 45%, var(--paper) 90%); box-shadow: var(--surface-highlight), var(--card-shadow); color: var(--ink); text-decoration: none; transition: transform 0.22s cubic-bezier(0.34, 1.56, 0.64, 1), border-color 0.2s ease; }
-.recent-learning::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 4px; background: var(--gradient-collision); }
+.module-cover{width:100%;height:100%;object-fit:cover;position:absolute;inset:0}.discovery-controls{display:flex;align-items:center;gap:20px;margin:-4px 0 18px;color:var(--muted);font-size:12px}.discovery-controls>span{margin-right:auto}.discovery-controls label{display:flex;align-items:center;gap:8px}.discovery-controls select{background:var(--paper);color:var(--ink);border:1px solid var(--line);padding:6px 9px;border-radius:6px}.resume-action{font-size:12px;white-space:nowrap}.recent-learning { display: flex; align-items: center; justify-content: space-between; gap: 24px; padding: 16px 22px; margin-bottom: 20px; border: 1px solid var(--brand-border); border-radius: 12px; background: linear-gradient(105deg, var(--brand-soft) 0%, var(--paper) 75%); box-shadow: var(--surface-highlight); color: var(--ink); text-decoration: none; transition: transform 0.18s ease, border-color 0.18s ease; }
 .recent-learning:hover { transform: translateY(-2px); border-color: var(--brand); }
 .resume-action { padding: 7px 14px; border-radius: 6px; background: var(--btn-primary-bg); color: var(--btn-primary-fg); font-weight: 600; box-shadow: var(--btn-primary-shadow); }
 .recent-copy { flex: 1; min-width: 0; display:grid;grid-template-columns:minmax(0,1fr) 140px;column-gap:20px; }
@@ -302,7 +302,7 @@ function getModuleTheme(index: number) {
 .recent-learning h2 { grid-column:1; font-size: 15px; margin: 3px 0; font-weight: 650; }
 .recent-learning p { grid-column:1; font-size: 12px; color: var(--muted); margin: 0 0 6px; }
 .recent-progress { grid-column:2;grid-row:2;align-self:center; height: 4px; width: min(100%, 320px); border-radius: 4px; background: var(--line); overflow: hidden; }
-.recent-progress span { display: block; height: 100%; background: var(--gradient-collision); border-radius: inherit; }
+.recent-progress span { display: block; height: 100%; background: var(--brand); border-radius: inherit; }
 .recent-count { grid-column:2;grid-row:3; display: block; margin-top: 0; font-size: 11px; color: var(--muted); }
 
 .learn-page {
@@ -341,9 +341,9 @@ function getModuleTheme(index: number) {
 }
 
 .tab-link.selected {
-  color: var(--brand);
+  color: var(--ink);
   border-bottom-color: var(--brand);
-  font-weight: 650;
+  font-weight: 600;
 }
 
 /* 工具栏 */
@@ -443,9 +443,9 @@ function getModuleTheme(index: number) {
 }
 
 .card:hover {
-  transform: translateY(-5px);
-  border-color: var(--border-playful);
-  box-shadow: var(--surface-highlight), 0 16px 38px -8px rgba(239, 124, 141, 0.22), 0 0 0 1px rgba(255, 175, 136, 0.2);
+  transform: translateY(-3px);
+  border-color: var(--brand-border);
+  box-shadow: var(--surface-highlight), var(--card-shadow);
 }
 
 /* 专属艺术渐变区 */

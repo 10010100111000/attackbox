@@ -9,30 +9,12 @@
 @keyframes surface-rise {
   from {
     opacity: 0;
-    transform: translateY(10px);
+    transform: translateY(6px);
   }
   to {
     opacity: 1;
     transform: translateY(0);
   }
-}
-
-@keyframes aurora-float {
-  0% {
-    transform: translate3d(0, 0, 0) scale(1);
-  }
-  50% {
-    transform: translate3d(18px, 10px, 0) scale(1.05);
-  }
-  100% {
-    transform: translate3d(-14px, 6px, 0) scale(0.98);
-  }
-}
-
-@keyframes gradient-flow {
-  0% { background-position: 0% 50%; }
-  50% { background-position: 100% 50%; }
-  100% { background-position: 0% 50%; }
 }
 
 .animate-blink {
@@ -44,5 +26,5 @@
 }
 
 .animate-surface-rise {
-  animation: surface-rise 0.34s cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation: surface-rise 0.26s cubic-bezier(0.22, 1, 0.36, 1) both;
 }

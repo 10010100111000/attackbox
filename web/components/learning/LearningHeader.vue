@@ -27,9 +27,9 @@ const isDiscussActive = computed(() => route.path.startsWith('/discuss'))
 .learning-header {
   height: 68px;
   border-bottom: 1px solid var(--line);
-  background: color-mix(in srgb, var(--paper) 84%, transparent);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
+  background: color-mix(in srgb, var(--paper) 88%, transparent);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -62,7 +62,7 @@ const isDiscussActive = computed(() => route.path.startsWith('/discuss'))
 
 .brand-logo {
   display: block;
-  transition: transform 0.22s cubic-bezier(0.34, 1.56, 0.64, 1);
+  transition: transform 0.18s ease;
   border-radius: 6px;
 }
 
@@ -74,7 +74,6 @@ const isDiscussActive = computed(() => route.path.startsWith('/discuss'))
 }
 
 .main-nav a {
-  position: relative;
   height: 100%;
   display: flex;
   align-items: center;
@@ -83,7 +82,7 @@ const isDiscussActive = computed(() => route.path.startsWith('/discuss'))
   font-size: 14px;
   color: var(--muted);
   text-decoration: none;
-  transition: color 0.18s ease;
+  transition: color 0.15s ease, border-color 0.15s ease;
 }
 
 .main-nav a:hover {
@@ -92,22 +91,11 @@ const isDiscussActive = computed(() => route.path.startsWith('/discuss'))
 
 .main-nav a.active {
   color: var(--ink);
-  font-weight: 650;
+  border-bottom-color: var(--learning-spark);
+  font-weight: 600;
 }
 
-.main-nav a.active::after {
-  content: '';
-  position: absolute;
-  left: -2px;
-  right: -2px;
-  bottom: -1px;
-  height: 3px;
-  border-radius: 3px 3px 0 0;
-  background: var(--gradient-collision);
-  box-shadow: 0 -2px 10px var(--brand-glow);
-}
-
-.brand:hover .brand-logo { transform: rotate(-9deg) scale(1.06) translateY(-1px); }
+.brand:hover .brand-logo { transform: rotate(-6deg) translateY(-1px); }
 @media (prefers-reduced-motion: reduce) { .brand-logo { transition:none;transform:none!important; } }
 @media (max-width: 640px) {
   .learning-header {

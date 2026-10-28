@@ -120,14 +120,13 @@ function stagePercent(c: ChallengeSummary): number {
 .head-badge {
   display: grid;
   place-items: center;
-  width: 40px;
-  height: 40px;
-  border-radius: 12px;
-  background: var(--brand-soft);
+  width: 38px;
+  height: 38px;
+  border-radius: 10px;
+  background: var(--soft);
   color: var(--brand);
-  border: 1px solid var(--border-playful);
-  box-shadow: 0 4px 14px rgba(255, 175, 136, 0.18);
-  transform: rotate(-4deg);
+  border: 1px solid var(--line);
+  box-shadow: var(--surface-highlight);
 }
 
 h1 {
@@ -196,30 +195,10 @@ input {
   transition: border-color 0.22s ease, transform 0.22s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.22s ease;
 }
 
-.card::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: 3px;
-  background: var(--gradient-collision);
-  opacity: 0.75;
-  transition: opacity 0.2s ease, height 0.2s ease;
-}
-
-.card[data-difficulty='beginner']::before { background: linear-gradient(90deg, #fbbf24, #ffaf88); }
-.card[data-difficulty='intermediate']::before { background: linear-gradient(90deg, #ffaf88, #c084fc); }
-.card[data-difficulty='advanced']::before { background: linear-gradient(90deg, #ef7c8d, #fb7185, #c084fc); }
-
 .card:hover {
-  border-color: var(--border-playful);
-  transform: translateY(-5px);
-  box-shadow: var(--surface-highlight), 0 16px 38px -8px rgba(239, 124, 141, 0.22), 0 0 0 1px rgba(255, 175, 136, 0.2);
-}
-
-.card:hover::before {
-  opacity: 1;
+  border-color: var(--brand-border);
+  transform: translateY(-3px);
+  box-shadow: var(--surface-highlight), var(--card-shadow);
 }
 
 .meta {
@@ -238,9 +217,10 @@ input {
 
 .diff-pill {
   font-size: 11px;
-  font-weight: 600;
+  font-weight: 550;
   padding: 2px 8px;
-  border-radius: 6px;
+  border-radius: 5px;
+  border: 1px solid transparent;
   background: var(--soft);
   color: var(--muted);
 }
@@ -323,7 +303,7 @@ footer {
   display: block;
   height: 100%;
   border-radius: inherit;
-  background: var(--gradient-collision);
+  background: var(--brand);
 }
 
 .empty {

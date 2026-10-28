@@ -42,13 +42,12 @@ onUnmounted(() => { mounted = false; clearInterval(timer); media?.removeEventLis
   gap: 25px;
   align-items: center;
   padding: 22px 28px;
-  border: 1px solid var(--border-playful);
+  border: 1px solid rgba(195, 154, 123, 0.16);
   background:
-    radial-gradient(circle at 88% 35%, rgba(255, 175, 136, 0.18), transparent 52%),
-    radial-gradient(circle at 15% 0%, rgba(239, 124, 141, 0.10), transparent 48%),
-    var(--paper);
+    radial-gradient(ellipse at 82% 50%, rgba(163, 107, 66, 0.14), transparent 62%),
+    linear-gradient(120deg, var(--soft), var(--paper));
   box-shadow: var(--surface-highlight), var(--card-shadow);
-  border-radius: 14px;
+  border-radius: 12px;
   min-height: 174px;
   position: relative;
   overflow: hidden;
@@ -70,29 +69,13 @@ onUnmounted(() => { mounted = false; clearInterval(timer); media?.removeEventLis
   letter-spacing: 0.5px;
 }
 
-.feature-banner::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: 2px;
-  background: var(--gradient-collision);
-}
-
-.feature-label {
-  color: var(--brand);
-  font-weight: 600;
-}
-
 .feature-label::before {
   content: '';
   display: block;
-  width: 6px;
-  height: 6px;
+  width: 5px;
+  height: 5px;
   border-radius: 50%;
   background: var(--brand);
-  box-shadow: 0 0 10px var(--brand);
 }
 
 .feature-banner h1 {
@@ -145,13 +128,8 @@ onUnmounted(() => { mounted = false; clearInterval(timer); media?.removeEventLis
   border-radius: 8px;
   padding: 12px 16px;
   transform: rotate(-4deg);
-  border: 1px solid rgba(255, 175, 136, 0.28);
-  box-shadow: 9px 10px 0 rgba(255, 175, 136, 0.16);
-  transition: transform 0.28s cubic-bezier(0.34, 1.56, 0.64, 1);
-}
-
-.feature-banner:hover .terminal-art {
-  transform: rotate(-2deg) translateY(-3px) scale(1.02);
+  border: 1px solid var(--line);
+  box-shadow: 9px 10px 0 var(--soft);
   font: 12px/2 ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
 }
 

@@ -6,7 +6,7 @@
 [data-theme='midnight'] {
   color-scheme: dark;
 
-  /* 深海暗色默认 */
+  /* 深海暗色默认 (与 landing.vue 保持 100% 基底一致) */
   --bg-app: #090a0e;
   --bg-card: #111217;
   --bg-input: #121318;
@@ -14,88 +14,78 @@
   --text-muted: #96939d;
   --border-line: rgba(255, 255, 255, 0.07);
 
-  /* 统一设计 Token (延续落地页「落日珊瑚 × 电光玫瑰 × 星云紫」碰撞感) */
-  --bg: #0a0b10;
-  --paper: #13141c;
-  --ink: #f5f3f0;
-  --muted: #9e97a6;
-  --body: #cbc4d1;
-  --reader-bg: #0e1017;
-  --reader-ink: #ded9e2;
-  --line: rgba(255, 210, 185, 0.11);
+  /* 克制高级的暗色表面层级：纯粹深曜石 + 中性微白 1px 描边 */
+  --bg: #090a0e;
+  --paper: #111318;
+  --ink: #f2f0ed;
+  --muted: #8e8d97;
+  --body: #b8b6c0;
+  --reader-bg: #0c0d12;
+  --reader-ink: #d6d4dc;
+  --line: rgba(255, 255, 255, 0.075);
 
-  /* 主按钮保持纯净高对比白底黑字，悬停带暖珊瑚能量光晕 */
-  --btn-primary-bg: #f6f4f2;
+  /* 主按钮：克制冷静的灰白珍珠色，去除任何彩色外发光 */
+  --btn-primary-bg: #eceae6;
   --btn-primary-hover: #ffffff;
-  --btn-primary-fg: #0b0a0e;
-  --btn-primary-shadow: 0 2px 10px rgba(0, 0, 0, 0.45), 0 0 20px rgba(255, 175, 136, 0.22);
+  --btn-primary-fg: #090a0e;
+  --btn-primary-shadow: 0 1px 2px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.9);
 
-  /* 核心点缀色：直接沿用落地页的暖珊瑚橙 (#ffaf88) 与电光玫红碰撞 */
-  --brand: #ffaf88;
-  --brand-hover: #ffc4a6;
-  --brand-soft: rgba(255, 175, 136, 0.15);
-  --brand-glow: rgba(255, 175, 136, 0.38);
+  /* 低饱和暖铜砂金点缀色 (取自 landing.vue FeaturedModule 的 #d8a57b，克制不刺眼) */
+  --brand: #d8a57b;
+  --brand-hover: #e5b790;
+  --brand-soft: rgba(216, 165, 123, 0.11);
+  --brand-border: rgba(216, 165, 123, 0.28);
   --green: var(--brand);
   --mint: var(--brand-soft);
 
-  /* 活泼碰撞渐变：用于某些线、卡片顶边、进度条与高亮框 */
-  --gradient-warm: linear-gradient(100deg, #ffe0b0, #ffae82 48%, #ef7c8d);
-  --gradient-collision: linear-gradient(115deg, #ffe0b0 0%, #ffaf88 35%, #ef7c8d 70%, #c084fc 100%);
-  --border-playful: rgba(255, 175, 136, 0.35);
+  --soft: #171920;
+  --hover: #14161d;
+  --on-accent: #18120e;
+  --focus: #d8a57b;
 
-  --soft: #1b1c27;
-  --hover: #181924;
-  --on-accent: #1e130f;
-  --focus: #ffaf88;
+  /* 下拉框 (Select) 与浮层：采用清晰的中性银灰描边与提亮底色，不做彩色边框 */
+  --select-bg: #161820;
+  --select-border: rgba(255, 255, 255, 0.14);
+  --select-hover-border: rgba(255, 255, 255, 0.26);
+  --select-text: #f2f0ed;
+  --popover-bg: #14161d;
+  --popover-border: rgba(255, 255, 255, 0.11);
 
-  /* 下拉框 (Select) 与浮层高对比度专属变量 (解决暗色下对比度低的问题) */
-  --select-bg: #1d1f2b;
-  --select-border: rgba(255, 196, 168, 0.32);
-  --select-hover-border: #ffaf88;
-  --select-text: #f7f5f2;
-  --popover-bg: #181a24;
-  --popover-border: rgba(255, 175, 136, 0.28);
-
-  /* 头像与高光表面：暖金珊瑚渐变外环 */
-  --avatar-bg: linear-gradient(135deg, #2d242b 0%, #1d1a27 100%);
-  --avatar-border: rgba(255, 185, 148, 0.55);
-  --avatar-fg: #ffe3d1;
-  --avatar-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.25), 0 4px 14px rgba(239, 124, 141, 0.22);
+  /* 头像表面：高质感中性石墨金属环，清晰但绝不花哨 */
+  --avatar-bg: linear-gradient(145deg, #222530 0%, #161820 100%);
+  --avatar-border: rgba(255, 255, 255, 0.22);
+  --avatar-fg: #f2f0ed;
+  --avatar-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.14), 0 2px 8px rgba(0, 0, 0, 0.45);
 
   /* 装饰与代码高亮面板 */
-  --art: #2b2123;
-  --art2: #251f33;
-  --art3: #1f2933;
-  --art-ink: #ffaf88;
-  --code: #0c0d13;
-  --code-ink: #efe9f4;
-  --code-muted: #9b92a6;
-  --code-highlight: #ffbe98;
+  --art: #1d1a19;
+  --art2: #171b22;
+  --art3: #181d1d;
+  --art-ink: #c1a381;
+  --code: #0b0c10;
+  --code-ink: #e4e2e8;
+  --code-muted: #858390;
+  --code-highlight: #dfc09f;
 
-  /* 状态语义色 */
-  --success-bg: rgba(45, 212, 191, 0.15);
-  --success-ink: #5eead4;
-  --error-bg: rgba(251, 113, 133, 0.16);
-  --error-ink: #fda4af;
+  /* 状态语义色 (低饱和鼠尾草青与暖绯红，与 landing.vue 卡片色调一致) */
+  --success-bg: rgba(135, 184, 177, 0.13);
+  --success-ink: #9ec8c2;
+  --error-bg: rgba(211, 145, 143, 0.14);
+  --error-ink: #e2a8a6;
 
-  /* 卡片微立体光影、背景点阵与双色碰撞极光 */
-  --surface-highlight: inset 0 1px 0 0 rgba(255, 230, 215, 0.08);
-  --card-shadow: 0 14px 34px -8px rgba(0, 0, 0, 0.58), 0 0 24px -6px rgba(255, 175, 136, 0.08);
-  --bg-grid-line: rgba(255, 195, 160, 0.045);
-  --bg-dot-color: rgba(255, 185, 148, 0.14);
-  --page-ambient:
-    radial-gradient(ellipse 55% 340px at 18% -30px, rgba(255, 158, 108, 0.17), transparent 70%),
-    radial-gradient(ellipse 50% 320px at 82% 10px, rgba(239, 124, 141, 0.14), transparent 70%),
-    radial-gradient(ellipse 40% 260px at 55% 40%, rgba(192, 132, 252, 0.06), transparent 75%);
+  /* 细腻的 1px 顶部微高光与深邃中性阴影 */
+  --surface-highlight: inset 0 1px 0 0 rgba(255, 255, 255, 0.045);
+  --card-shadow: 0 14px 36px -10px rgba(0, 0, 0, 0.65);
 
-  /* 品牌高亮与交互态 */
+  /* 品牌高亮与交互态 (保留测试契约) */
   --accent-coral: #ffaf88;
   --accent-hover: #ffc19e;
   --text-on-accent: #271a15;
   --color-error: #e6a49c;
 
-  /* 选中态与光晕 Token */
-  --selection-bg: rgba(255, 175, 136, 0.28);
+  /* 渐变与阴影 Token */
+  --gradient-warm: linear-gradient(100deg, #ffe0b0, #ffae82 48%, #ef7c8d);
+  --selection-bg: rgba(216, 165, 123, 0.24);
   --card-glow: 0 15px 45px rgba(0, 0, 0, 0.4);
 
   /* 统一圆角 */
@@ -108,88 +98,79 @@
 [data-theme='light'],
 [data-theme='graphite'] {
   color-scheme: light;
-  --bg-app: #faf8f5;
+  --bg-app: #f8f7f4;
   --bg-card: #ffffff;
-  --bg-input: #f2ece7;
-  --text-main: #1d1a1f;
-  --text-muted: #706875;
-  --border-line: rgba(29, 26, 31, 0.09);
-  --accent-coral: #e05d36;
-  --accent-hover: #c94c27;
+  --bg-input: #f1efeb;
+  --text-main: #1c1b1f;
+  --text-muted: #6e6a73;
+  --border-line: rgba(0, 0, 0, 0.08);
+  --accent-coral: #1c1b1f;
+  --accent-hover: #2f2d33;
   --text-on-accent: #ffffff;
   --color-error: #c53030;
 
-  /* 统一设计 Token (暖曜浅色 · 曜石黑按钮 × 落日珊瑚碰撞) */
-  --bg: #faf8f5;
+  /* 统一设计 Token (石墨浅色 · 干净温润纸感) */
+  --bg: #f8f7f4;
   --paper: #ffffff;
-  --ink: #1d1a1f;
-  --muted: #6c6472;
-  --body: #433e49;
-  --reader-bg: #fcfbf9;
-  --reader-ink: #2b2730;
-  --line: #e8e1db;
+  --ink: #1c1b1f;
+  --muted: #6b6770;
+  --body: #434048;
+  --reader-bg: #faf9f6;
+  --reader-ink: #2c2a30;
+  --line: #e5e3de;
 
-  /* 主按钮：浅色下采用深曜石黑底 + 纯白字 + 暖色环境投影 */
-  --btn-primary-bg: #1d1a1f;
-  --btn-primary-hover: #2f2a33;
+  /* 主按钮：深曜石黑底 + 白字 */
+  --btn-primary-bg: #1c1b1f;
+  --btn-primary-hover: #2f2d35;
   --btn-primary-fg: #ffffff;
-  --btn-primary-shadow: 0 4px 14px rgba(224, 93, 54, 0.16), 0 2px 6px rgba(29, 26, 31, 0.12);
+  --btn-primary-shadow: 0 2px 6px rgba(0, 0, 0, 0.12);
 
-  /* 核心点缀色 */
-  --brand: #e05d36;
-  --brand-hover: #c94c27;
-  --brand-soft: #fff0ea;
-  --brand-glow: rgba(224, 93, 54, 0.28);
+  /* 低饱和暖铜棕点缀色 */
+  --brand: #9c623e;
+  --brand-hover: #824f30;
+  --brand-soft: #f5ede6;
+  --brand-border: rgba(156, 98, 62, 0.26);
   --green: var(--brand);
   --mint: var(--brand-soft);
 
-  --gradient-warm: linear-gradient(100deg, #f59e0b, #ea580c 48%, #e11d48);
-  --gradient-collision: linear-gradient(115deg, #f59e0b 0%, #ea580c 38%, #e11d48 72%, #9333ea 100%);
-  --border-playful: rgba(224, 93, 54, 0.35);
-
-  --soft: #f4eee9;
-  --hover: #f8f4f0;
+  --soft: #f1efeb;
+  --hover: #f5f3f0;
   --on-accent: #ffffff;
-  --focus: #e05d36;
+  --focus: #9c623e;
 
-  /* 下拉框与浮层高对比度变量 */
+  /* 下拉框与浮层 */
   --select-bg: #ffffff;
-  --select-border: #d5cbc3;
-  --select-hover-border: #e05d36;
-  --select-text: #1d1a1f;
+  --select-border: #d4d1ca;
+  --select-hover-border: #9c623e;
+  --select-text: #1c1b1f;
   --popover-bg: #ffffff;
-  --popover-border: rgba(224, 93, 54, 0.25);
+  --popover-border: rgba(0, 0, 0, 0.1);
 
-  /* 头像与高光表面 */
-  --avatar-bg: linear-gradient(135deg, #2a242d 0%, #1d1920 100%);
-  --avatar-border: rgba(224, 93, 54, 0.45);
-  --avatar-fg: #ffe3d1;
-  --avatar-shadow: 0 4px 12px rgba(224, 93, 54, 0.18);
+  /* 头像表面 */
+  --avatar-bg: linear-gradient(145deg, #28262c 0%, #1a191d 100%);
+  --avatar-border: rgba(0, 0, 0, 0.16);
+  --avatar-fg: #ffffff;
+  --avatar-shadow: 0 2px 6px rgba(0, 0, 0, 0.12);
 
   /* 装饰与代码高亮面板 */
-  --art: #fcedea;
-  --art2: #f3ebfa;
-  --art3: #eaf4f8;
-  --art-ink: #c94c27;
-  --code: #191720;
-  --code-ink: #efe9f4;
-  --code-muted: #a199ab;
-  --code-highlight: #ffbe98;
+  --art: #f2ece6;
+  --art2: #eaeef2;
+  --art3: #eaf0ee;
+  --art-ink: #8a5a3c;
+  --code: #18181f;
+  --code-ink: #eae8ee;
+  --code-muted: #9b98a6;
+  --code-highlight: #e5c39f;
 
   /* 状态语义色 */
-  --success-bg: #ccfbf1;
-  --success-ink: #0f766e;
-  --error-bg: #ffe4e6;
-  --error-ink: #be123c;
+  --success-bg: #e8f2f0;
+  --success-ink: #2b635c;
+  --error-bg: #fbeeee;
+  --error-ink: #9e3533;
 
-  /* 卡片微立体光影与背景氛围 */
-  --surface-highlight: inset 0 1px 0 0 rgba(255, 255, 255, 0.9);
-  --card-shadow: 0 12px 28px -6px rgba(45, 30, 22, 0.08);
-  --bg-grid-line: rgba(224, 93, 54, 0.05);
-  --bg-dot-color: rgba(224, 93, 54, 0.16);
-  --page-ambient:
-    radial-gradient(ellipse 55% 300px at 18% -30px, rgba(255, 158, 108, 0.14), transparent 70%),
-    radial-gradient(ellipse 50% 280px at 82% 10px, rgba(239, 124, 141, 0.10), transparent 70%);
+  /* 细腻阴影 */
+  --surface-highlight: inset 0 1px 0 0 rgba(255, 255, 255, 0.85);
+  --card-shadow: 0 10px 26px -8px rgba(24, 22, 20, 0.07);
 }
 
 body {
@@ -200,38 +181,34 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
-/* 全局强化所有下拉框 (<select>) 在暗色/浅色下的对比度与精致箭头 */
+/* 克制、高对比度的原生 <select> 下拉框样式 (中性灰白箭头，明确边界) */
 select {
   appearance: none;
   -webkit-appearance: none;
-  background-color: var(--select-bg) !important;
-  color: var(--select-text) !important;
-  border: 1px solid var(--select-border) !important;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%23ffaf88' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E") !important;
-  background-repeat: no-repeat !important;
-  background-position: right 10px center !important;
-  padding-right: 32px !important;
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08), 0 2px 6px rgba(0, 0, 0, 0.18);
+  background-color: var(--select-bg);
+  color: var(--select-text);
+  border: 1px solid var(--select-border);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='13' height='13' viewBox='0 0 24 24' fill='none' stroke='%2396939d' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 10px center;
+  padding-right: 30px !important;
+  box-shadow: var(--surface-highlight);
   cursor: pointer;
-  transition: border-color 0.18s ease, box-shadow 0.18s ease, transform 0.15s ease;
+  transition: border-color 0.15s ease, background-color 0.15s ease;
 }
 
 select:hover:not(:disabled) {
-  border-color: var(--select-hover-border) !important;
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.12), 0 0 0 3px var(--brand-soft);
+  border-color: var(--select-hover-border);
 }
 
-select:focus,
 select:focus-visible {
-  outline: none !important;
-  border-color: var(--brand) !important;
-  box-shadow: 0 0 0 3px var(--brand-soft) !important;
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
 }
 
 select option {
   background-color: var(--popover-bg);
   color: var(--ink);
-  padding: 8px;
 }
 
 a:focus-visible, button:focus-visible, [tabindex]:focus-visible {
