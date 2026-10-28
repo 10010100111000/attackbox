@@ -85,8 +85,8 @@ onBeforeUnmount(() => { destroyed = true; generation++; clearTimeout(retryTimer)
 </template>
 
 <style scoped>
-.terminal-panel { height: 100%; min-height: 0; display: flex; flex-direction: column; background: #101419; color: #a9b7c3; }
-.terminal-host { flex: 1; min-height: 0; padding: 12px 14px 4px; overflow: hidden; }
+.terminal-panel { min-width: 0; height: 100%; min-height: 0; display: flex; flex-direction: column; background: #101419; color: #a9b7c3; }
+.terminal-host { min-width: 0; flex: 1; min-height: 0; padding: 12px 14px 4px; overflow: hidden; }
 .terminal-host :deep(.xterm) { height: 100%; }
 .terminal-status { flex-shrink: 0; min-height: 25px; padding: 3px 14px; border-top: 1px solid #26313b; font-size: 11px; display: flex; align-items: center; gap: 14px; }
 .terminal-status button { color: #7dd3fc; background: transparent; border: 0; cursor: pointer; font-size: 11px; }

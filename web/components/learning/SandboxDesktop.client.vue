@@ -27,7 +27,7 @@ async function connect() {
     }
     url.searchParams.set('ticket', response.data.ticket)
     const connection = new Desktop(host.value, url.toString(), { shared: true }); viewer = connection
-    connection.scaleViewport = fit.value; connection.resizeSession = !!props.autoResize; connection.clipViewport = false; connection.compressionLevel=4; connection.qualityLevel=7
+    connection.scaleViewport = fit.value; connection.resizeSession = !!props.autoResize && props.active && fit.value; connection.clipViewport = false; connection.compressionLevel=4; connection.qualityLevel=7
     connectTimer = setTimeout(() => { if (viewer === connection) { state.value = '桌面连接超时'; connection.disconnect() } }, 35000)
     connection.addEventListener('connect', () => {
       if (disposed || viewer !== connection) { connection.disconnect(); return }
@@ -48,8 +48,12 @@ async function connect() {
     }
   }
 }
-watch(fit, value => { if (viewer) {viewer.scaleViewport = value;viewer.resizeSession=!!props.autoResize && value} })
-watch(() => props.active, async active => { if (active) { await nextTick(); viewer?.focus() } })
+watch(fit, value => { if (viewer) {viewer.scaleViewport = value;viewer.resizeSession=!!props.autoResize && props.active && value} })
+watch(() => props.active, async active => {
+  await nextTick()
+  if (viewer) viewer.resizeSession = !!props.autoResize && active && fit.value
+  if (active) viewer?.focus()
+})
 onMounted(connect)
 onBeforeUnmount(() => { disposed = true; generation++; clearTimeout(retryTimer); clearTimeout(connectTimer); clearTimeout(stableTimer); const old = viewer; viewer = undefined; old?.disconnect() })
 </script>
@@ -59,12 +63,12 @@ onBeforeUnmount(() => { disposed = true; generation++; clearTimeout(retryTimer);
 </template>
 
 <style scoped>
-.desktop-panel { display: flex; flex-direction: column; height: 100%; min-height: 0; background: #101419; color: #b5c1cc; }
-.desktop-toolbar { flex-shrink: 0; display: flex; align-items: center; gap: 14px; padding: 6px 14px; min-height: 30px; font-size: 11px; border-bottom: 1px solid #29343d; }
+.desktop-panel { min-width: 0; display: flex; flex-direction: column; height: 100%; min-height: 0; background: #101419; color: #b5c1cc; }
+.desktop-toolbar { flex-shrink: 0; display: flex; align-items: center; gap: 6px 14px; flex-wrap: wrap; padding: 6px 14px; min-height: 30px; font-size: 11px; border-bottom: 1px solid #29343d; }
 .desktop-toolbar > span { margin-right: auto; }
 .desktop-toolbar label { display: inline-flex; align-items: center; gap: 5px; }
 .desktop-toolbar input { accent-color: #60a5fa; }
 .desktop-toolbar button { background: transparent; border: 0; color: #7dd3fc; font-size: 11px; cursor: pointer; }
 .desktop-toolbar button:disabled { opacity: .5; cursor: wait; }
-.desktop-host { flex: 1; min-height: 0; overflow: auto; }
+.desktop-host { min-width: 0; flex: 1; min-height: 0; overflow: auto; }
 </style>

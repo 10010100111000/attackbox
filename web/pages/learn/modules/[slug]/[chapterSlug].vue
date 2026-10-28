@@ -103,13 +103,11 @@ const {sandbox: readerSandbox} = useSandboxSession()
 const environmentReady = computed(() => readerSandbox.value.instance?.state === 'running' && readerSandbox.value.instance.connected)
 const practiceMode = ref<'cli' | 'gui'>('cli')
 const practiceOpened = ref(false)
-const practiceVisible = ref(false), practiceMinimized = ref(false), dockPlacement = ref<'bottom' | 'right'>('bottom')
+const practiceVisible = ref(false), practiceMinimized = ref(false)
+const workspace = ref<HTMLElement | null>(null)
+const dock = usePracticeLayout(workspace)
 watch(environmentReady, ready => { if (!ready) { practiceOpened.value=false; practiceVisible.value=false; practiceMinimized.value=false } })
-const dockHeight = ref(310), viewportHeight = ref(900)
-const maxDockHeight = computed(() => Math.max(180, viewportHeight.value - 220))
 function updateViewport() {
-  viewportHeight.value = window.innerHeight
-  dockHeight.value = Math.min(dockHeight.value, maxDockHeight.value)
   if (window.innerWidth > 900) mobileOutlineOpen.value = false
 }
 function toggleSidebar() {
@@ -261,7 +259,7 @@ useHead({
       <aside class="reading-sidebar" aria-label="模块目录">
         <ChapterOutline :module-slug="moduleSlug" :module-title="moduleData?.title || '学习模块'" :current-slug="chapterSlug" :chapters="moduleData?.chapters || []" :collapsed="sidebarCollapsed" @toggle="toggleSidebar" />
       </aside>
-      <div class="reading-main" :class="{ 'dock-is-right': practiceVisible && !practiceMinimized && dockPlacement === 'right' }">
+      <div class="reading-main">
         <div class="reading-top-bar">
           <div class="toolbar-left">
             <DialogRoot v-model:open="mobileOutlineOpen">
@@ -282,6 +280,7 @@ useHead({
             <button v-if="environmentReady" class="tool-launch" type="button" :disabled="!readerMounted" :aria-pressed="practiceVisible && !practiceMinimized && practiceMode === 'gui'" @click="openPractice('gui')"><Monitor :size="15" aria-hidden="true" /><span>GUI</span><span class="tool-word">桌面</span></button>
           </div>
         </div>
+        <div ref="workspace" class="reading-workspace" :class="{ 'dock-is-right': practiceVisible && !practiceMinimized && dock.placement.value === 'right' }">
         <div ref="scrollElement" class="reading-scroll" tabindex="0" aria-label="章节正文">
           <article class="article-body">
             <div class="chapter-meta"><span>第 {{ chapterIndex + 1 }} / {{ moduleData?.chapters.length || 1 }} 章</span><span v-if="chapterData.durationMinutes"><Clock3 :size="13" aria-hidden="true" />约 {{ chapterData.durationMinutes }} 分钟</span></div>
@@ -319,8 +318,9 @@ useHead({
             </footer>
           </article>
         </div>
-        <PracticeDock v-if="practiceOpened" v-show="practiceVisible && !practiceMinimized" :key="learnerId" :active="practiceVisible && !practiceMinimized" v-model:height="dockHeight" v-model:placement="dockPlacement" :mode="practiceMode" :max-height="maxDockHeight" @minimize="minimizePractice" />
+        <PracticeDock v-if="practiceOpened" v-show="practiceVisible && !practiceMinimized" :key="learnerId" :active="practiceVisible && !practiceMinimized" :height="dock.height.value" :width="dock.width.value" :placement="dock.placement.value" :side-available="dock.sideAvailable.value" :min-width="dock.minWidth" :max-width="dock.maxWidth.value" :min-height="dock.minHeight.value" :max-height="dock.maxHeight.value" :mode="practiceMode" @update:height="dock.setHeight" @update:width="dock.setWidth" @update:placement="dock.setPlacement" @resize-end="dock.persist" @minimize="minimizePractice" />
         <button v-if="practiceVisible && practiceMinimized" type="button" class="dock-restore" aria-label="恢复练习面板" @click="practiceMinimized = false"><Terminal v-if="practiceMode === 'cli'" :size="14" aria-hidden="true" /><Monitor v-else :size="14" aria-hidden="true" />{{ practiceMode === 'cli' ? '终端' : '桌面' }}<ChevronUp :size="15" aria-hidden="true" /></button>
+        </div>
       </div>
     </div>
     <UiBusyIndicator v-else class="reading-loading" label="章节加载"/>
@@ -343,9 +343,10 @@ useHead({
 .learn-shell.outline-collapsed { grid-template-columns: 56px minmax(0, 1fr); }
 .reading-sidebar { min-height: 0; background: var(--paper); border-right: 1px solid var(--line); }
 .reading-main { min-width: 0; min-height: 0; display: flex; flex-direction: column; position: relative; }
-.reading-main.dock-is-right { display: grid; grid-template-columns: minmax(0, 1fr) auto; grid-template-rows: 45px minmax(0, 1fr); }
-.reading-main.dock-is-right .reading-top-bar { grid-column: 1 / -1; }
-@media (max-width: 960px) { .reading-main.dock-is-right { display: flex; flex-direction: column; } }
+.reading-workspace { flex: 1; display: flex; flex-direction: column; min-width: 0; min-height: 0; overflow: hidden; }
+.reading-workspace.dock-is-right { flex-direction: row; }
+.reading-workspace.dock-is-right .reading-scroll { flex: 1 1 0; }
+.reading-workspace.dock-is-right .article-body { padding-inline: clamp(24px, 3vw, 48px); }
 .reading-top-bar { display: flex; align-items: center; justify-content: space-between; gap: 16px; height: 45px; flex-shrink: 0; padding: 0 24px; border-bottom: 1px solid var(--line); background: var(--reader-bg); }
 .toolbar-left, .toolbar-tools { display: flex; align-items: center; gap: 12px; }
 .module-return { display: inline-flex; align-items: center; gap: 7px; font-size: 11px; text-decoration: none; color: var(--muted); }
@@ -354,7 +355,7 @@ useHead({
 .tool-launch { height:32px; box-sizing:border-box; display: inline-flex; align-items: center; justify-content:center; line-height:1; gap: 6px; padding: 6px 9px; border: 1px solid transparent; border-radius: 5px; background: transparent; font-size: 11px; color: var(--muted); cursor: pointer; }
 .tool-launch:hover { background: var(--soft); color: var(--ink); }
 .tool-launch[aria-pressed='true'] { border-color: var(--line); background: var(--paper); color: var(--ink); }
-.reading-scroll { flex: 1; overflow: auto; min-height: 0; overscroll-behavior: contain; scroll-padding-top: 24px; }
+.reading-scroll { flex: 1; min-width: 0; overflow: auto; min-height: 0; overscroll-behavior: contain; scroll-padding-top: 24px; }
 .article-body { width: 100%; min-width: 0; padding: 36px clamp(32px, 4vw, 72px) 64px; overflow-wrap: anywhere; }
 .chapter-meta { display: flex; flex-wrap: wrap; gap: 16px; font-size: 11px; color: var(--muted); margin-bottom: 12px; }
 .chapter-meta > span { display: inline-flex; align-items: center; gap: 5px; }

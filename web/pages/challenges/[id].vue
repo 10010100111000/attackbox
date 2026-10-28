@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue'
+import { ref, computed, watch, onMounted } from 'vue'
 import { ArrowLeft, CheckCircle2, LockKeyhole, Flag, Terminal, Monitor, ChevronUp } from 'lucide-vue-next'
 import MarkdownView from '~/components/ui/MarkdownView.vue'
 import PracticeDock from '~/components/learning/PracticeDock.vue'
@@ -28,43 +28,24 @@ const practiceMode = ref<'cli' | 'gui'>('cli')
 const practiceOpened = ref(false)
 const practiceVisible = ref(false)
 const practiceMinimized = ref(false)
-const practiceExpanded = ref(false)
-const dockPlacement = ref<'bottom' | 'right'>('bottom')
-const dockHeight = ref(310)
-const viewportHeight = ref(900)
-const maxDockHeight = computed(() => Math.max(180, viewportHeight.value - 220))
-
-function updateViewport() {
-  viewportHeight.value = window.innerHeight
-  dockHeight.value = Math.min(dockHeight.value, maxDockHeight.value)
-}
+const workspace = ref<HTMLElement | null>(null)
+const dock = usePracticeLayout(workspace)
+const { sandbox } = useSandboxSession()
+const environmentReady = computed(() => sandbox.value.instance?.state === 'running' && sandbox.value.instance.connected)
+watch(environmentReady, value => {
+  if (!value) { practiceOpened.value = false; practiceVisible.value = false; practiceMinimized.value = false }
+})
 
 function openPractice(mode: 'cli' | 'gui') {
+  if (!environmentReady.value) return
   practiceOpened.value = true
   practiceMode.value = mode
   practiceVisible.value = true
   practiceMinimized.value = false
 }
 
-function closePractice() {
-  practiceVisible.value = false
-  practiceExpanded.value = false
-}
-
-function minimizePractice() {
-  practiceMinimized.value = true
-  practiceExpanded.value = false
-}
-
-onMounted(() => {
-  ready.value = true
-  updateViewport()
-  window.addEventListener('resize', updateViewport)
-})
-
-onBeforeUnmount(() => {
-  window.removeEventListener('resize', updateViewport)
-})
+function minimizePractice() { practiceMinimized.value = true }
+onMounted(() => { ready.value = true })
 
 watch(learner, () => {
   answers.value = {}
@@ -103,7 +84,7 @@ async function submit(stageId: string) {
 </script>
 
 <template>
-  <div class="challenge-shell" :class="{ 'dock-is-right': practiceVisible && !practiceMinimized && dockPlacement === 'right' }">
+  <div class="challenge-shell">
     <div class="challenge-top-bar">
       <NuxtLink to="/challenges" class="back">
         <ArrowLeft :size="14" aria-hidden="true" />
@@ -114,6 +95,7 @@ async function submit(stageId: string) {
         <LearningEnvironmentStatus />
         <button
           type="button"
+          v-if="environmentReady"
           :disabled="!ready"
           :aria-pressed="practiceVisible && !practiceMinimized && practiceMode === 'cli'"
           @click="openPractice('cli')"
@@ -124,6 +106,7 @@ async function submit(stageId: string) {
         </button>
         <button
           type="button"
+          v-if="environmentReady"
           :disabled="!ready"
           :aria-pressed="practiceVisible && !practiceMinimized && practiceMode === 'gui'"
           @click="openPractice('gui')"
@@ -135,7 +118,8 @@ async function submit(stageId: string) {
       </div>
     </div>
 
-    <div class="challenge-scroll" :inert="practiceVisible && !practiceMinimized && practiceExpanded">
+    <div ref="workspace" class="challenge-workspace" :class="{ 'dock-is-right': practiceVisible && !practiceMinimized && dock.placement.value === 'right' }">
+    <div class="challenge-scroll">
       <main class="challenge-detail">
         <p v-if="error" role="alert">挑战不存在或尚未发布。</p>
 
@@ -219,13 +203,13 @@ async function submit(stageId: string) {
       v-show="practiceVisible && !practiceMinimized"
       :key="learner"
       :active="practiceVisible && !practiceMinimized"
-      v-model:height="dockHeight"
-      v-model:placement="dockPlacement"
-      v-model:expanded="practiceExpanded"
+      :height="dock.height.value" :width="dock.width.value" :placement="dock.placement.value"
+      :side-available="dock.sideAvailable.value" :min-width="dock.minWidth" :max-width="dock.maxWidth.value"
+      :min-height="dock.minHeight.value" :max-height="dock.maxHeight.value"
+      @update:height="dock.setHeight" @update:width="dock.setWidth"
+      @update:placement="dock.setPlacement" @resize-end="dock.persist"
       :mode="practiceMode"
-      :max-height="maxDockHeight"
       @minimize="minimizePractice"
-      @close="closePractice"
     />
 
     <button
@@ -240,26 +224,15 @@ async function submit(stageId: string) {
       <span>{{ practiceMode === 'cli' ? '终端' : '桌面' }}</span>
       <ChevronUp :size="15" aria-hidden="true" />
     </button>
+    </div>
   </div>
 </template>
 
 <style scoped>
-.challenge-shell.dock-is-right {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  grid-template-rows: 45px minmax(0, 1fr);
-}
-
-.challenge-shell.dock-is-right .challenge-top-bar {
-  grid-column: 1 / -1;
-}
-
-@media (max-width: 960px) {
-  .challenge-shell.dock-is-right {
-    display: flex;
-    flex-direction: column;
-  }
-}
+.challenge-workspace { flex: 1; display: flex; flex-direction: column; min-width: 0; min-height: 0; overflow: hidden; }
+.challenge-workspace.dock-is-right { flex-direction: row; }
+.challenge-workspace.dock-is-right .challenge-scroll {
+  min-width: 0; flex: 1 1 0; }
 
 .challenge-shell {
   display: flex;
