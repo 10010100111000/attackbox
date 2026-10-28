@@ -13,6 +13,20 @@ function bounded(value: unknown, fallback: number, min: number, max: number) {
   return number
 }
 const identifier = /^[a-zA-Z0-9][a-zA-Z0-9_-]{0,63}$/
+
+// This is the browser-facing endpoint, never a placeholder for a listener address.
+export function publicGatewayUrl(value: unknown): string {
+  if (typeof value !== 'string' || !/^wss?:\/\/[^/]/i.test(value) || /[\s\u0000-\u001f\u007f]/.test(value)) {
+    throw new Error('publicDataUrl 必须为完整的 ws(s)://host[:port] 地址')
+  }
+  const url = new URL(value)
+  if (!['ws:', 'wss:'].includes(url.protocol) || url.username || url.password || url.search || url.hash || url.pathname !== '/' || url.port === '0') {
+    throw new Error('publicDataUrl 仅支持 ws(s)://host[:port]，不能包含凭据、路径或查询参数')
+  }
+  if (['0.0.0.0', '[::]'].includes(url.hostname)) throw new Error('publicDataUrl 需要浏览器可达的地址，不能填写通配监听地址')
+  return url.origin
+}
+
 export function sandboxConfig(env: NodeJS.ProcessEnv = process.env): SandboxConfig {
   const disabled: SandboxConfig = { enabled: false, configurationError: null, secret: '', publicKey: '', signingKey: null, schedulingEnabled: false, policy: structuredClone(defaultPolicy), nodes: [] }
   if (env.SANDBOX_CONTROL_ENABLED !== 'true') return disabled
@@ -23,10 +37,11 @@ export function sandboxConfig(env: NodeJS.ProcessEnv = process.env): SandboxConf
     if (!Array.isArray(raw) || raw.length < 1 || raw.length > 32) throw new Error('SANDBOX_NODES_JSON 需要配置 1–32 个节点')
     const nodes: NodeConfig[] = raw.map(node => {
       if (!node || !identifier.test(node.id) || typeof node.label !== 'string' || !node.label.trim() || node.label.length > 80 || typeof node.publicDataUrl !== 'string') throw new Error('节点必须包含有效的 id、label、publicDataUrl')
-      const url = new URL(node.publicDataUrl)
-      const local = ['localhost', '127.0.0.1', '[::1]'].includes(url.hostname)
-      if (!(url.protocol === 'wss:' || (url.protocol === 'ws:' && local)) || url.username || url.password || url.search || url.hash || url.pathname !== '/') throw new Error('publicDataUrl 必须为 wss://host[:port]，仅本地联调允许 ws://')
-      return { id: node.id, label: node.label.trim(), publicDataUrl: url.origin, maxSlots: bounded(node.maxSlots, 4, 1, 250) }
+      const publicDataUrl = publicGatewayUrl(node.publicDataUrl)
+      if (env.APP_BASE_URL && new URL(env.APP_BASE_URL).protocol === 'https:' && publicDataUrl.startsWith('ws:')) {
+        throw new Error('HTTPS 网站的 publicDataUrl 必须使用 wss://，避免浏览器阻止混合内容连接')
+      }
+      return { id: node.id, label: node.label.trim(), publicDataUrl, maxSlots: bounded(node.maxSlots, 4, 1, 250) }
     })
     if (new Set(nodes.map(n => n.id)).size !== nodes.length) throw new Error('节点 id 不能重复')
     const key = createPrivateKey({ key: Buffer.concat([Buffer.from('302e020100300506032b657004220420', 'hex'), Buffer.from(env.SANDBOX_SIGNING_SEED_HEX!, 'hex')]), format: 'der', type: 'pkcs8' })

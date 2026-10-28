@@ -49,7 +49,7 @@ class DeploymentTests(unittest.TestCase):
         self.assertEqual(d.endpoint('::',3300),'[::1]:3300')
         self.assertEqual(d.endpoint('0.0.0.0',3000),'127.0.0.1:3000')
         with self.assertRaises(ValueError):d.endpoint('127.0.0.1','3000;bad')
-        with self.assertRaises(d.ConfigError):d.ws_url('ws://worker.example.com:8443')
+        self.assertEqual(d.ws_url('ws://worker.example.com:8443'), 'ws://worker.example.com:8443')
         args=d.parser().parse_args(['worker','setup'])
         d.setup_worker(args)
         config=d.yaml.safe_load(d.WORKER.read_text())
@@ -62,6 +62,32 @@ class DeploymentTests(unittest.TestCase):
         config['node']['node_id']='remote';d.match_worker(d.read_env(),config)
         self.assertEqual(len(d.nodes(d.read_env())),2)
 
+    def test_browser_gateway_addresses_and_http_setup(self):
+        for origin, expected in [
+            ('http://192.168.1.20', 'ws://192.168.1.20:8443'),
+            ('http://203.0.113.20', 'ws://203.0.113.20:8443'),
+            ('http://[fd00::20]:3000', 'ws://[fd00::20]:8443'),
+            ('https://microsb.de', 'wss://microsb.de:8443'),
+        ]:
+            with self.subTest(origin=origin):
+                d.ENV.unlink()
+                args = d.parser().parse_args(['control','setup','--database','postgres://u:p@localhost/db','--origin',origin])
+                d.setup_control(args)
+                self.assertEqual(d.nodes(d.read_env())[0]['publicDataUrl'], expected)
+        for value, expected in [('WSS://Worker.Example:443/', 'wss://worker.example'),
+                                ('ws://[fd00:0::20]:8443/', 'ws://[fd00::20]:8443')]:
+            self.assertEqual(d.ws_url(value), expected)
+        for value in ['ws://0.0.0.0:8443','ws://[::]:8443','ws://worker.test:0','ws://worker.test?secret=x','ws://user:pass@worker.test']:
+            with self.subTest(value=value), self.assertRaises((d.ConfigError, ValueError)):
+                d.ws_url(value)
+        values = d.read_env()
+        values['SANDBOX_NODES_JSON'] = json.dumps([dict(id='local',label='Local',publicDataUrl='ws://127.0.0.1:8443',maxSlots=16)])
+        with self.assertRaises(d.ConfigError):d.nodes(values)
+        d.ENV.unlink()
+        args = d.parser().parse_args(['control','setup','--database','postgres://u:p@localhost/db','--origin','https://microsb.de','--worker-public-url','ws://worker.test:8443'])
+        with self.assertRaises(d.ConfigError):d.setup_control(args)
+        self.assertFalse(d.ENV.exists())
+
     def test_https_setup_requires_certificate_or_explicit_proxy(self):
         values=d.read_env();items=d.nodes(values);items[0]['publicDataUrl']='wss://worker.example.test:9443'
         values['SANDBOX_NODES_JSON']=json.dumps(items);d.atomic(d.ENV,d.env_text(values))
@@ -69,6 +95,15 @@ class DeploymentTests(unittest.TestCase):
         self.assertFalse(d.WORKER.exists())
         d.setup_worker(d.parser().parse_args(['worker','setup','--tls-terminated','--listen-addr','127.0.0.1:9443']))
         self.assertFalse(d.yaml.safe_load(d.WORKER.read_text())['gateway']['tls_enabled'])
+
+    def test_standalone_worker_requires_explicit_public_endpoint(self):
+        d.ENV.unlink()
+        args = d.parser().parse_args(['worker','setup','--control-url','wss://learn.example/cluster/connect','--cluster-secret','x' * 32])
+        with self.assertRaises(d.ConfigError):d.setup_worker(args)
+        self.assertFalse(d.WORKER.exists())
+        args.public_url = 'ws://192.168.1.30:8443'
+        d.setup_worker(args)
+        self.assertEqual(d.yaml.safe_load(d.WORKER.read_text())['gateway']['public_data_url'], args.public_url)
 
     def cloudflare_values(self):
         values = d.read_env()

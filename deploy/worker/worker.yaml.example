@@ -8,7 +8,8 @@ node:
 
 gateway:
   listen_addr: "0.0.0.0:8443"
-  # 与 web.env 的 SANDBOX_NODES_JSON.publicDataUrl 一致；公网 HTTPS 页面使用 WSS。
+  # 浏览器实际访问的地址，与 web.env 的 publicDataUrl 一致；HTTPS 页面必须使用 WSS。
+  # 此回环示例仅用于本机浏览器；跨机器访问时填写真实域名或 IP，不使用 listen_addr 作为公开地址。
   public_data_url: "ws://127.0.0.1:8443"
   tls_enabled: false
 

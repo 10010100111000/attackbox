@@ -25,11 +25,6 @@ async function connect() {
     const response = await $fetch<{ data: SandboxTicket }>('/api/sandbox/ticket', { method: 'POST', body: { sandboxId: props.sandboxId } })
     if (destroyed || ownGeneration !== generation) return
     const url = new URL(response.data.url)
-    // The controller issues a loopback URL. The browser must dial the page host
-    // instead, while keeping the worker's own port (8443) and scheme.
-    if (typeof window !== 'undefined' && (url.hostname === '127.0.0.1' || url.hostname === 'localhost')) {
-      url.hostname = window.location.hostname
-    }
     url.searchParams.set('ticket', response.data.ticket); url.searchParams.set('win', props.windowId)
     const connection = new WebSocket(url); socket = connection; connection.binaryType = 'arraybuffer'
     connectTimer = setTimeout(() => { if (socket === connection && connection.readyState === WebSocket.CONNECTING) connection.close() }, 10000)

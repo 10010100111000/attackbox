@@ -1,6 +1,6 @@
 import { randomBytes } from 'node:crypto'
 import type { SandboxNodesResponse, SandboxNodeStatus, SandboxNodeSettings } from '../../shared/sandbox.ts'
-import type { SandboxConfig } from './config.ts'
+import { publicGatewayUrl, type SandboxConfig } from './config.ts'
 import type {ComposeInstance,ComposeSummary,ComposeSettings} from '../../shared/compose-labs.ts'
 export interface ComposePayload {requested_at?:string;rebuild?:boolean;target_id:string;owner_id:string;preparation_id?:string;deployment_id?:string;bundle_id?:string;bundle_hash?:string;settings?:ComposeSettings|null;variables?:Record<string,string>;expires_at?:string}
 export interface ComposeWorkerResult {success:boolean;boot_id:string;target_id:string;owner_id?:string;job_state?:string;deployment_id?:string;summary?:ComposeSummary;logs?:string[];error?:string;instance?:ComposeInstance}
@@ -113,7 +113,7 @@ export class SandboxHub {
         }
       } else if (msg.type === 'register') {
         const node = this.config.nodes.find(n => n.id === connection.nodeId)!, c = p.capabilities
-        if (connection.registered || p.node_id !== node.id || !text(p.boot_id) || !text(p.version, 64) || p.public_data_url?.replace(/\/$/, '') !== node.publicDataUrl || !integer(p.data_port, 1) || p.data_port > 65535 || !c || !integer(c.cpu_cores, 1) || !integer(c.total_mem_mb, 1) || !text(c.os_version) || typeof c.has_kvm !== 'boolean') { this.reject(peer); return }
+        if (connection.registered || p.node_id !== node.id || !text(p.boot_id) || !text(p.version, 64) || publicGatewayUrl(p.public_data_url) !== node.publicDataUrl || !integer(p.data_port, 1) || p.data_port > 65535 || !c || !integer(c.cpu_cores, 1) || !integer(c.total_mem_mb, 1) || !text(c.os_version) || typeof c.has_kvm !== 'boolean') { this.reject(peer); return }
         if (record.status.bootId !== p.boot_id) {
           record.seq = 0; record.revision = 0; record.heartbeatAt = 0
           record.status.sandboxes = []; record.status.telemetry = null; record.status.inventoryRevision = null; record.status.lastHeartbeatAt = null

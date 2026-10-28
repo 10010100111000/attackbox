@@ -11,9 +11,14 @@ test('workbenches reuse environment, preserve CLI windows, transfer GUI and expo
   const alice=await f.account(),mod=await f.createModule()
   const instance=(await f.request('/api/sandbox/start',{actor:alice,method:'POST'})).data
   browser=await chromium.launch({executablePath:'/usr/bin/chromium',args:['--no-sandbox']});const context=await browser.newContext({viewport:{width:1600,height:1000}})
-  await context.addCookies([{name:'attackbox_session',value:alice.token,url:f.base}])
-  const errors=[];context.on('page',p=>p.on('pageerror',e=>errors.push(e.message)))
-  const page=await context.newPage();await page.goto(`${f.base}/learn/modules/${mod.module.slug}/intro`)
+  // Deliberately use a different page hostname: clients must retain the issued Worker host.
+  const browserBase=f.base.replace('127.0.0.1','localhost')
+  await context.addCookies([{name:'attackbox_session',value:alice.token,url:browserBase}])
+  const errors=[],sockets=[];context.on('page',p=>{
+   p.on('pageerror',e=>errors.push(e.message))
+   p.on('websocket',socket=>{const url=new URL(socket.url());sockets.push({origin:url.origin,path:url.pathname})})
+  })
+  const page=await context.newPage();await page.goto(`${browserBase}/learn/modules/${mod.module.slug}/intro`)
   await page.locator('.environment-status time').waitFor()
   await page.getByRole('button',{name:'CLI 终端',exact:true}).click();await page.locator('.terminal-status').filter({hasText:'已连接'}).waitFor()
   const popup=context.waitForEvent('page');await page.getByRole('button',{name:'在新标签页打开',exact:true}).click();const cli=await popup
@@ -30,6 +35,11 @@ test('workbenches reuse environment, preserve CLI windows, transfer GUI and expo
   await page.getByRole('button',{name:'收起练习面板',exact:true}).click()
   await page.getByRole('button',{name:'停止环境',exact:true}).click();await page.getByRole('alertdialog').getByRole('button',{name:'释放环境',exact:true}).click()
   await page.getByRole('button',{name:'启动环境',exact:true}).waitFor();await wait(()=>!worker.boxes.has(instance.id));assert.equal(worker.requests.filter(r=>r.type==='create_box').length,1)
+  for(const path of ['/ws/cli','/ws/gui']){
+   const connections=sockets.filter(socket=>socket.path===path)
+   assert.ok(connections.length>0,path)
+   assert.ok(connections.every(socket=>socket.origin==='ws://127.0.0.1:18443'),'Worker hostname must not follow the page hostname')
+  }
   assert.deepEqual(errors,[])
  }finally{if(browser)await browser.close();if(worker)await worker.close();await f.cleanup()}
 })

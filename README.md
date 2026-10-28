@@ -67,6 +67,12 @@ sudo ./scripts/worker.sh setup \
 
 若 Worker 前方的反向代理负责 TLS，可显式使用 `--tls-terminated`，并按代理拓扑配置 `--public-url` 和 `--listen-addr`。该选项只声明已有代理，不创建代理规则。TLS 网关健康检查使用公开 HTTPS 地址并校验证书；明文／代理后网关使用本机实际监听地址。不会关闭证书验证。
 
+`gateway.listen_addr` 是 Worker 的监听地址，`gateway.public_data_url` 是浏览器实际连接的入口；Control 的 `SANDBOX_NODES_JSON.publicDataUrl` 与后者保持一致。CLI／GUI 直接使用服务端签发的地址，不根据当前页面主机名替换它。域名大小写、默认端口和 IPv6 写法会规范化，主机与端口的含义保持不变。
+
+HTTP 站点可以明确配置 `ws://Worker域名或IP:端口`；HTTPS 站点必须配置 `wss://`。例如 `control.sh setup --origin http://192.168.1.20` 会生成 `ws://192.168.1.20:8443`；异机 Worker 通过 `--worker-public-url` 指定自己的入口。公开地址不能使用 `0.0.0.0`／`[::]`，它们只用于监听；`127.0.0.1`／`localhost` 指向学员浏览器所在的机器。
+
+已有 HTTP 部署若曾依赖回环地址替换，需要同时将 `web.env` 中的节点公开地址和 `worker.yaml` 中的 `gateway.public_data_url` 改为浏览器可达地址，重启两端。现有配置不会自动覆盖。Cloudflare 同域入口继续使用 `wss://microsb.de`，Worker 仍可在本机回环地址监听，由 nginx 转发。
+
 ## 异机与多 Worker
 
 Control 和 Worker 必须使用相同节点 ID、公开网关地址及集群密钥。首次只有一个远程节点时，Control setup 可以指定 `--node-id` 与 `--worker-public-url`。

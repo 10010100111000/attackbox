@@ -1,16 +1,19 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { createPrivateKey, createPublicKey } from 'node:crypto'
-import { sandboxConfig, authorizeWorker } from '../server/sandbox/config.ts'
+import { sandboxConfig, authorizeWorker, publicGatewayUrl } from '../server/sandbox/config.ts'
 import { SandboxHub } from '../server/sandbox/hub.ts'
 const environment = () => ({ SANDBOX_CONTROL_ENABLED: 'true', SANDBOX_CLUSTER_SECRET: 'test-cluster-identity-0000000000000000', SANDBOX_SIGNING_SEED_HEX: '11'.repeat(32), SANDBOX_NODES_JSON: JSON.stringify([{ id: 'test-node', label: '测试节点', publicDataUrl: 'ws://127.0.0.1:18443' }]) })
-function fixture() {
-  const config = sandboxConfig(environment()); let time = 1700000000000
+function fixture(publicDataUrl = 'ws://127.0.0.1:18443') {
+  const env = environment(), nodes = JSON.parse(env.SANDBOX_NODES_JSON)
+  nodes[0].publicDataUrl = publicDataUrl
+  env.SANDBOX_NODES_JSON = JSON.stringify(nodes)
+  const config = sandboxConfig(env); let time = 1700000000000
   const hub = new SandboxHub(config, () => time)
   const peer = id => ({ id, sent: [], closed: [], send(raw) { this.sent.push(JSON.parse(raw)) }, close(...args) { this.closed.push(args) } })
   const a = peer('a'), b = peer('b')
   const send = (peer, type, payload) => hub.message(peer, JSON.stringify({ id: 'message-1', type, payload }))
-  const register = (peer = a, boot = 'boot-1', extra = {}) => send(peer, 'register', { node_id: 'test-node', boot_id: boot, version: '2.0', public_data_url: 'ws://127.0.0.1:18443', data_port: 18443, capabilities: { cpu_cores: 4, total_mem_mb: 8192, os_version: 'linux/amd64', has_kvm: false }, ...extra })
+  const register = (peer = a, boot = 'boot-1', extra = {}) => send(peer, 'register', { node_id: 'test-node', boot_id: boot, version: '2.0', public_data_url: config.nodes[0].publicDataUrl, data_port: 18443, capabilities: { cpu_cores: 4, total_mem_mb: 8192, os_version: 'linux/amd64', has_kvm: false }, ...extra })
   const heartbeat = (peer = a, extra = {}) => send(peer, 'heartbeat', { node_id: 'test-node', boot_id: 'boot-1', seq: 1, inventory_revision: 0, timestamp: Math.floor(time / 1000), load_avg: 0.25, mem_available_mb: 4000, disk_free_gb: 80, active_sandboxes: 0, ...extra })
   return { config, hub, a, b, send, register, heartbeat, advance: ms => time += ms, node: () => hub.snapshot().nodes[0] }
 }
@@ -44,6 +47,36 @@ test('worker authentication requires server secret and allowlisted header identi
   h.set('origin', 'https://example.test'); assert.equal(authorizeWorker(c, h), 403); h.delete('origin')
   h.set('x-node-id', 'other'); assert.equal(authorizeWorker(c, h), 403)
   h.set('authorization', 'Bearer wrong'); assert.equal(authorizeWorker(c, h), 401)
+})
+test('gateway endpoints describe the actual browser destination; HTTPS rejects plaintext including loopback', () => {
+  for (const url of ['ws://192.168.1.20:8443','ws://203.0.113.20:8443','ws://worker.lan:9000','ws://[fd00::20]:8443']) {
+    const config = sandboxConfig({ ...environment(), APP_BASE_URL:'http://learn.example', SANDBOX_NODES_JSON:JSON.stringify([{ id:'test-node',label:'Node',publicDataUrl:url }]) })
+    assert.equal(config.enabled,true,url)
+    assert.equal(config.nodes[0].publicDataUrl,url)
+  }
+  for (const url of ['ws://127.0.0.1:8443','ws://worker.example:8443']) {
+    const config = sandboxConfig({ ...environment(), APP_BASE_URL:'https://learn.example', SANDBOX_NODES_JSON:JSON.stringify([{ id:'test-node',label:'Node',publicDataUrl:url }]) })
+    assert.equal(config.enabled,false)
+    assert.match(config.configurationError,/HTTPS/)
+  }
+  assert.equal(publicGatewayUrl('WSS://Worker.Example:443/'),'wss://worker.example')
+  const secure=sandboxConfig({...environment(),APP_BASE_URL:'https://microsb.de',SANDBOX_NODES_JSON:JSON.stringify([{id:'test-node',label:'Node',publicDataUrl:'wss://microsb.de:443/'}])})
+  assert.equal(secure.enabled,true)
+  assert.equal(secure.nodes[0].publicDataUrl,'wss://microsb.de')
+  assert.equal(publicGatewayUrl('ws://[fd00:0::20]:8443/'),'ws://[fd00::20]:8443')
+  for (const url of [undefined,'ws://0.0.0.0:8443','ws://[::]:8443','ws://worker:0','ws://user:pass@worker','ws://worker/path','ws://worker?secret=x','ws://worker#fragment','ws://worker\n']) {
+    assert.throws(()=>publicGatewayUrl(url))
+  }
+})
+test('registration accepts canonical equivalents but never a different endpoint', () => {
+  const f = fixture('wss://worker.example')
+  f.hub.open(f.a,'test-node'); f.register(f.a,'boot-1',{public_data_url:'WSS://WORKER.EXAMPLE:443/'})
+  assert.equal(f.a.closed.length,0)
+  assert.equal(f.node().state,'waiting')
+  for (const url of ['wss://worker.example/path','wss://worker.example?secret=x','wss://other.example']) {
+    const other=fixture('wss://worker.example');other.hub.open(other.a,'test-node');other.register(other.a,'boot-1',{public_data_url:url})
+    assert.equal(other.a.closed[0][0],1008)
+  }
 })
 test('registration syncs the exact Ed25519 public key and heartbeat exposes safe cloned observations', () => {
   const f = fixture(); f.hub.open(f.a, 'test-node'); f.register()

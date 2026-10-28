@@ -91,10 +91,13 @@ def ws_url(value):
     u = urlsplit(value)
     if u.scheme not in ('ws', 'wss') or not u.hostname or u.username or u.password or u.query or u.fragment or u.path not in ('', '/'):
         raise ConfigError('网关地址必须为 ws(s)://host[:port]')
-    _ = u.port
-    if u.scheme == 'ws' and u.hostname not in ('localhost', '127.0.0.1', '::1'):
-        raise ConfigError('公网网关必须使用 wss://')
-    return value.rstrip('/')
+    if u.port == 0 or u.hostname in ('0.0.0.0', '::') or re.search(r'[\s\x00-\x1f\x7f]', value):
+        raise ConfigError('网关地址必须为浏览器可达的 host[:port]，不能使用通配监听地址或零端口')
+    host = u.hostname
+    if ':' in host:
+        host = '[' + ipaddress.IPv6Address(host).compressed + ']'
+    port = '' if u.port is None or u.port == (443 if u.scheme == 'wss' else 80) else f':{u.port}'
+    return f'{u.scheme}://{host}{port}'
 
 
 def endpoint(host, port):
@@ -134,6 +137,8 @@ def nodes(values):
             raise ConfigError('节点名称或容量无效')
         seen.add(item['id'])
         item['publicDataUrl'] = ws_url(item['publicDataUrl'])
+        if urlsplit(values.get('APP_BASE_URL', '')).scheme == 'https' and urlsplit(item['publicDataUrl']).scheme != 'wss':
+            raise ConfigError('HTTPS 网站的公开网关必须使用 wss://，浏览器不能连接明文 ws://')
     return items
 
 
@@ -239,7 +244,7 @@ def setup_control(a):
     hostname = f'[{u.hostname}]' if ':' in u.hostname else u.hostname
     if not re.fullmatch('[A-Za-z0-9_-]{1,64}', a.node_id):
         raise ConfigError('节点 ID 无效')
-    public = a.worker_public_url or (f'wss://{hostname}:8443' if u.scheme == 'https' else 'ws://127.0.0.1:8443')
+    public = a.worker_public_url or f'{"wss" if u.scheme == "https" else "ws"}://{hostname}:8443'
     secret = a.cluster_secret or secrets.token_hex(32)
     if len(secret.encode()) < 32:
         raise ConfigError('集群密钥至少 32 字节')
@@ -254,6 +259,7 @@ def setup_control(a):
                   RESEND_API_KEY=a.resend_key or '', MAIL_FROM=a.mail_from or '', APP_BASE_URL=origin)
     if any(any(c in v for c in '\n\r\0') for v in values.values()):
         raise ConfigError('配置值不能包含换行')
+    nodes(values)
     atomic(ENV, env_text(values), exclusive=True)
     print('Control 配置已生成，权限 0600；不显示密钥。')
     if u.scheme == 'http' and u.hostname not in ('localhost','127.0.0.1','::1'):
@@ -280,7 +286,10 @@ def setup_worker(a):
     if not re.fullmatch('[A-Za-z0-9_-]{1,64}',identity):
         raise ConfigError('节点 ID 无效')
     entry = next((n for n in nodes(local) if n['id'] == identity), None) if local else None
-    public = ws_url(a.public_url or (entry['publicDataUrl'] if entry else 'ws://127.0.0.1:8443'))
+    public = a.public_url or (entry['publicDataUrl'] if entry else None)
+    if not public:
+        raise ConfigError('未找到本站节点配置；异机 Worker 必须通过 --public-url 指定浏览器可达入口')
+    public = ws_url(public)
     secret = a.cluster_secret or (local['SANDBOX_CLUSTER_SECRET'] if local else prompt(None, '集群密钥', secret=True))
     if len(secret.encode()) < 32:
         raise ConfigError('集群密钥至少 32 字节')
