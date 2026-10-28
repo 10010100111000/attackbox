@@ -429,23 +429,25 @@ function getModuleTheme(index: number) {
 }
 
 .card {
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.03) 0%, rgba(255, 255, 255, 0) 100%), var(--paper);
+  background: var(--card-surface);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
   border: 1px solid var(--line);
   border-radius: 12px;
-  box-shadow: var(--surface-highlight);
+  box-shadow: var(--surface-highlight), var(--card-shadow);
   overflow: hidden;
   text-decoration: none;
   color: var(--ink);
   display: flex;
   flex-direction: column;
-  animation: surface-rise 0.32s cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation: surface-rise 0.28s cubic-bezier(0.22, 1, 0.36, 1) both;
   transition: transform 0.22s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.22s ease, border-color 0.22s ease;
 }
 
 .card:hover {
-  transform: translateY(-3px);
+  transform: translateY(-4px);
   border-color: var(--brand-border);
-  box-shadow: var(--surface-highlight), var(--card-shadow);
+  box-shadow: var(--card-hover-shadow);
 }
 
 /* 专属艺术渐变区 */
@@ -458,6 +460,7 @@ function getModuleTheme(index: number) {
   padding: 16px 20px;
   overflow: hidden;
   color: var(--ink);
+  border-bottom: 1px solid var(--line);
 }
 
 .art-svg {

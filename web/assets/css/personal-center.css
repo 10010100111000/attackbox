@@ -336,7 +336,9 @@
   overflow: hidden;
   border: 1px solid var(--line);
   border-radius: 14px;
-  background: var(--paper);
+  background: var(--card-surface);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
   box-shadow: var(--surface-highlight), var(--card-shadow);
 }
 
@@ -611,7 +613,9 @@
   overflow: hidden;
   border: 1px solid var(--line);
   border-radius: 14px;
-  background: var(--paper);
+  background: var(--card-surface);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
   box-shadow: var(--surface-highlight), var(--card-shadow);
 }
 

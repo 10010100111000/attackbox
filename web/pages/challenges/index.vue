@@ -181,24 +181,26 @@ input {
 
 .card {
   position: relative;
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.03) 0%, rgba(255, 255, 255, 0) 100%), var(--paper);
+  background: var(--card-surface);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
   border: 1px solid var(--line);
   border-radius: 12px;
-  box-shadow: var(--surface-highlight);
+  box-shadow: var(--surface-highlight), var(--card-shadow);
   padding: 24px 26px;
   text-decoration: none;
   color: var(--ink);
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  animation: surface-rise 0.32s cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation: surface-rise 0.28s cubic-bezier(0.22, 1, 0.36, 1) both;
   transition: border-color 0.22s ease, transform 0.22s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.22s ease;
 }
 
 .card:hover {
   border-color: var(--brand-border);
-  transform: translateY(-3px);
-  box-shadow: var(--surface-highlight), var(--card-shadow);
+  transform: translateY(-4px);
+  box-shadow: var(--card-hover-shadow);
 }
 
 .meta {
