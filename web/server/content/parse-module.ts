@@ -49,17 +49,22 @@ function text(value: unknown, fallback: string, max: number, location: ContentLo
   if (typeof value !== 'string' || value.length > max) fail(location, `必须是文本，最多 ${max} 字符`)
   return value
 }
-function yamlObject(source: string, location: ContentLocation) {
+function parseYaml(source: string, location: ContentLocation) {
   const counter = new LineCounter()
   const document = parseDocument(source, { lineCounter: counter, uniqueKeys: true, merge: false, logLevel: 'silent' })
   const error = document.errors[0] || document.warnings[0]
   // YAML diagnostics may contain answer excerpts. Report coordinates, not source snippets.
   if (error) fail({ ...location, line: location.line + counter.linePos(error.pos[0]).line - 1 }, 'YAML 格式错误或存在重复字段')
-  try { return record(document.toJS({ maxAliasCount: 0 }), location) }
+  let value: Record<string, unknown>
+  try { value = record(document.toJS({ maxAliasCount: 0 }), location) }
   catch (error) {
     if (error instanceof ContentFormatError) throw error
     fail(location, '不支持 YAML 别名或循环引用')
   }
+  return { value, document, counter }
+}
+function yamlObject(source: string, location: ContentLocation) {
+  return parseYaml(source, location).value
 }
 function access(value: unknown, fallback: 'public' | 'authenticated', location: ContentLocation) {
   if (value === undefined) return fallback
@@ -95,15 +100,13 @@ export function parseModuleMarkdown(sourcePath: string, raw: string): ParsedModu
   if (closing < 0) fail(origin, '配置头缺少结束的 ---')
   const headerLocation = { file: sourcePath, line: 2 }
   const headerSource = lines.slice(1, closing).join('\n')
-  const meta = headerSource.trim() ? yamlObject(headerSource, headerLocation) : {}
+  const headerParsed = headerSource.trim() ? parseYaml(headerSource, headerLocation) : null
+  const meta = headerParsed ? headerParsed.value : {}
   fields(meta, ['cover', 'summary', 'description', 'category', 'difficulty', 'access', 'learningOutcomes', 'chapters'], headerLocation)
   // Field nodes give authors an actual line, including for multiline values.
-  const headerDocument = parseDocument(headerSource, { logLevel: 'silent' })
-  const headerCounter = new LineCounter()
-  parseDocument(headerSource, { lineCounter: headerCounter, logLevel: 'silent' })
   function fieldLocation(field: string): ContentLocation {
-    const node = headerDocument.get(field, true)
-    return { file: sourcePath, line: node && typeof node === 'object' && 'range' in node && Array.isArray(node.range) ? headerCounter.linePos(node.range[0]).line + 1 : 2, field }
+    const node = headerParsed?.document.get(field, true)
+    return { file: sourcePath, line: headerParsed && node && typeof node === 'object' && 'range' in node && Array.isArray(node.range) ? headerParsed.counter.linePos(node.range[0]).line + 1 : 2, field }
   }
   const cover = meta.cover === undefined ? null : text(meta.cover, '', 500, fieldLocation('cover')).trim()
   if (cover === '') fail(fieldLocation('cover'), '封面路径不能为空，未配置请省略 cover')

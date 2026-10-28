@@ -1,8 +1,10 @@
 import { defineEventHandler } from 'h3';
 import { db } from '../db';
 import { authSessions, users } from '../db/schema';
-import { eq, and, gt, isNull } from 'drizzle-orm';
+import { eq, and, gt, lt, isNull } from 'drizzle-orm';
 import { getSessionToken, hashToken } from '../utils/auth';
+
+const LAST_SEEN_UPDATE_INTERVAL_MS = 5 * 60 * 1000;
 
 declare module 'h3' {
   interface H3EventContext {
@@ -34,6 +36,7 @@ export default defineEventHandler(async (event) => {
         sessionId: authSessions.id,
         userId: authSessions.userId,
         expiresAt: authSessions.expiresAt,
+        lastSeenAt: authSessions.lastSeenAt,
         user: {
           id: users.id,
           email: users.email,
@@ -62,11 +65,19 @@ export default defineEventHandler(async (event) => {
         expiresAt: record.expiresAt,
       };
 
-      // 异步更新 lastSeenAt
-      db.update(authSessions)
-        .set({ lastSeenAt: now })
-        .where(eq(authSessions.id, record.sessionId))
-        .catch(() => {});
+      // 节流异步更新 lastSeenAt，避免每次请求触发写事务与 MVCC 死元组堆积
+      const refreshThreshold = new Date(now.getTime() - LAST_SEEN_UPDATE_INTERVAL_MS);
+      if (!record.lastSeenAt || record.lastSeenAt < refreshThreshold) {
+        db.update(authSessions)
+          .set({ lastSeenAt: now })
+          .where(
+            and(
+              eq(authSessions.id, record.sessionId),
+              lt(authSessions.lastSeenAt, refreshThreshold)
+            )
+          )
+          .catch(() => {});
+      }
     }
   } catch {
     // 忽略异常，未命中有效 session 时保持 context.user 为空

@@ -4,8 +4,16 @@ import { userId } from './admin-users'
 const fail = (statusCode:number,message:string):never => { throw createError({statusCode,message}) }
 export async function routeList(admin=false) {
  return client`select r.id,r.title,r.summary,r.status,r.lock_version as "lockVersion",
- (select count(*)::int from learning_route_modules rm join modules m on m.id=rm.module_id where rm.route_id=r.id and (${admin} or m.status='published')) as "moduleCount"
- from learning_routes r where ${admin} or (r.status='published' and exists(select 1 from learning_route_modules rm join modules m on m.id=rm.module_id where rm.route_id=r.id and m.status='published')) order by r.updated_at desc,r.id`
+ coalesce(rm_counts.module_count,0) as "moduleCount"
+ from learning_routes r
+ left join (
+  select rm.route_id,count(*)::int as module_count
+  from learning_route_modules rm join modules m on m.id=rm.module_id
+  where ${admin} or m.status='published'
+  group by rm.route_id
+ ) rm_counts on rm_counts.route_id=r.id
+ where ${admin} or (r.status='published' and coalesce(rm_counts.module_count,0)>0)
+ order by r.updated_at desc,r.id`
 }
 export async function routeDetail(id:string,admin=false,learner:string|null=null) {
  userId(id)
@@ -13,10 +21,16 @@ export async function routeDetail(id:string,admin=false,learner:string|null=null
   const [route]=await tx`select id,title,summary,status,lock_version as "lockVersion" from learning_routes where id=${id} and (${admin} or status='published')`
   if(!route) return fail(404,'路线不存在')
   const modules=await tx`select m.id,m.title,m.slug,m.summary,m.difficulty,m.status,
-   (select count(*)::int from chapters c where c.module_id=m.id) as "chapterCount",
-   (select coalesce(sum(c.duration_minutes),0)::int from chapters c where c.module_id=m.id) as "durationMinutes",
-   (select count(*)::int from chapters c join chapter_progress p on p.chapter_id=c.id where c.module_id=m.id and p.user_id=${learner} and p.completed_at is not null) as "completedChapters"
-   from learning_route_modules rm join modules m on m.id=rm.module_id where rm.route_id=${id} and (${admin} or m.status='published') order by rm.position`
+   count(c.id)::int as "chapterCount",
+   coalesce(sum(c.duration_minutes),0)::int as "durationMinutes",
+   count(p.chapter_id)::int as "completedChapters"
+   from learning_route_modules rm
+   join modules m on m.id=rm.module_id
+   left join chapters c on c.module_id=m.id
+   left join chapter_progress p on p.chapter_id=c.id and p.user_id=${learner} and p.completed_at is not null
+   where rm.route_id=${id} and (${admin} or m.status='published')
+   group by m.id,rm.position
+   order by rm.position`
   if(!admin&&!modules.length)return fail(404,'路线暂不可用')
   return {...route,modules,moduleCount:modules.length,chapterCount:modules.reduce((n,m)=>n+m.chapterCount,0),durationMinutes:modules.reduce((n,m)=>n+m.durationMinutes,0),completedChapters:modules.reduce((n,m)=>n+m.completedChapters,0)}
  })
@@ -33,7 +47,7 @@ export async function saveRoute(id:string|null,body:any) {
   const status=body.intent==='publish'?'published':'unpublished'
   const [row]=id?await tx`update learning_routes set title=${body.title.trim()},summary=${body.summary.trim()},status=${status},lock_version=lock_version+1,updated_at=now() where id=${id} returning id`:await tx`insert into learning_routes(title,summary,status) values(${body.title.trim()},${body.summary.trim()},${status}) returning id`
   await tx`delete from learning_route_modules where route_id=${row!.id}`
-  for(const [index,moduleId] of ids.entries())await tx`insert into learning_route_modules(route_id,module_id,position) values(${row!.id},${moduleId},${index+1})`
+  if(ids.length)await tx`insert into learning_route_modules ${tx(ids.map((moduleId,index)=>({route_id:row!.id,module_id:moduleId,position:index+1})))}`
   return {id:row!.id}
  })
 }

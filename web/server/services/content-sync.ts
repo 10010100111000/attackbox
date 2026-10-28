@@ -42,6 +42,14 @@ const mediaTypes: Record<string, string> = {
   '.avif': 'image/avif',
 }
 
+const mdImageParser = new MarkdownIt({ html: false })
+
+function extractMarkdownImageSrcs(markdown: string): string[] {
+  return mdImageParser
+    .parse(markdown, {})
+    .flatMap(t => (t.children || []).filter(c => c.type === 'image').map(c => String(c.attrGet('src'))))
+}
+
 function parseManifest(raw: string | null | undefined): ModuleGitManifest | null {
   if (!raw || !raw.startsWith('{')) return null
   try {
@@ -309,6 +317,13 @@ export async function syncRepositoryModules(
       }
     }
 
+    const descriptionImages = new Set(extractMarkdownImageSrcs(parsed.descriptionMarkdown))
+    const chapterImageRefsByPos = new Map<number, Set<string>>()
+    for (const ch of parsed.chapters) {
+      const sourceText = [ch.bodyMarkdown, ...ch.questions.map(q => q.promptMarkdown)].join('\n')
+      chapterImageRefsByPos.set(ch.position, new Set(extractMarkdownImageSrcs(sourceText)))
+    }
+
     // Write changes directly in a transaction
     const savedId = await db.transaction(async tx => {
       await tx.execute(sql`select pg_advisory_xact_lock(72486211)`)
@@ -395,39 +410,63 @@ export async function syncRepositoryModules(
       await tx.delete(moduleImages).where(eq(moduleImages.moduleId, moduleId))
 
       const assetMap = new Map<string, string>()
-      const descriptionImages = new MarkdownIt({ html: false })
-        .parse(parsed.descriptionMarkdown, {})
-        .flatMap(t => (t.children || []).filter(c => c.type === 'image').map(c => String(c.attrGet('src'))))
-
+      const pendingStorageKeyToEntry = new Map<string, GithubTreeEntry>()
       for (const [href, imgEntry] of uniqueImages.entries()) {
-        let assetId =
-          oldManifest?.images?.[href] === imgEntry.sha ? existingHrefToAssetId.get(href) : undefined
-        if (!assetId) {
+        const reusedId = oldManifest?.images?.[href] === imgEntry.sha ? existingHrefToAssetId.get(href) : undefined
+        if (reusedId) {
+          assetMap.set(href, reusedId)
+        } else {
           const blob = downloadedBlobs.get(imgEntry.sha)!
-          let [asset] = await tx.select().from(assets).where(eq(assets.storageKey, blob.sha256Hex))
-          if (!asset) {
-            ;[asset] = await tx
-              .insert(assets)
-              .values({
-                storageKey: blob.sha256Hex,
-                originalName: path.posix.basename(imgEntry.path),
-                mediaType: blob.mediaType,
-                byteSize: blob.bytes.length,
-                sha256: Buffer.from(blob.sha256Hex, 'hex'),
-                visibility: 'private',
-                uploadedBy: actor,
-              })
-              .returning()
+          if (!pendingStorageKeyToEntry.has(blob.sha256Hex)) {
+            pendingStorageKeyToEntry.set(blob.sha256Hex, imgEntry)
           }
-          assetId = asset!.id
         }
-        assetMap.set(href, assetId)
-        await tx.insert(moduleImages).values({
+      }
+
+      if (pendingStorageKeyToEntry.size > 0) {
+        const storageKeys = [...pendingStorageKeyToEntry.keys()]
+        const foundAssets = await tx.select().from(assets).where(inArray(assets.storageKey, storageKeys))
+        const storageKeyToAssetId = new Map(foundAssets.map(a => [a.storageKey, a.id]))
+        const missingAssetRows: (typeof assets.$inferInsert)[] = []
+        for (const [storageKey, imgEntry] of pendingStorageKeyToEntry.entries()) {
+          if (!storageKeyToAssetId.has(storageKey)) {
+            const blob = downloadedBlobs.get(imgEntry.sha)!
+            missingAssetRows.push({
+              storageKey: blob.sha256Hex,
+              originalName: path.posix.basename(imgEntry.path),
+              mediaType: blob.mediaType,
+              byteSize: blob.bytes.length,
+              sha256: Buffer.from(blob.sha256Hex, 'hex'),
+              visibility: 'private',
+              uploadedBy: actor,
+            })
+          }
+        }
+        if (missingAssetRows.length > 0) {
+          const insertedAssets = await tx.insert(assets).values(missingAssetRows).returning()
+          for (const asset of insertedAssets) {
+            storageKeyToAssetId.set(asset.storageKey, asset.id)
+          }
+        }
+        for (const [href, imgEntry] of uniqueImages.entries()) {
+          if (!assetMap.has(href)) {
+            const blob = downloadedBlobs.get(imgEntry.sha)!
+            assetMap.set(href, storageKeyToAssetId.get(blob.sha256Hex)!)
+          }
+        }
+      }
+
+      const moduleImageRows: (typeof moduleImages.$inferInsert)[] = []
+      for (const href of uniqueImages.keys()) {
+        moduleImageRows.push({
           moduleId,
           href,
-          assetId,
-          public: descriptionImages.includes(href) || href === parsed.cover,
+          assetId: assetMap.get(href)!,
+          public: descriptionImages.has(href) || href === parsed.cover,
         })
+      }
+      if (moduleImageRows.length > 0) {
+        await tx.insert(moduleImages).values(moduleImageRows)
       }
 
       await tx
@@ -435,28 +474,47 @@ export async function syncRepositoryModules(
         .set({ coverAssetId: parsed.cover ? assetMap.get(parsed.cover)! : null })
         .where(eq(modules.id, moduleId))
 
+      const storedChapterIds = storedChapters.map(s => s.id)
+      const storedByPosition = new Map(storedChapters.map(s => [s.position, s]))
+      if (storedChapterIds.length > 0) {
+        await tx.delete(questionSources).where(inArray(questionSources.chapterId, storedChapterIds))
+        await tx.delete(chapterAssets).where(inArray(chapterAssets.chapterId, storedChapterIds))
+      }
+      const allStoredQuestions = storedChapterIds.length
+        ? await tx.select().from(chapterQuestions).where(inArray(chapterQuestions.chapterId, storedChapterIds))
+        : []
+      const questionsByChapterAndPos = new Map(
+        allStoredQuestions.map(q => [`${q.chapterId}:${q.position}`, q.id]),
+      )
+
+      const chapterSourceRows: (typeof chapterSources.$inferInsert)[] = []
+      const questionSourceRows: (typeof questionSources.$inferInsert)[] = []
+      const chapterAssetRows: (typeof chapterAssets.$inferInsert)[] = []
+
       for (const ch of parsed.chapters) {
-        const stored = storedChapters.find(s => s.position === ch.position)!
-        await tx.insert(chapterSources).values({ chapterId: stored.id, moduleId, matchKey: ch.matchKey })
-        await tx.delete(questionSources).where(eq(questionSources.chapterId, stored.id))
-        const questions = await tx.select().from(chapterQuestions).where(eq(chapterQuestions.chapterId, stored.id))
+        const stored = storedByPosition.get(ch.position)!
+        chapterSourceRows.push({ chapterId: stored.id, moduleId, matchKey: ch.matchKey })
         for (const [index, q] of ch.questions.entries()) {
-          await tx.insert(questionSources).values({
-            questionId: questions.find(s => s.position === index + 1)!.id,
+          questionSourceRows.push({
+            questionId: questionsByChapterAndPos.get(`${stored.id}:${index + 1}`)!,
             chapterId: stored.id,
             matchKey: q.matchKey,
           })
         }
-        await tx.delete(chapterAssets).where(eq(chapterAssets.chapterId, stored.id))
-        const sourceText = [ch.bodyMarkdown, ...ch.questions.map(q => q.promptMarkdown)].join('\n')
-        const refs = new Set(
-          new MarkdownIt({ html: false })
-            .parse(sourceText, {})
-            .flatMap(t => (t.children || []).filter(c => c.type === 'image').map(c => String(c.attrGet('src')))),
-        )
+        const refs = chapterImageRefsByPos.get(ch.position) ?? new Set<string>()
         for (const assetId of new Set([...refs].map(h => assetMap.get(h)).filter((id): id is string => !!id))) {
-          await tx.insert(chapterAssets).values({ chapterId: stored.id, assetId })
+          chapterAssetRows.push({ chapterId: stored.id, assetId })
         }
+      }
+
+      if (chapterSourceRows.length > 0) {
+        await tx.insert(chapterSources).values(chapterSourceRows)
+      }
+      if (questionSourceRows.length > 0) {
+        await tx.insert(questionSources).values(questionSourceRows)
+      }
+      if (chapterAssetRows.length > 0) {
+        await tx.insert(chapterAssets).values(chapterAssetRows)
       }
 
       await tx

@@ -1,4 +1,4 @@
-import { eq, asc, sql } from 'drizzle-orm'
+import { eq, asc, inArray, sql } from 'drizzle-orm'
 import { db } from '../db'
 import { normalizeAnswer } from '../utils/quiz'
 import { modules, chapters, chapterQuestions, contentCategories, modulePrerequisites, moduleSources } from '../db/schema'
@@ -16,7 +16,14 @@ async function validateReferences(tx: Tx, input: ModuleInput) {
     if (!category) fail('分类不存在')
   }
 }
-async function writeChapter(tx: Tx, moduleId: string, input: ChapterInput, position: number, existing: typeof chapters.$inferSelect[]) {
+async function writeChapter(
+  tx: Tx,
+  moduleId: string,
+  input: ChapterInput,
+  position: number,
+  existing: typeof chapters.$inferSelect[],
+  existingQuestionsByChapter: Map<string, (typeof chapterQuestions.$inferSelect)[]>,
+) {
   if (!input || typeof input !== 'object') fail('章节格式无效')
   if (typeof input.title !== 'string' || !input.title.trim() || input.title.length > 160) fail('章节标题不能为空，且不能超过 160 字')
   if (typeof input.bodyMarkdown !== 'string') fail('章节正文必须是文本')
@@ -31,20 +38,29 @@ async function writeChapter(tx: Tx, moduleId: string, input: ChapterInput, posit
     : await tx.insert(chapters).values({ ...values, moduleId, slug: slugFor(input.slug, 'chapter') }).returning()
   if (input.questions !== undefined) {
     if (!Array.isArray(input.questions)) fail('题目列表无效')
-    const oldQuestions = await tx.select().from(chapterQuestions).where(eq(chapterQuestions.chapterId, chapter.id))
+    const oldQuestions = old ? (existingQuestionsByChapter.get(old.id) ?? []) : []
     const retained = new Set<string>()
+    const toInsert: (typeof chapterQuestions.$inferInsert)[] = []
     for (const [index, q] of input.questions.entries()) {
       if (!q || typeof q !== 'object') fail('题目格式无效')
-      const previous = oldQuestions.find(old => old.id === q.id)
+      const previous = oldQuestions.find(oldQ => oldQ.id === q.id)
       if (q.id && !previous) fail('题目不属于该章节，请刷新', 409)
       if (q.id && retained.has(q.id)) fail('题目不能重复')
-      const values = { ...questionValues(q, previous), position: index + 1 }
-      const [saved] = previous
-        ? await tx.update(chapterQuestions).set(values).where(eq(chapterQuestions.id, previous.id)).returning()
-        : await tx.insert(chapterQuestions).values({ ...values, chapterId: chapter.id }).returning()
-      retained.add(saved.id)
+      const qValues = { ...questionValues(q, previous), position: index + 1 }
+      if (previous) {
+        await tx.update(chapterQuestions).set(qValues).where(eq(chapterQuestions.id, previous.id))
+        retained.add(previous.id)
+      } else {
+        toInsert.push({ ...qValues, chapterId: chapter.id })
+      }
     }
-    for (const old of oldQuestions) if (!retained.has(old.id)) await tx.delete(chapterQuestions).where(eq(chapterQuestions.id, old.id))
+    const removedIds = oldQuestions.filter(oldQ => !retained.has(oldQ.id)).map(oldQ => oldQ.id)
+    if (removedIds.length) {
+      await tx.delete(chapterQuestions).where(inArray(chapterQuestions.id, removedIds))
+    }
+    if (toInsert.length) {
+      await tx.insert(chapterQuestions).values(toInsert)
+    }
   }
   return chapter.id
 }
@@ -53,9 +69,9 @@ async function validatePublication(tx: Tx, id: string) {
   if (!list.length) fail('至少添加一个章节后再发布')
   for (const ch of list) {
     if (!ch.title.trim() || !ch.bodyMarkdown.trim()) fail('所有章节需要标题和正文')
-    const questions = await tx.select().from(chapterQuestions).where(eq(chapterQuestions.chapterId, ch.id))
-    if (questions.some(q => !q.promptMarkdown.trim() || !normalizeAnswer(q.answer ?? '', q.normalization))) fail('存在未设置题目或标准答案的练习')
   }
+  const questions = await tx.select().from(chapterQuestions).where(inArray(chapterQuestions.chapterId, list.map(ch => ch.id)))
+  if (questions.some(q => !q.promptMarkdown.trim() || !normalizeAnswer(q.answer ?? '', q.normalization))) fail('存在未设置题目或标准答案的练习')
 }
 export async function saveModuleInTransaction(tx: Tx, id: string | null, actor: string, input: ModuleInput) {
   validateModule(input)
@@ -85,8 +101,23 @@ export async function saveModuleInTransaction(tx: Tx, id: string | null, actor: 
     const supplied = input.chapters.map(c => c?.chapterId).filter(Boolean)
     if (new Set(supplied).size !== supplied.length) fail('章节不能重复')
     // Delete removed records first to free their slugs; all changes roll back on failure.
-    for (const old of existing) if (!supplied.includes(old.id)) await tx.delete(chapters).where(eq(chapters.id, old.id))
-    for (const [index, ch] of input.chapters.entries()) await writeChapter(tx, mod.id, ch, index + 1, existing)
+    const removedChapterIds = existing.filter(old => !supplied.includes(old.id)).map(old => old.id)
+    if (removedChapterIds.length) {
+      await tx.delete(chapters).where(inArray(chapters.id, removedChapterIds))
+    }
+    const retainedChapterIds = existing.filter(old => supplied.includes(old.id)).map(old => old.id)
+    const existingQuestions = retainedChapterIds.length
+      ? await tx.select().from(chapterQuestions).where(inArray(chapterQuestions.chapterId, retainedChapterIds))
+      : []
+    const existingQuestionsByChapter = new Map<string, (typeof chapterQuestions.$inferSelect)[]>()
+    for (const q of existingQuestions) {
+      const bucket = existingQuestionsByChapter.get(q.chapterId)
+      if (bucket) bucket.push(q)
+      else existingQuestionsByChapter.set(q.chapterId, [q])
+    }
+    for (const [index, ch] of input.chapters.entries()) {
+      await writeChapter(tx, mod.id, ch, index + 1, existing, existingQuestionsByChapter)
+    }
   }
   if (input.prerequisiteModuleIds !== undefined) await writePrerequisites(tx, mod.id, input.prerequisiteModuleIds)
   if (mod.status === 'published') await validatePublication(tx, mod.id)
@@ -119,14 +150,36 @@ export async function getModuleDetail(id: string): Promise<AdminModuleDetail> {
     const [mod] = await tx.select().from(modules).where(eq(modules.id, id))
     if (!mod) fail('模块不存在', 404)
     const list = await tx.select().from(chapters).where(eq(chapters.moduleId, id)).orderBy(asc(chapters.position))
-    const chapterList = []
-    for (const ch of list) {
-      const qs = await tx.select({ id: chapterQuestions.id, position: chapterQuestions.position,
-        promptMarkdown: chapterQuestions.promptMarkdown, errorHint: chapterQuestions.errorHint,
-        answer: sql<null>`null`, normalization: chapterQuestions.normalization, hasAnswer: sql<boolean>`${chapterQuestions.answer} is not null`,
-      }).from(chapterQuestions).where(eq(chapterQuestions.chapterId, ch.id)).orderBy(asc(chapterQuestions.position))
-      chapterList.push({ chapterId: ch.id, slug: ch.slug, position: ch.position, title: ch.title, access: ch.access, bodyMarkdown: ch.bodyMarkdown, targetMode: ch.targetMode, targetTemplateId: ch.targetTemplateId, durationMinutes: ch.durationMinutes, questions: qs })
+    const allQuestions = list.length
+      ? await tx.select({
+          id: chapterQuestions.id,
+          chapterId: chapterQuestions.chapterId,
+          position: chapterQuestions.position,
+          promptMarkdown: chapterQuestions.promptMarkdown,
+          errorHint: chapterQuestions.errorHint,
+          answer: sql<null>`null`,
+          normalization: chapterQuestions.normalization,
+          hasAnswer: sql<boolean>`${chapterQuestions.answer} is not null`,
+        }).from(chapterQuestions).where(inArray(chapterQuestions.chapterId, list.map(ch => ch.id))).orderBy(asc(chapterQuestions.position))
+      : []
+    const questionsByChapter = new Map<string, Omit<(typeof allQuestions)[number], 'chapterId'>[]>()
+    for (const { chapterId, ...q } of allQuestions) {
+      const bucket = questionsByChapter.get(chapterId)
+      if (bucket) bucket.push(q)
+      else questionsByChapter.set(chapterId, [q])
     }
+    const chapterList = list.map(ch => ({
+      chapterId: ch.id,
+      slug: ch.slug,
+      position: ch.position,
+      title: ch.title,
+      access: ch.access,
+      bodyMarkdown: ch.bodyMarkdown,
+      targetMode: ch.targetMode,
+      targetTemplateId: ch.targetTemplateId,
+      durationMinutes: ch.durationMinutes,
+      questions: questionsByChapter.get(ch.id) ?? [],
+    }))
     const [category] = mod.categoryId ? await tx.select().from(contentCategories).where(eq(contentCategories.id, mod.categoryId)) : []
     const prerequisites = await tx.select({ id: modules.id, slug: modules.slug, title: modules.title, status: modules.status }).from(modulePrerequisites).innerJoin(modules, eq(modulePrerequisites.prerequisiteId, modules.id)).where(eq(modulePrerequisites.moduleId, id)).orderBy(asc(modulePrerequisites.position))
     const [source] = await tx.select().from(moduleSources).where(eq(moduleSources.moduleId, id))

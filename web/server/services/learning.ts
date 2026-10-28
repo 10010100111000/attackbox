@@ -3,7 +3,7 @@ import { createError } from 'h3'
 import { db } from '../db'
 import { modules, chapters, chapterQuestions, chapterProgress, questionCompletions } from '../db/schema'
 import { applyChapterAccess, summarizeProgress, type ChapterProgress, type LearningChapter } from '../../shared/learning'
-export type LearningTx = Parameters<Parameters<typeof db.transaction>[0]>[0]
+export type LearningTx = typeof db | Parameters<Parameters<typeof db.transaction>[0]>[0]
 export async function learningOutline(tx: LearningTx, moduleId: string, userId?: string): Promise<LearningChapter[]> {
   const rows = await tx.select({ id: chapters.id, slug: chapters.slug, title: chapters.title,
     access: chapters.access, position: chapters.position, durationMinutes: chapters.durationMinutes,

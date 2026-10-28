@@ -5,17 +5,27 @@ const fail=(code:number,message:string):never=>{throw createError({statusCode:co
 export function challengeId(value:unknown):string{if(typeof value!=='string'||!/^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/i.test(value))fail(400,'无效标识');return (value as string).toLowerCase()}
 export async function listChallenges(admin=false,user:string|null=null,history=false){return client`
  select c.id,c.title,c.summary,c.category,c.difficulty,c.status,c.lock_version as "lockVersion",
- (select max(p.passed_at) from challenge_stages s join challenge_completions p on p.stage_id=s.id where s.challenge_id=c.id and p.user_id=${user}) as "lastPassedAt",
- (select count(*)::int from challenge_stages s where s.challenge_id=c.id) as "totalStages",
- (select count(*)::int from challenge_stages s join challenge_completions p on p.stage_id=s.id where s.challenge_id=c.id and p.user_id=${user}) as "completedStages"
- from challenges c where (${admin} or c.status='published') and (not ${history} or exists(select 1 from challenge_stages s join challenge_completions p on p.stage_id=s.id where s.challenge_id=c.id and p.user_id=${user})) order by case when ${history} then (select max(p.passed_at) from challenge_stages s join challenge_completions p on p.stage_id=s.id where s.challenge_id=c.id and p.user_id=${user}) else c.updated_at end desc,c.id`}
+ stats.last_passed_at as "lastPassedAt",
+ coalesce(stats.total_stages,0) as "totalStages",
+ coalesce(stats.completed_stages,0) as "completedStages"
+ from challenges c
+ left join (
+  select s.challenge_id,
+   count(*)::int as total_stages,
+   count(p.stage_id)::int as completed_stages,
+   max(p.passed_at) as last_passed_at
+  from challenge_stages s
+  left join challenge_completions p on p.stage_id=s.id and p.user_id=${user}
+  group by s.challenge_id
+ ) stats on stats.challenge_id=c.id
+ where (${admin} or c.status='published') and (not ${history} or coalesce(stats.completed_stages,0)>0)
+ order by case when ${history} then stats.last_passed_at else c.updated_at end desc,c.id`}
 export async function challengeDetail(id:string,admin=false,user:string|null=null){challengeId(id);return client.begin('isolation level repeatable read read only',async tx=>{
  const [c]=await tx`select id,title,summary,body_markdown as "bodyMarkdown",category,difficulty,status,lock_version as "lockVersion",target_template_id as "targetTemplateId" from challenges where id=${id} and (${admin} or status='published')`
  if(!c)fail(404,'挑战不存在或尚未发布')
- const rows=await tx`select s.id,s.position,s.title,s.prompt_markdown as "promptMarkdown",s.hint,p.passed_at as "passedAt" from challenge_stages s left join challenge_completions p on p.stage_id=s.id and p.user_id=${user} where s.challenge_id=${id} order by s.position`
- const flags=admin?await tx`select id,flag from challenge_stages where challenge_id=${id}`:[]
+ const rows=await tx`select s.id,s.position,s.title,s.prompt_markdown as "promptMarkdown",s.hint,p.passed_at as "passedAt",case when ${admin} then s.flag else null end as flag from challenge_stages s left join challenge_completions p on p.stage_id=s.id and p.user_id=${user} where s.challenge_id=${id} order by s.position`
  let preceding=true
- const stages=rows.map(s=>{const locked=!s.passedAt&&!preceding;preceding=preceding&&!!s.passedAt;return {...s,passedAt:s.passedAt,locked,...(admin?{flag:flags.find(f=>f.id===s.id)?.flag}: {})}})
+ const stages=rows.map(s=>{const {flag,...rest}=s;const locked=!rest.passedAt&&!preceding;preceding=preceding&&!!rest.passedAt;return {...rest,passedAt:rest.passedAt,locked,...(admin?{flag}:{})}})
  let target:any=null
  if(c.targetTemplateId){const [t]=await tx`select name,description,settings,access_instructions as "accessInstructions",enabled from target_templates where id=${c.targetTemplateId}`;if(t?.enabled)target={status:'configured',name:t.name,description:t.description,entryPort:t.settings.entryPort,accessInstructions:t.accessInstructions};else target={status:'unavailable'}}
  const completedStages=stages.filter(s=>s.passedAt).length
@@ -38,9 +48,11 @@ export async function saveChallenge(id:string|null,body:any){
   const [row]=id?await tx`update challenges set title=${body.title.trim()},summary=${body.summary.trim()},body_markdown=${body.bodyMarkdown},category=${body.category.trim()},difficulty=${body.difficulty},target_template_id=${template},status=${status},lock_version=lock_version+1,updated_at=now() where id=${id} returning id`:await tx`insert into challenges(title,summary,body_markdown,category,difficulty,target_template_id,status) values(${body.title.trim()},${body.summary.trim()},${body.bodyMarkdown},${body.category.trim()},${body.difficulty},${template},${status}) returning id`
   const oldStages=await tx`select id,position from challenge_stages where challenge_id=${row!.id}`
   for(const key of ids)if(!oldStages.some(s=>s.id===key))fail(409,'阶段不属于此挑战')
-  const keep=[]
-  for(const [index,s] of body.stages.entries()){const values={title:s.title.trim(),prompt_markdown:s.promptMarkdown,hint:s.hint,flag:s.flag.trim(),position:index+1};const [stage]=s.id?await tx`update challenge_stages set ${tx(values)} where id=${challengeId(s.id)} returning id`:await tx`insert into challenge_stages ${tx({...values,challenge_id:row!.id})} returning id`;keep.push(stage!.id)}
-  for(const s of oldStages)if(!keep.includes(s.id))await tx`delete from challenge_stages where id=${s.id}`
+  const removedIds=oldStages.filter(s=>!ids.has(s.id)).map(s=>s.id)
+  if(removedIds.length)await tx`delete from challenge_stages where id in ${tx(removedIds)}`
+  const newStages:Record<string,unknown>[]=[]
+  for(const [index,s] of body.stages.entries()){const values={title:s.title.trim(),prompt_markdown:s.promptMarkdown,hint:s.hint,flag:s.flag.trim(),position:index+1};if(s.id){await tx`update challenge_stages set ${tx(values)} where id=${challengeId(s.id)}`}else{newStages.push({...values,challenge_id:row!.id})}}
+  if(newStages.length)await tx`insert into challenge_stages ${tx(newStages)}`
   return {id:row!.id}
  })
 }
