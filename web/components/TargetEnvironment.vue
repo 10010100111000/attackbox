@@ -50,11 +50,29 @@ async function run(operation:'inspect'|'start'|'stop'){
 async function copyText(value:string){
  try{await navigator.clipboard.writeText(value);copied.value=value;clearTimeout(copyTimer);copyTimer=setTimeout(()=>copied.value='',2000)}catch{message.value='复制失败，请手动复制地址'}
 }
-onMounted(()=>{clockTimer=setInterval(()=>clock.value=Date.now(),1000);initializing.value=!!currentUser.value && !unavailable.value;void run('inspect')})
+function syncClock(){
+ const expiresAt=current.value?.expiresAt
+ const shouldRun=alive&&active.value&&!!expiresAt&&Date.parse(expiresAt)>Date.now()
+ if(shouldRun){
+  clock.value=Date.now()
+  if(!clockTimer){
+   clockTimer=setInterval(()=>{
+    clock.value=Date.now()
+    if(!current.value?.expiresAt||!active.value||Date.parse(current.value.expiresAt)<=clock.value){
+     clearInterval(clockTimer);clockTimer=undefined
+    }
+   },1000)
+  }
+ }else if(clockTimer){
+  clearInterval(clockTimer);clockTimer=undefined
+ }
+}
+onMounted(()=>{syncClock();initializing.value=!!currentUser.value && !unavailable.value;void run('inspect')})
 // A sandbox identity transition is an action/lifecycle event, not a polling loop.
 watch(()=>sandboxSession.value.instance?.id,()=>{if(active.value&&current.value?.instance?.attachment)void run('inspect')})
+watch([active,()=>current.value?.expiresAt],()=>{if(import.meta.client)syncClock()})
 watch(()=>currentUser.value?.id,()=>{identityGeneration++;current.value=null;message.value='';action.value='';requestPending.value=false;initializing.value=!!currentUser.value;if(currentUser.value)void run('inspect')})
-onBeforeUnmount(()=>{alive=false;clearInterval(clockTimer);clearTimeout(copyTimer)})
+onBeforeUnmount(()=>{alive=false;clearInterval(clockTimer);clockTimer=undefined;clearTimeout(copyTimer)})
 </script>
 <template>
  <section class="target-runtime" aria-label="实验靶机">

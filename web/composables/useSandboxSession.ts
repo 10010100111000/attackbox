@@ -46,6 +46,23 @@ export function useSandboxSession(){
   try{if(viewer.location.origin!==window.location.origin||viewer.location.pathname!==path)viewer.location.replace(path)}catch{viewer.location=path}
   viewer.focus()
  }
+  function syncClock(){
+   const expiresAt=sandbox.value.instance?.expiresAt
+   const shouldRun=runtime.users>0&&!!expiresAt&&Date.parse(expiresAt)>Date.now()
+   if(shouldRun){
+    now.value=Date.now()
+    if(!runtime.clock){
+     runtime.clock=setInterval(()=>{
+      now.value=Date.now()
+      if(!sandbox.value.instance?.expiresAt||Date.parse(sandbox.value.instance.expiresAt)<=now.value){
+       clearInterval(runtime.clock);runtime.clock=undefined
+      }
+     },1000)
+    }
+   }else if(runtime.clock){
+    clearInterval(runtime.clock);runtime.clock=undefined
+   }
+  }
   onMounted(()=>{
   identity();runtime.users++
   if(runtime.users===1){
@@ -55,12 +72,14 @@ export function useSandboxSession(){
     runtime.channel.onmessage=e=>{const m=e.data;if(m?.owner!==owner.value)return;if(m.type==='status')void runtime.refresh();if(m.type==='gui-active'&&m.id===sandbox.value.instance?.id&&m.client!==runtime.client)guiElsewhere.value=true}
    }
    runtime.focus=()=>{if(!document.hidden)void runtime.refresh()}
-   runtime.timer=setInterval(runtime.focus,10000);runtime.clock=setInterval(()=>{now.value=Date.now()},1000);window.addEventListener('focus',runtime.focus)
+   runtime.timer=setInterval(runtime.focus,10000);window.addEventListener('focus',runtime.focus)
   }
+  syncClock()
   void refresh()
  })
- onBeforeUnmount(()=>{runtime.users--;if(runtime.users===0){clearInterval(runtime.timer);clearInterval(runtime.clock);runtime.channel?.close();runtime.channel=undefined;if(runtime.focus)window.removeEventListener('focus',runtime.focus)}})
+ onBeforeUnmount(()=>{runtime.users--;if(runtime.users===0){clearInterval(runtime.timer);runtime.timer=undefined;clearInterval(runtime.clock);runtime.clock=undefined;runtime.channel?.close();runtime.channel=undefined;if(runtime.focus)window.removeEventListener('focus',runtime.focus)}})
  watch(()=>sandbox.value.instance?.id,()=>{guiElsewhere.value=false})
+ watch(()=>sandbox.value.instance?.expiresAt,()=>{if(import.meta.client)syncClock()})
  watch(()=>currentUser.value?.id,()=>{identity();if(import.meta.client)void refresh()})
  const seconds=computed(()=>sandbox.value.instance?.expiresAt?Math.max(0,Math.ceil((Date.parse(sandbox.value.instance.expiresAt)-now.value)/1000)):null)
  const countdown=computed(()=>{const n=seconds.value;if(n===null)return '';return `${Math.floor(n/60).toString().padStart(2,'0')}:${(n%60).toString().padStart(2,'0')}`})

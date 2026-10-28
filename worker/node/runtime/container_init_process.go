@@ -9,7 +9,6 @@ import (
 	"path/filepath"
 	"runtime"
 	"syscall"
-	"time"
 
 	"attackbox/protocol"
 )
@@ -180,33 +179,32 @@ func setupDevNodes() {
 	_ = syscall.Mount("tmpfs", "/dev/shm", "tmpfs", syscall.MS_NOSUID|syscall.MS_NODEV, "mode=1777,size=256M")
 }
 
-func runPID1Loop() {
-	sigChan := make(chan os.Signal, 10)
-	signal.Notify(sigChan, syscall.SIGTERM, syscall.SIGINT, syscall.SIGCHLD)
-
+func reapChildren() {
 	for {
-		select {
-		case sig := <-sigChan:
-			switch sig {
-			case syscall.SIGTERM, syscall.SIGINT:
-				return
-			case syscall.SIGCHLD:
-				for {
-					var status syscall.WaitStatus
-					pid, err := syscall.Wait4(-1, &status, syscall.WNOHANG, nil)
-					if err != nil || pid <= 0 {
-						break
-					}
-				}
-			}
-		case <-time.After(500 * time.Millisecond):
-			for {
-				var status syscall.WaitStatus
-				pid, err := syscall.Wait4(-1, &status, syscall.WNOHANG, nil)
-				if err != nil || pid <= 0 {
-					break
-				}
-			}
+		var status syscall.WaitStatus
+		pid, err := syscall.Wait4(-1, &status, syscall.WNOHANG, nil)
+		if err == syscall.EINTR {
+			continue
+		}
+		if err != nil || pid <= 0 {
+			break
+		}
+	}
+}
+
+func runPID1Loop() {
+	sigChan := make(chan os.Signal, 64)
+	signal.Notify(sigChan, syscall.SIGTERM, syscall.SIGINT, syscall.SIGCHLD)
+	defer signal.Stop(sigChan)
+
+	reapChildren()
+
+	for sig := range sigChan {
+		switch sig {
+		case syscall.SIGTERM, syscall.SIGINT:
+			return
+		case syscall.SIGCHLD:
+			reapChildren()
 		}
 	}
 }

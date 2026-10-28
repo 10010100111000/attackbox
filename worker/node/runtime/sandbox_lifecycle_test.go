@@ -1,10 +1,11 @@
-﻿package runtime
+package runtime
 
 import (
 	"context"
 	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -162,5 +163,23 @@ func TestRealActivityPreventsIdleReaping(t *testing.T) {
 	m.ReapSandboxes(context.Background(), time.Now())
 	if _, exists := m.GetSnapshot("box"); exists {
 		t.Fatal("idle instance was not reaped")
+	}
+}
+
+func TestFindBackingDeviceLongestAndBoundaryMatch(t *testing.T) {
+	mountinfo := strings.Join([]string{
+		"22 1 254:1 / / rw,relatime shared:1 - ext4 /dev/vda1 rw",
+		"28 22 253:0 / /var/lib/attackbox-other rw,relatime shared:2 - ext4 /dev/vdb1 rw",
+		"29 22 0:31 /subvol /var/lib/attackbox/btrfs rw,relatime shared:3 - btrfs /dev/vdc1 rw",
+	}, "\n")
+
+	mp, src, dev := findBackingDevice(strings.NewReader(mountinfo), "/var/lib/attackbox/btrfs/instances/sbx1")
+	if mp != "/var/lib/attackbox/btrfs" || src != "/dev/vdc1" || dev != "0:31" {
+		t.Fatalf("expected btrfs subvolume mount match, got mp=%q src=%q dev=%q", mp, src, dev)
+	}
+
+	mp2, src2, dev2 := findBackingDevice(strings.NewReader(mountinfo), "/var/lib/attackbox-other-2/data")
+	if mp2 != "/" || src2 != "/dev/vda1" || dev2 != "254:1" {
+		t.Fatalf("prefix collision: expected / mount for /var/lib/attackbox-other-2, got mp=%q src=%q dev=%q", mp2, src2, dev2)
 	}
 }

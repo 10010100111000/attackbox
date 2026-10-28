@@ -85,14 +85,14 @@ func (c *NodeControlClient) runSandboxMailbox(sandboxID string, mb *sandboxMailb
 				c.handleCreateBox(msg)
 			case protocol.MsgTypeDestroyBox:
 				c.handleDestroyBox(msg)
-				c.mailboxesMu.Lock()
-				if len(mb.ch) == 0 {
-					delete(c.mailboxes, sandboxID)
-					c.mailboxesMu.Unlock()
-					return
-				}
-				c.mailboxesMu.Unlock()
 			}
+			c.mailboxesMu.Lock()
+			if len(mb.ch) == 0 {
+				delete(c.mailboxes, sandboxID)
+				c.mailboxesMu.Unlock()
+				return
+			}
+			c.mailboxesMu.Unlock()
 		}
 	}
 }
