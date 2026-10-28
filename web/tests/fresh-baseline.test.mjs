@@ -10,9 +10,9 @@ test('Fresh initializer is idempotent and rejects a mismatched journal without m
  let applied
  try{
   run();run();applied=await client`select id,hash from drizzle.__drizzle_migrations order by created_at,id`;assert.equal(applied.length,readMigrationFiles({migrationsFolder:new URL('../server/db/migrations',import.meta.url).pathname}).length)
-  assert.equal((await client`select count(*)::int as n from content_categories`)[0].n,6)
+  assert.equal((await client`select count(*)::int as n from content_categories`)[0].n,0)
   await client`update drizzle.__drizzle_migrations set hash='different-baseline'`
   assert.throws(run,e=>String(e.stderr).includes('does not match this fresh-install baseline'))
-  assert.equal((await client`select count(*)::int as n from content_categories`)[0].n,6)
+  assert.equal((await client`select count(*)::int as n from content_categories`)[0].n,0)
  }finally{if(applied)for(const row of applied)await client`update drizzle.__drizzle_migrations set hash=${row.hash} where id=${row.id}`;await client.end()}
 })

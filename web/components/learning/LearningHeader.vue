@@ -2,6 +2,7 @@
 const route = useRoute()
 const isLearnActive = computed(() => route.path.startsWith('/learn'))
 const isChallengesActive = computed(() => route.path.startsWith('/challenges'))
+const isReferencesActive = computed(() => route.path.startsWith('/references'))
 const isDiscussActive = computed(() => route.path.startsWith('/discuss'))
 </script>
 
@@ -15,6 +16,7 @@ const isDiscussActive = computed(() => route.path.startsWith('/discuss'))
       <nav class="main-nav" aria-label="主导航">
         <NuxtLink to="/learn" :class="{ active: isLearnActive }">学习</NuxtLink>
         <NuxtLink to="/challenges" :class="{ active: isChallengesActive }">挑战</NuxtLink>
+        <NuxtLink to="/references" :class="{ active: isReferencesActive }">参考资料</NuxtLink>
         <NuxtLink to="/discuss" :class="{ active: isDiscussActive }">讨论</NuxtLink>
       </nav>
     </div>

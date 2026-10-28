@@ -9,6 +9,8 @@ export default defineEventHandler((e) => {
   if (
     ![
       '/api/me/',
+      '/api/admin/references',
+      '/admin/references',
       '/api/admin/notifications',
       '/api/admin/runtime-policy',
       '/api/admin/learn-home',

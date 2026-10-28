@@ -416,6 +416,32 @@ CREATE TABLE "learn_home_settings" (
 	CONSTRAINT "learn_home_singleton" CHECK ("learn_home_settings"."id"='global' and "learn_home_settings"."lock_version">0)
 );
 --> statement-breakpoint
+CREATE TABLE "reference_documents" (
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"slug" varchar(100) NOT NULL,
+	"title" varchar(160) NOT NULL,
+	"summary" varchar(500) DEFAULT '' NOT NULL,
+	"body_markdown" text NOT NULL,
+	"status" varchar(20) DEFAULT 'unpublished' NOT NULL,
+	"source_origin" text NOT NULL,
+	"source_path" text NOT NULL,
+	"source_commit" text NOT NULL,
+	"manifest" jsonb NOT NULL,
+	"lock_version" integer DEFAULT 1 NOT NULL,
+	"created_by" uuid NOT NULL,
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"published_at" timestamp with time zone,
+	CONSTRAINT "references_status_check" CHECK ("reference_documents"."status" in ('unpublished','published')),
+	CONSTRAINT "references_version_check" CHECK ("reference_documents"."lock_version" > 0)
+);
+--> statement-breakpoint
+CREATE TABLE "reference_images" (
+	"reference_id" uuid NOT NULL,
+	"href" text NOT NULL,
+	"asset_id" uuid NOT NULL,
+	CONSTRAINT "reference_images_reference_id_href_pk" PRIMARY KEY("reference_id","href")
+);
+--> statement-breakpoint
 ALTER TABLE "auth_sessions" ADD CONSTRAINT "auth_sessions_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "email_tokens" ADD CONSTRAINT "email_tokens_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "audit_logs" ADD CONSTRAINT "audit_logs_actor_user_id_users_id_fk" FOREIGN KEY ("actor_user_id") REFERENCES "public"."users"("id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
@@ -463,6 +489,9 @@ ALTER TABLE "notifications" ADD CONSTRAINT "notifications_sender_id_users_id_fk"
 ALTER TABLE "notifications" ADD CONSTRAINT "notifications_recipient_id_users_id_fk" FOREIGN KEY ("recipient_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "runtime_policies" ADD CONSTRAINT "runtime_policies_updated_by_users_id_fk" FOREIGN KEY ("updated_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "learn_home_settings" ADD CONSTRAINT "learn_home_settings_updated_by_users_id_fk" FOREIGN KEY ("updated_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "reference_documents" ADD CONSTRAINT "reference_documents_created_by_users_id_fk" FOREIGN KEY ("created_by") REFERENCES "public"."users"("id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "reference_images" ADD CONSTRAINT "reference_images_reference_id_reference_documents_id_fk" FOREIGN KEY ("reference_id") REFERENCES "public"."reference_documents"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "reference_images" ADD CONSTRAINT "reference_images_asset_id_assets_id_fk" FOREIGN KEY ("asset_id") REFERENCES "public"."assets"("id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
 CREATE UNIQUE INDEX "auth_sessions_token_hash_unique_idx" ON "auth_sessions" USING btree ("token_hash");--> statement-breakpoint
 CREATE INDEX "auth_sessions_user_expires_idx" ON "auth_sessions" USING btree ("user_id","expires_at");--> statement-breakpoint
 CREATE UNIQUE INDEX "email_tokens_token_hash_unique_idx" ON "email_tokens" USING btree ("token_hash");--> statement-breakpoint
@@ -491,4 +520,6 @@ CREATE UNIQUE INDEX "question_sources_chapter_key_unique" ON "question_sources" 
 CREATE INDEX "lab_preparations_node_idx" ON "lab_preparations" USING btree ("node_id");--> statement-breakpoint
 CREATE INDEX "notification_receipts_user_idx" ON "notification_receipts" USING btree ("user_id");--> statement-breakpoint
 CREATE INDEX "notifications_published_idx" ON "notifications" USING btree ("published_at");--> statement-breakpoint
-CREATE INDEX "notifications_recipient_idx" ON "notifications" USING btree ("recipient_id","published_at");
+CREATE INDEX "notifications_recipient_idx" ON "notifications" USING btree ("recipient_id","published_at");--> statement-breakpoint
+CREATE UNIQUE INDEX "references_slug_unique" ON "reference_documents" USING btree ("slug");--> statement-breakpoint
+CREATE UNIQUE INDEX "references_source_unique" ON "reference_documents" USING btree ("source_origin","source_path");

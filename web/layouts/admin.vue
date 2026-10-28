@@ -42,6 +42,7 @@ type AdminSectionKey =
   | 'target-templates'
   | 'instances'
   | 'nodes'
+  | 'references'
   | 'modules'
   | 'routes'
   | 'users'
@@ -54,6 +55,7 @@ const currentSection = computed<AdminSectionKey>(() => {
   if (route.path.startsWith('/admin/target-templates')) return 'target-templates'
   if (route.path.startsWith('/admin/instances')) return 'instances'
   if (route.path.startsWith('/admin/nodes')) return 'nodes'
+  if (route.path.startsWith('/admin/references')) return 'references'
   if (route.path.startsWith('/admin/modules')) return 'modules'
   if (route.path.startsWith('/admin/routes')) return 'routes'
   if (route.path.startsWith('/admin/users')) return 'users'
@@ -65,6 +67,7 @@ const sectionMeta: Record<AdminSectionKey, { groupLabel: string; groupHref: stri
   'learn-home': { groupLabel: '内容管理', groupHref: '/admin/learn-home', title: '首页管理' },
   notifications: { groupLabel: '系统管理', groupHref: '/admin/notifications', title: '站内通知' },
   challenges: { groupLabel: '内容管理', groupHref: '/admin/challenges', title: '挑战管理' },
+  references: { groupLabel: '内容管理', groupHref: '/admin/references', title: '参考资料' },
   modules: { groupLabel: '内容管理', groupHref: '/admin/modules', title: '学习模块' },
   routes: { groupLabel: '内容管理', groupHref: '/admin/routes', title: '学习路线' },
   users: { groupLabel: '账户管理', groupHref: '/admin/users', title: '用户管理' },
@@ -128,6 +131,7 @@ const currentBreadcrumb = computed(() => sectionMeta[currentSection.value])
             <BookOpen :size="16" class="nav-icon" aria-hidden="true" />
             <span>学习模块</span>
           </NuxtLink>
+          <NuxtLink to="/admin/references" class="admin-nav-link" :class="{ active: currentSection === 'references' }"><BookOpen :size="16" class="nav-icon" aria-hidden="true"/><span>参考资料</span></NuxtLink>
           <NuxtLink
             to="/admin/routes"
             class="admin-nav-link"
