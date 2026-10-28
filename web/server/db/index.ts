@@ -2,14 +2,19 @@ import { drizzle } from 'drizzle-orm/postgres-js';
 import postgres from 'postgres';
 import * as schema from './schema';
 
-const connectionString = process.env.DATABASE_URL || 'postgres://attackbox:attackbox_secure_pwd@77.67.1.106:5432/attackbox_db';
+const connectionString = process.env.DATABASE_URL?.trim();
+const missingConfiguration = () => new Error('DATABASE_URL is required');
 
-// 单例客户端
-export const client = postgres(connectionString, {
-  max: 10,
-  idle_timeout: 20,
-  connect_timeout: 10,
-});
+// Auth prerendering needs no database. Runtime processes must be configured,
+// and the build-only client must never fall back to PostgreSQL environment defaults.
+if (!connectionString && !import.meta.prerender) throw missingConfiguration();
+const options = { max: 10, idle_timeout: 20, connect_timeout: 10 };
+// postgres-js supports a custom socket factory; refusing it prevents any
+// implicit PGHOST/PGUSER connection during database-free prerendering.
+const prerenderOptions = { ...options, socket: async () => { throw missingConfiguration(); } };
+export const client = connectionString
+  ? postgres(connectionString, options)
+  : postgres(prerenderOptions);
 
 export const db = drizzle(client, { schema });
 

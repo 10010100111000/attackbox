@@ -262,3 +262,5 @@ summary: TCP 握手、状态与排障的阅读笔记。
 登录成功后使用经过站内路径校验的 `returnTo` 返回原页面；未指定或无效时进入 `/learn`，不增加登录成功中间页。主题只使用 `attackbox-appearance` 一个浏览器存储键。
 
 `0003_content_cleanup` 删除废弃的 Git 导入 Preview 表，并将章节、题目与挑战阶段的位置唯一约束改为 `DEFERRABLE INITIALLY DEFERRED`。排序在原事务内直接写入最终位置，提交时仍拒绝重复位置，不再临时平移。Drizzle 未提供此约束属性的声明 API，因此延迟校验属性由 SQL 迁移明确维护，后续替换这些约束时需保留。
+
+Web 运行时必须显式配置 `DATABASE_URL`；缺失或空白时拒绝启动，不回退到公网数据库或 PostgreSQL 默认环境配置。仅登录页预渲染允许无数据库构建，预渲染期间意外访问数据库也会明确报错。
