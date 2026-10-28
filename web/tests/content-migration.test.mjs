@@ -45,5 +45,10 @@ test('fresh baseline has direct content records, no seeded categories and no rev
     assert.ok(chapterColumns.includes('position'))
     const questionColumns = (await client`SELECT column_name FROM information_schema.columns WHERE table_name='chapter_questions' AND table_schema='public'`).map(c => c.column_name)
     assert.ok(questionColumns.includes('answer'))
+    assert.ok(!questionColumns.includes('answer_hmac'))
+    assert.ok(!questionColumns.includes('answer_key_version'))
+    const stageColumns = (await client`SELECT column_name FROM information_schema.columns WHERE table_name='challenge_stages' AND table_schema='public'`).map(c => c.column_name)
+    assert.ok(stageColumns.includes('flag'))
+    assert.ok(!stageColumns.includes('flag_hmac'))
   } finally { await client.end() }
 })

@@ -255,7 +255,7 @@ def setup_control(a):
                   SANDBOX_CLUSTER_SECRET=secret, SANDBOX_SIGNING_SEED_HEX=secrets.token_hex(32),
                   SANDBOX_NODES_JSON=json.dumps([dict(id=a.node_id, label=a.node_id, publicDataUrl=ws_url(public), maxSlots=16)]),
                   CONTENT_DATA_DIR='/var/lib/attackbox-web/content', LAB_DATA_DIR='/var/lib/attackbox-web/labs',
-                  CONTENT_CREDENTIALS_KEY=secrets.token_hex(32), QUIZ_ANSWER_HMAC_SECRET=secrets.token_hex(32),
+                  CONTENT_CREDENTIALS_KEY=secrets.token_hex(32),
                   RESEND_API_KEY=a.resend_key or '', MAIL_FROM=a.mail_from or '', APP_BASE_URL=origin)
     if any(any(c in v for c in '\n\r\0') for v in values.values()):
         raise ConfigError('配置值不能包含换行')

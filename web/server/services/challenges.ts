@@ -1,6 +1,6 @@
 import {createError} from 'h3'
 import {client} from '../db'
-import {hashQuizAnswer,verifyQuizAnswer} from '../utils/quiz'
+import {verifyQuizAnswer} from '../utils/quiz'
 const fail=(code:number,message:string):never=>{throw createError({statusCode:code,message})}
 export function challengeId(value:unknown):string{if(typeof value!=='string'||!/^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/i.test(value))fail(400,'无效标识');return (value as string).toLowerCase()}
 export async function listChallenges(admin=false,user:string|null=null,history=false){return client`
@@ -41,7 +41,7 @@ export async function saveChallenge(id:string|null,body:any){
   const offset=Math.max(0,...oldStages.map(s=>s.position))+body.stages.length+1
   await tx`update challenge_stages set position=position+${offset} where challenge_id=${row!.id}`
   const keep=[]
-  for(const [index,s] of body.stages.entries()){const values={title:s.title.trim(),prompt_markdown:s.promptMarkdown,hint:s.hint,flag:s.flag.trim(),flag_hmac:s.flag.trim()?hashQuizAnswer(s.flag,'trim'):null,position:index+1};const [stage]=s.id?await tx`update challenge_stages set ${tx(values)} where id=${challengeId(s.id)} returning id`:await tx`insert into challenge_stages ${tx({...values,challenge_id:row!.id})} returning id`;keep.push(stage!.id)}
+  for(const [index,s] of body.stages.entries()){const values={title:s.title.trim(),prompt_markdown:s.promptMarkdown,hint:s.hint,flag:s.flag.trim(),position:index+1};const [stage]=s.id?await tx`update challenge_stages set ${tx(values)} where id=${challengeId(s.id)} returning id`:await tx`insert into challenge_stages ${tx({...values,challenge_id:row!.id})} returning id`;keep.push(stage!.id)}
   for(const s of oldStages)if(!keep.includes(s.id))await tx`delete from challenge_stages where id=${s.id}`
   return {id:row!.id}
  })
@@ -51,13 +51,13 @@ export async function attemptChallenge(id:string,user:string,body:any){id=challe
  const result=await client.begin(async tx=>{
   const [c]=await tx`select id from challenges where id=${id} and status='published' for share`;if(!c)fail(404,'挑战不存在或尚未发布')
   await tx`select pg_advisory_xact_lock(893421,hashtext(${user+':'+id}))`
-  const stages=await tx`select s.id,s.flag_hmac,p.passed_at from challenge_stages s left join challenge_completions p on p.stage_id=s.id and p.user_id=${user} where s.challenge_id=${id} order by s.position`
+  const stages=await tx`select s.id,s.flag,p.passed_at from challenge_stages s left join challenge_completions p on p.stage_id=s.id and p.user_id=${user} where s.challenge_id=${id} order by s.position`
   const index=stages.findIndex(s=>s.id===stageId);if(index<0)fail(404,'阶段不存在')
   if(stages[index]!.passed_at)return {correct:true,alreadyPassed:true}
   if(stages.slice(0,index).some(s=>!s.passed_at))fail(403,'请先完成前面的阶段')
   const [limit]=await tx`insert into challenge_attempt_limits(user_id,challenge_id,attempts) values(${user},${id},1) on conflict(user_id,challenge_id) do update set attempts=case when challenge_attempt_limits.window_at<now()-interval '1 minute' then 1 else challenge_attempt_limits.attempts+1 end,window_at=case when challenge_attempt_limits.window_at<now()-interval '1 minute' then now() else challenge_attempt_limits.window_at end returning attempts`
   if(limit!.attempts>20)return {limited:true}
-  const correct=verifyQuizAnswer(body.flag,stages[index]!.flag_hmac,'trim')
+  const correct=verifyQuizAnswer(body.flag,stages[index]!.flag,'trim')
   if(correct)await tx`insert into challenge_completions(user_id,stage_id) values(${user},${stageId}) on conflict do nothing`
   return {correct}
  })

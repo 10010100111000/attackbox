@@ -1,7 +1,7 @@
 import { createError } from 'h3'
 import { randomUUID } from 'node:crypto'
 import { normalizations, difficulties, type QuestionInput, type ModuleInput } from '../../shared/content'
-import { hashQuizAnswer, normalizeAnswer } from '../utils/quiz'
+import { normalizeAnswer } from '../utils/quiz'
 import type { chapterQuestions } from '../db/schema/content'
 export function fail(message: string, statusCode = 400): never { throw createError({ statusCode, message }) }
 export function slugFor(value: unknown, prefix: string) {
@@ -33,8 +33,6 @@ export function questionValues(input: QuestionInput, old?: typeof chapterQuestio
     errorHint: input.errorHint || null,
     normalization: input.normalization,
     answer: hasAnswer ? answer : null,
-    answerHmac: hasAnswer ? hashQuizAnswer(answer!, input.normalization) : null,
-    answerKeyVersion: hasAnswer ? 1 : old?.answerKeyVersion ?? 1,
   }
 }
 

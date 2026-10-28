@@ -14,10 +14,10 @@ export default defineEventHandler(async event => {
   const userId = activeLearner(event)
   return db.transaction(async tx => {
     const { chapter } = await chapterContext(tx, getRouterParam(event, 'slug') || '', getRouterParam(event, 'chapterSlug') || '', userId, true)
-    const [question] = await tx.select({ answerHmac: chapterQuestions.answerHmac, normalization: chapterQuestions.normalization, errorHint: chapterQuestions.errorHint })
+    const [question] = await tx.select({ answer: chapterQuestions.answer, normalization: chapterQuestions.normalization, errorHint: chapterQuestions.errorHint })
       .from(chapterQuestions).where(and(eq(chapterQuestions.chapterId, chapter.id), eq(chapterQuestions.id, questionId)))
     if (!question) throw createError({ statusCode: 404, message: '题目已更新，请刷新页面' })
-    const correct = question.answerHmac ? verifyQuizAnswer(answer, question.answerHmac, question.normalization) : false
+    const correct = verifyQuizAnswer(answer, question.answer, question.normalization)
     if (userId) {
       await visitChapter(tx, userId, chapter.id)
       if (correct) {

@@ -5,14 +5,6 @@ import crypto from 'node:crypto'
 import postgres from 'postgres'
 import { hash } from '@node-rs/argon2'
 
-const quizSecret = process.env.QUIZ_ANSWER_HMAC_SECRET || 'attackbox-quiz-secret-dev-2026-key1'
-function normalizeQuiz(raw, mode = 'trim') {
-  const s = String(raw ?? '')
-  return mode === 'exact' ? s : mode === 'trim_casefold' ? s.trim().toLowerCase() : s.trim()
-}
-function hmacQuiz(answer, mode = 'trim') {
-  return crypto.createHmac('sha256', quizSecret).update(normalizeQuiz(answer, mode), 'utf-8').digest()
-}
 function matchKey(value) {
   return String(value).normalize('NFKC').trim().replace(/\s+/g, ' ')
 }
@@ -71,11 +63,10 @@ export async function learningFixture() {
           const qId = prev ? prev.id : crypto.randomUUID()
           const norm = q.normalization || prev?.normalization || 'trim'
           const ans = typeof q.answer === 'string' ? q.answer : (prev?.answer ?? 'answer')
-          const hmac = hmacQuiz(ans, norm)
           if (prev) {
-            await tx`UPDATE chapter_questions SET position = ${qIndex + 1}, prompt_markdown = ${q.promptMarkdown}, error_hint = ${q.errorHint || null}, normalization = ${norm}, answer = ${ans}, answer_hmac = ${hmac} WHERE id = ${qId}`
+            await tx`UPDATE chapter_questions SET position = ${qIndex + 1}, prompt_markdown = ${q.promptMarkdown}, error_hint = ${q.errorHint || null}, normalization = ${norm}, answer = ${ans} WHERE id = ${qId}`
           } else {
-            await tx`INSERT INTO chapter_questions (id, chapter_id, position, prompt_markdown, error_hint, normalization, answer, answer_hmac) VALUES (${qId}, ${chapterId}, ${qIndex + 1}, ${q.promptMarkdown}, ${q.errorHint || null}, ${norm}, ${ans}, ${hmac})`
+            await tx`INSERT INTO chapter_questions (id, chapter_id, position, prompt_markdown, error_hint, normalization, answer) VALUES (${qId}, ${chapterId}, ${qIndex + 1}, ${q.promptMarkdown}, ${q.errorHint || null}, ${norm}, ${ans})`
           }
           await tx`INSERT INTO question_sources (question_id, chapter_id, match_key) VALUES (${qId}, ${chapterId}, ${matchKey(q.promptMarkdown)})`
           retained.add(qId)

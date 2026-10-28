@@ -1,5 +1,6 @@
 import { eq, asc, sql } from 'drizzle-orm'
 import { db } from '../db'
+import { normalizeAnswer } from '../utils/quiz'
 import { modules, chapters, chapterQuestions, contentCategories, modulePrerequisites, moduleSources } from '../db/schema'
 import { contentImageUrls } from './content-images'
 import { fail, slugFor, validateModule, questionValues } from './content-input'
@@ -56,7 +57,7 @@ async function validatePublication(tx: Tx, id: string) {
   for (const ch of list) {
     if (!ch.title.trim() || !ch.bodyMarkdown.trim()) fail('所有章节需要标题和正文')
     const questions = await tx.select().from(chapterQuestions).where(eq(chapterQuestions.chapterId, ch.id))
-    if (questions.some(q => !q.promptMarkdown.trim() || !q.answerHmac)) fail('存在未设置题目或标准答案的练习')
+    if (questions.some(q => !q.promptMarkdown.trim() || !normalizeAnswer(q.answer ?? '', q.normalization))) fail('存在未设置题目或标准答案的练习')
   }
 }
 export async function saveModuleInTransaction(tx: Tx, id: string | null, actor: string, input: ModuleInput) {
@@ -127,7 +128,7 @@ export async function getModuleDetail(id: string): Promise<AdminModuleDetail> {
     for (const ch of list) {
       const qs = await tx.select({ id: chapterQuestions.id, position: chapterQuestions.position,
         promptMarkdown: chapterQuestions.promptMarkdown, errorHint: chapterQuestions.errorHint,
-        answer: sql<null>`null`, normalization: chapterQuestions.normalization, hasAnswer: sql<boolean>`${chapterQuestions.answerHmac} is not null`,
+        answer: sql<null>`null`, normalization: chapterQuestions.normalization, hasAnswer: sql<boolean>`${chapterQuestions.answer} is not null`,
       }).from(chapterQuestions).where(eq(chapterQuestions.chapterId, ch.id)).orderBy(asc(chapterQuestions.position))
       chapterList.push({ chapterId: ch.id, slug: ch.slug, position: ch.position, title: ch.title, access: ch.access, bodyMarkdown: ch.bodyMarkdown, targetMode: ch.targetMode, targetTemplateId: ch.targetTemplateId, durationMinutes: ch.durationMinutes, questions: qs })
     }

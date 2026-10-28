@@ -34,8 +34,8 @@ class DeploymentTests(unittest.TestCase):
 
     def test_secrets_roundtrip_and_no_overwrite(self):
         values=d.read_env()
-        keys=[values[k] for k in ['SANDBOX_CLUSTER_SECRET','SANDBOX_SIGNING_SEED_HEX','CONTENT_CREDENTIALS_KEY','QUIZ_ANSWER_HMAC_SECRET']]
-        self.assertEqual(len(set(keys)),4)
+        keys=[values[k] for k in ['SANDBOX_CLUSTER_SECRET','SANDBOX_SIGNING_SEED_HEX','CONTENT_CREDENTIALS_KEY']]
+        self.assertEqual(len(set(keys)),3)
         self.assertEqual(d.ENV.stat().st_mode & 0o777,0o600)
         original=d.ENV.read_bytes()
         with self.assertRaises(d.ConfigError):d.setup_control(self.args)

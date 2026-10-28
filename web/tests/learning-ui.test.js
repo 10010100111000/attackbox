@@ -83,14 +83,14 @@ test('reader pages map the nested API payload (module/chapter)', () => {
   assert.ok(chapterPage.includes('data.module'), 'chapter page must read data.module for the module title');
 });
 
-test('quiz attempt endpoint verifies answers server-side without leaking hashes', () => {
+test('quiz attempt endpoint verifies answers server-side without exposing the stored answer', () => {
   const route = fs.readFileSync(path.join(webDir, 'server/api/modules/[slug]/chapters/[chapterSlug]/attempt.post.ts'), 'utf-8');
   assert.ok(route.includes('verifyQuizAnswer'));
   assert.ok(route.includes('questionId'));
   const responseBlock = route.slice(route.indexOf('return {'));
   assert.ok(responseBlock.includes('correct'));
   assert.ok(responseBlock.includes('errorHint'));
-  assert.ok(!responseBlock.includes('answerHmac'), 'response must not leak answer_hmac');
+  assert.ok(!responseBlock.includes('question.answer'), 'response must not leak the standard answer');
 });
 
 test('nuxt.config injects a pre-paint theme bootstrap to avoid the theme flash', () => {

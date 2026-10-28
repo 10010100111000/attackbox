@@ -1,6 +1,5 @@
-import { pgTable, uuid, varchar, text, integer, smallint, timestamp, uniqueIndex, index, check, primaryKey } from 'drizzle-orm/pg-core'
+import { pgTable, uuid, varchar, text, integer, timestamp, uniqueIndex, index, check, primaryKey } from 'drizzle-orm/pg-core'
 import { sql } from 'drizzle-orm'
-import { bytea } from './types'
 import { users } from './auth'
 import { targetTemplates } from './target-templates'
 import { assets } from './assets'
@@ -64,14 +63,10 @@ export const chapterQuestions = pgTable('chapter_questions', {
   errorHint: text('error_hint'),
   normalization: varchar('normalization', { length: 20 }).$type<Normalization>().notNull().default('trim'),
   answer: text('answer'),
-  answerHmac: bytea('answer_hmac'),
-  answerKeyVersion: smallint('answer_key_version').notNull().default(1),
 }, table => [
   uniqueIndex('chapter_questions_position_unique').on(table.chapterId, table.position),
   check('chapter_questions_normalization_check', sql`${table.normalization} in ('exact', 'trim', 'trim_casefold')`),
-  check('chapter_questions_hmac_check', sql`${table.answerHmac} is null or octet_length(${table.answerHmac}) = 32`),
   check('chapter_questions_position_check', sql`${table.position} > 0`),
-  check('chapter_questions_key_version_check', sql`${table.answerKeyVersion} > 0`),
 ])
 
 export const chapterAssets = pgTable('chapter_assets', {
