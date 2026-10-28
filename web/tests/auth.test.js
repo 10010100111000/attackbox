@@ -80,7 +80,7 @@ test('LoginForm.vue defines credentials validation, ui components, and direct po
 
   // One-step navigation and safe pre-hydration submission
   assert.ok(!content.includes('isSuccessPreview'))
-  assert.ok(content.includes("await navigateTo('/learn', { replace: true })"))
+  assert.ok(content.includes("navigateTo(loginDestination(route.query.returnTo), { replace: true })"))
   assert.ok(content.includes('method="post" action="/api/auth/login"'))
   assert.ok(content.includes('<fieldset :disabled="!mounted || busy"'))
 

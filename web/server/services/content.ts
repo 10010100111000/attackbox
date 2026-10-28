@@ -32,9 +32,6 @@ async function writeChapter(tx: Tx, moduleId: string, input: ChapterInput, posit
   if (input.questions !== undefined) {
     if (!Array.isArray(input.questions)) fail('题目列表无效')
     const oldQuestions = await tx.select().from(chapterQuestions).where(eq(chapterQuestions.chapterId, chapter.id))
-    // Vacate positions before moving retained questions. Their IDs and answers stay stable.
-    const offset = Math.max(0, ...oldQuestions.map(q => q.position)) + input.questions.length + 1
-    await tx.update(chapterQuestions).set({ position: sql`${chapterQuestions.position} + ${offset}` }).where(eq(chapterQuestions.chapterId, chapter.id))
     const retained = new Set<string>()
     for (const [index, q] of input.questions.entries()) {
       if (!q || typeof q !== 'object') fail('题目格式无效')
@@ -89,8 +86,6 @@ export async function saveModuleInTransaction(tx: Tx, id: string | null, actor: 
     if (new Set(supplied).size !== supplied.length) fail('章节不能重复')
     // Delete removed records first to free their slugs; all changes roll back on failure.
     for (const old of existing) if (!supplied.includes(old.id)) await tx.delete(chapters).where(eq(chapters.id, old.id))
-    const offset = Math.max(0, ...existing.map(c => c.position)) + input.chapters.length + 1
-    await tx.update(chapters).set({ position: sql`${chapters.position} + ${offset}` }).where(eq(chapters.moduleId, mod.id))
     for (const [index, ch] of input.chapters.entries()) await writeChapter(tx, mod.id, ch, index + 1, existing)
   }
   if (input.prerequisiteModuleIds !== undefined) await writePrerequisites(tx, mod.id, input.prerequisiteModuleIds)

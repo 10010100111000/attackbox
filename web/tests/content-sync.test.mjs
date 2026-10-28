@@ -125,7 +125,6 @@ test('manual local/Git import preserves identity and progress, syncs chapter/que
  }finally{
   globalThis.$fetch=oldFetch
   if(browser)await browser.close()
-  await f.sql`delete from content_previews where actor_id=${f.admin.id}`
   for(const id of moduleIds){await f.sql`delete from audit_logs where target_id=${id}`;await f.sql`delete from modules where id=${id}`}
   await f.sql`delete from audit_logs where actor_user_id=${f.admin.id}`
   await f.sql`delete from assets where uploaded_by=${f.admin.id}`

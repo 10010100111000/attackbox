@@ -40,5 +40,5 @@ test('Git cover import, public access, homepage filters, failed-image fallback a
   const next=await sync.createLocalContentPreview(root,f.admin.id);await sync.applyContentPreview(next.id,f.admin.id)
   assert.equal((await f.request(`/api/admin/modules/${id}`,{actor:f.admin})).data.module.coverAssetId,null)
   assert.equal((await fetch(f.base+href)).status,404)
- }finally{await browser?.close();await f.sql`delete from content_previews where actor_id=${f.admin.id}`;await f.sql`delete from audit_logs where actor_user_id=${f.admin.id}`;if(id)await f.sql`delete from modules where id=${id}`;await f.sql`delete from assets where uploaded_by=${f.admin.id}`;await f.cleanup();await database.client.end();await rm(root,{recursive:true,force:true})}
+ }finally{await browser?.close();await f.sql`delete from audit_logs where actor_user_id=${f.admin.id}`;if(id)await f.sql`delete from modules where id=${id}`;await f.sql`delete from assets where uploaded_by=${f.admin.id}`;await f.cleanup();await database.client.end();await rm(root,{recursive:true,force:true})}
 })

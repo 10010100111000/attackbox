@@ -1,4 +1,5 @@
-import { pgTable, uuid, varchar, text, integer, timestamp, uniqueIndex, index, check, primaryKey } from 'drizzle-orm/pg-core'
+// Position UNIQUE constraints are DEFERRABLE INITIALLY DEFERRED in 0003_content_cleanup.sql.
+import { pgTable, uuid, varchar, text, integer, timestamp, uniqueIndex, unique, index, check, primaryKey } from 'drizzle-orm/pg-core'
 import { sql } from 'drizzle-orm'
 import { users } from './auth'
 import { targetTemplates } from './target-templates'
@@ -47,7 +48,7 @@ export const chapters = pgTable('chapters', {
   createdAt: timestamp('created_at', { withTimezone: true, mode: 'date' }).notNull().defaultNow(),
 }, table => [
   uniqueIndex('chapters_module_slug_unique').on(table.moduleId, table.slug),
-  uniqueIndex('chapters_module_position_unique').on(table.moduleId, table.position),
+  unique('chapters_module_position_unique').on(table.moduleId, table.position),
   check('chapters_slug_check', sql`${table.slug} ~ '^[a-z0-9]+(-[a-z0-9]+)*$'`),
   check('chapters_position_check', sql`${table.position} > 0`),
   check('chapters_target_check', sql`(${table.targetMode}='custom' and ${table.targetTemplateId} is not null) or (${table.targetMode} in ('inherit','none') and ${table.targetTemplateId} is null)`),
@@ -64,7 +65,7 @@ export const chapterQuestions = pgTable('chapter_questions', {
   normalization: varchar('normalization', { length: 20 }).$type<Normalization>().notNull().default('trim'),
   answer: text('answer'),
 }, table => [
-  uniqueIndex('chapter_questions_position_unique').on(table.chapterId, table.position),
+  unique('chapter_questions_position_unique').on(table.chapterId, table.position),
   check('chapter_questions_normalization_check', sql`${table.normalization} in ('exact', 'trim', 'trim_casefold')`),
   check('chapter_questions_position_check', sql`${table.position} > 0`),
 ])

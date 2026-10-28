@@ -10,7 +10,6 @@ export function useTheme() {
     if (typeof window !== 'undefined') {
       try {
         localStorage.setItem('attackbox-appearance', theme)
-        localStorage.setItem('attackbox-learning-theme', theme)
         document.documentElement.setAttribute('data-theme', theme)
       } catch {}
     }
@@ -19,7 +18,7 @@ export function useTheme() {
   function initTheme() {
     if (typeof window === 'undefined') return
     try {
-      const saved = (localStorage.getItem('attackbox-appearance') || localStorage.getItem('attackbox-learning-theme')) as ThemeMode | null
+      const saved = localStorage.getItem('attackbox-appearance') as ThemeMode | null
       if (saved === 'graphite' || saved === 'midnight') {
         currentTheme.value = saved
       } else {

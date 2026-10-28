@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, watch, nextTick, onMounted } from 'vue'
-import { navigateTo } from '#imports'
+import { navigateTo, useRoute } from '#imports'
+import { loginDestination } from '~/utils/login-destination'
 import Button from '~/components/ui/Button.vue'
 import Input from '~/components/ui/Input.vue'
 import Checkbox from '~/components/ui/Checkbox.vue'
@@ -84,6 +85,7 @@ function validate(): boolean {
 }
 
 const { login } = useAuth()
+const route = useRoute()
 
 async function handleSubmit() {
   if (!mounted.value || busy.value || !challengeReady.value) return
@@ -98,7 +100,7 @@ async function handleSubmit() {
   try {
     await login(cleanEmail, password.value, rememberMe.value, turnstileToken.value)
     password.value = ''
-    await navigateTo('/learn', { replace: true })
+    await navigateTo(loginDestination(route.query.returnTo), { replace: true })
   } catch (err: any) {
     statusMessage.value = err?.data?.message || err?.data?.statusMessage || err?.message || '登录失败，请检查邮箱与密码'
   } finally {

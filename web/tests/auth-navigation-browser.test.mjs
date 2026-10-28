@@ -134,3 +134,22 @@ test('invalid credentials show an error, allow retry, and never navigate or subm
     } finally { login.resolve() }
   })
 })
+
+test('login honors an internal returnTo including its query and anchor', { skip:!base }, async () => {
+  await fixture(async ({page}) => {
+    await page.route('**/api/**',route => {
+      const path = new URL(route.request().url()).pathname
+      if (path === '/api/auth/challenge') return reply(route,{enabled:false,siteKey:''})
+      if (path === '/api/auth/me') return reply(route,{},401)
+      if (path === '/api/auth/login') return reply(route,{user})
+      return reply(route,{data:[]})
+    })
+    const destination='/learn?from=chapter#modules'
+    await page.goto(`${base}/auth?returnTo=${encodeURIComponent(destination)}`)
+    await page.locator('#email:enabled').waitFor()
+    await page.locator('#email').fill(user.email)
+    await page.locator('#password').fill('test-password-only')
+    await page.getByRole('button',{name:'登录',exact:true}).click()
+    await page.waitForURL(base+destination)
+  })
+})

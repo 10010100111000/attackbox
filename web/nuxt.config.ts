@@ -46,7 +46,7 @@ export default defineNuxtConfig({
       script: [
         {
           type: 'text/javascript',
-          innerHTML: `(function(){try{var t=localStorage.getItem("attackbox-appearance")||localStorage.getItem("attackbox-learning-theme");if(t!=="graphite"&&t!=="midnight"){t="graphite"}document.documentElement.setAttribute("data-theme",t)}catch(e){document.documentElement.setAttribute("data-theme","graphite")}})();`
+          innerHTML: `(function(){try{var t=localStorage.getItem("attackbox-appearance");if(t!=="graphite"&&t!=="midnight"){t="graphite"}document.documentElement.setAttribute("data-theme",t)}catch(e){document.documentElement.setAttribute("data-theme","graphite")}})();`
         }
       ]
     }

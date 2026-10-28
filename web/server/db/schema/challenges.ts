@@ -1,3 +1,4 @@
+// Position UNIQUE constraints are DEFERRABLE INITIALLY DEFERRED in 0003_content_cleanup.sql.
 import {pgTable,uuid,varchar,text,integer,timestamp,primaryKey,unique,check} from 'drizzle-orm/pg-core'
 import {sql} from 'drizzle-orm'
 import {users} from './auth'

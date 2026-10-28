@@ -38,8 +38,6 @@ export async function saveChallenge(id:string|null,body:any){
   const [row]=id?await tx`update challenges set title=${body.title.trim()},summary=${body.summary.trim()},body_markdown=${body.bodyMarkdown},category=${body.category.trim()},difficulty=${body.difficulty},target_template_id=${template},status=${status},lock_version=lock_version+1,updated_at=now() where id=${id} returning id`:await tx`insert into challenges(title,summary,body_markdown,category,difficulty,target_template_id,status) values(${body.title.trim()},${body.summary.trim()},${body.bodyMarkdown},${body.category.trim()},${body.difficulty},${template},${status}) returning id`
   const oldStages=await tx`select id,position from challenge_stages where challenge_id=${row!.id}`
   for(const key of ids)if(!oldStages.some(s=>s.id===key))fail(409,'阶段不属于此挑战')
-  const offset=Math.max(0,...oldStages.map(s=>s.position))+body.stages.length+1
-  await tx`update challenge_stages set position=position+${offset} where challenge_id=${row!.id}`
   const keep=[]
   for(const [index,s] of body.stages.entries()){const values={title:s.title.trim(),prompt_markdown:s.promptMarkdown,hint:s.hint,flag:s.flag.trim(),position:index+1};const [stage]=s.id?await tx`update challenge_stages set ${tx(values)} where id=${challengeId(s.id)} returning id`:await tx`insert into challenge_stages ${tx({...values,challenge_id:row!.id})} returning id`;keep.push(stage!.id)}
   for(const s of oldStages)if(!keep.includes(s.id))await tx`delete from challenge_stages where id=${s.id}`

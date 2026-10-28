@@ -36,8 +36,6 @@ export async function learningFixture() {
     for (const old of existing) {
       if (!supplied.includes(old.id)) await tx`DELETE FROM chapters WHERE id = ${old.id}`
     }
-    const offset = Math.max(0, ...existing.map(c => c.position)) + chapterInputs.length + 1
-    await tx`UPDATE chapters SET position = position + ${offset} WHERE module_id = ${moduleId}`
     await tx`DELETE FROM chapter_sources WHERE module_id = ${moduleId}`
     for (const [index, ch] of chapterInputs.entries()) {
       const old = existing.find(c => c.id === ch.chapterId)
@@ -54,8 +52,6 @@ export async function learningFixture() {
       await tx`INSERT INTO chapter_sources (chapter_id, module_id, match_key) VALUES (${chapterId}, ${moduleId}, ${matchKey(ch.title)})`
       if (ch.questions !== undefined) {
         const oldQs = await tx`SELECT * FROM chapter_questions WHERE chapter_id = ${chapterId}`
-        const qOffset = Math.max(0, ...oldQs.map(q => q.position)) + ch.questions.length + 1
-        await tx`UPDATE chapter_questions SET position = position + ${qOffset} WHERE chapter_id = ${chapterId}`
         await tx`DELETE FROM question_sources WHERE chapter_id = ${chapterId}`
         const retained = new Set()
         for (const [qIndex, q] of ch.questions.entries()) {

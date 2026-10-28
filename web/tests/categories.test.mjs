@@ -34,7 +34,6 @@ test('Git-driven category lifecycle: auto-creation, orphan pruning and retired a
   assert.ok(!categoriesAfter.some(c=>c.name===customCategory),'orphan custom category is automatically pruned')
   assert.ok(!categoriesAfter.some(c=>c.slug==='linux'),'unused preset categories do not exist')
  }finally{
-  await f.sql`delete from content_previews where actor_id=${f.admin.id}`
   for(const id of moduleIds){await f.sql`delete from audit_logs where target_id=${id}`;await f.sql`delete from modules where id=${id}`}
   await f.sql`delete from content_categories where (name=${customCategory} or name='web-security') and not exists (select 1 from modules where category_id=content_categories.id)`
   await f.cleanup();await database.client.end();await rm(root,{recursive:true,force:true})
