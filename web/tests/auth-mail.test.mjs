@@ -228,12 +228,10 @@ test(
       const browserEmail = `browser-${crypto.randomUUID()}@example.test`
       registered.push(browserEmail)
       await page.goto(base+'/auth?mode=register')
-      await page.getByText('支持的邮箱',{exact:true}).click()
-      assert.equal(await page.locator('.registration-policy p').innerText(),'example.test')
       await page.locator('#email:enabled').fill('blocked@mailinator.com')
       await page.locator('#password').fill(password)
       await page.getByRole('button',{name:'继续创建账号',exact:true}).click()
-      await page.getByText('该邮箱域名暂不支持注册，请查看支持的邮箱。',{exact:true}).waitFor()
+      await page.getByText('该邮箱域名暂不支持注册。',{exact:true}).waitFor()
       assert.equal((await req('/api/auth/register',{email:'blocked@mailinator.com',password})).status,403)
       await page.locator('#email:enabled').fill(browserEmail)
       await page.locator('#password').fill(password)

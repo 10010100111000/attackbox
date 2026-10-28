@@ -64,7 +64,7 @@ function validate(): boolean {
     emailError.value = '请输入有效的邮箱地址。'
     firstErrorId = 'email'
   } else if (registrationPolicy.value && !registrationEmailAllowed(trimmedEmail, registrationPolicy.value.domains)) {
-    emailError.value = '该邮箱域名暂不支持注册，请查看支持的邮箱。'
+    emailError.value = '该邮箱域名暂不支持注册。'
     firstErrorId = 'email'
   } else {
     emailError.value = ''
@@ -175,8 +175,7 @@ async function handleSubmit() {
             />
           </div>
 
-          <div class="registration-policy"><details v-if="registrationPolicy"><summary>支持的邮箱</summary><p>{{registrationPolicy.domains.join(' · ')}}</p></details></div>
-        <!-- 密码字段 -->
+          <!-- 密码字段 -->
           <div class="field">
             <div class="field-head">
               <label for="password">密码</label>
@@ -218,7 +217,6 @@ async function handleSubmit() {
           </p>
         </fieldset>
       </form>
-      <AuthResendVerification :email="email" />
 
       <!-- 返回登录 -->
       <button
@@ -333,10 +331,4 @@ h1 {
 }
 </style>
 
-<style scoped>
-.registration-policy { min-height: 26px; margin: -8px 0 12px; }
-.registration-policy details { font-size: 11px; color: var(--text-muted); }
-.registration-policy summary { cursor: pointer; width: fit-content; }
-.registration-policy p { max-height: 140px; overflow: auto; line-height: 1.9; overflow-wrap: anywhere; padding: 10px 12px; margin: 8px 0 0; border: 1px solid var(--border-line); border-radius: 6px; background: var(--bg-card); }
-.registration-policy summary:focus-visible { outline: 2px solid var(--accent-coral); outline-offset: 3px; }
-</style>
+

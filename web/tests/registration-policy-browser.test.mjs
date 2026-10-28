@@ -26,11 +26,9 @@ test('registration rejects temporary domains before account creation and recheck
   assert.equal((await f.sql`select count(*)::int as n from email_tokens where user_id=${pending.id}`)[0].n,1)
   browser=await chromium.launch({executablePath:'/usr/bin/chromium',args:['--no-sandbox']})
   const page=await browser.newPage();await page.goto(f.base+'/auth?mode=register')
-  await page.getByText('支持的邮箱',{exact:true}).waitFor()
-  await page.getByText('支持的邮箱',{exact:true}).click();await page.locator('.registration-policy p').filter({hasText:'gmail.com'}).waitFor()
   await page.locator('#email:enabled').fill('blocked@mailinator.com');await page.locator('#password').fill('local-test-password')
   await page.getByRole('button',{name:'继续创建账号',exact:true}).click()
-  await page.getByText('该邮箱域名暂不支持注册，请查看支持的邮箱。',{exact:true}).waitFor()
+  await page.getByText('该邮箱域名暂不支持注册。',{exact:true}).waitFor()
   await page.screenshot({path:'/tmp/attackbox-registration-domains.png',animations:'disabled'})
  }finally{await browser?.close();await f.cleanup()}
 })

@@ -12,7 +12,7 @@ export function assertRegistrationEmail(email: string) {
   const domains = registrationDomains()
   if (!registrationEmailAllowed(email, domains)) throw createError({
     statusCode: 403,
-    message: '该邮箱域名暂不支持注册，请使用注册页面列出的邮箱服务商。',
+    message: '该邮箱域名暂不支持注册。',
   })
 }
 export function canSendActivationEmail(email: string) {
