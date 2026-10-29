@@ -157,7 +157,7 @@ h2 {
 }
 
 .target-state.ready {
-  color: var(--green);
+  color: var(--success-ink);
 }
 
 .target-countdown {

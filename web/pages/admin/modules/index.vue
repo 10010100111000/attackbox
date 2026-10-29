@@ -195,18 +195,19 @@ async function deleteModule(id: string) {
 .btn-create {
   display: inline-flex; align-items: center; gap: 6px;
   padding: 8px 18px;
-  background: var(--ink);
-  color: var(--paper);
-  border: 1px solid var(--ink);
+  background: var(--btn-primary-bg);
+  color: var(--btn-primary-fg);
+  border: 1px solid transparent;
   border-radius: 7px;
   font-size: 13px;
   font-weight: 600;
+  box-shadow: var(--btn-primary-shadow);
   cursor: pointer;
-  transition: opacity 0.15s ease;
+  transition: background 0.15s ease, opacity 0.15s ease;
 }
 
 .btn-create:hover {
-  opacity: 0.9;
+  background: var(--btn-primary-hover);
 }
 
 /* 筛选条 */

@@ -77,6 +77,7 @@
   /* 状态语义色 */
   --success-bg: rgba(135, 184, 177, 0.16);
   --success-ink: #a3d4cd;
+  --success: var(--success-ink);
   --error-bg: rgba(225, 130, 130, 0.16);
   --error-ink: #f0acac;
   --error: var(--error-ink);
@@ -180,6 +181,7 @@
 
   --success-bg: #e6f2ef;
   --success-ink: #245e56;
+  --success: var(--success-ink);
   --error-bg: #fbeeee;
   --error-ink: #9e3533;
   --error: var(--error-ink);

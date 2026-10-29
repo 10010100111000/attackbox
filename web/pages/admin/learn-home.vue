@@ -238,8 +238,15 @@ footer p {
 }
 
 .primary {
-  background: var(--ink);
-  color: var(--paper);
+  background: var(--btn-primary-bg);
+  color: var(--btn-primary-fg);
+  border-color: transparent;
+  box-shadow: var(--btn-primary-shadow);
+  font-weight: 600;
+}
+
+.primary:hover:not(:disabled) {
+  background: var(--btn-primary-hover);
 }
 
 a {

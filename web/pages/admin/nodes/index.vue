@@ -129,7 +129,8 @@ h3 { font-size: 14px; font-weight: 600; margin: 0; }
 .settings-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px; }
 .settings-actions button { border: 1px solid var(--line); border-radius: 5px; padding: 8px 16px; font-size: 12px; cursor: pointer; }
 .cancel-btn { background: var(--paper); color: var(--muted); }
-.save-btn { background: var(--green); border-color: var(--green) !important; color: var(--on-accent); }
+.save-btn { background: var(--btn-primary-bg); border-color: transparent !important; color: var(--btn-primary-fg); box-shadow: var(--btn-primary-shadow); font-weight: 600; }
+.save-btn:hover:not(:disabled) { background: var(--btn-primary-hover); }
 fieldset:disabled button, fieldset:disabled input { opacity: .6; cursor: wait; }
 .settings-error { color: var(--error-ink); font-size: 12px; margin: 16px 0 0; }
 .settings-error button { text-decoration: underline; background: transparent; border: 0; cursor: pointer; }

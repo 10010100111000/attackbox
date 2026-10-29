@@ -11,12 +11,15 @@ export default {
   theme: {
     extend: {
       colors: {
-        background: 'var(--bg-app)',
-        card: 'var(--bg-card)',
+        background: 'var(--bg, var(--bg-app))',
+        card: 'var(--paper, var(--bg-card))',
         input: 'var(--bg-input)',
-        foreground: 'var(--text-main)',
-        muted: 'var(--text-muted)',
-        line: 'var(--border-line)',
+        foreground: 'var(--ink, var(--text-main))',
+        muted: 'var(--muted, var(--text-muted))',
+        line: 'var(--line, var(--border-line))',
+        paper: 'var(--paper)',
+        ink: 'var(--ink)',
+        brand: 'var(--brand)',
         accent: {
           DEFAULT: 'var(--accent-coral)',
           hover: 'var(--accent-hover)',

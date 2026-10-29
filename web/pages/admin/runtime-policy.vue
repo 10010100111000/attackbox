@@ -287,9 +287,14 @@ button {
   font-size: 12px;
 }
 button.primary {
-  background: var(--green);
-  color: var(--on-accent);
-  border-color: var(--green);
+  background: var(--btn-primary-bg);
+  color: var(--btn-primary-fg);
+  border-color: transparent;
+  box-shadow: var(--btn-primary-shadow);
+  font-weight: 600;
+}
+button.primary:hover:not(:disabled) {
+  background: var(--btn-primary-hover);
 }
 button:disabled {
   opacity: 0.45;
