@@ -1,7 +1,6 @@
 <script setup lang="ts">
-const confirmAction = useConfirm()
-import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
-import { onBeforeRouteLeave, onBeforeRouteUpdate } from 'vue-router'
+import { ref, computed, onMounted } from 'vue'
+import { useEditorGuard } from '~/composables/useEditorGuard'
 import { ArrowLeft, ArrowUp, ArrowDown, X, Plus } from 'lucide-vue-next'
 import type { LearningRoute } from '~/shared/routes'
 
@@ -30,21 +29,11 @@ const snapshot = () => JSON.stringify({ title: title.value, summary: summary.val
 const original = ref(snapshot())
 const dirty = computed(() => loaded.value && snapshot() !== original.value)
 
-const leave = () => (busy.value ? false : !dirty.value || confirmAction({ title: '放弃路线修改？', description: '未保存的路线修改将丢失。', confirmLabel: '放弃修改', cancelLabel: '继续编辑' }))
-onBeforeRouteLeave(leave)
-onBeforeRouteUpdate(leave)
-
-function beforeUnload(e: BeforeUnloadEvent) {
-  if (dirty.value) {
-    e.preventDefault()
-    e.returnValue = ''
-  }
-}
+useEditorGuard({ dirty, busy, title: '放弃路线修改？', description: '未保存的路线修改将丢失。' })
 
 const request = useRequestFetch()
 const initialLoading = ref(!isNew)
 onMounted(async () => {
-  window.addEventListener('beforeunload', beforeUnload)
   try {
     if (!isNew) {
       try {
@@ -65,7 +54,6 @@ onMounted(async () => {
     initialLoading.value = false
   }
 })
-onBeforeUnmount(() => window.removeEventListener('beforeunload', beforeUnload))
 
 const selected = computed(() =>
   ids.value.map(id => source.value?.data.find(m => m.id === id)).filter(Boolean)

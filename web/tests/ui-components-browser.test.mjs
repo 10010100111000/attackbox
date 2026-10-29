@@ -132,3 +132,126 @@ test('notification failures render alerts and successful retries render success 
     assert.equal(await page.getByRole('alert').count(), 0)
   } finally { await page.close() }
 })
+
+test('module writes wait for the latest version and failed reads cannot repeat a completed mutation', { timeout: 30000 }, async () => {
+  const page = await visit('/admin/modules/detail')
+  let releaseRead, signalRead
+  let readStarted = new Promise(resolve => { signalRead = resolve })
+  try {
+    await page.getByRole('button', { name: '运行配置', exact: true }).click()
+    await page.getByLabel('前置学习模块').selectOption('module-one')
+    let writes = 0, publicationVersion, failRead = false
+    const detail = { module: { id: 'detail', title: 'Module detail', slug: 'module', status: 'unpublished', lockVersion: 1, defaultTargetTemplateId: null, learningOutcomes: [] }, chapters: [], prerequisites: [{ id: 'module-one' }] }
+    await page.route('**/api/admin/modules/detail/runtime', async route => {
+      writes++
+      assert.equal(route.request().postDataJSON().lockVersion, 0)
+      await route.fulfill({ json: { data: { module: detail.module } } })
+    })
+    await page.route('**/api/admin/modules/detail', async route => {
+      if (failRead) return route.fulfill({ status: 503, json: { message: 'read unavailable' } })
+      await new Promise(resolve => { releaseRead = resolve;signalRead() })
+      await route.fulfill({ json: { data: detail } })
+    })
+    const save = page.getByRole('button', { name: '保存运行配置', exact: true })
+    await save.click()
+    await page.waitForFunction(() => document.querySelector('.runtime-settings fieldset')?.disabled)
+    assert.equal(await page.getByRole('button', { name: '同步最新内容', exact: true }).isDisabled(), true)
+    await page.waitForTimeout(50)
+    assert.equal(writes, 1)
+    await page.waitForFunction(() => document.querySelector('.runtime-settings fieldset')?.disabled)
+    await readStarted
+    releaseRead()
+    await page.getByRole('status').filter({ hasText: '运行配置已保存' }).waitFor()
+
+    failRead = true
+    await page.route('**/api/admin/modules/detail/publish', async route => {
+      publicationVersion = route.request().postDataJSON().lockVersion
+      await route.fulfill({ json: { data: { id: 'detail' } } })
+    })
+    await page.getByRole('button', { name: '发布', exact: true }).click()
+    await page.getByRole('alert').filter({ hasText: '操作已完成，但最新数据读取失败' }).waitFor()
+    assert.equal(publicationVersion, 1)
+    assert.equal(await page.getByRole('button', { name: '发布', exact: true }).isDisabled(), true)
+    assert.equal(await save.isDisabled(), true)
+    assert.equal(writes, 1)
+
+    failRead = false
+    detail.module.status = 'published';detail.module.lockVersion = 2
+    releaseRead = null
+    readStarted = new Promise(resolve => { signalRead = resolve })
+    await page.getByRole('button', { name: '重新读取', exact: true }).click()
+    await readStarted
+    releaseRead()
+    await page.getByRole('button', { name: '下架', exact: true }).waitFor()
+    assert.equal(await page.getByRole('button', { name: '下架', exact: true }).isEnabled(), true)
+  } finally { releaseRead?.();await page.close() }
+})
+
+test('repository panel closing protects unsaved credentials and failed saves retain the input', async () => {
+  const page = await visit('/admin/references')
+  try {
+    const toggle = page.getByRole('button', { name: '仓库设置', exact: true })
+    await toggle.click()
+    const repository = page.getByLabel('仓库', { exact: true })
+    await repository.fill('author/new-reference')
+    await page.getByLabel('只读 Token', { exact: true }).fill('fixture-token')
+    await toggle.click()
+    assert.equal(await page.evaluate(() => window.confirmCalls), 1)
+    assert.equal(await repository.inputValue(), 'author/new-reference')
+    assert.equal(await page.getByRole('button', { name: '清除 Token', exact: true }).isDisabled(), true)
+    await page.route('**/api/admin/references/repository', route => route.fulfill({ status: 409, json: { message: '仓库配置已变化' } }))
+    await page.getByRole('button', { name: '保存仓库', exact: true }).click()
+    await page.getByRole('alert').filter({ hasText: '仓库配置已变化' }).waitFor()
+    assert.equal(await page.getByLabel('只读 Token', { exact: true }).inputValue(), 'fixture-token')
+    await page.getByRole('button', { name: '取消修改', exact: true }).click()
+    await toggle.click()
+    assert.equal(await page.getByLabel('仓库', { exact: true }).count(), 0)
+  } finally { await page.close() }
+})
+
+test('runtime policy protects route updates and document exits, and releases the guard after saving', async () => {
+  const page = await visit('/admin/runtime-policy')
+  try {
+    await page.getByLabel('使用时长', { exact: true }).first().fill('90')
+    assert.equal(await page.evaluate(() => {
+      const event = new Event('beforeunload', { cancelable: true });window.dispatchEvent(event);return event.defaultPrevented
+    }), true)
+    await page.evaluate(() => window.fixtureRouter.push('/admin/runtime-policy?tab=other'))
+    assert.equal(new URL(page.url()).search, '')
+    assert.equal(await page.evaluate(() => window.confirmCalls), 1)
+    await page.route('**/api/admin/runtime-policy', route => route.fulfill({ json: { data: { sandboxTtlMinutes: 90, sandboxIdleMinutes: 10, targetTtlMinutes: 60, lockVersion: 1 } } }))
+    await page.getByRole('button', { name: '保存设置', exact: true }).click()
+    await page.getByRole('status').filter({ hasText: '运行策略已保存' }).waitFor()
+    assert.equal(await page.evaluate(() => {
+      const event = new Event('beforeunload', { cancelable: true });window.dispatchEvent(event);return event.defaultPrevented
+    }), false)
+    await page.evaluate(() => window.fixtureRouter.push('/destination'))
+    await page.waitForURL('**/destination')
+  } finally { await page.close() }
+})
+
+test('Compose entry changes commit only after parsing and preserve the previous configuration on failure', async () => {
+  const page = await visit('/admin/target-templates/existing')
+  try {
+    const entry = page.getByLabel(/^部署入口/)
+    await entry.waitFor()
+    await page.route('**/api/admin/lab-bundles/bundle?file=alternate.yml', route => route.fulfill({ status: 400, json: { message: 'Compose 文件解析失败' } }))
+    await entry.selectOption('alternate.yml')
+    await page.getByRole('alert').filter({ hasText: 'Compose 文件解析失败' }).waitFor()
+    assert.equal(await entry.inputValue(), 'compose.yml')
+    assert.equal(await page.getByLabel('端口', { exact: true }).inputValue(), '8080')
+    assert.equal(await page.evaluate(() => {
+      const event = new Event('beforeunload', { cancelable: true });window.dispatchEvent(event);return event.defaultPrevented
+    }), false)
+    await page.unroute('**/api/admin/lab-bundles/bundle?file=alternate.yml')
+    await page.route('**/api/admin/lab-bundles/bundle?file=alternate.yml', route => route.fulfill({ json: { data: {
+      id: 'bundle', hash: 'hash1', composeFiles: ['compose.yml', 'alternate.yml'], files: 2,
+      services: [{ name: 'web', image: 'example/web', networks: ['default'], ports: [{ port: 9090, protocol: 'tcp' }] }],
+      networks: ['default'], variables: [], missingFiles: [], issues: [],
+    } } }))
+    await entry.selectOption('alternate.yml')
+    await page.waitForFunction(() => document.querySelector('input[type=number]')?.value === '9090')
+    assert.equal(await entry.inputValue(), 'alternate.yml')
+    assert.equal(await page.getByRole('button', { name: '保存模板', exact: true }).isEnabled(), true)
+  } finally { await page.close() }
+})

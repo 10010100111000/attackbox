@@ -1,26 +1,27 @@
 <script setup lang="ts">
 const confirmAction = useConfirm()
 import { Plus, ArrowUp, ArrowDown, Trash2 } from 'lucide-vue-next'
+import { useEditorGuard } from '~/composables/useEditorGuard'
 import { parseLearnHome, type LearnHome } from '~/shared/learn-home'
 definePageMeta({layout:'admin'})
 useHead({title:'首页管理 — AttackBox'})
 const {data,pending,error,refresh}=await useLazyFetch<{data:LearnHome}>('/api/admin/learn-home')
 const draft=ref<LearnHome|null>(null), selected=ref(0), busy=ref(false), message=ref(''), failed=ref(false)
+const saved = ref('')
 const clone=(v:LearnHome)=>JSON.parse(JSON.stringify(v)) as LearnHome
-watch(data,v=>{if(v&&!busy.value) draft.value=clone(v.data)},{immediate:true})
-const dirty=computed(()=>!!draft.value&&JSON.stringify(draft.value)!==JSON.stringify(data.value?.data))
+const dirty=computed(()=>!!draft.value&&JSON.stringify(draft.value)!==saved.value)
+function applyHome(value: LearnHome) { draft.value=clone(value);saved.value=JSON.stringify(draft.value) }
+watch(data,v=>{if(v&&!busy.value&&!dirty.value) applyHome(v.data)},{immediate:true})
 const item=computed(()=>draft.value?.slides[selected.value])
 const {data:modules}=useLazyFetch<{data:{title:string;slug:string}[]}>('/api/modules')
 const {data:routes}=useLazyFetch<{data:{title:string;id:string}[]}>('/api/routes')
 function add(){if(!draft.value||draft.value.slides.length>=10)return;draft.value.slides.push({id:crypto.randomUUID(),enabled:true,label:'模块推荐',title:'',description:'',cta:'查看模块',href:'/learn',command:'$ explore',caption:'AttackBox Learning'});selected.value=draft.value.slides.length-1}
 function remove(){if(!draft.value)return;draft.value.slides.splice(selected.value,1);selected.value=Math.max(0,selected.value-1)}
 function move(delta:number){const a=draft.value?.slides;if(!a)return;const n=selected.value+delta;if(n<0||n>=a.length)return;[a[selected.value],a[n]]=[a[n],a[selected.value]];selected.value=n}
-function reset(){if(data.value)draft.value=clone(data.value.data);selected.value=0;message.value=''}
-async function reload(){if(dirty.value&&!(await confirmAction({title:'重新载入首页配置？',description:'当前未保存的修改将被替换。',confirmLabel:'重新载入',cancelLabel:'继续编辑'})))return;await refresh();if(!error.value)reset()}
-async function save(){if(!draft.value||busy.value)return;busy.value=true;message.value='';try{const body=parseLearnHome(draft.value);const result=await $fetch<{data:LearnHome}>('/api/admin/learn-home',{method:'PUT',body,retry:false});data.value=result;draft.value=clone(result.data);failed.value=false;message.value='首页已更新'}catch(e:any){failed.value=true;message.value=e?.data?.message||e.message||'保存失败，修改已保留'}finally{busy.value=false}}
-onBeforeRouteLeave(()=>!dirty.value||confirmAction({title:'放弃首页修改？',description:'当前未保存的首页配置将丢失。',confirmLabel:'放弃修改',cancelLabel:'继续编辑'}))
-function beforeUnload(e:BeforeUnloadEvent){if(dirty.value){e.preventDefault();e.returnValue=''}}
-onMounted(()=>window.addEventListener('beforeunload',beforeUnload));onUnmounted(()=>window.removeEventListener('beforeunload',beforeUnload))
+function reset(){if(data.value)applyHome(data.value.data);selected.value=0;message.value=''}
+async function reload(){if(busy.value)return;if(dirty.value&&!(await confirmAction({title:'重新载入首页配置？',description:'当前未保存的修改将被替换。',confirmLabel:'重新载入',cancelLabel:'继续编辑'})))return;if(busy.value)return;busy.value=true;try{await refresh();if(!error.value)reset()}finally{busy.value=false}}
+async function save(){if(!draft.value||busy.value)return;busy.value=true;message.value='';try{const body=parseLearnHome(draft.value);const result=await $fetch<{data:LearnHome}>('/api/admin/learn-home',{method:'PUT',body,retry:false});data.value=result;applyHome(result.data);failed.value=false;message.value='首页已更新'}catch(e:any){failed.value=true;message.value=e?.data?.message||e.message||'保存失败，修改已保留'}finally{busy.value=false}}
+useEditorGuard({ dirty, busy, title: '放弃首页修改？', description: '当前未保存的首页配置将丢失。' })
 </script>
 <template>
  <div class="home-manager">

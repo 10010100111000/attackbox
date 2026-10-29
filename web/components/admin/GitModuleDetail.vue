@@ -1,20 +1,20 @@
 <script setup lang="ts">
-const confirmAction = useConfirm()
 import { computed, ref, watch } from 'vue'
-import { onBeforeRouteLeave } from 'vue-router'
+import { useEditorGuard } from '~/composables/useEditorGuard'
 import { ArrowLeft, GitBranch, ExternalLink, RefreshCw } from 'lucide-vue-next'
 import type { AdminModuleDetail } from '~/shared/content'
 import type { SyncModuleResult } from '~/shared/content-sync'
 import MarkdownView from '~/components/ui/MarkdownView.vue'
 import TargetTemplateSelect from '~/components/admin/TargetTemplateSelect.vue'
 
-const props = defineProps<{ detail: AdminModuleDetail }>()
-const emit = defineEmits<{ refresh: [] }>()
+const props = defineProps<{ detail: AdminModuleDetail; reload: () => Promise<AdminModuleDetail> }>()
 
 const tab = ref<'content' | 'runtime'>('content')
 const selected = ref(0)
 const busy = ref(false)
 const notice = ref('')
+const failed = ref(false)
+const needsReload = ref(false)
 
 const form = ref({
   defaultTargetTemplateId: props.detail.module.defaultTargetTemplateId,
@@ -29,23 +29,20 @@ const original = ref(JSON.stringify(form.value))
 const version = ref(props.detail.module.lockVersion)
 const dirty = computed(() => JSON.stringify(form.value) !== original.value)
 
-watch(
-  () => props.detail,
-  value => {
-    if (dirty.value) return
-    version.value = value.module.lockVersion
-    form.value = {
-      defaultTargetTemplateId: value.module.defaultTargetTemplateId,
-      prerequisiteModuleIds: value.prerequisites.map(m => m.id),
-      chapters: value.chapters.map(c => ({
-        chapterId: c.chapterId,
-        targetMode: c.targetMode,
-        targetTemplateId: c.targetTemplateId,
-      })),
-    }
-    original.value = JSON.stringify(form.value)
-  },
-)
+function applyDetail(value: AdminModuleDetail) {
+  version.value = value.module.lockVersion
+  form.value = {
+    defaultTargetTemplateId: value.module.defaultTargetTemplateId,
+    prerequisiteModuleIds: value.prerequisites.map(m => m.id),
+    chapters: value.chapters.map(c => ({ chapterId: c.chapterId, targetMode: c.targetMode, targetTemplateId: c.targetTemplateId })),
+  }
+  original.value = JSON.stringify(form.value)
+  selected.value = Math.min(selected.value, Math.max(0, value.chapters.length - 1))
+}
+watch(() => props.detail, value => {
+  if (!busy.value && !dirty.value && !needsReload.value) applyDetail(value)
+})
+useEditorGuard({ dirty, busy, title: '放弃运行配置？', description: '当前未保存的运行配置将丢失。' })
 
 const { data: targets } = useLazyFetch<{ data: { id: string; name: string; enabled: boolean }[] }>(
   '/api/admin/target-templates/options',
@@ -57,58 +54,70 @@ const { data: moduleOptions } = useLazyFetch<{ data: { id: string; title: string
 )
 const chapter = computed(() => props.detail.chapters[selected.value])
 
-onBeforeRouteLeave(() => !dirty.value || confirmAction({title:'放弃运行配置？',description:'当前未保存的运行配置将丢失。',confirmLabel:'放弃修改',cancelLabel:'继续编辑'}))
+async function reloadDetail() {
+  applyDetail(await props.reload())
+  needsReload.value = false
+}
 
-async function operate(task: () => Promise<void>) {
-  if (busy.value) return
+async function operate(task: () => Promise<string>) {
+  if (busy.value || needsReload.value) return
   busy.value = true
+  failed.value = false
   notice.value = ''
   try {
-    await task()
+    const message = await task()
+    // Keep actions disabled until the canonical version and status are read.
+    needsReload.value = true
+    await reloadDetail()
+    notice.value = message
   } catch (e: any) {
-    notice.value = e?.data?.message || '操作失败，请重试'
+    failed.value = true
+    notice.value = needsReload.value
+      ? '操作已完成，但最新数据读取失败。请重新读取后继续。'
+      : e?.data?.message || '操作失败，请重试'
   } finally {
     busy.value = false
   }
 }
 
+async function retryRead() {
+  if (busy.value) return
+  busy.value = true
+  try { await reloadDetail();failed.value = false;notice.value = '最新数据已载入' }
+  catch { failed.value = true;notice.value = '最新数据读取失败，请重试' }
+  finally { busy.value = false }
+}
+
 function save() {
+  if (!dirty.value) return
+  const submitted = JSON.parse(JSON.stringify(form.value)) as typeof form.value
   void operate(async () => {
     await $fetch(`/api/admin/modules/${props.detail.module.id}/runtime`, {
-      method: 'PUT',
-      body: { ...form.value, lockVersion: version.value },
+      method: 'PUT', body: { ...submitted, lockVersion: version.value }, retry: false,
     })
-    original.value = JSON.stringify(form.value)
-    emit('refresh')
-    notice.value = '运行配置已保存'
+    original.value = JSON.stringify(submitted)
+    return '运行配置已保存'
   })
 }
 
 function publish() {
+  if (dirty.value) return
   void operate(async () => {
-    await $fetch(
-      `/api/admin/modules/${props.detail.module.id}/${props.detail.module.status === 'published' ? 'unpublish' : 'publish'}`,
-      { method: 'POST', body: { lockVersion: version.value } },
-    )
-    emit('refresh')
-    notice.value = '发布状态已更新'
+    await $fetch(`/api/admin/modules/${props.detail.module.id}/${props.detail.module.status === 'published' ? 'unpublish' : 'publish'}`, {
+      method: 'POST', body: { lockVersion: version.value }, retry: false,
+    })
+    return '发布状态已更新'
   })
 }
 
 function syncFromGit() {
+  if (dirty.value) return
   void operate(async () => {
     const response = await $fetch<{ data: SyncModuleResult }>('/api/admin/content/sync', {
-      method: 'POST',
-      body: { moduleId: props.detail.module.id },
+      method: 'POST', body: { moduleId: props.detail.module.id }, retry: false,
     })
-    const res = response.data.synced[0]
     clearNuxtData(k => k.startsWith('admin:') || k.startsWith('learning:'))
-    emit('refresh')
-    if (res?.action === 'unchanged') {
-      notice.value = `已是最新（Commit ${response.data.commit.slice(0, 12)}），无内容变化`
-    } else if (res) {
-      notice.value = `已从 Git 差异同步更新（下载新图片 ${res.downloadedImages} 张，复用未变图片 ${res.reusedImages} 张）`
-    }
+    return response.data.synced[0]?.action === 'unchanged' ? '已是最新，无内容变化' : '已从 Git 同步最新内容'
   })
 }
 </script>
@@ -128,32 +137,33 @@ function syncFromGit() {
         </p>
       </div>
       <div class="actions">
-        <a
+        <UiButton variant="secondary" size="sm"
           v-if="detail.source?.url"
           :href="detail.source.url"
           target="_blank"
           rel="noopener noreferrer"
-          class="button"
         >
           查看源文件
-        </a>
-        <button class="button" type="button" :disabled="busy" @click="syncFromGit">
+        </UiButton>
+        <UiButton variant="secondary" size="sm" :disabled="busy || dirty || needsReload" @click="syncFromGit">
           <RefreshCw :size="13" />同步最新内容
-        </button>
-        <NuxtLink
+        </UiButton>
+        <UiButton variant="secondary" size="sm"
           v-if="detail.module.status === 'published'"
           :to="`/learn/modules/${detail.module.slug}`"
           target="_blank"
-          class="button"
         >
           前台预览<ExternalLink :size="13" />
-        </NuxtLink>
-        <button class="button primary" :disabled="busy || dirty" @click="publish">
+        </UiButton>
+        <UiButton variant="primary" size="sm" :disabled="busy || dirty || needsReload" @click="publish">
           {{ detail.module.status === 'published' ? '下架' : '发布' }}
-        </button>
+        </UiButton>
       </div>
     </header>
-    <p v-if="notice" class="notice" role="status">{{ notice }}</p>
+    <UiNotice v-if="notice" :variant="failed ? 'error' : 'success'" class="mb-5">
+      {{ notice }}
+      <UiButton v-if="needsReload" variant="secondary" size="xs" :disabled="busy" @click="retryRead">重新读取</UiButton>
+    </UiNotice>
     <nav class="tabs">
       <button :class="{ active: tab === 'content' }" @click="tab = 'content'">内容预览</button>
       <button :class="{ active: tab === 'runtime' }" @click="tab = 'runtime'">运行配置</button>
@@ -205,11 +215,11 @@ function syncFromGit() {
       </section>
     </div>
     <form v-else class="panel runtime-settings" @submit.prevent="save">
-      <fieldset :disabled="busy">
+      <fieldset :disabled="busy || needsReload">
         <h2>实验环境</h2>
         <label>
           模块默认靶机
-          <TargetTemplateSelect v-model="form.defaultTargetTemplateId" :options="targets?.data || []" />
+          <TargetTemplateSelect id="module-default-target" v-model="form.defaultTargetTemplateId" :options="targets?.data || []" />
         </label>
         <div v-for="(ch, index) in form.chapters" :key="ch.chapterId" class="chapter-config">
           <label>
@@ -222,6 +232,7 @@ function syncFromGit() {
           </label>
           <TargetTemplateSelect
             v-if="ch.targetMode === 'custom'"
+            :id="`chapter-target-${ch.chapterId}`"
             v-model="ch.targetTemplateId"
             :options="targets?.data || []"
           />
@@ -238,7 +249,8 @@ function syncFromGit() {
           </option>
         </select>
         <div class="actions">
-          <button class="button primary" type="submit" :disabled="!dirty || busy">保存运行配置</button>
+          <UiButton type="submit" :loading="busy" :disabled="!dirty || needsReload">保存运行配置</UiButton>
+          <UiButton variant="secondary" type="button" :disabled="!dirty || busy || needsReload" @click="applyDetail(detail)">取消修改</UiButton>
           <span v-if="dirty" class="hint">有未保存修改</span>
         </div>
       </fieldset>
@@ -304,33 +316,6 @@ h2 {
   display: flex;
   gap: 10px;
   align-items: center;
-}
-.button {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 9px 13px;
-  border: 1px solid var(--line);
-  border-radius: 6px;
-  background: var(--paper);
-  color: var(--ink);
-  text-decoration: none;
-  font-size: 12px;
-  cursor: pointer;
-}
-.primary {
-  background: var(--btn-primary-bg);
-  color: var(--btn-primary-fg);
-  border-color: transparent;
-  box-shadow: var(--btn-primary-shadow);
-  font-weight: 600;
-}
-.primary:hover:not(:disabled) {
-  background: var(--btn-primary-hover);
-}
-button:disabled {
-  opacity: 0.5;
-  cursor: default;
 }
 .tabs {
   display: flex;
@@ -452,15 +437,6 @@ button:disabled {
 }
 .runtime-settings h2:not(:first-child) {
   margin-top: 30px;
-}
-.notice {
-  padding: 12px 16px;
-  background: var(--soft);
-  border-radius: 6px;
-  margin-bottom: 16px;
-  font-size: 12px;
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
 }
 :focus-visible {
   outline: 2px solid var(--green);

@@ -6,6 +6,11 @@ useHead({title:'参考资料管理 — AttackBox'})
 const route=useRoute(), page=computed(()=>Number(route.query.page||1))
 const { data,pending,error,refresh }=await useLazyFetch<{data:ReferencePage<AdminReferenceSummary>}>('/api/admin/references',{query:{page},key:'admin:references'})
 const settingsOpen=ref(false), importing=ref(false), scan=ref<ReferenceScan|null>(null), busy=ref(''), notice=ref('')
+const settingsPanel = ref<{ canLeave: () => Promise<boolean> } | null>(null)
+async function toggleSettings() {
+  if (settingsOpen.value && settingsPanel.value && !(await settingsPanel.value.canLeave())) return
+  settingsOpen.value = !settingsOpen.value
+}
 const confirmAction=useConfirm()
 const stateLabels={new:'待导入',changed:'有更新',unchanged:'已同步',missing:'源文件已移除'}
 async function check() {
@@ -35,12 +40,12 @@ function configured(){scan.value=null;settingsOpen.value=false}
       </div>
       <div class="actions">
         <UiButton variant="secondary" size="sm" as="a" href="/api/admin/references/template" download="参考资料示例.md">下载 MD 示例</UiButton>
-        <UiButton variant="secondary" size="sm" :aria-expanded="settingsOpen" @click="settingsOpen=!settingsOpen"><Settings :size="14" aria-hidden="true"/>仓库设置</UiButton>
+        <UiButton variant="secondary" size="sm" :aria-expanded="settingsOpen" @click="toggleSettings"><Settings :size="14" aria-hidden="true"/>仓库设置</UiButton>
         <UiButton variant="primary" size="sm" :loading="busy==='scan'" :disabled="!!busy" @click="check"><GitBranch :size="14" aria-hidden="true"/>Git 导入</UiButton>
       </div>
     </header>
     <UiNotice v-if="notice" variant="error" class="mb-5">{{notice}}</UiNotice>
-    <AdminRepositorySettings v-if="settingsOpen" endpoint="/api/admin/references/repository" @saved="configured"/>
+    <AdminRepositorySettings v-if="settingsOpen" ref="settingsPanel" endpoint="/api/admin/references/repository" @saved="configured"/>
     <section v-if="importing" class="panel" aria-label="Git 资料导入">
       <div class="page-heading"><h2>仓库资料</h2><UiButton variant="secondary" size="xs" :disabled="!!busy" @click="importing=false">收起</UiButton></div>
       <UiBusyIndicator v-if="busy==='scan'" label="扫描资料仓库"/>

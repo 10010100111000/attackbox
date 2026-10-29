@@ -1,8 +1,8 @@
 <script setup lang="ts">
 const confirmAction = useConfirm()
-import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { ArrowLeft, Plus, ArrowUp, ArrowDown, X } from 'lucide-vue-next'
-import { onBeforeRouteLeave, onBeforeRouteUpdate } from 'vue-router'
+import { useEditorGuard } from '~/composables/useEditorGuard'
 import TargetTemplateSelect from '~/components/admin/TargetTemplateSelect.vue'
 import MarkdownView from '~/components/ui/MarkdownView.vue'
 import type { Challenge } from '~/shared/challenges'
@@ -42,22 +42,8 @@ const form = ref({
 const original = ref(JSON.stringify(form.value))
 const dirty = computed(() => loaded.value && JSON.stringify(form.value) !== original.value)
 
-const leave = () => (busy.value ? false : !dirty.value || confirmAction({title:'放弃挑战修改？',description:'未保存的修改将丢失。',confirmLabel:'放弃修改',cancelLabel:'继续编辑'}))
-onBeforeRouteLeave(leave)
-onBeforeRouteUpdate(leave)
-
-function beforeUnload(e: BeforeUnloadEvent) {
-  if (dirty.value) {
-    e.preventDefault()
-    e.returnValue = ''
-  }
-}
-
-onMounted(() => {
-  ready.value = true
-  window.addEventListener('beforeunload', beforeUnload)
-})
-onBeforeUnmount(() => window.removeEventListener('beforeunload', beforeUnload))
+useEditorGuard({ dirty, busy, title: '放弃挑战修改？', description: '未保存的修改将丢失。' })
+onMounted(() => { ready.value = true })
 
 const {
   data: options,
@@ -122,8 +108,11 @@ function move(i: number, delta: number) {
 }
 
 async function reload() {
+  if (busy.value) return
   if (dirty.value && !(await confirmAction({title:'重新读取挑战？',description:'当前未保存的输入将被替换。',confirmLabel:'重新读取',cancelLabel:'继续编辑'}))) return
-  await load()
+  if (busy.value) return
+  busy.value = true
+  try { await load() } finally { busy.value = false }
 }
 
 async function save(intent: 'draft' | 'publish') {
@@ -136,6 +125,7 @@ async function save(intent: 'draft' | 'publish') {
       {
         method: isNew ? 'POST' : 'PUT',
         body: { ...form.value, lockVersion: version.value, intent },
+        retry: false,
       }
     )
     if (isNew) {

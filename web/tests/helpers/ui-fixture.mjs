@@ -23,19 +23,23 @@ export async function uiFixture() {
     export const navigateTo=path=>window.fixtureRouter.push(path);
     export const useConfirm=()=>async()=>{window.confirmCalls++;return false};
     export async function $fetch(url,options={}) {
-      const response=await fetch(url,{method:options.method||'GET',headers:{'Content-Type':'application/json'},body:options.body?JSON.stringify(options.body):undefined});
+      const address=new URL(url,window.location.origin);for(const [key,value] of Object.entries(options.query||{}))address.searchParams.set(key,String(value));
+      const response=await fetch(address,{method:options.method||'GET',headers:{'Content-Type':'application/json'},body:options.body?JSON.stringify(options.body):undefined});
       const data=await response.json();
       if(!response.ok)throw Object.assign(new Error(data.message),{data,statusCode:response.status});
       return data;
     }
     export const useRequestFetch=()=>$fetch;
-    export async function useLazyFetch(url){
-      const data=ref(await $fetch(url));
-      return {data,error:ref(null),pending:ref(false),refresh:async()=>{data.value=await $fetch(url)}};
+    export function useLazyFetch(url){
+      const data=ref(null),error=ref(null),pending=ref(true);
+      const refresh=async()=>{pending.value=true;try{data.value=await $fetch(typeof url==='function'?url():url);error.value=null}catch(e){error.value=e}finally{pending.value=false}};
+      const state={data,error,pending,refresh};
+      return Object.assign(refresh().then(()=>state),state);
     }
   `
   const entry = `
     import {createApp,h,ref,Suspense} from 'vue';
+    import {useLazyFetch} from 'audit-runtime';
     import {createRouter,createWebHistory,RouterView,RouterLink} from 'vue-router';
     import Button from './components/ui/Button.vue';
     import Input from './components/ui/Input.vue';
@@ -48,6 +52,10 @@ export async function uiFixture() {
     import References from './pages/admin/references/index.vue';
     import Routes from './pages/admin/routes/[id].vue';
     import Notifications from './pages/admin/notifications.vue';
+    import RuntimePolicy from './pages/admin/runtime-policy.vue';
+    import TargetTemplateEditor from './pages/admin/target-templates/[id].vue';
+    import GitModuleDetail from './components/admin/GitModuleDetail.vue';
+    import RepositorySettings from './components/admin/RepositorySettings.vue';
     window.activations=0;window.confirmCalls=0;
     const button=(id,props={})=>h(Button,{id,onClick:()=>window.activations++,...props},()=>id);
     const TestComponents={setup(){
@@ -75,11 +83,18 @@ export async function uiFixture() {
       {path:'/destination',component:{render:()=>h('p','destination')}},
       {path:'/admin/routes/:id',component:Routes},
       {path:'/admin/notifications',component:Notifications},
+      {path:'/admin/runtime-policy',component:RuntimePolicy},
+      {path:'/admin/target-templates/:id',component:TargetTemplateEditor},
+      {path:'/admin/references',component:References},
+      {path:'/admin/modules/detail',component:{async setup(){
+        const {data,error,refresh}=await useLazyFetch('/api/admin/modules/detail');
+        return ()=>h(GitModuleDetail,{detail:data.value.data,reload:async()=>{await refresh();if(error.value)throw error.value;return data.value.data}});
+      }}},
     ]});
     window.fixtureRouter=router;
     const app=createApp({render:()=>h('div',{class:'admin-shell'},[h(RouterView,null,{default:({Component})=>h(Suspense,null,{default:()=>h(Component)})})])});
     const NuxtLink={inheritAttrs:false,props:['to'],setup(props,{attrs,slots}){return ()=>props.to?h(RouterLink,{...attrs,to:props.to},slots):h('a',attrs,slots.default?.())}};
-    for(const [name,component] of Object.entries({UiButton:Button,UiInput:Input,UiNotice:Notice,UiBadge:Badge,UiEmptyState:EmptyState,UiBusyLabel:BusyLabel,UiBusyIndicator:BusyIndicator,NuxtLink}))app.component(name,component);
+    for(const [name,component] of Object.entries({AdminRepositorySettings:RepositorySettings,UiButton:Button,UiInput:Input,UiNotice:Notice,UiBadge:Badge,UiEmptyState:EmptyState,UiBusyLabel:BusyLabel,UiBusyIndicator:BusyIndicator,NuxtLink}))app.component(name,component);
     app.component('AdminDataLoading',{render:()=>null});
     app.use(router);await router.isReady();app.mount('#app');
   `
@@ -93,7 +108,7 @@ export async function uiFixture() {
       stdin: { contents: entry, resolveDir: web }, bundle: true, write: false,
       format: 'esm', alias: { '~': web },
       plugins: [{ name: 'vue-fixture', setup(builder) {
-        builder.onResolve({ filter: /^audit-runtime$/ }, () => ({ path: 'runtime', namespace: 'fixture' }))
+        builder.onResolve({ filter: /(?:^audit-runtime$|\/useConfirm$)/ }, () => ({ path: 'runtime', namespace: 'fixture' }))
         builder.onLoad({ filter: /.*/, namespace: 'fixture' }, () => ({ contents: runtime, resolveDir: web }))
         builder.onLoad({ filter: /\.vue$/ }, async ({ path }) => {
           const { descriptor } = parse(await readFile(path, 'utf8'), { filename: path })
@@ -108,9 +123,9 @@ export async function uiFixture() {
             styles.push(compiled.code)
           }
           let code = compileScript(descriptor, { id, inlineTemplate: true }).content
-          if (path.includes('/pages/admin/')) {
+          if (path.includes('/pages/admin/') || path.includes('/components/admin/RepositorySettings') || path.includes('/components/admin/GitModuleDetail')) {
             code = `import {definePageMeta,useHead,useLazyFetch,useRequestFetch,useRoute,useConfirm,clearNuxtData,navigateTo,$fetch} from 'audit-runtime';\n` + code
-            if (path.endsWith('/notifications.vue')) code = `import {ref,computed} from 'vue';\n` + code
+            if (!/from ['"]vue['"]/.test(descriptor.scriptSetup.content)) code = `import {ref,computed,watch} from 'vue';\n` + code
           }
           if (descriptor.styles.some(style => style.scoped)) {
             code = code.replace('export default', 'const component =') + `\ncomponent.__scopeId='${id}';export default component;`
@@ -126,6 +141,14 @@ export async function uiFixture() {
       '/api/admin/modules': { data: [{ id: 'module-one', title: 'Module one', status: 'published' }] },
       '/api/admin/routes/existing': { data: { title: 'Original route', summary: '', modules: [], lockVersion: 0, status: 'unpublished' } },
       '/api/admin/notifications': { data: { items: [], total: 0 } },
+      '/api/admin/runtime-policy': { data: { sandboxTtlMinutes:60,sandboxIdleMinutes:10,targetTtlMinutes:60,lockVersion:0 } },
+      '/api/admin/references': { data: { items: [], total:0 } },
+      '/api/admin/references/repository': { data: { repository:'author/reference',branch:'main',directory:'references',hasToken:true,version:0 } },
+      '/api/admin/target-templates/options': { data: [] },
+      '/api/admin/target-templates/existing': { data: { name:'Target',description:'',accessInstructions:'',enabled:false,bundleId:'bundle',settings:{file:'compose.yml',entryService:'web',entryNetwork:'default',entryPort:8080,prefixBits:28},lockVersion:0,variableKeys:[] } },
+      '/api/admin/target-templates/existing/preparations': { data: { items:[],nodes:[] } },
+      '/api/admin/lab-bundles/bundle': { data: { id:'bundle',hash:'hash0',composeFiles:['compose.yml','alternate.yml'],files:2,services:[{name:'web',image:'example/web',networks:['default'],ports:[{port:8080,protocol:'tcp'}]}],networks:['default'],variables:[],missingFiles:[],issues:[] } },
+      '/api/admin/modules/detail': { data: { module:{id:'detail',title:'Module detail',slug:'module',status:'unpublished',lockVersion:0,defaultTargetTemplateId:null,learningOutcomes:[]},chapters:[],prerequisites:[] } },
     }
     server = createServer((req, res) => {
       const url = new URL(req.url, 'http://localhost')

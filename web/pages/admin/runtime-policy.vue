@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { Clock3, Terminal, Flag } from 'lucide-vue-next'
+import { useEditorGuard } from '~/composables/useEditorGuard'
 import type { RuntimePolicy } from '~/shared/runtime-policy'
 import { parseRuntimePolicy } from '~/shared/runtime-policy'
 definePageMeta({ layout: 'admin' })
@@ -8,29 +9,40 @@ const { data, pending, error, refresh } = await useLazyFetch<{
   data: RuntimePolicy
 }>('/api/admin/runtime-policy', { key: 'admin:runtime-policy' })
 const draft = ref<RuntimePolicy | null>(null),
+  saved = ref(''),
   busy = ref(false),
   message = ref(''),
   failed = ref(false)
-watch(
-  data,
-  (value) => {
-    if (value && !busy.value) draft.value = { ...value.data }
-  },
-  { immediate: true },
-)
 const dirty = computed(
   () =>
     !!draft.value &&
-    JSON.stringify(draft.value) !== JSON.stringify(data.value?.data),
+    JSON.stringify(draft.value) !== saved.value,
 )
+function applyPolicy(value: RuntimePolicy) {
+  draft.value = { ...value }
+  saved.value = JSON.stringify(draft.value)
+}
+watch(
+  data,
+  (value) => {
+    if (value && !busy.value && !dirty.value) applyPolicy(value.data)
+  },
+  { immediate: true },
+)
+useEditorGuard({ dirty, busy, title: '放弃运行策略修改？', description: '当前未保存的运行策略将丢失。' })
+const confirmAction = useConfirm()
 function reset() {
-  draft.value = data.value ? { ...data.value.data } : null
+  if (data.value) applyPolicy(data.value.data)
   message.value = ''
   failed.value = false
 }
 async function reload() {
-  await refresh()
-  if (!error.value) reset()
+  if (busy.value) return
+  if (dirty.value && !(await confirmAction({ title: '重新载入运行策略？', description: '当前未保存的修改将被替换。', confirmLabel: '重新载入', cancelLabel: '继续编辑' }))) return
+  if (busy.value) return
+  busy.value = true
+  try { await refresh();if (!error.value) reset() }
+  finally { busy.value = false }
 }
 async function save() {
   if (!draft.value || busy.value) return
@@ -49,7 +61,7 @@ async function save() {
       { method: 'PUT', body: draft.value, retry: false },
     )
     data.value = result
-    draft.value = { ...result.data }
+    applyPolicy(result.data)
     failed.value = false
     message.value = '运行策略已保存'
   } catch (e: any) {
