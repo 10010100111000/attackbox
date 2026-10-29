@@ -6,6 +6,7 @@ import {
   type FeedbackList,
   type FeedbackStatus
 } from '~/shared/feedback'
+import { apiErrorMessage, apiFetch } from '~/utils/api'
 
 definePageMeta({ layout: 'admin' })
 useHead({ title: '用户反馈 — AttackBox' })
@@ -59,7 +60,7 @@ async function changeStatus(status: FeedbackStatus) {
   message.value = ''
   saveError.value = ''
   try {
-    await $fetch(`/api/admin/feedback/${id}`, {
+    await apiFetch(`/api/admin/feedback/${id}`, {
       method: 'PATCH',
       body: { status },
       retry: false,
@@ -70,8 +71,8 @@ async function changeStatus(status: FeedbackStatus) {
       query.value = { ...query.value, page: query.value.page - 1 }
     }
     message.value = `已标记为${statusLabel(status)}`
-  } catch (e: any) {
-    saveError.value = e?.data?.message || '保存未确认，请重新查看反馈状态。'
+  } catch (e) {
+    saveError.value = apiErrorMessage(e, '保存未确认，请重新查看反馈状态。')
   } finally {
     saving.value = false
   }

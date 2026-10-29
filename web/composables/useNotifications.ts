@@ -1,3 +1,4 @@
+import { apiFetch } from '~/utils/api'
 export function useNotifications() {
   const { currentUser } = useAuth()
   const version = useState('account:unread-version', () => 0)
@@ -13,7 +14,7 @@ export function useNotifications() {
       return
     }
     try {
-      const r = await $fetch<{ count: number }>('/api/me/notifications/unread')
+      const r = await apiFetch<{ count: number }>('/api/me/notifications/unread')
       if (currentUser.value?.id === owner && version.value === requestVersion)
         state.value = { owner, count: r.count }
     } catch {

@@ -2,6 +2,7 @@ import { computed, onMounted, onBeforeUnmount, watch } from 'vue'
 import { useNuxtApp, useState } from '#imports'
 import { useAuth } from './useAuth'
 import type { SandboxStatus, SandboxInstance } from '~/shared/sandbox'
+import { apiErrorMessage, apiFetch } from '~/utils/api'
 const runtimes = new WeakMap<
   object,
   {
@@ -57,13 +58,13 @@ export function useSandboxSession() {
     runtime.fetching = true
     const generation = runtime.generation
     try {
-      const r = await $fetch<{ data: SandboxStatus }>('/api/sandbox/status')
+      const r = await apiFetch<{ data: SandboxStatus }>('/api/sandbox/status')
       if (generation === runtime.generation) {
         sandbox.value = r.data
         notice.value = ''
       }
-    } catch (e: any) {
-      if (generation === runtime.generation) notice.value = e?.data?.message || '无法获取环境状态'
+    } catch (e) {
+      if (generation === runtime.generation) notice.value = apiErrorMessage(e, '无法获取环境状态')
     } finally {
       runtime.fetching = false
       if (generation === runtime.generation) loading.value = false
@@ -81,12 +82,12 @@ export function useSandboxSession() {
     notice.value = ''
     const generation = runtime.generation
     try {
-      const r = await $fetch<{ data: SandboxInstance }>('/api/sandbox/start', { method: 'POST' })
+      const r = await apiFetch<{ data: SandboxInstance }>('/api/sandbox/start', { method: 'POST' })
       if (generation === runtime.generation) sandbox.value = { available: true, instance: r.data }
       notify()
-    } catch (e: any) {
+    } catch (e) {
       if (generation === runtime.generation)
-        notice.value = e?.data?.message || '启动失败，请稍后重试'
+        notice.value = apiErrorMessage(e, '启动失败，请稍后重试')
     } finally {
       busy.value = false
       await refresh()
@@ -118,15 +119,15 @@ export function useSandboxSession() {
     notice.value = ''
     const generation = runtime.generation
     try {
-      const r = await $fetch<{ data: SandboxStatus }>('/api/sandbox/stop', {
+      const r = await apiFetch<{ data: SandboxStatus }>('/api/sandbox/stop', {
         method: 'POST',
         body: { sandboxId: id }
       })
       if (generation === runtime.generation) sandbox.value = r.data
       notify()
-    } catch (e: any) {
+    } catch (e) {
       if (generation === runtime.generation)
-        notice.value = e?.data?.message || '释放尚未确认，状态将自动更新'
+        notice.value = apiErrorMessage(e, '释放尚未确认，状态将自动更新')
     } finally {
       busy.value = false
       await refresh()

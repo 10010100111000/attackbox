@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { NotificationList } from '~/shared/notifications'
+import { apiErrorMessage, apiFetch } from '~/utils/api'
 
 const confirmAction = useConfirm()
 definePageMeta({ layout: 'admin' })
@@ -18,7 +19,7 @@ async function publish() {
   message.value = ''
   failed.value = false
   try {
-    await $fetch('/api/admin/notifications', {
+    await apiFetch('/api/admin/notifications', {
       method: 'POST',
       body: form.value,
       retry: false
@@ -27,9 +28,9 @@ async function publish() {
     page.value = 1
     await refresh()
     message.value = '通知已发布'
-  } catch (e: any) {
+  } catch (e) {
     failed.value = true
-    message.value = e?.data?.message || '发布结果未确认，请先查看通知列表'
+    message.value = apiErrorMessage(e, '发布结果未确认，请先查看通知列表')
   } finally {
     busy.value = false
   }
@@ -48,15 +49,15 @@ async function withdraw(id: string) {
   message.value = ''
   failed.value = false
   try {
-    await $fetch(`/api/admin/notifications/${id}/withdraw`, {
+    await apiFetch(`/api/admin/notifications/${id}/withdraw`, {
       method: 'POST',
       retry: false
     })
     await refresh()
     message.value = '通知已撤回'
-  } catch (e: any) {
+  } catch (e) {
     failed.value = true
-    message.value = e?.data?.message || '撤回失败'
+    message.value = apiErrorMessage(e, '撤回失败')
   } finally {
     busy.value = false
   }

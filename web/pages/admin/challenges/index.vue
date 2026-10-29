@@ -2,6 +2,7 @@
 import { ref, computed } from 'vue'
 import { Plus, Search } from 'lucide-vue-next'
 import type { ChallengeSummary } from '~/shared/challenges'
+import { apiErrorMessage, apiFetch } from '~/utils/api'
 const confirmAction = useConfirm()
 
 definePageMeta({ layout: 'admin' })
@@ -38,13 +39,13 @@ async function remove(c: ChallengeSummary) {
   deleting.value = c.id
   notice.value = ''
   try {
-    await $fetch(`/api/admin/challenges/${c.id}`, {
+    await apiFetch(`/api/admin/challenges/${c.id}`, {
       method: 'DELETE',
       body: { lockVersion: c.lockVersion }
     })
     await refresh()
-  } catch (e: any) {
-    notice.value = e?.data?.message || '删除失败'
+  } catch (e) {
+    notice.value = apiErrorMessage(e, '删除失败')
   } finally {
     deleting.value = ''
   }

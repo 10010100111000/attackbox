@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { Check } from 'lucide-vue-next'
+import { apiErrorMessage, apiFetch } from '~/utils/api'
 
 const emit = defineEmits<{ close: [] }>()
 const { currentUser } = useAuth()
@@ -46,7 +47,7 @@ async function save() {
   const owner = currentUser.value.id
   busy.value = true
   try {
-    await $fetch('/api/me/password', {
+    await apiFetch('/api/me/password', {
       method: 'PUT',
       body: { currentPassword: current.value, newPassword: password.value },
       retry: false
@@ -54,9 +55,9 @@ async function save() {
     if (!alive || currentUser.value?.id !== owner) return
     clear()
     message.value = '密码已更新，其他设备需重新登录。'
-  } catch (e: any) {
+  } catch (e) {
     if (alive && currentUser.value?.id === owner) {
-      error.value = e?.data?.message || '修改失败，请重试'
+      error.value = apiErrorMessage(e, '修改失败，请重试')
     }
   } finally {
     busy.value = false

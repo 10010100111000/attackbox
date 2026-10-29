@@ -3,6 +3,7 @@ import { ref, computed } from 'vue'
 import { useLazyFetch, useHead } from '#imports'
 import { ExternalLink } from 'lucide-vue-next'
 import type { AdminModuleListItem } from '~/shared/content'
+import { apiErrorMessage, apiFetch } from '~/utils/api'
 const confirmAction = useConfirm()
 
 definePageMeta({
@@ -68,13 +69,13 @@ async function deleteModule(id: string) {
   deleting.value = id
   notice.value = ''
   try {
-    await $fetch(`/api/admin/modules/${id}`, {
+    await apiFetch(`/api/admin/modules/${id}`, {
       method: 'DELETE',
       body: { lockVersion: modules.value.find(m => m.id === id)?.lockVersion }
     })
     await refresh()
-  } catch (error: any) {
-    notice.value = error?.data?.message || '删除失败'
+  } catch (error) {
+    notice.value = apiErrorMessage(error, '删除失败')
   } finally {
     deleting.value = ''
   }

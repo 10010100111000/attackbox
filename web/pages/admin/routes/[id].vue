@@ -3,6 +3,7 @@ import { ref, computed, onMounted } from 'vue'
 import { useEditorGuard } from '~/composables/useEditorGuard'
 import { ArrowLeft, ArrowUp, ArrowDown, X, Plus } from 'lucide-vue-next'
 import type { LearningRoute } from '~/shared/routes'
+import { apiErrorMessage, apiFetch } from '~/utils/api'
 
 definePageMeta({ layout: 'admin', key: route => route.fullPath })
 useHead({ title: '编辑路线 — AttackBox' })
@@ -79,7 +80,7 @@ async function save(intent: 'draft' | 'publish') {
   failed.value = false
   const submitted = { title: title.value, summary: summary.value, ids: [...ids.value] }
   try {
-    const r = await $fetch<{ data: { id: string } }>(
+    const r = await apiFetch<{ data: { id: string } }>(
       isNew ? '/api/admin/routes' : `/api/admin/routes/${id}`,
       {
         method: isNew ? 'POST' : 'PUT',
@@ -103,9 +104,9 @@ async function save(intent: 'draft' | 'publish') {
       state.value = intent === 'publish' ? 'published' : 'unpublished'
       notice.value = intent === 'publish' ? '已保存并发布' : '已保存为草稿'
     }
-  } catch (e: any) {
+  } catch (e) {
     failed.value = true
-    notice.value = e?.data?.message || '保存失败'
+    notice.value = apiErrorMessage(e, '保存失败')
   } finally {
     busy.value = false
   }

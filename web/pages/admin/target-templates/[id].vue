@@ -13,6 +13,7 @@ import {
 } from 'lucide-vue-next'
 import type { TargetTemplate } from '~/shared/target-templates'
 import type { ComposePreview, ComposeSettings, ComposePreparation } from '~/shared/compose-labs'
+import { apiErrorMessage, apiData } from '~/utils/api'
 
 const confirmAction = useConfirm()
 definePageMeta({ layout: 'admin', key: r => r.fullPath })
@@ -102,8 +103,8 @@ function baseline() {
   configuration.value = contentKey()
   initial.value = stateKey()
 }
-function showError(e: any, fallback: string) {
-  message.value = e?.data?.message || fallback
+function showError(e: unknown, fallback: string) {
+  message.value = apiErrorMessage(e, fallback)
   failed.value = true
 }
 useEditorGuard({
@@ -164,7 +165,7 @@ async function upload(e: Event) {
   failed.value = false
   message.value = ''
   try {
-    const { data } = await $fetch<{ data: ComposePreview }>('/api/admin/lab-bundles', {
+    const data = await apiData<ComposePreview>('/api/admin/lab-bundles', {
       method: 'POST',
       headers: {
         'content-type': 'application/octet-stream',
@@ -224,10 +225,11 @@ async function importGit() {
   failed.value = false
   message.value = ''
   try {
-    const { data } = await $fetch<{ data: { bundle: ComposePreview } }>(
-      '/api/admin/lab-bundles/git',
-      { method: 'POST', body: gitForm.value, retry: false }
-    )
+    const data = await apiData<{ bundle: ComposePreview }>('/api/admin/lab-bundles/git', {
+      method: 'POST',
+      body: gitForm.value,
+      retry: false
+    })
     applyGitPreview(data.bundle)
     gitForm.value.token = ''
     gitOpen.value = false
@@ -243,7 +245,7 @@ async function checkGit() {
   failed.value = false
   message.value = ''
   try {
-    const { data } = await $fetch<{ data: { latestCommit: string; changed: boolean } }>(
+    const data = await apiData<{ latestCommit: string; changed: boolean }>(
       `/api/admin/lab-bundles/${bundleId.value}/git`,
       { method: 'POST', body: { action: 'check' }, retry: false }
     )
@@ -259,7 +261,7 @@ async function importUpdate() {
   busy.value = true
   failed.value = false
   try {
-    const { data } = await $fetch<{ data: { bundle: ComposePreview; unchanged: boolean } }>(
+    const data = await apiData<{ bundle: ComposePreview; unchanged: boolean }>(
       `/api/admin/lab-bundles/${bundleId.value}/git`,
       {
         method: 'POST',
@@ -289,10 +291,9 @@ async function selectFile(event: Event) {
   failed.value = false
   message.value = ''
   try {
-    const { data } = await $fetch<{ data: ComposePreview }>(
-      `/api/admin/lab-bundles/${bundleId.value}`,
-      { query: { file } }
-    )
+    const data = await apiData<ComposePreview>(`/api/admin/lab-bundles/${bundleId.value}`, {
+      query: { file }
+    })
     const service = data.services.find(s => s.name === 'web') || data.services[0]
     preview.value = data
     settings.value = {
@@ -321,7 +322,7 @@ async function save() {
     const variablesInput = Object.fromEntries(
       Object.entries(variables.value).filter(([, v]) => v !== '')
     )
-    const { data } = await $fetch<{ data: TargetTemplate }>(
+    const data = await apiData<TargetTemplate>(
       isNew ? '/api/admin/target-templates' : `/api/admin/target-templates/${id}`,
       {
         method: isNew ? 'POST' : 'PUT',
@@ -368,7 +369,7 @@ async function prepare(nodeId: string, action: 'prepare' | 'status' | 'cancel' |
   nodeBusy.value = nodeId
   failed.value = false
   try {
-    const { data } = await $fetch<{ data: ComposePreparation | null }>(
+    const data = await apiData<ComposePreparation | null>(
       `/api/admin/target-templates/${id}/preparations`,
       {
         method: 'POST',

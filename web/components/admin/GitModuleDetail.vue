@@ -6,6 +6,7 @@ import type { AdminModuleDetail } from '~/shared/content'
 import type { SyncModuleResult } from '~/shared/content-sync'
 import MarkdownView from '~/components/ui/MarkdownView.vue'
 import TargetTemplateSelect from '~/components/admin/TargetTemplateSelect.vue'
+import { apiErrorMessage, apiFetch } from '~/utils/api'
 
 const props = defineProps<{ detail: AdminModuleDetail; reload: () => Promise<AdminModuleDetail> }>()
 
@@ -82,11 +83,11 @@ async function operate(task: () => Promise<string>) {
     needsReload.value = true
     await reloadDetail()
     notice.value = message
-  } catch (e: any) {
+  } catch (e) {
     failed.value = true
     notice.value = needsReload.value
       ? '操作已完成，但最新数据读取失败。请重新读取后继续。'
-      : e?.data?.message || '操作失败，请重试'
+      : apiErrorMessage(e, '操作失败，请重试')
   } finally {
     busy.value = false
   }
@@ -111,7 +112,7 @@ function save() {
   if (!dirty.value) return
   const submitted = JSON.parse(JSON.stringify(form.value)) as typeof form.value
   void operate(async () => {
-    await $fetch(`/api/admin/modules/${props.detail.module.id}/runtime`, {
+    await apiFetch(`/api/admin/modules/${props.detail.module.id}/runtime`, {
       method: 'PUT',
       body: { ...submitted, lockVersion: version.value },
       retry: false
@@ -124,7 +125,7 @@ function save() {
 function publish() {
   if (dirty.value) return
   void operate(async () => {
-    await $fetch(
+    await apiFetch(
       `/api/admin/modules/${props.detail.module.id}/${props.detail.module.status === 'published' ? 'unpublish' : 'publish'}`,
       {
         method: 'POST',
@@ -139,7 +140,7 @@ function publish() {
 function syncFromGit() {
   if (dirty.value) return
   void operate(async () => {
-    const response = await $fetch<{ data: SyncModuleResult }>('/api/admin/content/sync', {
+    const response = await apiFetch<{ data: SyncModuleResult }>('/api/admin/content/sync', {
       method: 'POST',
       body: { moduleId: props.detail.module.id },
       retry: false

@@ -183,6 +183,8 @@ API 响应与服务端渲染的 HTML／Nuxt payload 默认使用 `private, no-st
 - 测试以行为断言为主。涉及模板结构的用例只断言关键标记存在或缺失,不比对整段源码文本,避免格式化或重构后失效。
 - 依赖安装失败时先确认 Node 版本与锁文件一致;`@node-rs/argon2-linux-x64-gnu` 是 Linux 专用依赖,在 Windows 上安装需跳过平台校验,部署与测试以 Linux 为准。
 
+客户端请求统一走 `web/utils/api.ts`:`apiFetch` 默认 `retry: false` 并把失败归一化为 `ApiError`,`apiData` 解包 `{ data }` 信封,界面只通过 `apiErrorMessage(e, '兜底文案')` 取提示——不要再写 `e?.data?.message`。服务端渲染需要透传 Cookie 时继续使用 `useRequestFetch()`,错误文案仍交给 `apiErrorMessage`。
+
 ## 学习界面说明
 
 公共按钮、提示、徽标和空状态由 `web/components/ui` 管理外观与交互；后台页面样式使用 `scoped`，仅管理页面布局与专用元素。用户管理样式随用户页面加载，不再注入整个后台布局。

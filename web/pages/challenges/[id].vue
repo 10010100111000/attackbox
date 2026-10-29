@@ -13,6 +13,7 @@ import MarkdownView from '~/components/ui/MarkdownView.vue'
 import PracticeDock from '~/components/learning/PracticeDock.vue'
 import { useAuth } from '~/composables/useAuth'
 import type { Challenge } from '~/shared/challenges'
+import { apiErrorMessage, apiFetch } from '~/utils/api'
 
 definePageMeta({ layout: 'learning', key: r => r.fullPath })
 
@@ -79,7 +80,7 @@ async function submit(stageId: string) {
   if (busy.value) return
   busy.value = true
   try {
-    const r = await $fetch<{ data: { correct: boolean } }>(`/api/challenges/${id}/attempt`, {
+    const r = await apiFetch<{ data: { correct: boolean } }>(`/api/challenges/${id}/attempt`, {
       method: 'POST',
       body: { stageId, flag: answers.value[stageId] }
     })
@@ -95,8 +96,8 @@ async function submit(stageId: string) {
       await refresh()
       clearNuxtData('challenges:list')
     }
-  } catch (e: any) {
-    feedback.value[stageId] = e?.data?.message || '提交失败，请重试'
+  } catch (e) {
+    feedback.value[stageId] = apiErrorMessage(e, '提交失败，请重试')
   } finally {
     busy.value = false
   }

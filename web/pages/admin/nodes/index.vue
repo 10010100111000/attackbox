@@ -3,6 +3,7 @@ import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
 import { useLazyFetch, useHead } from '#imports'
 import { Server, RefreshCw, ChevronDown, SlidersHorizontal } from 'lucide-vue-next'
 import type { SandboxNodesResponse, SandboxNodeSettings, SandboxNodeStatus } from '~/shared/sandbox'
+import { apiErrorMessage, apiFetch } from '~/utils/api'
 definePageMeta({ layout: 'admin' })
 useHead({ title: '节点管理 — AttackBox' })
 const { data, pending, error, refresh } = await useLazyFetch<{
@@ -35,12 +36,15 @@ async function saveSettings() {
   saving.value = true
   settingsError.value = ''
   try {
-    await $fetch(`/api/admin/nodes/${editing.value}/settings`, { method: 'PUT', body: draft.value })
+    await apiFetch(`/api/admin/nodes/${editing.value}/settings`, {
+      method: 'PUT',
+      body: draft.value
+    })
     editing.value = ''
     draft.value = null
     await refresh()
-  } catch (error: any) {
-    settingsError.value = error?.data?.message || '设置保存失败，请重试'
+  } catch (error) {
+    settingsError.value = apiErrorMessage(error, '设置保存失败，请重试')
   } finally {
     saving.value = false
   }

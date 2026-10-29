@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import type { NotificationItem, NotificationList } from '~/shared/notifications'
 import { Bell, Trash2, Mail, MessageCircle, ArrowLeft } from 'lucide-vue-next'
+import { apiErrorMessage, apiFetch } from '~/utils/api'
 
 definePageMeta({ layout: 'learning' })
 useHead({ title: '通知 — AttackBox' })
@@ -66,7 +67,7 @@ function read(item: NotificationItem) {
     if (!alive || currentUser.value?.id !== owner || !data.value?.items.some(n => n.id === item.id))
       return
     try {
-      const r = await $fetch<{ unread: number }>(`/api/me/notifications/${item.id}/read`, {
+      const r = await apiFetch<{ unread: number }>(`/api/me/notifications/${item.id}/read`, {
         method: 'POST',
         retry: false
       })
@@ -84,9 +85,9 @@ function read(item: NotificationItem) {
         }
         setUnread(r.unread)
       }
-    } catch (e: any) {
+    } catch (e) {
       if (alive && currentUser.value?.id === owner && selected.value?.id === item.id) {
-        message.value = e?.data?.message || '已读状态保存失败'
+        message.value = apiErrorMessage(e, '已读状态保存失败')
       }
     }
   })
@@ -101,7 +102,7 @@ async function remove() {
   try {
     await enqueue(async () => {
       if (!alive || currentUser.value?.id !== owner) return
-      const r = await $fetch<{ deleted: true; unread: number }>(`/api/me/notifications/${id}`, {
+      const r = await apiFetch<{ deleted: true; unread: number }>(`/api/me/notifications/${id}`, {
         method: 'DELETE',
         retry: false
       })
@@ -116,9 +117,9 @@ async function remove() {
       if (selected.value?.id === id) selected.value = null
       if (!data.value.items.length && page.value > 1) page.value--
     })
-  } catch (e: any) {
+  } catch (e) {
     if (alive && currentUser.value?.id === owner) {
-      message.value = e?.data?.message || '删除失败，请重试'
+      message.value = apiErrorMessage(e, '删除失败，请重试')
     }
   } finally {
     deleting.value = false

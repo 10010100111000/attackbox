@@ -3,8 +3,6 @@ export default defineNuxtConfig({
   compatibilityDate: '2024-11-01',
   devtools: { enabled: false },
   modules: ['@nuxtjs/tailwindcss', 'reka-ui/nuxt', '@nuxt/eslint'],
-  // 不在开发服务器上暴露 ESLint 配置检视页面,保持运行时端点最小
-  eslint: { configInspector: false },
   tailwindcss: {
     cssPath: '~/assets/css/main.css'
   },

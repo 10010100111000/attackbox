@@ -3,6 +3,7 @@ import { computed, ref, onMounted, onBeforeUnmount } from 'vue'
 import { ArrowLeft, RefreshCw, ShieldCheck, BookOpen, Monitor } from 'lucide-vue-next'
 import { userStatusLabels, instanceStateLabels, type AdminUserDetail } from '~/shared/admin-users'
 import { useAuth } from '~/composables/useAuth'
+import { apiErrorMessage, apiFetch } from '~/utils/api'
 
 const confirmAction = useConfirm()
 definePageMeta({ layout: 'admin' })
@@ -47,7 +48,7 @@ async function changeStatus() {
   busy.value = true
   notice.value = ''
   try {
-    const result = await $fetch<{ data: { cleanup: string } }>(`/api/admin/users/${id}/status`, {
+    const result = await apiFetch<{ data: { cleanup: string } }>(`/api/admin/users/${id}/status`, {
       method: 'PUT',
       body: { suspended }
     })
@@ -57,8 +58,8 @@ async function changeStatus() {
         : suspended
           ? '账号已停用。'
           : '账号已恢复。'
-  } catch (e: any) {
-    notice.value = e?.data?.message || '操作失败，请重试。'
+  } catch (e) {
+    notice.value = apiErrorMessage(e, '操作失败，请重试。')
   } finally {
     busy.value = false
     await refresh()
@@ -77,10 +78,10 @@ async function revoke() {
   busy.value = true
   notice.value = ''
   try {
-    await $fetch(`/api/admin/users/${id}/revoke-sessions`, { method: 'POST' })
+    await apiFetch(`/api/admin/users/${id}/revoke-sessions`, { method: 'POST' })
     notice.value = '全部网页登录已撤销。'
-  } catch (e: any) {
-    notice.value = e?.data?.message || '操作失败，请重试。'
+  } catch (e) {
+    notice.value = apiErrorMessage(e, '操作失败，请重试。')
   } finally {
     busy.value = false
     await refresh()

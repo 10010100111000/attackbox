@@ -9,6 +9,7 @@ import {
   FolderGit2
 } from 'lucide-vue-next'
 import type { RepoScanReport, RepoModuleEntry, SyncModuleResult } from '~/shared/content-sync'
+import { apiErrorMessage, apiFetch } from '~/utils/api'
 const confirmAction = useConfirm()
 
 definePageMeta({ layout: 'admin' })
@@ -69,8 +70,8 @@ async function perform(label: string, task: () => Promise<void>) {
   message.value = ''
   try {
     await task()
-  } catch (e: any) {
-    message.value = e?.data?.message || e?.data?.statusMessage || '操作失败，请检查仓库配置或重试'
+  } catch (e) {
+    message.value = apiErrorMessage(e, '操作失败，请检查仓库配置或重试')
   } finally {
     busy.value = ''
   }
@@ -78,7 +79,7 @@ async function perform(label: string, task: () => Promise<void>) {
 
 function save() {
   void perform('保存配置', async () => {
-    await $fetch('/api/admin/content/repository', {
+    await apiFetch('/api/admin/content/repository', {
       method: 'PUT',
       body: { ...form.value, version: settings.value?.data.version || 0 }
     })
@@ -98,7 +99,7 @@ async function clearToken() {
   )
     return
   void perform('清除凭据', async () => {
-    await $fetch('/api/admin/content/repository', {
+    await apiFetch('/api/admin/content/repository', {
       method: 'PUT',
       body: { ...form.value, token: '', version: settings.value?.data.version, clearToken: true }
     })
@@ -109,7 +110,7 @@ async function clearToken() {
 
 function testConnection() {
   void perform('测试连接', async () => {
-    const response = await $fetch<{ data: { commit: string } }>('/api/admin/content/test', {
+    const response = await apiFetch<{ data: { commit: string } }>('/api/admin/content/test', {
       method: 'POST'
     })
     message.value = `连接成功 · 最新提交 ${response.data.commit.slice(0, 12)}`
@@ -118,7 +119,7 @@ function testConnection() {
 
 function scanRepo() {
   void perform('读取仓库差异', async () => {
-    const response = await $fetch<{ data: RepoScanReport }>('/api/admin/content/pull', {
+    const response = await apiFetch<{ data: RepoScanReport }>('/api/admin/content/pull', {
       method: 'POST'
     })
     scan.value = response.data
@@ -127,13 +128,13 @@ function scanRepo() {
 
 function syncSingle(item: RepoModuleEntry, force = false) {
   void perform(`同步 ${item.title}`, async () => {
-    const response = await $fetch<{ data: SyncModuleResult }>('/api/admin/content/sync', {
+    const response = await apiFetch<{ data: SyncModuleResult }>('/api/admin/content/sync', {
       method: 'POST',
       body: { sourcePath: item.sourcePath, force }
     })
     const res = response.data.synced[0]
     clearNuxtData(k => k.startsWith('admin:') || k.startsWith('learning:'))
-    const refreshed = await $fetch<{ data: RepoScanReport }>('/api/admin/content/pull', {
+    const refreshed = await apiFetch<{ data: RepoScanReport }>('/api/admin/content/pull', {
       method: 'POST'
     })
     scan.value = refreshed.data
@@ -148,12 +149,12 @@ function syncSingle(item: RepoModuleEntry, force = false) {
 function syncAllChanged() {
   if (!changedModules.value.length) return
   void perform('同步全部变更模块', async () => {
-    const response = await $fetch<{ data: SyncModuleResult }>('/api/admin/content/sync', {
+    const response = await apiFetch<{ data: SyncModuleResult }>('/api/admin/content/sync', {
       method: 'POST',
       body: {}
     })
     clearNuxtData(k => k.startsWith('admin:') || k.startsWith('learning:'))
-    const refreshed = await $fetch<{ data: RepoScanReport }>('/api/admin/content/pull', {
+    const refreshed = await apiFetch<{ data: RepoScanReport }>('/api/admin/content/pull', {
       method: 'POST'
     })
     scan.value = refreshed.data

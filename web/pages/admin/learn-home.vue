@@ -2,6 +2,7 @@
 import { Plus, ArrowUp, ArrowDown, Trash2 } from 'lucide-vue-next'
 import { useEditorGuard } from '~/composables/useEditorGuard'
 import { parseLearnHome, type LearnHome } from '~/shared/learn-home'
+import { apiErrorMessage, apiFetch } from '~/utils/api'
 
 const confirmAction = useConfirm()
 definePageMeta({ layout: 'admin' })
@@ -91,7 +92,7 @@ async function save() {
   message.value = ''
   try {
     const body = parseLearnHome(draft.value)
-    const result = await $fetch<{ data: LearnHome }>('/api/admin/learn-home', {
+    const result = await apiFetch<{ data: LearnHome }>('/api/admin/learn-home', {
       method: 'PUT',
       body,
       retry: false
@@ -100,9 +101,9 @@ async function save() {
     applyHome(result.data)
     failed.value = false
     message.value = '首页已更新'
-  } catch (e: any) {
+  } catch (e) {
     failed.value = true
-    message.value = e?.data?.message || e.message || '保存失败，修改已保留'
+    message.value = apiErrorMessage(e, '保存失败，修改已保留')
   } finally {
     busy.value = false
   }

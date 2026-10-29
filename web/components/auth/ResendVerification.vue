@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { apiFetch } from '~/utils/api'
+
 const props = defineProps<{ email?: string }>()
 const address = ref(props.email || ''),
   busy = ref(false),
@@ -15,14 +17,14 @@ async function resend() {
   busy.value = true
   message.value = ''
   try {
-    const result = await $fetch<{ message: string }>('/api/auth/resend-verification', {
+    const result = await apiFetch<{ message: string }>('/api/auth/resend-verification', {
       method: 'POST',
       body: { email: address.value },
       retry: false
     })
     message.value = result.message
-  } catch (e: any) {
-    message.value = e?.data?.statusMessage || '邮件发送暂不可用，请稍后重试'
+  } catch (e) {
+    message.value = apiErrorMessage(e, '邮件发送暂不可用，请稍后重试')
   } finally {
     busy.value = false
   }

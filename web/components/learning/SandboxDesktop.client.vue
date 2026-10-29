@@ -5,6 +5,7 @@ import { ref, watch, onMounted, onBeforeUnmount, nextTick } from 'vue'
 import { useSandboxSession } from '~/composables/useSandboxSession'
 import type RFB from '@novnc/novnc'
 import type { SandboxTicket } from '~/shared/sandbox'
+import { apiErrorMessage, apiFetch } from '~/utils/api'
 const props = defineProps<{ sandboxId: string; active: boolean; autoResize?: boolean }>()
 const { announceGUI } = useSandboxSession()
 const host = ref<HTMLElement | null>(null),
@@ -39,7 +40,7 @@ async function connect() {
   try {
     const [{ default: Desktop }, response] = await Promise.all([
       import('@novnc/novnc'),
-      $fetch<{ data: SandboxTicket }>('/api/sandbox/ticket', {
+      apiFetch<{ data: SandboxTicket }>('/api/sandbox/ticket', {
         method: 'POST',
         body: { sandboxId: props.sandboxId, stream: 'gui' }
       })
@@ -90,10 +91,10 @@ async function connect() {
     connection.addEventListener('securityfailure', () => {
       if (viewer === connection) state.value = '桌面认证失败，请检查节点配置'
     })
-  } catch (error: any) {
+  } catch (error) {
     if (!disposed && generation === ownGeneration) {
       connecting.value = false
-      state.value = error?.data?.message || '无法连接桌面'
+      state.value = apiErrorMessage(error, '无法连接桌面')
       if (retries < 3) retryTimer = setTimeout(connect, 1000 * 2 ** retries++)
     }
   }

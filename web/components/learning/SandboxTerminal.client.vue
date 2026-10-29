@@ -4,6 +4,7 @@ import type { Terminal } from '@xterm/xterm'
 import type { FitAddon } from '@xterm/addon-fit'
 import type { SandboxTicket } from '~/shared/sandbox'
 import '@xterm/xterm/css/xterm.css'
+import { apiErrorMessage, apiFetch } from '~/utils/api'
 const props = defineProps<{ sandboxId: string; windowId: string; active: boolean }>()
 const host = ref<HTMLElement | null>(null),
   state = ref(''),
@@ -38,7 +39,7 @@ async function connect() {
   socket = undefined
   old?.close()
   try {
-    const response = await $fetch<{ data: SandboxTicket }>('/api/sandbox/ticket', {
+    const response = await apiFetch<{ data: SandboxTicket }>('/api/sandbox/ticket', {
       method: 'POST',
       body: { sandboxId: props.sandboxId }
     })
@@ -91,10 +92,10 @@ async function connect() {
     connection.onerror = () => {
       state.value = '终端连接失败'
     }
-  } catch (error: any) {
+  } catch (error) {
     if (!destroyed && ownGeneration === generation) {
       reconnecting.value = false
-      state.value = error?.data?.message || '无法连接终端'
+      state.value = apiErrorMessage(error, '无法连接终端')
       scheduleRetry()
     }
   }

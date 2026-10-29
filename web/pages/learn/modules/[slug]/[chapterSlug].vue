@@ -30,6 +30,7 @@ import { useAuth } from '~/composables/useAuth'
 import type { LearningTarget } from '~/shared/learning-target'
 import type { ChapterProgress, LearningChapter } from '~/shared/learning'
 import { renderMarkdown, type MarkdownHeading } from '~/utils/markdown'
+import { apiErrorMessage, apiFetch } from '~/utils/api'
 
 definePageMeta({
   layout: 'learning'
@@ -278,7 +279,7 @@ async function recordVisit() {
   lastVisitKey = key
   const generation = chapterGeneration
   try {
-    await $fetch(`/api/modules/${moduleSlug.value}/chapters/${chapterSlug.value}/visit`, {
+    await apiFetch(`/api/modules/${moduleSlug.value}/chapters/${chapterSlug.value}/visit`, {
       method: 'POST'
     })
     if (generation === chapterGeneration) progressNotice.value = ''
@@ -297,7 +298,7 @@ async function completeChapter() {
   completing.value = true
   completionError.value = ''
   try {
-    const result = await $fetch<{ data: { progress: ChapterProgress } }>(
+    const result = await apiFetch<{ data: { progress: ChapterProgress } }>(
       `/api/modules/${moduleSlug.value}/chapters/${chapterSlug.value}/complete`,
       { method: 'POST' }
     )
@@ -305,9 +306,9 @@ async function completeChapter() {
     applySavedProgress(result.data.progress)
     await refreshModule()
     celebrateCompletion(wasModuleCompleted, generation)
-  } catch (error: any) {
+  } catch (error) {
     if (generation === chapterGeneration)
-      completionError.value = error?.data?.message || '保存失败，请重试。'
+      completionError.value = apiErrorMessage(error, '保存失败，请重试。')
   } finally {
     if (generation === chapterGeneration) completing.value = false
   }
@@ -341,7 +342,7 @@ async function handleCheckAnswer(q: QuestionItem) {
 
   answerFeedbacks.value[q.id] = { status: 'checking', message: '' }
   try {
-    const res = await $fetch<{
+    const res = await apiFetch<{
       ok: boolean
       data: { correct: boolean; errorHint: string | null; progress: ChapterProgress }
     }>(`/api/modules/${moduleSlug.value}/chapters/${chapterSlug.value}/attempt`, {
@@ -361,11 +362,11 @@ async function handleCheckAnswer(q: QuestionItem) {
       await refreshModule()
       celebrateCompletion(wasModuleCompleted, generation)
     }
-  } catch (error: any) {
+  } catch (error) {
     if (generation !== chapterGeneration) return
     answerFeedbacks.value[q.id] = {
       status: 'error',
-      message: error?.data?.message || '校验失败,请稍后重试。'
+      message: apiErrorMessage(error, '校验失败,请稍后重试。')
     }
   }
 }

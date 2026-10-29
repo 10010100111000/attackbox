@@ -9,6 +9,7 @@ import {
 } from 'reka-ui'
 import { MessageSquarePlus, X, Check } from 'lucide-vue-next'
 import { feedbackCategories, type FeedbackCategory } from '~/shared/feedback'
+import { apiErrorMessage, apiFetch } from '~/utils/api'
 
 const props = defineProps<{ open: boolean }>()
 const emit = defineEmits<{ 'update:open': [value: boolean]; 'restore-focus': [] }>()
@@ -64,7 +65,7 @@ async function submit() {
   busy.value = true
   error.value = ''
   try {
-    await $fetch('/api/me/feedback', {
+    await apiFetch('/api/me/feedback', {
       method: 'POST',
       body: { category: category.value, body: body.value, sourcePath: sourcePath.value },
       retry: false,
@@ -75,9 +76,9 @@ async function submit() {
       await nextTick()
       doneButton.value?.focus()
     }
-  } catch (e: any) {
+  } catch (e) {
     if (currentUser.value?.id === author)
-      error.value = e?.data?.message || '提交未确认，请稍后重试。'
+      error.value = apiErrorMessage(e, '提交未确认，请稍后重试。')
   } finally {
     busy.value = false
   }

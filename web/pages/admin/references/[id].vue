@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ArrowLeft, ExternalLink, Eye, EyeOff, Trash2 } from 'lucide-vue-next'
 import type { AdminReference } from '~/shared/references'
+import { apiErrorMessage, apiFetch } from '~/utils/api'
 definePageMeta({ layout: 'admin' })
 useHead({ title: '资料预览 — AttackBox' })
 const id = String(useRoute().params.id),
@@ -25,7 +26,7 @@ async function perform(intent: 'publish' | 'unpublish' | 'delete') {
   busy.value = true
   notice.value = ''
   try {
-    await $fetch(`/api/admin/references/${id}`, {
+    await apiFetch(`/api/admin/references/${id}`, {
       method: intent === 'delete' ? 'DELETE' : 'PUT',
       body: { intent, lockVersion: item.value.lockVersion },
       retry: false
@@ -33,8 +34,8 @@ async function perform(intent: 'publish' | 'unpublish' | 'delete') {
     clearNuxtData(key => key.startsWith('references:') || key === 'admin:references')
     if (intent === 'delete') await navigateTo('/admin/references')
     else await refresh()
-  } catch (e: any) {
-    notice.value = e?.data?.message || '操作未确认，请重新读取资料'
+  } catch (e) {
+    notice.value = apiErrorMessage(e, '操作未确认，请重新读取资料')
   } finally {
     busy.value = false
   }

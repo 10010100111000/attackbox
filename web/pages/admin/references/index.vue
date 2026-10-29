@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { BookOpen, GitBranch, Settings, Download } from 'lucide-vue-next'
 import type { AdminReferenceSummary, ReferencePage, ReferenceScan } from '~/shared/references'
+import { apiErrorMessage, apiFetch } from '~/utils/api'
 definePageMeta({ layout: 'admin' })
 useHead({ title: '参考资料管理 — AttackBox' })
 const route = useRoute(),
@@ -32,13 +33,13 @@ async function check() {
   notice.value = ''
   try {
     scan.value = (
-      await $fetch<{ data: ReferenceScan }>('/api/admin/references/scan', {
+      await apiFetch<{ data: ReferenceScan }>('/api/admin/references/scan', {
         method: 'POST',
         retry: false
       })
     ).data
-  } catch (e: any) {
-    notice.value = e?.data?.message || '扫描失败，请检查仓库设置'
+  } catch (e) {
+    notice.value = apiErrorMessage(e, '扫描失败，请检查仓库设置')
     settingsOpen.value = true
   } finally {
     busy.value = ''
@@ -59,7 +60,7 @@ async function load(item: ReferenceScan['items'][number]) {
   busy.value = item.sourcePath
   notice.value = ''
   try {
-    const result = await $fetch<{ data: { id: string } }>('/api/admin/references/import', {
+    const result = await apiFetch<{ data: { id: string } }>('/api/admin/references/import', {
       method: 'POST',
       body: {
         sourcePath: item.sourcePath,
@@ -71,8 +72,8 @@ async function load(item: ReferenceScan['items'][number]) {
     })
     clearNuxtData('admin:references')
     await navigateTo(`/admin/references/${result.data.id}`)
-  } catch (e: any) {
-    notice.value = e?.data?.message || '导入失败，请重新扫描'
+  } catch (e) {
+    notice.value = apiErrorMessage(e, '导入失败，请重新扫描')
   } finally {
     busy.value = ''
   }

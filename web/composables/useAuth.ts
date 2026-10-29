@@ -1,4 +1,5 @@
 import { clearNuxtData, useNuxtApp } from '#imports'
+import { apiFetch } from '~/utils/api'
 export interface AuthUser {
   id: string
   email: string
@@ -29,7 +30,7 @@ export function useAuth() {
   async function fetchMe(): Promise<AuthUser | null> {
     const version = identityVersion.value
     try {
-      const data = await $fetch<{ user: AuthUser }>('/api/auth/me')
+      const data = await apiFetch<{ user: AuthUser }>('/api/auth/me')
       if (version !== identityVersion.value) return currentUser.value
       if (currentUser.value?.id !== data.user.id) clearLearningData()
       currentUser.value = data.user
@@ -50,7 +51,7 @@ export function useAuth() {
     rememberMe: boolean = false,
     turnstileToken = ''
   ): Promise<AuthUser> {
-    const data = await $fetch<{ user: AuthUser }>('/api/auth/login', {
+    const data = await apiFetch<{ user: AuthUser }>('/api/auth/login', {
       method: 'POST',
       body: { email, password, rememberMe, turnstileToken }
     })
@@ -67,21 +68,21 @@ export function useAuth() {
     displayName?: string,
     turnstileToken = ''
   ): Promise<{ message: string }> {
-    return await $fetch<{ message: string }>('/api/auth/register', {
+    return await apiFetch<{ message: string }>('/api/auth/register', {
       method: 'POST',
       body: { email, password, displayName, turnstileToken }
     })
   }
 
   async function verifyEmail(token: string): Promise<{ message: string }> {
-    return await $fetch<{ message: string }>('/api/auth/verify-email', {
+    return await apiFetch<{ message: string }>('/api/auth/verify-email', {
       method: 'POST',
       body: { token }
     })
   }
 
   async function logout(): Promise<void> {
-    await $fetch('/api/auth/logout', { method: 'POST' })
+    await apiFetch('/api/auth/logout', { method: 'POST' })
     identityVersion.value++
     clearLearningData()
     currentUser.value = null
@@ -89,14 +90,14 @@ export function useAuth() {
   }
 
   async function forgotPassword(email: string): Promise<{ message: string }> {
-    return await $fetch<{ message: string }>('/api/auth/forgot-password', {
+    return await apiFetch<{ message: string }>('/api/auth/forgot-password', {
       method: 'POST',
       body: { email }
     })
   }
 
   async function resetPassword(token: string, newPassword: string): Promise<{ message: string }> {
-    return await $fetch<{ message: string }>('/api/auth/reset-password', {
+    return await apiFetch<{ message: string }>('/api/auth/reset-password', {
       method: 'POST',
       body: { token, newPassword }
     })

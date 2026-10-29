@@ -5,6 +5,7 @@ import { loginDestination } from '~/utils/login-destination'
 import Button from '~/components/ui/Button.vue'
 import Input from '~/components/ui/Input.vue'
 import Checkbox from '~/components/ui/Checkbox.vue'
+import { apiErrorMessage } from '~/utils/api'
 
 interface Props {
   modelValueEmail?: string
@@ -106,9 +107,8 @@ async function handleSubmit() {
     await login(cleanEmail, password.value, rememberMe.value, turnstileToken.value)
     password.value = ''
     await navigateTo(loginDestination(route.query.returnTo), { replace: true })
-  } catch (err: any) {
-    statusMessage.value =
-      err?.data?.message || err?.data?.statusMessage || err?.message || '登录失败，请检查邮箱与密码'
+  } catch (err) {
+    statusMessage.value = apiErrorMessage(err, '登录失败，请检查邮箱与密码')
   } finally {
     busy.value = false
     challengeReset.value++

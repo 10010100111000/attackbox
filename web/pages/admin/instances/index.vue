@@ -3,6 +3,7 @@ import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
 import { useLazyFetch, useHead } from '#imports'
 import { RefreshCw, Monitor } from 'lucide-vue-next'
 import type { AdminSandboxInstance } from '~/shared/sandbox'
+import { apiErrorMessage, apiFetch } from '~/utils/api'
 
 const confirmAction = useConfirm()
 definePageMeta({ layout: 'admin' })
@@ -36,9 +37,9 @@ async function stop(instance: AdminSandboxInstance) {
   stopping.value.push(instance.id)
   notice.value = ''
   try {
-    await $fetch(`/api/admin/instances/${instance.id}/stop`, { method: 'POST' })
-  } catch (error: any) {
-    notice.value = error?.data?.message || '释放未确认，请刷新状态'
+    await apiFetch(`/api/admin/instances/${instance.id}/stop`, { method: 'POST' })
+  } catch (error) {
+    notice.value = apiErrorMessage(error, '释放未确认，请刷新状态')
   } finally {
     stopping.value = stopping.value.filter(id => id !== instance.id)
     await refresh()

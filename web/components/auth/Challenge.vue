@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { loadTurnstile, turnstileApi } from '~/utils/turnstile-client'
+import { apiFetch } from '~/utils/api'
 
 type AuthChallengeAction = 'login' | 'register'
 const props = defineProps<{
@@ -34,7 +35,7 @@ async function setup() {
   if (widget) turnstileApi()?.remove(widget)
   widget = undefined
   try {
-    const config = await $fetch<{ enabled: boolean; siteKey: string }>('/api/auth/challenge', {
+    const config = await apiFetch<{ enabled: boolean; siteKey: string }>('/api/auth/challenge', {
       retry: false,
       timeout: 10000
     })

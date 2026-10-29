@@ -3,6 +3,7 @@ import { ref, watch, nextTick, onMounted } from 'vue'
 import Button from '~/components/ui/Button.vue'
 import Input from '~/components/ui/Input.vue'
 import { registrationEmailAllowed } from '~/shared/registration'
+import { apiErrorMessage } from '~/utils/api'
 
 interface Props {
   modelValueEmail?: string
@@ -113,9 +114,8 @@ async function handleSubmit() {
     password.value = ''
     hasRegistered.value = true
     statusMessage.value = res.message
-  } catch (err: any) {
-    statusMessage.value =
-      err?.data?.message || err?.data?.statusMessage || err?.message || '注册失败，请稍后重试'
+  } catch (err) {
+    statusMessage.value = apiErrorMessage(err, '注册失败，请稍后重试')
   } finally {
     busy.value = false
     challengeReset.value++

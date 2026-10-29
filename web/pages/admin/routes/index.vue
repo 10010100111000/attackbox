@@ -2,6 +2,7 @@
 import { ref } from 'vue'
 import type { RouteSummary } from '~/shared/routes'
 import { Plus, Route } from 'lucide-vue-next'
+import { apiErrorMessage, apiFetch } from '~/utils/api'
 const confirmAction = useConfirm()
 
 definePageMeta({ layout: 'admin' })
@@ -29,13 +30,13 @@ async function remove(route: RouteSummary) {
   deleting.value = route.id
   notice.value = ''
   try {
-    await $fetch(`/api/admin/routes/${route.id}`, {
+    await apiFetch(`/api/admin/routes/${route.id}`, {
       method: 'DELETE',
       body: { lockVersion: route.lockVersion }
     })
     await refresh()
-  } catch (e: any) {
-    notice.value = e?.data?.message || '删除失败'
+  } catch (e) {
+    notice.value = apiErrorMessage(e, '删除失败')
   } finally {
     deleting.value = ''
   }

@@ -3,6 +3,7 @@ import { Clock3, Terminal, Flag } from 'lucide-vue-next'
 import { useEditorGuard } from '~/composables/useEditorGuard'
 import type { RuntimePolicy } from '~/shared/runtime-policy'
 import { parseRuntimePolicy } from '~/shared/runtime-policy'
+import { apiErrorMessage, apiFetch } from '~/utils/api'
 definePageMeta({ layout: 'admin' })
 useHead({ title: '运行策略 — AttackBox' })
 const { data, pending, error, refresh } = await useLazyFetch<{
@@ -70,7 +71,7 @@ async function save() {
   busy.value = true
   message.value = ''
   try {
-    const result = await $fetch<{ data: RuntimePolicy }>('/api/admin/runtime-policy', {
+    const result = await apiFetch<{ data: RuntimePolicy }>('/api/admin/runtime-policy', {
       method: 'PUT',
       body: draft.value,
       retry: false
@@ -79,9 +80,9 @@ async function save() {
     applyPolicy(result.data)
     failed.value = false
     message.value = '运行策略已保存'
-  } catch (e: any) {
+  } catch (e) {
     failed.value = true
-    message.value = e?.data?.message || '保存失败，修改已保留'
+    message.value = apiErrorMessage(e, '保存失败，修改已保留')
   } finally {
     busy.value = false
   }

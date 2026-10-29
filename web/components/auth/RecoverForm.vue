@@ -74,8 +74,8 @@ async function handleSubmit() {
     const res = await forgotPassword(cleanEmail)
     hasSent.value = true
     statusMessage.value = res?.message || '重置密码链接已发送至你的邮箱，请查收邮件。'
-  } catch (err: any) {
-    statusMessage.value = err?.data?.statusMessage || err?.message || '发送失败，请稍后重试'
+  } catch (err) {
+    statusMessage.value = apiErrorMessage(err, '发送失败，请稍后重试')
   } finally {
     busy.value = false
   }

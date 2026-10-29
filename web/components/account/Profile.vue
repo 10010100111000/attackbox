@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { Check, Mail, UserRound, ShieldCheck } from 'lucide-vue-next'
 import { onBeforeRouteLeave } from 'vue-router'
+import { apiErrorMessage, apiFetch } from '~/utils/api'
 const confirmAction = useConfirm()
 
 const props = withDefaults(defineProps<{ active?: boolean }>(), { active: true })
@@ -67,7 +68,7 @@ async function save() {
   message.value = ''
   error.value = ''
   try {
-    const result = await $fetch<{ saved: true; displayName: string }>('/api/me/profile', {
+    const result = await apiFetch<{ saved: true; displayName: string }>('/api/me/profile', {
       method: 'PUT',
       body: { displayName: name.value },
       retry: false
@@ -79,9 +80,9 @@ async function save() {
     }
     name.value = result.displayName
     message.value = '资料已保存'
-  } catch (e: any) {
+  } catch (e) {
     if (currentUser.value?.id === owner)
-      error.value = e?.data?.message || '保存失败，修改已保留，请重试。'
+      error.value = apiErrorMessage(e, '保存失败，修改已保留，请重试。')
   } finally {
     busy.value = false
   }

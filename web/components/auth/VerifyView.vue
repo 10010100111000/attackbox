@@ -3,6 +3,7 @@ import { ref, onMounted, computed } from 'vue'
 import { useRoute } from 'vue-router'
 import Button from '~/components/ui/Button.vue'
 import { useAuth } from '~/composables/useAuth'
+import { apiErrorMessage } from '~/utils/api'
 
 const emit = defineEmits<{
   (e: 'switch-mode', mode: 'login' | 'register'): void
@@ -31,13 +32,9 @@ onMounted(async () => {
   try {
     await verifyEmail(token)
     status.value = 'success'
-  } catch (err: any) {
+  } catch (err) {
     status.value = 'error'
-    errorMessage.value =
-      err?.data?.statusMessage ||
-      err?.data?.message ||
-      err?.message ||
-      '激活凭证无效或已过期，请重新申请注册或登录。'
+    errorMessage.value = apiErrorMessage(err, '激活凭证无效或已过期，请重新申请注册或登录。')
   }
 })
 

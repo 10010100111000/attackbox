@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { useEditorGuard } from '~/composables/useEditorGuard'
+import { apiErrorMessage, apiFetch } from '~/utils/api'
 
 interface Settings {
   repository: string
@@ -78,7 +79,7 @@ async function save(clearToken = false) {
     const source = clearToken
       ? { ...data.value.data, token: '', clearToken: true }
       : { ...form.value }
-    await $fetch(props.endpoint, {
+    await apiFetch(props.endpoint, {
       method: 'PUT',
       body: { ...source, version: data.value.data.version },
       retry: false
@@ -88,10 +89,10 @@ async function save(clearToken = false) {
     needsReload.value = true
     await readSettings()
     emit('saved')
-  } catch (e: any) {
+  } catch (e) {
     notice.value = needsReload.value
       ? '配置已保存，但最新数据读取失败。请重新读取后继续。'
-      : e?.data?.message || '配置保存失败，输入已保留'
+      : apiErrorMessage(e, '配置保存失败，输入已保留')
   } finally {
     busy.value = false
   }

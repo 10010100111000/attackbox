@@ -5,6 +5,7 @@ import { useEditorGuard } from '~/composables/useEditorGuard'
 import TargetTemplateSelect from '~/components/admin/TargetTemplateSelect.vue'
 import MarkdownView from '~/components/ui/MarkdownView.vue'
 import type { Challenge } from '~/shared/challenges'
+import { apiErrorMessage, apiFetch, apiStatusCode } from '~/utils/api'
 const confirmAction = useConfirm()
 
 definePageMeta({ layout: 'admin', key: r => r.fullPath })
@@ -141,7 +142,7 @@ async function save(intent: 'draft' | 'publish') {
   busy.value = true
   notice.value = ''
   try {
-    const r = await $fetch<{ data: { id: string } }>(
+    const r = await apiFetch<{ data: { id: string } }>(
       isNew ? '/api/admin/challenges' : `/api/admin/challenges/${id}`,
       {
         method: isNew ? 'POST' : 'PUT',
@@ -161,9 +162,9 @@ async function save(intent: 'draft' | 'publish') {
         notice.value = '内容已保存，重新读取失败，请重试'
       }
     }
-  } catch (e: any) {
-    notice.value = e?.data?.message || '保存失败，输入已保留'
-    conflict.value = e?.statusCode === 409
+  } catch (e) {
+    notice.value = apiErrorMessage(e, '保存失败，输入已保留')
+    conflict.value = apiStatusCode(e) === 409
   } finally {
     busy.value = false
   }

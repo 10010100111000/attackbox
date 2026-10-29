@@ -4,6 +4,7 @@ import { useRoute } from '#imports'
 import { useAuth } from '~/composables/useAuth'
 import Button from '~/components/ui/Button.vue'
 import Input from '~/components/ui/Input.vue'
+import { apiErrorMessage } from '~/utils/api'
 
 const emit = defineEmits<{
   'switch-mode': [mode: 'login' | 'recover']
@@ -40,8 +41,8 @@ async function submit() {
     done.value = true
     password.value = ''
     confirmation.value = ''
-  } catch (e: any) {
-    error.value = e?.data?.message || e?.data?.statusMessage || '重设失败，请重新申请重置链接。'
+  } catch (e) {
+    error.value = apiErrorMessage(e, '重设失败，请重新申请重置链接。')
   } finally {
     busy.value = false
   }

@@ -2,6 +2,7 @@
 import { ref, computed, onMounted, onBeforeUnmount, watch } from 'vue'
 import { Box, Copy, Check, Power, Square, ChevronDown } from 'lucide-vue-next'
 import type { TargetDisplay } from '~/shared/learning-target'
+import { apiErrorMessage, apiFetch } from '~/utils/api'
 
 const confirmAction = useConfirm()
 const props = defineProps<{ context: Record<string, string>; target?: TargetDisplay }>()
@@ -138,8 +139,8 @@ async function run(operation: 'inspect' | 'start' | 'stop') {
   try {
     const result =
       operation === 'inspect'
-        ? await $fetch<Instance | null>('/api/targets', { query: props.context, retry: false })
-        : await $fetch<Instance>('/api/targets', {
+        ? await apiFetch<Instance | null>('/api/targets', { query: props.context, retry: false })
+        : await apiFetch<Instance>('/api/targets', {
             method: 'POST',
             body: { ...props.context, action: operation, id: current.value?.id }
           })
@@ -147,9 +148,9 @@ async function run(operation: 'inspect' | 'start' | 'stop') {
       current.value = result
       message.value = result?.error || ''
     }
-  } catch (e: any) {
+  } catch (e) {
     if (alive && generation === identityGeneration)
-      message.value = e?.data?.message || '操作结果尚未确认'
+      message.value = apiErrorMessage(e, '操作结果尚未确认')
   } finally {
     if (alive && generation === identityGeneration) {
       requestPending.value = false
