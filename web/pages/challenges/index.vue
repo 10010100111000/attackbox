@@ -20,7 +20,7 @@ const category = ref('')
 const difficulty = ref('')
 
 const categories = computed(() => [
-  ...new Set(data.value?.data.map(c => c.category).filter(Boolean) || [])
+  ...new Set((data.value?.data || []).map(c => c.category).filter((c): c is string => Boolean(c)))
 ])
 
 const rows = computed(
@@ -38,6 +38,15 @@ const labels: Record<string, string> = {
   intermediate: '进阶',
   advanced: '高级'
 }
+
+const categoryOptions = computed(() => [
+  { value: '', label: '全部分类' },
+  ...categories.value.map(category => ({ value: category, label: category }))
+])
+const difficultyOptions = computed(() => [
+  { value: '', label: '全部难度' },
+  ...Object.entries(labels).map(([value, label]) => ({ value, label }))
+])
 
 function stagePercent(c: ChallengeSummary): number {
   if (!currentUser.value || !c.totalStages) return 0
@@ -57,14 +66,8 @@ function stagePercent(c: ChallengeSummary): number {
 
     <div class="filters">
       <input v-model="query" aria-label="搜索挑战" placeholder="搜索挑战" />
-      <select v-model="category" aria-label="挑战分类">
-        <option value="">全部分类</option>
-        <option v-for="c in categories" :key="c">{{ c }}</option>
-      </select>
-      <select v-model="difficulty" aria-label="挑战难度">
-        <option value="">全部难度</option>
-        <option v-for="(label, key) in labels" :key="key" :value="key">{{ label }}</option>
-      </select>
+      <UiSelect v-model="category" aria-label="挑战分类" :options="categoryOptions" />
+      <UiSelect v-model="difficulty" aria-label="挑战难度" :options="difficultyOptions" />
     </div>
 
     <LearningCatalogSkeleton v-if="pending && !data" label="正在读取挑战" />

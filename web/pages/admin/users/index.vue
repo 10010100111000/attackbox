@@ -15,6 +15,17 @@ const query = computed(() => ({
   role: role.value,
   page: page.value
 }))
+const statusOptions = [
+  { value: '', label: '全部状态' },
+  { value: 'active', label: '正常' },
+  { value: 'pending', label: '待验证' },
+  { value: 'suspended', label: '已停用' }
+]
+const roleOptions = [
+  { value: '', label: '全部角色' },
+  { value: 'user', label: '用户' },
+  { value: 'admin', label: '管理员' }
+]
 const { data, pending, error, refresh } = await useLazyFetch<{ data: AdminUserList }>(
   '/api/admin/users',
   { key: 'admin:users', query }
@@ -49,17 +60,18 @@ function date(value: string | null) {
           placeholder="搜索邮箱或昵称"
           maxlength="100"
       /></label>
-      <select v-model="status" aria-label="账号状态" @change="page = 1">
-        <option value="">全部状态</option>
-        <option value="active">正常</option>
-        <option value="pending">待验证</option>
-        <option value="suspended">已停用</option>
-      </select>
-      <select v-model="role" aria-label="账号角色" @change="page = 1">
-        <option value="">全部角色</option>
-        <option value="user">用户</option>
-        <option value="admin">管理员</option>
-      </select>
+      <UiSelect
+        v-model="status"
+        aria-label="账号状态"
+        :options="statusOptions"
+        @update:model-value="page = 1"
+      />
+      <UiSelect
+        v-model="role"
+        aria-label="账号角色"
+        :options="roleOptions"
+        @update:model-value="page = 1"
+      />
       <UiButton type="submit" variant="secondary" size="sm">搜索</UiButton>
       <span class="muted count">{{ result?.total ?? '—' }} 位用户</span>
     </form>

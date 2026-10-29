@@ -40,6 +40,12 @@ const form = ref({
   stages: [] as StageDraft[]
 })
 
+const difficultyOptions = [
+  { value: 'beginner', label: '入门' },
+  { value: 'intermediate', label: '进阶' },
+  { value: 'advanced', label: '高级' }
+]
+
 const original = ref(JSON.stringify(form.value))
 const dirty = computed(() => loaded.value && JSON.stringify(form.value) !== original.value)
 
@@ -245,11 +251,7 @@ async function save(intent: 'draft' | 'publish') {
             </label>
             <label>
               难度
-              <select v-model="form.difficulty">
-                <option value="beginner">入门</option>
-                <option value="intermediate">进阶</option>
-                <option value="advanced">高级</option>
-              </select>
+              <UiSelect v-model="form.difficulty" aria-label="难度" :options="difficultyOptions" />
             </label>
           </div>
 
