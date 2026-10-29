@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { BookOpen, GitBranch, Settings, Download } from 'lucide-vue-next'
 import type { AdminReferenceSummary, ReferencePage, ReferenceScan } from '~/shared/references'
-import '~/assets/css/reference-admin.css'
 definePageMeta({layout:'admin'})
 useHead({title:'参考资料管理 — AttackBox'})
 const route=useRoute(), page=computed(()=>Number(route.query.page||1))
@@ -47,3 +46,6 @@ function configured(){scan.value=null;settingsOpen.value=false}
     <nav v-if="data && data.data.total>24" class="pages" aria-label="资料管理分页"><NuxtLink v-if="page>1" :to="{query:{page:page-1}}">上一页</NuxtLink><span>{{page}}</span><NuxtLink v-if="page*24<data.data.total" :to="{query:{page:page+1}}">下一页</NuxtLink></nav>
   </div>
 </template>
+
+<style scoped src="~/assets/css/reference-admin.css"></style>
+

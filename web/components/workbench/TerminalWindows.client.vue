@@ -29,5 +29,197 @@ function reposition(){for(const w of windows.value){w.x=Math.min(w.x,Math.max(0,
 onMounted(()=>{add();window.addEventListener('keydown',key);window.addEventListener('resize',reposition)})
 onBeforeUnmount(()=>{end();window.removeEventListener('keydown',key);window.removeEventListener('resize',reposition)})
 </script>
-<template><div class="terminal-desktop"><nav aria-label="终端窗口管理"><button title="新建终端（Ctrl+Alt+T）" @click="add"><Plus :size="15"/>新建终端</button><button :disabled="!windows.length" @click="arrange(true)"><LayoutGrid :size="15"/>平铺</button><button :disabled="!windows.length" @click="arrange(false)"><Layers :size="15"/>层叠</button><button v-if="windows.length" @click="closeAll">全部关闭</button><button v-for="w in windows.filter(w=>w.minimized)" :key="w.id" @click="w.minimized=false;focus(w)">{{w.name}}</button></nav><div ref="area" class="window-area"><p v-if="!windows.length" class="window-empty">关闭窗口不会释放环境。<button @click="add">新建终端</button></p><section v-for="w in windows" v-show="!w.minimized" :key="w.id" class="terminal-window" :class="{maximized:w.maximized,focused:focused===w.id}" :style="w.maximized?{zIndex:w.z}:{left:w.x+'px',top:w.y+'px',width:w.width+'px',height:w.height+'px',zIndex:w.z}" :aria-label="w.name" @pointerdown="focus(w)"><header @pointerdown="begin($event,w)" @pointermove="move" @pointerup="end" @pointercancel="end" @lostpointercapture="end" @dblclick="w.maximized=!w.maximized"><span>{{w.name}}</span><div @pointerdown.stop @dblclick.stop><button :aria-label="`最小化 ${w.name}`" @click="w.minimized=true"><Minus :size="14"/></button><button :aria-label="`展开或还原 ${w.name}`" @click="focus(w);w.maximized=!w.maximized"><Maximize2 :size="13"/></button><button :aria-label="`关闭 ${w.name}`" @click="close(w)"><X :size="14"/></button></div></header><div class="window-body"><SandboxTerminal :sandbox-id="sandboxId" :window-id="w.id" :active="focused===w.id && !w.minimized"/></div></section></div></div></template>
-<style scoped>.terminal-desktop{height:100%;display:flex;flex-direction:column;min-height:0;background:var(--bg)}nav{display:flex;gap:8px;align-items:center;padding:8px 16px;min-height:44px;border-bottom:1px solid var(--line);flex-wrap:wrap}button{display:inline-flex;gap:6px;align-items:center;justify-content:center;padding:6px 10px;border:0;border-radius:5px;background:transparent;color:var(--muted);cursor:pointer;font-size:12px}button:hover{background:var(--soft);color:var(--ink)}button:disabled{opacity:.4}.window-area{position:relative;flex:1;min-height:0;overflow:hidden}.terminal-window{position:absolute;display:flex;flex-direction:column;border:1px solid var(--line);border-radius:8px;box-shadow:0 12px 32px #0003;overflow:hidden;resize:both;min-width:260px;min-height:180px;background:#101419}.terminal-window.focused{border-color:var(--green)}.terminal-window.maximized{inset:0;border-radius:0;resize:none;width:100%;height:100%}.terminal-window header{display:flex;align-items:center;justify-content:space-between;flex-shrink:0;height:34px;padding:0 6px 0 12px;background:var(--paper);color:var(--ink);font-size:12px;cursor:move;touch-action:none;user-select:none}.terminal-window header div{display:flex}.window-body{flex:1;min-height:0;min-width:0}.window-empty{padding:48px;text-align:center;color:var(--muted);font-size:13px}</style>
+<template>
+  <div class="terminal-desktop">
+    <nav aria-label="终端窗口管理">
+      <button title="新建终端（Ctrl+Alt+T）" @click="add">
+        <Plus :size="15" />新建终端
+      </button>
+      <button :disabled="!windows.length" @click="arrange(true)">
+        <LayoutGrid :size="15" />平铺
+      </button>
+      <button :disabled="!windows.length" @click="arrange(false)">
+        <Layers :size="15" />层叠
+      </button>
+      <button v-if="windows.length" @click="closeAll">全部关闭</button>
+      <button
+        v-for="w in windows.filter((w) => w.minimized)"
+        :key="w.id"
+        @click="
+          w.minimized = false;
+          focus(w);
+        "
+      >
+        {{ w.name }}
+      </button>
+    </nav>
+    <div ref="area" class="window-area">
+      <p v-if="!windows.length" class="window-empty">
+        关闭窗口不会释放环境。<button @click="add">新建终端</button>
+      </p>
+      <section
+        v-for="w in windows"
+        v-show="!w.minimized"
+        :key="w.id"
+        class="terminal-window"
+        :class="{ maximized: w.maximized, focused: focused === w.id }"
+        :style="
+          w.maximized
+            ? { zIndex: w.z }
+            : {
+                left: w.x + 'px',
+                top: w.y + 'px',
+                width: w.width + 'px',
+                height: w.height + 'px',
+                zIndex: w.z,
+              }
+        "
+        :aria-label="w.name"
+        @pointerdown="focus(w)"
+      >
+        <header
+          @pointerdown="begin($event, w)"
+          @pointermove="move"
+          @pointerup="end"
+          @pointercancel="end"
+          @lostpointercapture="end"
+          @dblclick="w.maximized = !w.maximized"
+        >
+          <span>{{ w.name }}</span>
+          <div @pointerdown.stop @dblclick.stop>
+            <button :aria-label="`最小化 ${w.name}`" @click="w.minimized = true">
+              <Minus :size="14" />
+            </button>
+            <button
+              :aria-label="`展开或还原 ${w.name}`"
+              @click="
+                focus(w);
+                w.maximized = !w.maximized;
+              "
+            >
+              <Maximize2 :size="13" />
+            </button>
+            <button :aria-label="`关闭 ${w.name}`" @click="close(w)">
+              <X :size="14" />
+            </button>
+          </div>
+        </header>
+        <div class="window-body">
+          <SandboxTerminal
+            :sandbox-id="sandboxId"
+            :window-id="w.id"
+            :active="focused === w.id && !w.minimized"
+          />
+        </div>
+      </section>
+    </div>
+  </div>
+</template>
+
+<style scoped>
+.terminal-desktop {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  background: var(--bg);
+}
+
+nav {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  padding: 8px 16px;
+  min-height: 44px;
+  border-bottom: 1px solid var(--line);
+  flex-wrap: wrap;
+}
+
+button {
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+  justify-content: center;
+  padding: 6px 10px;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 12px;
+}
+
+button:hover {
+  background: var(--soft);
+  color: var(--ink);
+}
+
+button:disabled {
+  opacity: 0.4;
+}
+
+.window-area {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.terminal-window {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  box-shadow: 0 12px 32px #0003;
+  overflow: hidden;
+  resize: both;
+  min-width: 260px;
+  min-height: 180px;
+  background: #101419;
+}
+
+.terminal-window.focused {
+  border-color: var(--green);
+}
+
+.terminal-window.maximized {
+  inset: 0;
+  border-radius: 0;
+  resize: none;
+  width: 100%;
+  height: 100%;
+}
+
+.terminal-window header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-shrink: 0;
+  height: 34px;
+  padding: 0 6px 0 12px;
+  background: var(--paper);
+  color: var(--ink);
+  font-size: 12px;
+  cursor: move;
+  touch-action: none;
+  user-select: none;
+}
+
+.terminal-window header div {
+  display: flex;
+}
+
+.window-body {
+  flex: 1;
+  min-height: 0;
+  min-width: 0;
+}
+
+.window-empty {
+  padding: 48px;
+  text-align: center;
+  color: var(--muted);
+  font-size: 13px;
+}
+</style>

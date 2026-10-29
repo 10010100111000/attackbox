@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { ArrowLeft, ExternalLink, Eye, EyeOff, Trash2 } from 'lucide-vue-next'
 import type { AdminReference } from '~/shared/references'
-import '~/assets/css/reference-admin.css'
 definePageMeta({layout:'admin'})
 useHead({title:'资料预览 — AttackBox'})
 const id=String(useRoute().params.id),confirmAction=useConfirm()
@@ -31,5 +30,34 @@ async function perform(intent:'publish'|'unpublish'|'delete'){
   </div>
 </template>
 <style scoped>
-.public-path { margin-bottom:24px;overflow-wrap:anywhere; }.public-path code{font-size:11px}.reference-preview{padding:40px 48px;}.reference-summary{font-size:14px;line-height:1.9;color:var(--muted);padding-bottom:24px;border-bottom:1px solid var(--line);margin:0 0 24px}.reference-preview :deep(.markdown-body){max-width:960px;margin:0 auto;font-size:16px;line-height:1.9}
+@import '~/assets/css/reference-admin.css';
+
+.public-path {
+  margin-bottom: 24px;
+  overflow-wrap: anywhere;
+}
+
+.public-path code {
+  font-size: 11px;
+}
+
+.reference-preview {
+  padding: 40px 48px;
+}
+
+.reference-summary {
+  font-size: 14px;
+  line-height: 1.9;
+  color: var(--muted);
+  padding-bottom: 24px;
+  border-bottom: 1px solid var(--line);
+  margin: 0 0 24px;
+}
+
+.reference-preview :deep(.markdown-body) {
+  max-width: 960px;
+  margin: 0 auto;
+  font-size: 16px;
+  line-height: 1.9;
+}
 </style>

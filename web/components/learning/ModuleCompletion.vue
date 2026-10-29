@@ -21,7 +21,96 @@ const emit=defineEmits<{'update:open':[value:boolean]}>()
  </DialogRoot>
 </template>
 <style scoped>
-.completion-overlay{position:fixed;inset:0;background:#0007;z-index:140;backdrop-filter:blur(4px)}
-.completion-dialog{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);z-index:141;width:min(420px,calc(100vw - 40px));padding:40px 32px 26px;border:1px solid var(--line);border-radius:16px;background:var(--paper);color:var(--ink);text-align:center;box-shadow:0 24px 80px #0003}
-.dialog-close{position:absolute;right:14px;top:14px;padding:5px;border:0;background:transparent;color:var(--muted);cursor:pointer}.trophy{display:grid;place-items:center;margin:0 auto 24px;width:70px;height:70px;border:1px solid var(--line);border-radius:50%;background:var(--mint);color:var(--green)}.completion-eyebrow{font:10px ui-monospace,monospace;letter-spacing:2px;color:var(--muted)}.completion-title{font-size:26px;letter-spacing:-.6px;margin:12px 0}.completion-description{font-size:13px;line-height:1.9;color:var(--muted);margin:0 0 28px}.completion-link{display:block;border-radius:7px;background:var(--btn-primary-bg);color:var(--btn-primary-fg);box-shadow:var(--btn-primary-shadow);text-decoration:none;padding:12px;font-size:13px;font-weight:600}.stay-button{margin-top:14px;padding:6px 12px;background:transparent;border:0;color:var(--muted);font-size:12px;cursor:pointer}.completion-dialog :focus-visible{outline:2px solid var(--green);outline-offset:3px}
+.completion-overlay {
+  position: fixed;
+  inset: 0;
+  background: #0007;
+  z-index: 140;
+  backdrop-filter: blur(4px);
+}
+
+.completion-dialog {
+  position: fixed;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 141;
+  width: min(420px, calc(100vw - 40px));
+  padding: 40px 32px 26px;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: var(--paper);
+  color: var(--ink);
+  text-align: center;
+  box-shadow: 0 24px 80px #0003;
+}
+
+.dialog-close {
+  position: absolute;
+  right: 14px;
+  top: 14px;
+  padding: 5px;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.trophy {
+  display: grid;
+  place-items: center;
+  margin: 0 auto 24px;
+  width: 70px;
+  height: 70px;
+  border: 1px solid var(--line);
+  border-radius: 50%;
+  background: var(--mint);
+  color: var(--green);
+}
+
+.completion-eyebrow {
+  font: 10px ui-monospace, monospace;
+  letter-spacing: 2px;
+  color: var(--muted);
+}
+
+.completion-title {
+  font-size: 26px;
+  letter-spacing: -0.6px;
+  margin: 12px 0;
+}
+
+.completion-description {
+  font-size: 13px;
+  line-height: 1.9;
+  color: var(--muted);
+  margin: 0 0 28px;
+}
+
+.completion-link {
+  display: block;
+  border-radius: 7px;
+  background: var(--btn-primary-bg);
+  color: var(--btn-primary-fg);
+  box-shadow: var(--btn-primary-shadow);
+  text-decoration: none;
+  padding: 12px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.stay-button {
+  margin-top: 14px;
+  padding: 6px 12px;
+  background: transparent;
+  border: 0;
+  color: var(--muted);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.completion-dialog :focus-visible {
+  outline: 2px solid var(--green);
+  outline-offset: 3px;
+}
 </style>

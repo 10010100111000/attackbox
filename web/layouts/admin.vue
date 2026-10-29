@@ -226,7 +226,7 @@ const currentBreadcrumb = computed(() => sectionMeta[currentSection.value])
 .admin-shell {
   --admin-page-width: 1400px;
   --admin-page-gutter: 32px;
-  min-width: 1280px;
+  min-width: 0;
   display: grid;
   grid-template-columns: 210px minmax(0, 1fr);
   min-height: 100vh;
