@@ -1,10 +1,11 @@
 <script setup lang="ts">
+import type { ClassValue } from 'clsx'
 import { cn } from '~/utils/cn'
 
 interface Props {
   variant?: 'neutral' | 'success' | 'warning' | 'error' | 'brand'
   dot?: boolean
-  class?: any
+  class?: ClassValue
 }
 
 const props = withDefaults(defineProps<Props>(), {

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { CheckboxRoot, CheckboxIndicator } from 'reka-ui'
 import { Check } from 'lucide-vue-next'
+import type { ClassValue } from 'clsx'
 import { cn } from '~/utils/cn'
 
 interface Props {
@@ -10,7 +11,7 @@ interface Props {
   id?: string
   name?: string
   value?: string
-  class?: any
+  class?: ClassValue
 }
 
 const props = withDefaults(defineProps<Props>(), {

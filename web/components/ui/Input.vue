@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, useId } from 'vue'
 import { Eye, EyeOff } from 'lucide-vue-next'
+import type { ClassValue } from 'clsx'
 import { cn } from '~/utils/cn'
 
 defineOptions({
@@ -19,8 +20,8 @@ interface Props {
   required?: boolean
   disabled?: boolean
   readonly?: boolean
-  class?: any
-  inputClass?: any
+  class?: ClassValue
+  inputClass?: ClassValue
 }
 
 const props = withDefaults(defineProps<Props>(), {

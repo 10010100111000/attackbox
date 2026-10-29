@@ -1,10 +1,11 @@
 <script setup lang="ts">
 import { useSlots } from 'vue'
+import type { ClassValue } from 'clsx'
 import { cn } from '~/utils/cn'
 
 interface Props {
   orientation?: 'horizontal' | 'vertical'
-  class?: any
+  class?: ClassValue
 }
 
 const props = withDefaults(defineProps<Props>(), {

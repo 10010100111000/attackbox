@@ -1,10 +1,11 @@
 <script setup lang="ts">
+import type { ClassValue } from 'clsx'
 import { cn } from '~/utils/cn'
 
 interface Props {
   title?: string
   description?: string
-  class?: any
+  class?: ClassValue
 }
 
 defineProps<Props>()

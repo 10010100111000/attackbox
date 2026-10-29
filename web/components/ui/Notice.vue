@@ -1,13 +1,14 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { Info, CheckCircle2, AlertTriangle, AlertCircle, X } from 'lucide-vue-next'
+import type { ClassValue } from 'clsx'
 import { cn } from '~/utils/cn'
 
 interface Props {
   variant?: 'info' | 'success' | 'warning' | 'error'
   title?: string
   dismissible?: boolean
-  class?: any
+  class?: ClassValue
 }
 
 const props = withDefaults(defineProps<Props>(), {
