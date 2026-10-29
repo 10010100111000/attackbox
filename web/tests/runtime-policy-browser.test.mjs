@@ -49,7 +49,7 @@ test(
       assert.equal(create.payload.ttl_seconds, 3600)
       assert.equal(create.payload.idle_seconds, 600)
       browser = await chromium.launch({
-        executablePath: '/usr/bin/chromium',
+        executablePath: process.env.CHROMIUM_PATH || '/usr/bin/chromium',
         args: ['--no-sandbox']
       })
       const ctx = await browser.newContext({

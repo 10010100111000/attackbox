@@ -27,6 +27,11 @@ const form = ref({
   }))
 })
 const original = ref(JSON.stringify(form.value))
+const targetModeOptions = [
+  { value: 'inherit', label: '继承模块默认' },
+  { value: 'none', label: '不使用靶机' },
+  { value: 'custom', label: '另选靶机' }
+]
 const version = ref(props.detail.module.lockVersion)
 const dirty = computed(() => JSON.stringify(form.value) !== original.value)
 
@@ -282,11 +287,12 @@ function syncFromGit() {
         <div v-for="(ch, index) in form.chapters" :key="ch.chapterId" class="chapter-config">
           <label>
             {{ detail.chapters[index]?.title }}
-            <select v-model="ch.targetMode" @change="ch.targetTemplateId = null">
-              <option value="inherit">继承模块默认</option>
-              <option value="none">不使用靶机</option>
-              <option value="custom">另选靶机</option>
-            </select>
+            <UiSelect
+              v-model="ch.targetMode"
+              :aria-label="`${detail.chapters[index]?.title || '章节'} 靶机模式`"
+              :options="targetModeOptions"
+              @update:model-value="ch.targetTemplateId = null"
+            />
           </label>
           <TargetTemplateSelect
             v-if="ch.targetMode === 'custom'"

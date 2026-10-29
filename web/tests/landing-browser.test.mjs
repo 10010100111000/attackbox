@@ -65,7 +65,7 @@ test(
       assert.ok(!html.includes('secret-answer'))
       assert.equal((await f.request('/api/modules')).data.length, 7)
       browser = await chromium.launch({
-        executablePath: '/usr/bin/chromium',
+        executablePath: process.env.CHROMIUM_PATH || '/usr/bin/chromium',
         args: ['--no-sandbox']
       })
       const context = await browser.newContext({ viewport: { width: 1440, height: 1000 } })

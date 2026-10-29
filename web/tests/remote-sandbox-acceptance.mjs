@@ -139,7 +139,10 @@ try {
   )
   console.log('PASS real control TCP disconnect reconnects with the same boot and live instance')
 
-  browser = await chromium.launch({ executablePath: '/usr/bin/chromium', args: ['--no-sandbox'] })
+  browser = await chromium.launch({
+    executablePath: process.env.CHROMIUM_PATH || '/usr/bin/chromium',
+    args: ['--no-sandbox']
+  })
   const context = await browser.newContext({ viewport: { width: 1440, height: 1000 } })
   await context.addCookies([{ name: 'attackbox_session', value: actors.alice.token, url: base }])
   const page = await context.newPage()

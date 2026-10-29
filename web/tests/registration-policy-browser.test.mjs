@@ -57,7 +57,7 @@ test(
         1
       )
       browser = await chromium.launch({
-        executablePath: '/usr/bin/chromium',
+        executablePath: process.env.CHROMIUM_PATH || '/usr/bin/chromium',
         args: ['--no-sandbox']
       })
       const page = await browser.newPage()

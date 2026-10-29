@@ -35,7 +35,7 @@ test(
       })
       await f.request('/api/sandbox/start', { actor: learner, method: 'POST' })
       browser = await chromium.launch({
-        executablePath: '/usr/bin/chromium',
+        executablePath: process.env.CHROMIUM_PATH || '/usr/bin/chromium',
         args: ['--no-sandbox']
       })
       const context = await browser.newContext({ viewport: { width: 1920, height: 1080 } })
@@ -196,7 +196,7 @@ test(
       challengeId = result.data.id
       await f.request('/api/sandbox/start', { actor: learner, method: 'POST' })
       browser = await chromium.launch({
-        executablePath: '/usr/bin/chromium',
+        executablePath: process.env.CHROMIUM_PATH || '/usr/bin/chromium',
         args: ['--no-sandbox']
       })
       const context = await browser.newContext({ viewport: { width: 1600, height: 1000 } })

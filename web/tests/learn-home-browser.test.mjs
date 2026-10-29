@@ -32,7 +32,7 @@ test(
       await f.request(path, { actor: f.admin, method: 'PUT', body: config, status: 409 })
       assert.equal((await f.request('/api/learn-home')).data.slides.length, 2)
       browser = await chromium.launch({
-        executablePath: '/usr/bin/chromium',
+        executablePath: process.env.CHROMIUM_PATH || '/usr/bin/chromium',
         args: ['--no-sandbox']
       })
       const ctx = await browser.newContext({ viewport: { width: 1440, height: 1000 } })

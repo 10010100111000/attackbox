@@ -3,6 +3,7 @@ import assert from 'node:assert/strict'
 import crypto from 'node:crypto'
 import { chromium } from 'playwright'
 import { learningFixture } from './helpers/learning-fixture.mjs'
+import { chooseOption } from './helpers/select.mjs'
 test(
   'learning target bindings: inheritance, exceptions, disabled retention, access control and browser',
   { skip: !process.env.CONTENT_TEST_DATABASE_URL, timeout: 120000 },
@@ -159,7 +160,7 @@ test(
         body: { ...a, lockVersion: a.lockVersion + 1, enabled: true }
       })
       browser = await chromium.launch({
-        executablePath: '/usr/bin/chromium',
+        executablePath: process.env.CHROMIUM_PATH || '/usr/bin/chromium',
         args: ['--no-sandbox']
       })
       const ctx = await browser.newContext({ viewport: { width: 1440, height: 1000 } })
@@ -167,13 +168,13 @@ test(
       const p = await ctx.newPage()
       await p.goto(f.base + `/admin/modules/${d.module.id}`)
       await p.getByRole('button', { name: '运行配置', exact: true }).click()
-      await p.getByLabel('模块默认靶机').selectOption(b.id)
+      await chooseOption(p, p.getByLabel('模块默认靶机'), b.name)
       await p.getByRole('button', { name: '保存运行配置', exact: true }).click()
       await p.getByText('运行配置已保存', { exact: true }).waitFor()
       assert.equal((await req(chapterPath + 'intro')).target.name, b.name)
       const firstChapterConfig = p.locator('.chapter-config').first()
-      await firstChapterConfig.locator('select').first().selectOption('custom')
-      await firstChapterConfig.locator('select').nth(1).selectOption(a.id)
+      await chooseOption(p, firstChapterConfig.getByRole('combobox').first(), '另选靶机')
+      await chooseOption(p, firstChapterConfig.getByRole('combobox').nth(1), a.name)
       await p.getByRole('button', { name: '保存运行配置', exact: true }).click()
       await p.getByText('运行配置已保存', { exact: true }).waitFor()
       assert.equal((await req(chapterPath + 'intro')).target.name, a.name)

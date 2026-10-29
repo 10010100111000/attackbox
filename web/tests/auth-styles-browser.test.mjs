@@ -55,7 +55,7 @@ test(
     const snapshots = {}
     try {
       browser = await chromium.launch({
-        executablePath: '/usr/bin/chromium',
+        executablePath: process.env.CHROMIUM_PATH || '/usr/bin/chromium',
         args: ['--no-sandbox']
       })
       for (const theme of ['graphite', 'midnight']) {

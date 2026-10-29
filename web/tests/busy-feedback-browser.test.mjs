@@ -11,7 +11,7 @@ test(
     try {
       const learner = await f.account()
       browser = await chromium.launch({
-        executablePath: '/usr/bin/chromium',
+        executablePath: process.env.CHROMIUM_PATH || '/usr/bin/chromium',
         args: ['--no-sandbox']
       })
       const context = await browser.newContext({ viewport: { width: 1440, height: 1000 } }),

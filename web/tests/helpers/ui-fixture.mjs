@@ -48,6 +48,8 @@ export async function uiFixture() {
     import EmptyState from './components/ui/EmptyState.vue';
     import BusyLabel from './components/ui/BusyLabel.vue';
     import BusyIndicator from './components/ui/BusyIndicator.vue';
+    import Select from './components/ui/Select.vue';
+    import Textarea from './components/ui/Textarea.vue';
     import Users from './pages/admin/users/index.vue';
     import References from './pages/admin/references/index.vue';
     import Routes from './pages/admin/routes/[id].vue';
@@ -99,7 +101,7 @@ export async function uiFixture() {
     window.fixtureRouter=router;
     const app=createApp({render:()=>h('div',{class:'admin-shell'},[h(RouterView,null,{default:({Component})=>h(Suspense,null,{default:()=>h(Component)})})])});
     const NuxtLink={inheritAttrs:false,props:['to'],setup(props,{attrs,slots}){return ()=>props.to?h(RouterLink,{...attrs,to:props.to},slots):h('a',attrs,slots.default?.())}};
-    for(const [name,component] of Object.entries({LearningHomeCarousel:HomeCarousel,AdminRepositorySettings:RepositorySettings,UiButton:Button,UiInput:Input,UiNotice:Notice,UiBadge:Badge,UiEmptyState:EmptyState,UiBusyLabel:BusyLabel,UiBusyIndicator:BusyIndicator,NuxtLink}))app.component(name,component);
+    for(const [name,component] of Object.entries({LearningHomeCarousel:HomeCarousel,AdminRepositorySettings:RepositorySettings,UiButton:Button,UiInput:Input,UiNotice:Notice,UiBadge:Badge,UiEmptyState:EmptyState,UiBusyLabel:BusyLabel,UiBusyIndicator:BusyIndicator,UiSelect:Select,UiTextarea:Textarea,NuxtLink}))app.component(name,component);
     app.component('AdminDataLoading',{render:()=>null});
     app.use(router);await router.isReady();app.mount('#app');
   `

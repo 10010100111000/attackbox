@@ -51,7 +51,7 @@ test(
       await f.sql`insert into auth_sessions(user_id,token_hash,expires_at) values(${a.id},${crypto.createHash('sha256').update(otherToken).digest()},now()+interval '1 hour')`
       await f.sql`insert into email_tokens(user_id,purpose,target_email,token_hash,expires_at) values(${a.id},'reset_password',${a.email},${crypto.createHash('sha256').update(reset).digest()},now()+interval '30 minutes')`
       browser = await chromium.launch({
-        executablePath: '/usr/bin/chromium',
+        executablePath: process.env.CHROMIUM_PATH || '/usr/bin/chromium',
         args: ['--no-sandbox']
       })
       const ctx = await browser.newContext({ viewport: { width: 1440, height: 1000 } })

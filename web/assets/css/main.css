@@ -205,34 +205,9 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
-/* 高对比度原生 <select> 下拉框样式 */
-select:not([multiple]) {
-  appearance: none;
-  -webkit-appearance: none;
-  background-color: var(--select-bg);
-  color: var(--select-text);
-  border: 1px solid var(--select-border);
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='13' height='13' viewBox='0 0 24 24' fill='none' stroke='%23959aa6' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
-  background-repeat: no-repeat;
-  background-position: right 10px center;
-  padding-right: 30px !important;
-  box-shadow: var(--surface-highlight);
-  cursor: pointer;
-  transition:
-    border-color 0.15s ease,
-    background-color 0.15s ease;
-}
-
-select:hover:not(:disabled) {
-  border-color: var(--select-hover-border);
-}
-
-select:focus-visible {
-  outline: 2px solid var(--focus);
-  outline-offset: 2px;
-}
-
-select option {
+/* 原生 <select> 目前只剩 GitModuleDetail 的多选控件;
+   单选框统一使用 components/ui/Select.vue(reka-ui),不再需要全局下拉皮肤。 */
+select[multiple] option {
   background-color: var(--popover-bg);
   color: var(--ink);
 }

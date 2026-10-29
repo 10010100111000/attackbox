@@ -141,7 +141,7 @@ test(
       })
       assert.equal(csrf.status, 403)
       browser = await chromium.launch({
-        executablePath: '/usr/bin/chromium',
+        executablePath: process.env.CHROMIUM_PATH || '/usr/bin/chromium',
         args: ['--no-sandbox']
       })
       const adminCtx = await browser.newContext({ viewport: { width: 1440, height: 1000 } })

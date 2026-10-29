@@ -66,7 +66,7 @@ test(
       entries.push({ name: 'lab/app/Dockerfile', data: 'FROM scratch\nCOPY main.txt /main.txt\n' })
       const { chromium } = await import('playwright')
       browser = await chromium.launch({
-        executablePath: '/usr/bin/chromium',
+        executablePath: process.env.CHROMIUM_PATH || '/usr/bin/chromium',
         args: ['--no-sandbox']
       })
       const ctx = await browser.newContext({ viewport: { width: 1440, height: 1000 } })

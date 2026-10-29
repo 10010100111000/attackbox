@@ -175,7 +175,6 @@ h1 {
 }
 
 input,
-select,
 button {
   padding: 10px 12px;
   background: var(--paper);
@@ -187,8 +186,7 @@ button {
   transition: border-color 0.15s ease;
 }
 
-input:focus,
-select:focus {
+input:focus {
   outline: none;
   border-color: var(--focus);
 }

@@ -389,7 +389,7 @@ test(
       })
       await f.request(`/api/admin/content/previews/${preview.id}`, { actor: f.admin, status: 404 })
       browser = await chromium.launch({
-        executablePath: '/usr/bin/chromium',
+        executablePath: process.env.CHROMIUM_PATH || '/usr/bin/chromium',
         args: ['--no-sandbox']
       })
       const context = await browser.newContext({ viewport: { width: 1600, height: 1000 } })

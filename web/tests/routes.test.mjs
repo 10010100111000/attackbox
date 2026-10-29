@@ -93,7 +93,7 @@ test(
       assert.ok(!(await req('/api/routes')).some(x => x.id === r.id))
       await f.sql`update modules set status='published' where id in (${a.module.id},${b.module.id})`
       browser = await chromium.launch({
-        executablePath: '/usr/bin/chromium',
+        executablePath: process.env.CHROMIUM_PATH || '/usr/bin/chromium',
         args: ['--no-sandbox']
       })
       const ctx = await browser.newContext({ viewport: { width: 1440, height: 1000 } })

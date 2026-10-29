@@ -2,11 +2,15 @@ import test, { before, after } from 'node:test'
 import assert from 'node:assert/strict'
 import { chromium } from 'playwright'
 import { uiFixture } from './helpers/ui-fixture.mjs'
+import { chooseOption } from './helpers/select.mjs'
 
 let fixture, browser
 before(async () => {
   fixture = await uiFixture()
-  browser = await chromium.launch({ executablePath: '/usr/bin/chromium', args: ['--no-sandbox'] })
+  browser = await chromium.launch({
+    executablePath: process.env.CHROMIUM_PATH || '/usr/bin/chromium',
+    args: ['--no-sandbox']
+  })
 })
 after(async () => {
   await browser?.close()
@@ -343,14 +347,14 @@ test('runtime policy protects route updates and document exits, and releases the
 test('Compose entry changes commit only after parsing and preserve the previous configuration on failure', async () => {
   const page = await visit('/admin/target-templates/existing')
   try {
-    const entry = page.getByLabel(/^部署入口/)
+    const entry = page.getByRole('combobox', { name: /^部署入口/ })
     await entry.waitFor()
     await page.route('**/api/admin/lab-bundles/bundle?file=alternate.yml', route =>
       route.fulfill({ status: 400, json: { message: 'Compose 文件解析失败' } })
     )
-    await entry.selectOption('alternate.yml')
+    await chooseOption(page, entry, 'alternate.yml')
     await page.getByRole('alert').filter({ hasText: 'Compose 文件解析失败' }).waitFor()
-    assert.equal(await entry.inputValue(), 'compose.yml')
+    assert.equal(await entry.innerText(), 'compose.yml')
     assert.equal(await page.getByLabel('端口', { exact: true }).inputValue(), '8080')
     assert.equal(
       await page.evaluate(() => {
@@ -385,9 +389,9 @@ test('Compose entry changes commit only after parsing and preserve the previous 
         }
       })
     )
-    await entry.selectOption('alternate.yml')
+    await chooseOption(page, entry, 'alternate.yml')
     await page.waitForFunction(() => document.querySelector('input[type=number]')?.value === '9090')
-    assert.equal(await entry.inputValue(), 'alternate.yml')
+    assert.equal(await entry.innerText(), 'alternate.yml')
     assert.equal(
       await page.getByRole('button', { name: '保存模板', exact: true }).isEnabled(),
       true

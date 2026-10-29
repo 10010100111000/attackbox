@@ -283,7 +283,7 @@ test(
       assert.equal(admins.count, 1)
       // Verify UI controls against real APIs, without replacing browser responses.
       browser = await chromium.launch({
-        executablePath: '/usr/bin/chromium',
+        executablePath: process.env.CHROMIUM_PATH || '/usr/bin/chromium',
         args: ['--no-sandbox']
       })
       const context = await browser.newContext({ viewport: { width: 1440, height: 1000 } })

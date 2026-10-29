@@ -15,7 +15,7 @@ test(
         await f.sql`insert into content_categories (slug,name) values ('web-security','Web 安全') returning id`
       await f.createModule('publish', { title: '对齐与导航验收', categoryId: category.id })
       browser = await chromium.launch({
-        executablePath: '/usr/bin/chromium',
+        executablePath: process.env.CHROMIUM_PATH || '/usr/bin/chromium',
         args: ['--no-sandbox']
       })
       const context = await browser.newContext({ viewport: { width: 1920, height: 1080 } })

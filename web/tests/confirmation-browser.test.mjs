@@ -12,7 +12,7 @@ test(
     try {
       const draft = await f.createModule('draft', { title: '确认交互验收' })
       browser = await chromium.launch({
-        executablePath: '/usr/bin/chromium',
+        executablePath: process.env.CHROMIUM_PATH || '/usr/bin/chromium',
         args: ['--no-sandbox']
       })
       const context = await browser.newContext({ viewport: { width: 1440, height: 1000 } })
@@ -132,7 +132,7 @@ test(
         mod = await f.createModule()
       await f.sql`update modules set default_target_template_id=${template.id} where id=${mod.module.id}`
       browser = await chromium.launch({
-        executablePath: '/usr/bin/chromium',
+        executablePath: process.env.CHROMIUM_PATH || '/usr/bin/chromium',
         args: ['--no-sandbox']
       })
       const context = await browser.newContext()

@@ -6,6 +6,7 @@ import os from 'node:os'
 import { createJiti } from 'jiti'
 import { chromium } from 'playwright'
 import { learningFixture } from './helpers/learning-fixture.mjs'
+import { chooseOption } from './helpers/select.mjs'
 test(
   'Git cover import, public access, homepage filters, failed-image fallback and removal',
   { skip: !process.env.CONTENT_TEST_DATABASE_URL, timeout: 90000 },
@@ -47,7 +48,7 @@ test(
       assert.equal(cards.find(m => m.id === id).durationMinutes, 20)
       await f.createModule('publish', { title: 'Beginner Module', difficulty: 'beginner' })
       browser = await chromium.launch({
-        executablePath: '/usr/bin/chromium',
+        executablePath: process.env.CHROMIUM_PATH || '/usr/bin/chromium',
         args: ['--no-sandbox']
       })
       const page = await browser.newPage({ viewport: { width: 1440, height: 1000 } })
@@ -57,10 +58,10 @@ test(
       await img.waitFor()
       assert.ok(await img.evaluate(el => el.complete && el.naturalWidth > 0))
       assert.ok((await page.locator('.feature-banner').boundingBox()).height < 190)
-      await page.getByRole('combobox', { name: '筛选难度' }).selectOption('advanced')
+      await chooseOption(page, page.getByRole('combobox', { name: '筛选难度' }), '高阶实战')
       assert.equal(await page.locator('.card').count(), 1)
-      await page.getByRole('combobox', { name: '模块排序' }).selectOption('updated')
-      await page.getByRole('combobox', { name: '筛选难度' }).selectOption('')
+      await chooseOption(page, page.getByRole('combobox', { name: '模块排序' }), '最近更新')
+      await chooseOption(page, page.getByRole('combobox', { name: '筛选难度' }), '全部难度')
       assert.equal(await page.locator('.card').count(), 2)
       await page.screenshot({ path: '/tmp/attackbox-learn-discovery.png', fullPage: true })
       await img.evaluate(el => el.dispatchEvent(new Event('error')))

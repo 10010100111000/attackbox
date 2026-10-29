@@ -8,7 +8,10 @@ const paragraph = '理解原理后，再亲手输入命令验证。'.repeat(12)
 const body = `## 认识 **终端**\n\n${paragraph}\n\n\`\`\`bash\nwhoami\n## not-a-section\n\`\`\`\n\n${paragraph}\n\n## 实践步骤\n\n${paragraph}\n\n### 细节\n\n${paragraph}\n\n## 实践步骤\n\n${paragraph}\n\n${paragraph}`
 const longBody = body + '\n\n' + Array.from({ length: 12 }, () => paragraph).join('\n\n')
 const launches = () =>
-  chromium.launch({ executablePath: '/usr/bin/chromium', args: ['--no-sandbox'] })
+  chromium.launch({
+    executablePath: process.env.CHROMIUM_PATH || '/usr/bin/chromium',
+    args: ['--no-sandbox']
+  })
 test(
   'reader section tree, hash navigation, local position isolation and tutorial-only copy restrictions',
   { skip: !enabled, timeout: 90000 },

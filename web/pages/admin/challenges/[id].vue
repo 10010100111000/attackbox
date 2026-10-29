@@ -445,8 +445,7 @@ label {
 }
 
 input:not([type='checkbox']),
-textarea,
-select {
+textarea {
   display: block;
   width: 100%;
   box-sizing: border-box;

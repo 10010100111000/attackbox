@@ -75,6 +75,20 @@ const issues = computed(() => [
   ...(preview.value?.issues || []),
   ...(preview.value?.missingFiles || []).map(f => `缺少配套文件／目录：${f}`)
 ])
+const composeFileOptions = computed(
+  () => preview.value?.composeFiles.map(file => ({ value: file, label: file })) || []
+)
+const serviceOptions = computed(
+  () => preview.value?.services.map(service => ({ value: service.name, label: service.name })) || []
+)
+const networkOptions = computed(() => networks.value.map(name => ({ value: name, label: name })))
+const prefixOptions = [
+  { value: '28', label: '/28 · 常规靶场' },
+  { value: '27', label: '/27 · 较大靶场' },
+  { value: '26', label: '/26' },
+  { value: '25', label: '/25' },
+  { value: '24', label: '/24' }
+]
 const labels: Record<string, string> = {
   ready: '已准备',
   preparing: '准备中',
@@ -280,13 +294,8 @@ async function importUpdate() {
     busy.value = false
   }
 }
-async function selectFile(event: Event) {
-  const select = event.target as HTMLSelectElement
-  if (busy.value || !bundleId.value) {
-    select.value = settings.value.file
-    return
-  }
-  const file = select.value
+async function selectFile(file: string) {
+  if (busy.value || !bundleId.value || file === settings.value.file) return
   busy.value = true
   failed.value = false
   message.value = ''
@@ -310,7 +319,6 @@ async function selectFile(event: Event) {
     showError(e, 'Compose 文件解析失败，原入口配置已保留')
   } finally {
     busy.value = false
-    select.value = settings.value.file
   }
 }
 async function save() {
@@ -511,10 +519,12 @@ const preparation = (node: string) => preparations.value.find(p => p.nodeId === 
                 </div>
               </div>
               <label v-if="preview && preview.composeFiles.length > 1" class="compact"
-                >部署入口<select :value="settings.file" @change="selectFile">
-                  <option v-for="file in preview.composeFiles" :key="file">{{ file }}</option>
-                </select></label
-              >
+                >部署入口<UiSelect
+                  :model-value="settings.file"
+                  aria-label="部署入口"
+                  :options="composeFileOptions"
+                  @update:model-value="selectFile"
+              /></label>
               <p v-for="note in preview?.notes" :key="note" class="muted">{{ note }}</p>
               <ul v-if="issues.length" class="problems">
                 <li v-for="issue in issues" :key="issue">{{ issue }}</li>
@@ -600,10 +610,12 @@ const preparation = (node: string) => preparations.value.find(p => p.nodeId === 
             <section class="panel">
               <h2>访问入口</h2>
               <label
-                >服务<select v-model="settings.entryService" :disabled="!preview">
-                  <option v-for="s in preview?.services" :key="s.name">{{ s.name }}</option>
-                </select></label
-              >
+                >服务<UiSelect
+                  v-model="settings.entryService"
+                  aria-label="服务"
+                  :options="serviceOptions"
+                  :disabled="!preview"
+              /></label>
               <div class="field-pair">
                 <label
                   >端口<input
@@ -612,20 +624,19 @@ const preparation = (node: string) => preparations.value.find(p => p.nodeId === 
                     min="1"
                     max="65535" /></label
                 ><label
-                  >接入网络<select v-model="settings.entryNetwork">
-                    <option v-for="network in networks" :key="network">{{ network }}</option>
-                  </select></label
-                >
+                  >接入网络<UiSelect
+                    v-model="settings.entryNetwork"
+                    aria-label="接入网络"
+                    :options="networkOptions"
+                /></label>
               </div>
               <label class="compact"
-                >网络规格<select v-model.number="settings.prefixBits">
-                  <option :value="28">/28 · 常规靶场</option>
-                  <option :value="27">/27 · 较大靶场</option>
-                  <option :value="26">/26</option>
-                  <option :value="25">/25</option>
-                  <option :value="24">/24</option>
-                </select></label
-              >
+                >网络规格<UiSelect
+                  :model-value="String(settings.prefixBits)"
+                  aria-label="网络规格"
+                  :options="prefixOptions"
+                  @update:model-value="value => (settings.prefixBits = Number(value))"
+              /></label>
               <p class="muted">学员直连服务地址，不映射宿主机端口。</p>
               <details>
                 <summary>默认资源策略</summary>
@@ -800,7 +811,6 @@ label:last-child {
 }
 
 input:not([type='checkbox']):not([type='file']),
-select,
 textarea {
   display: block;
   width: 100%;

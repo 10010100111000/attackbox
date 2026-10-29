@@ -1,54 +1,46 @@
 <script setup lang="ts">
-defineProps<{
-  modelValue: string | null
-  id: string
-  options: { id: string; name: string; enabled: boolean }[]
-  disabled?: boolean
-}>()
+import { computed } from 'vue'
+import type { ClassValue } from 'clsx'
+
+const props = withDefaults(
+  defineProps<{
+    modelValue: string | null
+    id: string
+    options: { id: string; name: string; enabled: boolean }[]
+    disabled?: boolean
+    class?: ClassValue
+  }>(),
+  { disabled: false, class: undefined }
+)
 
 const emit = defineEmits<{
   'update:modelValue': [value: string | null]
 }>()
+
+const items = computed(() => {
+  const list = [{ value: '', label: '不关联模板' }]
+  if (props.modelValue && !props.options.some(template => template.id === props.modelValue)) {
+    list.push({ value: props.modelValue, label: '当前模板(信息未加载)' })
+  }
+  for (const item of props.options.filter(
+    template => template.enabled || template.id === props.modelValue
+  )) {
+    list.push({
+      value: item.id,
+      label: item.enabled ? item.name : `${item.name}(已停用)`
+    })
+  }
+  return list
+})
 </script>
 
 <template>
-  <select
+  <UiSelect
     :id="id"
-    :value="modelValue || ''"
+    :model-value="modelValue || ''"
+    :options="items"
     :disabled="disabled"
-    class="target-select"
-    @change="emit('update:modelValue', ($event.target as HTMLSelectElement).value || null)"
-  >
-    <option value="">不关联模板</option>
-    <option v-if="modelValue && !options.some(t => t.id === modelValue)" :value="modelValue">
-      当前模板（信息未加载）
-    </option>
-    <option
-      v-for="item in options.filter(t => t.enabled || t.id === modelValue)"
-      :key="item.id"
-      :value="item.id"
-    >
-      {{ item.name }}{{ item.enabled ? '' : '（已停用）' }}
-    </option>
-  </select>
+    :class="['mt-2 w-full max-w-[420px]', props.class]"
+    @update:model-value="value => emit('update:modelValue', value || null)"
+  />
 </template>
-
-<style scoped>
-.target-select {
-  display: block;
-  width: 100%;
-  max-width: 420px;
-  box-sizing: border-box;
-  background: var(--paper);
-  color: var(--ink);
-  border: 1px solid var(--line);
-  border-radius: 6px;
-  padding: 9px 12px;
-  margin-top: 8px;
-  font-size: 13px;
-}
-
-.target-select:disabled {
-  opacity: 0.6;
-}
-</style>

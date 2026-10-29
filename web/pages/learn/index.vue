@@ -70,6 +70,16 @@ const selectedCategory = ref('全部模块')
 const searchQuery = ref('')
 const difficulty = ref('')
 const sortBy = ref('published')
+const difficultyFilterOptions = [
+  { value: '', label: '全部难度' },
+  { value: 'beginner', label: '基础入门' },
+  { value: 'intermediate', label: '中级进阶' },
+  { value: 'advanced', label: '高阶实战' }
+]
+const sortOptions = [
+  { value: 'published', label: '最新发布' },
+  { value: 'updated', label: '最近更新' }
+]
 const historyByModule = computed(
   () =>
     new Map(
@@ -262,18 +272,13 @@ function getModuleTheme(index: number) {
         <div class="discovery-controls">
           <span>{{ filteredModules.length }} 个模块</span
           ><label
-            >难度<select v-model="difficulty" aria-label="筛选难度">
-              <option value="">全部难度</option>
-              <option value="beginner">基础入门</option>
-              <option value="intermediate">中级进阶</option>
-              <option value="advanced">高阶实战</option>
-            </select></label
+            >难度<UiSelect
+              v-model="difficulty"
+              aria-label="筛选难度"
+              :options="difficultyFilterOptions" /></label
           ><label
-            >排序<select v-model="sortBy" aria-label="模块排序">
-              <option value="published">最新发布</option>
-              <option value="updated">最近更新</option>
-            </select></label
-          >
+            >排序<UiSelect v-model="sortBy" aria-label="模块排序" :options="sortOptions"
+          /></label>
         </div>
         <!-- 加载状态 -->
         <LearningCatalogSkeleton v-if="pending && !response" label="正在读取学习模块" />
@@ -577,14 +582,6 @@ function getModuleTheme(index: number) {
   display: flex;
   align-items: center;
   gap: 8px;
-}
-
-.discovery-controls select {
-  background: var(--paper);
-  color: var(--ink);
-  border: 1px solid var(--line);
-  padding: 6px 9px;
-  border-radius: 6px;
 }
 
 .recent-learning {
