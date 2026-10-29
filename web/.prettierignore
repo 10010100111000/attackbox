@@ -1,0 +1,9 @@
+node_modules
+.nuxt
+.output
+.npm-cache
+coverage
+dist
+package-lock.json
+*.tar.gz
+server/db/migrations

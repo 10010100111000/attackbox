@@ -2,12 +2,21 @@
   "name": "attackbox-web",
   "private": true,
   "type": "module",
+  "engines": {
+    "node": ">=22.6"
+  },
   "scripts": {
     "build": "nuxt build",
     "generate": "nuxt generate",
     "dev": "nuxt dev",
     "preview": "nuxt preview",
-    "test": "node --experimental-strip-types --test tests/auth-crypto.test.js tests/composables.test.js tests/ui.test.js tests/styles.test.js tests/landing.test.js tests/auth.test.js tests/markdown.test.js tests/learning-ui.test.js tests/admin-ui.test.js tests/quiz.test.js tests/learning-access.test.js tests/sandbox-nodes.test.js tests/sandbox-lifecycle.test.js tests/sandbox-settings.test.js tests/content-parser.test.mjs tests/content-repository.test.mjs tests/compose-packages.test.mjs tests/lab-git.test.mjs tests/mailer.test.mjs tests/runtime-policy.test.mjs tests/learn-home.test.mjs tests/confirmation.test.mjs tests/reference-parser.test.mjs tests/registration-policy.test.mjs tests/turnstile.test.mjs tests/feedback-input.test.mjs tests/request-policy.test.mjs tests/login-destination.test.mjs tests/database-config.test.mjs",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "typecheck": "nuxt typecheck",
+    "test": "node --experimental-strip-types --test tests/auth-crypto.test.js tests/composables.test.js tests/ui.test.js tests/landing.test.js tests/auth.test.js tests/markdown.test.js tests/learning-ui.test.js tests/admin-ui.test.js tests/quiz.test.js tests/learning-access.test.js tests/sandbox-nodes.test.js tests/sandbox-lifecycle.test.js tests/sandbox-settings.test.js tests/content-parser.test.mjs tests/content-repository.test.mjs tests/compose-packages.test.mjs tests/lab-git.test.mjs tests/mailer.test.mjs tests/runtime-policy.test.mjs tests/learn-home.test.mjs tests/confirmation.test.mjs tests/reference-parser.test.mjs tests/registration-policy.test.mjs tests/turnstile.test.mjs tests/feedback-input.test.mjs tests/request-policy.test.mjs tests/login-destination.test.mjs tests/database-config.test.mjs",
+    "test:all": "node --test tests/",
     "db:generate": "drizzle-kit generate",
     "admin:init": "bash ../scripts/control.sh admin",
     "postinstall": "nuxt prepare",
@@ -15,8 +24,6 @@
     "db:migrate": "node server/scripts/apply-migrations.mjs",
     "db:reset": "node server/scripts/reset-db.mjs",
     "test:account-settings": "node --test tests/account-settings-browser.test.mjs",
-    "test:auth-styles": "node --test tests/auth-styles-browser.test.mjs",
-    "test:ui-components": "node --test tests/ui-components-browser.test.mjs",
     "test:busy-feedback": "node --test tests/busy-feedback-browser.test.mjs",
     "test:learning-shell": "node --test tests/learning-shell-browser.test.mjs",
     "test:module-covers": "node --test tests/module-cover-browser.test.mjs",
@@ -72,18 +79,21 @@
     "yauzl": "3.2.0"
   },
   "devDependencies": {
+    "@nuxt/eslint": "^1.17.0",
     "@nuxtjs/tailwindcss": "^6.13.1",
     "@types/highlight.js": "^9.12.4",
     "@types/markdown-it": "^14.2.0",
     "@types/node": "^22.20.5",
     "@types/yauzl": "2.10.3",
     "drizzle-kit": "^0.31.11",
-    "esbuild": "^0.28.2",
+    "eslint": "^10.13.0",
     "jiti": "2.7.0",
     "nuxt": "^3.15.4",
     "playwright": "^1.62.1",
+    "prettier": "^3.9.10",
     "tailwindcss": "^3.4.17",
     "typescript": "^5.7.3",
+    "vue-tsc": "^3.3.13",
     "ws": "^8.22.0"
   }
 }

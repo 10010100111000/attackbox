@@ -163,6 +163,26 @@ npm --prefix web test
 
 API 响应与服务端渲染的 HTML／Nuxt payload 默认使用 `private, no-store`，合并并去重 `Vary: Cookie`；带内容哈希的 JS、CSS 等静态资源保留框架的长期缓存。此策略与浏览器内的目录短缓存相互独立。新增 API 自动纳入规则，不需要追加功能路径。使用隔离测试数据库和运行中的 Web 可执行 `npm --prefix web run test:request-policy` 验证来源拦截、鉴权、用户响应隔离及静态资源缓存。
 
+## 前端工程化
+
+`web/` 的格式化、静态检查与类型检查都有固定入口,提交前应全部通过:
+
+| 命令 | 作用 |
+| --- | --- |
+| `npm --prefix web run format` | Prettier 写入格式化(JS/TS/Vue/CSS/JSON) |
+| `npm --prefix web run format:check` | 只检查不写文件,供 CI 与提交前使用 |
+| `npm --prefix web run lint` | ESLint(含 Vue、TypeScript 与 Nuxt 规则) |
+| `npm --prefix web run typecheck` | `nuxt typecheck`,在严格模式下检查 Vue/TS 类型 |
+| `npm --prefix web test` | 不依赖数据库的单元与契约测试 |
+| `npm --prefix web run test:all` | 全量测试,需要 PostgreSQL 与运行中的 Web |
+
+- 需要 Node.js **22.6+**,`package.json` 的 `engines` 已声明;测试使用内置类型剥离,低版本会直接报 `bad option: --experimental-strip-types`。
+- 统一风格为无分号、单引号、行宽 100、LF 换行。`.editorconfig`、`.prettierrc.json`、`.prettierignore` 已入库,忽略构建产物、锁文件与数据库迁移快照。
+- ESLint 配置由 `@nuxt/eslint` 生成,`eslint.config.mjs` 只保留项目级例外。历史遗留的 `any` 目前按警告处理,新增代码不应继续引入。
+- 模板与脚本不得压缩成超长单行:格式由 Prettier 保证,评审时以 `format:check` 为准,不再人工维护换行。
+- 测试以行为断言为主。涉及模板结构的用例只断言关键标记存在或缺失,不比对整段源码文本,避免格式化或重构后失效。
+- 依赖安装失败时先确认 Node 版本与锁文件一致;`@node-rs/argon2-linux-x64-gnu` 是 Linux 专用依赖,在 Windows 上安装需跳过平台校验,部署与测试以 Linux 为准。
+
 ## 学习界面说明
 
 公共按钮、提示、徽标和空状态由 `web/components/ui` 管理外观与交互；后台页面样式使用 `scoped`，仅管理页面布局与专用元素。用户管理样式随用户页面加载，不再注入整个后台布局。
