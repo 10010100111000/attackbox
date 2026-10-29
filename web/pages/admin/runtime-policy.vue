@@ -13,23 +13,24 @@ const draft = ref<RuntimePolicy | null>(null),
   busy = ref(false),
   message = ref(''),
   failed = ref(false)
-const dirty = computed(
-  () =>
-    !!draft.value &&
-    JSON.stringify(draft.value) !== saved.value,
-)
+const dirty = computed(() => !!draft.value && JSON.stringify(draft.value) !== saved.value)
 function applyPolicy(value: RuntimePolicy) {
   draft.value = { ...value }
   saved.value = JSON.stringify(draft.value)
 }
 watch(
   data,
-  (value) => {
+  value => {
     if (value && !busy.value && !dirty.value) applyPolicy(value.data)
   },
-  { immediate: true },
+  { immediate: true }
 )
-useEditorGuard({ dirty, busy, title: '放弃运行策略修改？', description: '当前未保存的运行策略将丢失。' })
+useEditorGuard({
+  dirty,
+  busy,
+  title: '放弃运行策略修改？',
+  description: '当前未保存的运行策略将丢失。'
+})
 const confirmAction = useConfirm()
 function reset() {
   if (data.value) applyPolicy(data.value.data)
@@ -38,11 +39,24 @@ function reset() {
 }
 async function reload() {
   if (busy.value) return
-  if (dirty.value && !(await confirmAction({ title: '重新载入运行策略？', description: '当前未保存的修改将被替换。', confirmLabel: '重新载入', cancelLabel: '继续编辑' }))) return
+  if (
+    dirty.value &&
+    !(await confirmAction({
+      title: '重新载入运行策略？',
+      description: '当前未保存的修改将被替换。',
+      confirmLabel: '重新载入',
+      cancelLabel: '继续编辑'
+    }))
+  )
+    return
   if (busy.value) return
   busy.value = true
-  try { await refresh();if (!error.value) reset() }
-  finally { busy.value = false }
+  try {
+    await refresh()
+    if (!error.value) reset()
+  } finally {
+    busy.value = false
+  }
 }
 async function save() {
   if (!draft.value || busy.value) return
@@ -56,10 +70,11 @@ async function save() {
   busy.value = true
   message.value = ''
   try {
-    const result = await $fetch<{ data: RuntimePolicy }>(
-      '/api/admin/runtime-policy',
-      { method: 'PUT', body: draft.value, retry: false },
-    )
+    const result = await $fetch<{ data: RuntimePolicy }>('/api/admin/runtime-policy', {
+      method: 'PUT',
+      body: draft.value,
+      retry: false
+    })
     data.value = result
     applyPolicy(result.data)
     failed.value = false
@@ -82,7 +97,7 @@ async function save() {
       </div>
       <Clock3 :size="24" aria-hidden="true" />
     </header>
-    <UiBusyIndicator v-if="pending && !draft" label="运行策略加载"/>
+    <UiBusyIndicator v-if="pending && !draft" label="运行策略加载" />
     <UiNotice v-else-if="error" variant="error" class="mb-4">
       <div class="flex items-center justify-between gap-3 w-full">
         <span>读取失败。</span>
@@ -148,30 +163,21 @@ async function save() {
         <div class="policy-note">
           <Clock3 :size="16" />
           <span>
-            修改仅影响新启动的环境。运行中的实例保留原到期时间，时长范围为
-            1–1440 分钟。
+            修改仅影响新启动的环境。运行中的实例保留原到期时间，时长范围为 1–1440 分钟。
           </span>
         </div>
         <footer>
-          <UiNotice
-            v-if="message"
-            :variant="failed ? 'error' : 'success'"
-            class="w-full mb-3"
-          >
+          <UiNotice v-if="message" :variant="failed ? 'error' : 'success'" class="w-full mb-3">
             <div class="flex items-center justify-between gap-3 w-full">
               <span>{{ message }}</span>
-              <UiButton
-                v-if="failed"
-                type="button"
-                variant="secondary"
-                size="xs"
-                @click="reload"
-              >
+              <UiButton v-if="failed" type="button" variant="secondary" size="xs" @click="reload">
                 重新载入
               </UiButton>
             </div>
           </UiNotice>
-          <UiBadge v-else :variant="dirty ? 'warning' : 'neutral'" dot>{{ dirty ? '有尚未保存的修改' : '设置已同步' }}</UiBadge>
+          <UiBadge v-else :variant="dirty ? 'warning' : 'neutral'" dot>{{
+            dirty ? '有尚未保存的修改' : '设置已同步'
+          }}</UiBadge>
           <div class="flex items-center gap-3">
             <UiButton type="button" variant="secondary" size="sm" :disabled="!dirty" @click="reset">
               取消修改

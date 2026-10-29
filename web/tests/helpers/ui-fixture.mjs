@@ -110,69 +110,251 @@ export async function uiFixture() {
       styles.push(await readFile(resolve(web, style.src.replace('~/', '')), 'utf8'))
     }
     const result = await build({
-      stdin: { contents: entry, resolveDir: web }, bundle: true, write: false,
-      format: 'esm', alias: { '~': web },
-      plugins: [{ name: 'vue-fixture', setup(builder) {
-        builder.onResolve({ filter: /(?:^audit-runtime$|^#imports$|\/useConfirm$)/ }, () => ({ path: 'runtime', namespace: 'fixture' }))
-        builder.onLoad({ filter: /.*/, namespace: 'fixture' }, () => ({ contents: runtime, resolveDir: web }))
-        builder.onLoad({ filter: /\.vue$/ }, async ({ path }) => {
-          const { descriptor } = parse(await readFile(path, 'utf8'), { filename: path })
-          const id = 'data-v-' + createHash('sha256').update(path).digest('hex').slice(0, 8)
-          for (const style of descriptor.styles) {
-            let source = style.src ? await readFile(resolve(web, style.src.replace('~/', '')), 'utf8') : style.content
-            for (const match of source.matchAll(/@import ['"]~\/(.*?)['"];?/g)) {
-              source = source.replace(match[0], await readFile(resolve(web, match[1]), 'utf8'))
-            }
-            const compiled = compileStyle({ source, filename: path, id, scoped: !!style.scoped })
-            if (compiled.errors.length) throw compiled.errors[0]
-            styles.push(compiled.code)
+      stdin: { contents: entry, resolveDir: web },
+      bundle: true,
+      write: false,
+      format: 'esm',
+      alias: { '~': web },
+      plugins: [
+        {
+          name: 'vue-fixture',
+          setup(builder) {
+            builder.onResolve({ filter: /(?:^audit-runtime$|^#imports$|\/useConfirm$)/ }, () => ({
+              path: 'runtime',
+              namespace: 'fixture'
+            }))
+            builder.onLoad({ filter: /.*/, namespace: 'fixture' }, () => ({
+              contents: runtime,
+              resolveDir: web
+            }))
+            builder.onLoad({ filter: /\.vue$/ }, async ({ path }) => {
+              const { descriptor } = parse(await readFile(path, 'utf8'), { filename: path })
+              const id = 'data-v-' + createHash('sha256').update(path).digest('hex').slice(0, 8)
+              for (const style of descriptor.styles) {
+                let source = style.src
+                  ? await readFile(resolve(web, style.src.replace('~/', '')), 'utf8')
+                  : style.content
+                for (const match of source.matchAll(/@import ['"]~\/(.*?)['"];?/g)) {
+                  source = source.replace(match[0], await readFile(resolve(web, match[1]), 'utf8'))
+                }
+                const compiled = compileStyle({
+                  source,
+                  filename: path,
+                  id,
+                  scoped: !!style.scoped
+                })
+                if (compiled.errors.length) throw compiled.errors[0]
+                styles.push(compiled.code)
+              }
+              const compiledScript = compileScript(descriptor, { id, inlineTemplate: true })
+              let code = compiledScript.content
+              const source = descriptor.scriptSetup?.content || ''
+              const missing = names =>
+                names.filter(name => !compiledScript.bindings[name] && source.includes(name))
+              const services = missing([
+                'definePageMeta',
+                'useHead',
+                'useLazyFetch',
+                'useRequestFetch',
+                'useRoute',
+                'useConfirm',
+                'clearNuxtData',
+                'navigateTo',
+                '$fetch'
+              ])
+              const vue = missing([
+                'ref',
+                'computed',
+                'watch',
+                'nextTick',
+                'onMounted',
+                'onBeforeUnmount',
+                'onUnmounted',
+                'useId'
+              ])
+              if (services.length)
+                code = `import {${services.join(',')}} from 'audit-runtime';\n` + code
+              if (vue.length) code = `import {${vue.join(',')}} from 'vue';\n` + code
+              if (descriptor.styles.some(style => style.scoped)) {
+                code =
+                  code.replace('export default', 'const component =') +
+                  `\ncomponent.__scopeId='${id}';export default component;`
+              }
+              return { contents: code, loader: 'ts', resolveDir: dirname(path) }
+            })
           }
-          const compiledScript = compileScript(descriptor, { id, inlineTemplate: true })
-          let code = compiledScript.content
-          const source = descriptor.scriptSetup?.content || ''
-          const missing = names => names.filter(name => !compiledScript.bindings[name] && source.includes(name))
-          const services = missing(['definePageMeta','useHead','useLazyFetch','useRequestFetch','useRoute','useConfirm','clearNuxtData','navigateTo','$fetch'])
-          const vue = missing(['ref','computed','watch','nextTick','onMounted','onBeforeUnmount','onUnmounted','useId'])
-          if (services.length) code = `import {${services.join(',')}} from 'audit-runtime';\n` + code
-          if (vue.length) code = `import {${vue.join(',')}} from 'vue';\n` + code
-          if (descriptor.styles.some(style => style.scoped)) {
-            code = code.replace('export default', 'const component =') + `\ncomponent.__scopeId='${id}';export default component;`
-          }
-          return { contents: code, loader: 'ts', resolveDir: dirname(path) }
-        })
-      } }],
+        }
+      ]
     })
     const cssFile = resolve(directory, 'style.css')
-    execFileSync(process.execPath, [resolve(web, 'node_modules/tailwindcss/lib/cli.js'), '-i', 'assets/css/main.css', '-c', 'tailwind.config.ts', '-o', cssFile], { cwd: web, stdio: 'pipe' })
-    const css = await readFile(cssFile, 'utf8') + '\n' + styles.join('\n')
+    execFileSync(
+      process.execPath,
+      [
+        resolve(web, 'node_modules/tailwindcss/lib/cli.js'),
+        '-i',
+        'assets/css/main.css',
+        '-c',
+        'tailwind.config.ts',
+        '-o',
+        cssFile
+      ],
+      { cwd: web, stdio: 'pipe' }
+    )
+    const css = (await readFile(cssFile, 'utf8')) + '\n' + styles.join('\n')
     const fixtures = {
-      '/api/admin/modules': { data: [
-        { id:'module-one',slug:'module-one',title:'Module one',status:'published',difficulty:'beginner',chapterCount:1,category:null },
-        { id:'module-two',slug:'module-two',title:'Module two',status:'unpublished',difficulty:'beginner',chapterCount:1,category:null },
-      ] },
+      '/api/admin/modules': {
+        data: [
+          {
+            id: 'module-one',
+            slug: 'module-one',
+            title: 'Module one',
+            status: 'published',
+            difficulty: 'beginner',
+            chapterCount: 1,
+            category: null
+          },
+          {
+            id: 'module-two',
+            slug: 'module-two',
+            title: 'Module two',
+            status: 'unpublished',
+            difficulty: 'beginner',
+            chapterCount: 1,
+            category: null
+          }
+        ]
+      },
       '/api/modules': { data: [] },
       '/api/routes': { data: [] },
-      '/api/admin/learn-home': { data: { enabled:true,autoplay:false,intervalSeconds:6,lockVersion:0,slides:[{id:'welcome',enabled:true,label:'Featured',title:'Welcome',description:'Description',cta:'Learn',href:'/learn',command:'$ explore',caption:'Practice'}] } },
-      '/api/admin/routes/existing': { data: { title: 'Original route', summary: '', modules: [], lockVersion: 0, status: 'unpublished' } },
+      '/api/admin/learn-home': {
+        data: {
+          enabled: true,
+          autoplay: false,
+          intervalSeconds: 6,
+          lockVersion: 0,
+          slides: [
+            {
+              id: 'welcome',
+              enabled: true,
+              label: 'Featured',
+              title: 'Welcome',
+              description: 'Description',
+              cta: 'Learn',
+              href: '/learn',
+              command: '$ explore',
+              caption: 'Practice'
+            }
+          ]
+        }
+      },
+      '/api/admin/routes/existing': {
+        data: {
+          title: 'Original route',
+          summary: '',
+          modules: [],
+          lockVersion: 0,
+          status: 'unpublished'
+        }
+      },
       '/api/admin/notifications': { data: { items: [], total: 0 } },
-      '/api/admin/runtime-policy': { data: { sandboxTtlMinutes:60,sandboxIdleMinutes:10,targetTtlMinutes:60,lockVersion:0 } },
-      '/api/admin/references': { data: { items: [], total:0 } },
-      '/api/admin/references/repository': { data: { repository:'author/reference',branch:'main',directory:'references',hasToken:true,version:0 } },
+      '/api/admin/runtime-policy': {
+        data: {
+          sandboxTtlMinutes: 60,
+          sandboxIdleMinutes: 10,
+          targetTtlMinutes: 60,
+          lockVersion: 0
+        }
+      },
+      '/api/admin/references': { data: { items: [], total: 0 } },
+      '/api/admin/references/repository': {
+        data: {
+          repository: 'author/reference',
+          branch: 'main',
+          directory: 'references',
+          hasToken: true,
+          version: 0
+        }
+      },
       '/api/admin/target-templates/options': { data: [] },
-      '/api/admin/target-templates/existing': { data: { name:'Target',description:'',accessInstructions:'',enabled:false,bundleId:'bundle',settings:{file:'compose.yml',entryService:'web',entryNetwork:'default',entryPort:8080,prefixBits:28},lockVersion:0,variableKeys:[] } },
-      '/api/admin/target-templates/existing/preparations': { data: { items:[],nodes:[] } },
-      '/api/admin/lab-bundles/bundle': { data: { id:'bundle',hash:'hash0',composeFiles:['compose.yml','alternate.yml'],files:2,services:[{name:'web',image:'example/web',networks:['default'],ports:[{port:8080,protocol:'tcp'}]}],networks:['default'],variables:[],missingFiles:[],issues:[] } },
-      '/api/admin/modules/detail': { data: { module:{id:'detail',title:'Module detail',slug:'module',status:'unpublished',lockVersion:0,defaultTargetTemplateId:null,learningOutcomes:[]},chapters:[],prerequisites:[] } },
+      '/api/admin/target-templates/existing': {
+        data: {
+          name: 'Target',
+          description: '',
+          accessInstructions: '',
+          enabled: false,
+          bundleId: 'bundle',
+          settings: {
+            file: 'compose.yml',
+            entryService: 'web',
+            entryNetwork: 'default',
+            entryPort: 8080,
+            prefixBits: 28
+          },
+          lockVersion: 0,
+          variableKeys: []
+        }
+      },
+      '/api/admin/target-templates/existing/preparations': { data: { items: [], nodes: [] } },
+      '/api/admin/lab-bundles/bundle': {
+        data: {
+          id: 'bundle',
+          hash: 'hash0',
+          composeFiles: ['compose.yml', 'alternate.yml'],
+          files: 2,
+          services: [
+            {
+              name: 'web',
+              image: 'example/web',
+              networks: ['default'],
+              ports: [{ port: 8080, protocol: 'tcp' }]
+            }
+          ],
+          networks: ['default'],
+          variables: [],
+          missingFiles: [],
+          issues: []
+        }
+      },
+      '/api/admin/modules/detail': {
+        data: {
+          module: {
+            id: 'detail',
+            title: 'Module detail',
+            slug: 'module',
+            status: 'unpublished',
+            lockVersion: 0,
+            defaultTargetTemplateId: null,
+            learningOutcomes: []
+          },
+          chapters: [],
+          prerequisites: []
+        }
+      }
     }
     server = createServer((req, res) => {
       const url = new URL(req.url, 'http://localhost')
-      if (url.pathname === '/bundle.js') { res.setHeader('Content-Type', 'text/javascript');res.end(result.outputFiles[0].text) }
-      else if (url.pathname === '/style.css') { res.setHeader('Content-Type', 'text/css');res.end(css) }
-      else if (url.pathname.startsWith('/api/')) { res.setHeader('Content-Type', 'application/json');res.end(JSON.stringify(fixtures[url.pathname] || {})) }
-      else res.end('<!doctype html><html data-theme="graphite"><head><link rel="stylesheet" href="/style.css"></head><body><div id="app"></div><script type="module" src="/bundle.js"></script></body></html>')
+      if (url.pathname === '/bundle.js') {
+        res.setHeader('Content-Type', 'text/javascript')
+        res.end(result.outputFiles[0].text)
+      } else if (url.pathname === '/style.css') {
+        res.setHeader('Content-Type', 'text/css')
+        res.end(css)
+      } else if (url.pathname.startsWith('/api/')) {
+        res.setHeader('Content-Type', 'application/json')
+        res.end(JSON.stringify(fixtures[url.pathname] || {}))
+      } else
+        res.end(
+          '<!doctype html><html data-theme="graphite"><head><link rel="stylesheet" href="/style.css"></head><body><div id="app"></div><script type="module" src="/bundle.js"></script></body></html>'
+        )
     })
     await new Promise(resolve => server.listen(0, '127.0.0.1', resolve))
-    return { base: `http://127.0.0.1:${server.address().port}`, close: async () => { await new Promise(resolve => server.close(resolve));await rm(directory, { recursive: true, force: true }) } }
+    return {
+      base: `http://127.0.0.1:${server.address().port}`,
+      close: async () => {
+        await new Promise(resolve => server.close(resolve))
+        await rm(directory, { recursive: true, force: true })
+      }
+    }
   } catch (error) {
     server?.close()
     await rm(directory, { recursive: true, force: true })

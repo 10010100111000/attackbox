@@ -3,7 +3,10 @@
 }
 
 :where(.auth-form) .eyebrow {
-  font: 9px "SFMono-Regular", Consolas, monospace;
+  font:
+    9px 'SFMono-Regular',
+    Consolas,
+    monospace;
   color: var(--brand-warm);
   letter-spacing: 2px;
   margin-bottom: 16px;

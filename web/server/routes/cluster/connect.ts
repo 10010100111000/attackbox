@@ -6,8 +6,16 @@ export default defineWebSocketHandler({
     const status = authorizeWorker(sandboxHub().config, request.headers)
     if (status) return new Response('Worker connection unavailable', { status })
   },
-  open(peer) { sandboxHub().open(peer, peer.request.headers.get('x-node-id') || '') },
-  message(peer, message) { sandboxHub().message(peer, message.text()) },
-  close(peer) { sandboxHub().close(peer) },
-  error(peer) { sandboxHub().close(peer) }
+  open(peer) {
+    sandboxHub().open(peer, peer.request.headers.get('x-node-id') || '')
+  },
+  message(peer, message) {
+    sandboxHub().message(peer, message.text())
+  },
+  close(peer) {
+    sandboxHub().close(peer)
+  },
+  error(peer) {
+    sandboxHub().close(peer)
+  }
 })

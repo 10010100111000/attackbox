@@ -32,9 +32,5 @@ const slots = useSlots()
     </span>
     <div class="flex-1 border-t border-line" aria-hidden="true" />
   </div>
-  <div
-    v-else
-    role="separator"
-    :class="cn('w-full border-t border-line my-4', props.class)"
-  />
+  <div v-else role="separator" :class="cn('w-full border-t border-line my-4', props.class)" />
 </template>

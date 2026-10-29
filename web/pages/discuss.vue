@@ -4,7 +4,7 @@ import { MessageCircle, Sparkles, BookOpen, Flag } from 'lucide-vue-next'
 definePageMeta({ layout: 'learning' })
 useHead({
   title: '讨论 — AttackBox',
-  meta: [{ name: 'robots', content: 'noindex' }],
+  meta: [{ name: 'robots', content: 'noindex' }]
 })
 </script>
 
@@ -112,7 +112,9 @@ p {
   color: var(--ink);
   font-size: 13px;
   font-weight: 550;
-  transition: transform 0.16s ease, background 0.16s ease;
+  transition:
+    transform 0.16s ease,
+    background 0.16s ease;
 }
 
 .actions a:first-child {

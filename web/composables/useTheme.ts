@@ -9,7 +9,9 @@ export function useTheme() {
       try {
         localStorage.setItem('attackbox-appearance', theme)
         document.documentElement.setAttribute('data-theme', theme)
-      } catch {}
+      } catch {
+        /* 隐私模式下存储不可用,跟随默认主题 */
+      }
     }
   }
 
@@ -31,6 +33,6 @@ export function useTheme() {
   return {
     currentTheme,
     setTheme,
-    initTheme,
+    initTheme
   }
 }

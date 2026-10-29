@@ -24,7 +24,12 @@ async function consume(event: H3Event, key: string, limit: number, seconds: numb
   }
 }
 
-export async function protectAuth(event: H3Event, action: AuthChallengeAction, email: string, token: unknown) {
+export async function protectAuth(
+  event: H3Event,
+  action: AuthChallengeAction,
+  email: string,
+  token: unknown
+) {
   const ip = clientIp(event)
   // Bounded cleanup during requests, no new timer or IP/email plaintext storage.
   await client`delete from auth_rate_limits where window_at < now() - interval '1 day' and key in (

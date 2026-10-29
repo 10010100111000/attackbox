@@ -1,50 +1,118 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import {chromium} from 'playwright'
-import {learningFixture} from './helpers/learning-fixture.mjs'
-test('busy feedback keeps button geometry, delays animation, removes visible wait copy and anchors the footer',{skip:!process.env.CONTENT_TEST_DATABASE_URL,timeout:90000},async()=>{
- const f=await learningFixture();let browser,loginDone,notificationsDone
- try{
-  const learner=await f.account()
-  browser=await chromium.launch({executablePath:'/usr/bin/chromium',args:['--no-sandbox']})
-  const context=await browser.newContext({viewport:{width:1440,height:1000}}),page=await context.newPage()
-  const errors=[];page.on('pageerror',e=>errors.push(e.message))
-  const loginGate=new Promise(resolve=>{loginDone=resolve})
-  await page.route('**/api/auth/login',async route=>{await loginGate;await route.fulfill({contentType:'application/json',headers:{'set-cookie':`attackbox_session=${learner.token}; Path=/; HttpOnly; SameSite=Lax`},body:JSON.stringify({user:{id:learner.id,email:learner.email,displayName:'Busy learner',role:'user',status:'active'}})})})
-  await page.goto(f.base+'/auth');await page.locator('#email:enabled').waitFor()
-  await page.locator('#email').fill(learner.email);await page.locator('#password').fill('local-browser-password')
-  const submit=page.getByRole('button',{name:'登录',exact:true}),before=await submit.boundingBox()
-  await submit.click();await page.waitForTimeout(25)
-  const copy=submit.locator('.busy-copy')
-  assert.equal(await copy.evaluate(el=>getComputedStyle(el).opacity),'1','fast operations must keep the normal label')
-  await page.waitForTimeout(350)
-  assert.equal(await copy.evaluate(el=>getComputedStyle(el).opacity),'0')
-  const after=await submit.boundingBox();assert.equal(after.width,before.width);assert.equal(after.height,before.height)
-  assert.equal(await submit.getAttribute('aria-busy'),'true')
-  assert.ok(!(await page.locator('body').innerText()).includes('正在登录'))
-  await page.screenshot({path:'/tmp/attackbox-busy-login.png',fullPage:true})
-  await page.emulateMedia({reducedMotion:'reduce'})
-  assert.equal(await submit.locator('.orbit-dots').evaluate(el=>getComputedStyle(el).animationName),'none')
-  loginDone();await page.waitForURL('**/learn')
-  const notificationGate=new Promise(resolve=>{notificationsDone=resolve})
-  await page.route('**/api/me/notifications?*',async route=>{await notificationGate;await route.fulfill({contentType:'application/json',body:JSON.stringify({data:{items:[],page:1,pageSize:20,total:0,unread:0}})})})
-  await page.getByRole('button',{name:/用户菜单/}).click();await page.getByRole('link',{name:'通知',exact:true}).click()
-  await page.getByRole('status',{name:'通知加载',exact:true}).waitFor()
-  assert.ok(!/正在读取|正在刷新|正在加载/.test(await page.locator('body').innerText()))
-  await page.screenshot({path:'/tmp/attackbox-busy-notifications.png',fullPage:true})
-  notificationsDone();await page.getByRole('heading',{name:'暂无通知'}).waitFor()
-  await page.goto(f.base+'/learn');await page.getByText('这里还很安静。模块发布后，就会出现在这里。',{exact:true}).waitFor()
-  const footer=page.locator('.footer-tagline'),box=await footer.boundingBox()
-  assert.ok(box.y>850&&box.y+box.height<=1000,'short-page footer belongs near the viewport bottom')
-  assert.equal(await page.locator('.filters .filter-btn').count(),1)
-  await page.screenshot({path:'/tmp/attackbox-empty-learning-footer.png',fullPage:true})
-  for(let i=0;i<8;i++)await f.createModule('publish',{title:`Footer module ${i}`})
-  await page.reload();await page.locator('.card').first().waitFor()
-  assert.equal(await page.locator('.card').count(),8)
-  const last=await page.locator('.card').last().boundingBox(),end=await footer.boundingBox()
-  const padding=await footer.evaluate(el=>parseFloat(getComputedStyle(el).paddingTop))
-  assert.ok(end.y>=last.y+last.height-1 && end.y+padding>=last.y+last.height+40,'long-page footer follows content without overlapping')
-  assert.equal(await footer.evaluate(el=>getComputedStyle(el).position),'static')
-  assert.deepEqual(errors,[])
- }finally{loginDone?.();notificationsDone?.();await browser?.close();await f.cleanup()}
-})
+import { chromium } from 'playwright'
+import { learningFixture } from './helpers/learning-fixture.mjs'
+test(
+  'busy feedback keeps button geometry, delays animation, removes visible wait copy and anchors the footer',
+  { skip: !process.env.CONTENT_TEST_DATABASE_URL, timeout: 90000 },
+  async () => {
+    const f = await learningFixture()
+    let browser, loginDone, notificationsDone
+    try {
+      const learner = await f.account()
+      browser = await chromium.launch({
+        executablePath: '/usr/bin/chromium',
+        args: ['--no-sandbox']
+      })
+      const context = await browser.newContext({ viewport: { width: 1440, height: 1000 } }),
+        page = await context.newPage()
+      const errors = []
+      page.on('pageerror', e => errors.push(e.message))
+      const loginGate = new Promise(resolve => {
+        loginDone = resolve
+      })
+      await page.route('**/api/auth/login', async route => {
+        await loginGate
+        await route.fulfill({
+          contentType: 'application/json',
+          headers: {
+            'set-cookie': `attackbox_session=${learner.token}; Path=/; HttpOnly; SameSite=Lax`
+          },
+          body: JSON.stringify({
+            user: {
+              id: learner.id,
+              email: learner.email,
+              displayName: 'Busy learner',
+              role: 'user',
+              status: 'active'
+            }
+          })
+        })
+      })
+      await page.goto(f.base + '/auth')
+      await page.locator('#email:enabled').waitFor()
+      await page.locator('#email').fill(learner.email)
+      await page.locator('#password').fill('local-browser-password')
+      const submit = page.getByRole('button', { name: '登录', exact: true }),
+        before = await submit.boundingBox()
+      await submit.click()
+      await page.waitForTimeout(25)
+      const copy = submit.locator('.busy-copy')
+      assert.equal(
+        await copy.evaluate(el => getComputedStyle(el).opacity),
+        '1',
+        'fast operations must keep the normal label'
+      )
+      await page.waitForTimeout(350)
+      assert.equal(await copy.evaluate(el => getComputedStyle(el).opacity), '0')
+      const after = await submit.boundingBox()
+      assert.equal(after.width, before.width)
+      assert.equal(after.height, before.height)
+      assert.equal(await submit.getAttribute('aria-busy'), 'true')
+      assert.ok(!(await page.locator('body').innerText()).includes('正在登录'))
+      await page.screenshot({ path: '/tmp/attackbox-busy-login.png', fullPage: true })
+      await page.emulateMedia({ reducedMotion: 'reduce' })
+      assert.equal(
+        await submit.locator('.orbit-dots').evaluate(el => getComputedStyle(el).animationName),
+        'none'
+      )
+      loginDone()
+      await page.waitForURL('**/learn')
+      const notificationGate = new Promise(resolve => {
+        notificationsDone = resolve
+      })
+      await page.route('**/api/me/notifications?*', async route => {
+        await notificationGate
+        await route.fulfill({
+          contentType: 'application/json',
+          body: JSON.stringify({ data: { items: [], page: 1, pageSize: 20, total: 0, unread: 0 } })
+        })
+      })
+      await page.getByRole('button', { name: /用户菜单/ }).click()
+      await page.getByRole('link', { name: '通知', exact: true }).click()
+      await page.getByRole('status', { name: '通知加载', exact: true }).waitFor()
+      assert.ok(!/正在读取|正在刷新|正在加载/.test(await page.locator('body').innerText()))
+      await page.screenshot({ path: '/tmp/attackbox-busy-notifications.png', fullPage: true })
+      notificationsDone()
+      await page.getByRole('heading', { name: '暂无通知' }).waitFor()
+      await page.goto(f.base + '/learn')
+      await page.getByText('这里还很安静。模块发布后，就会出现在这里。', { exact: true }).waitFor()
+      const footer = page.locator('.footer-tagline'),
+        box = await footer.boundingBox()
+      assert.ok(
+        box.y > 850 && box.y + box.height <= 1000,
+        'short-page footer belongs near the viewport bottom'
+      )
+      assert.equal(await page.locator('.filters .filter-btn').count(), 1)
+      await page.screenshot({ path: '/tmp/attackbox-empty-learning-footer.png', fullPage: true })
+      for (let i = 0; i < 8; i++) await f.createModule('publish', { title: `Footer module ${i}` })
+      await page.reload()
+      await page.locator('.card').first().waitFor()
+      assert.equal(await page.locator('.card').count(), 8)
+      const last = await page.locator('.card').last().boundingBox(),
+        end = await footer.boundingBox()
+      const padding = await footer.evaluate(el => parseFloat(getComputedStyle(el).paddingTop))
+      assert.ok(
+        end.y >= last.y + last.height - 1 && end.y + padding >= last.y + last.height + 40,
+        'long-page footer follows content without overlapping'
+      )
+      assert.equal(await footer.evaluate(el => getComputedStyle(el).position), 'static')
+      assert.deepEqual(errors, [])
+    } finally {
+      loginDone?.()
+      notificationsDone?.()
+      await browser?.close()
+      await f.cleanup()
+    }
+  }
+)

@@ -5,15 +5,11 @@ import { users } from '../../db/schema'
 import { eq } from 'drizzle-orm'
 import { assertRegistrationEmail } from '../../utils/registration-policy'
 import { hashPassword } from '../../utils/auth'
-import {
-  configuredMailer,
-  sendAccountEmail,
-} from '../../services/account-email'
+import { configuredMailer, sendAccountEmail } from '../../services/account-email'
 
-export default defineEventHandler(async (event) => {
+export default defineEventHandler(async event => {
   const body = await readBody(event)
-  const rawEmail =
-    typeof body?.email === 'string' ? body.email.trim().toLowerCase() : ''
+  const rawEmail = typeof body?.email === 'string' ? body.email.trim().toLowerCase() : ''
   const password = typeof body?.password === 'string' ? body.password : ''
   const displayName =
     typeof body?.displayName === 'string' && body.displayName.trim()
@@ -24,7 +20,7 @@ export default defineEventHandler(async (event) => {
   if (!rawEmail || !emailRegex.test(rawEmail)) {
     throw createError({
       statusCode: 400,
-      statusMessage: '请输入有效的邮箱地址',
+      statusMessage: '请输入有效的邮箱地址'
     })
   }
 
@@ -34,7 +30,7 @@ export default defineEventHandler(async (event) => {
   if (!password || password.length < 6 || password.length > 1024) {
     throw createError({
       statusCode: 400,
-      statusMessage: '密码至少需要 6 位',
+      statusMessage: '密码至少需要 6 位'
     })
   }
 
@@ -52,7 +48,7 @@ export default defineEventHandler(async (event) => {
   if (existingUser) {
     throw createError({
       statusCode: 409,
-      statusMessage: '该邮箱已被注册',
+      statusMessage: '该邮箱已被注册'
     })
   }
 
@@ -64,7 +60,7 @@ export default defineEventHandler(async (event) => {
       displayName,
       passwordHash,
       role: 'user',
-      status: 'pending',
+      status: 'pending'
     })
   } catch (error: any) {
     if (error?.code === '23505' || error?.cause?.code === '23505')

@@ -8,10 +8,8 @@ import { learningFixture } from './helpers/learning-fixture.mjs'
 test(
   'personal center: real progress, navigation, profile edits, empty states and identity isolation',
   {
-    skip:
-      !process.env.CONTENT_TEST_DATABASE_URL ||
-      !process.env.CONTENT_TEST_BASE_URL,
-    timeout: 90000,
+    skip: !process.env.CONTENT_TEST_DATABASE_URL || !process.env.CONTENT_TEST_BASE_URL,
+    timeout: 90000
   },
   async () => {
     const f = await learningFixture(),
@@ -56,7 +54,7 @@ test(
       await page.screenshot({
         path: `${screenshots}/${name}.png`,
         fullPage: true,
-        animations: 'disabled',
+        animations: 'disabled'
       })
     }
     try {
@@ -72,46 +70,38 @@ test(
       await learn(b, other, 1)
       const partial = await challenge(a, 'Active Directory 横向移动', 3, 1)
       await challenge(a, '容器逃逸初探', 2, 2)
-      assert.equal(
-        (await f.request('/api/me/learning', { actor: a })).data.length,
-        2,
-      )
-      assert.equal(
-        (await f.request('/api/me/challenges', { actor: a })).data.length,
-        2,
-      )
+      assert.equal((await f.request('/api/me/learning', { actor: a })).data.length, 2)
+      assert.equal((await f.request('/api/me/challenges', { actor: a })).data.length, 2)
       await f.request('/api/me/profile', {
         method: 'PUT',
         body: { displayName: 'Unauthorized' },
-        status: 401,
+        status: 401
       })
       for (const displayName of ['   ', 'x'.repeat(65)])
         await f.request('/api/me/profile', {
           actor: a,
           method: 'PUT',
           body: { displayName },
-          status: 400,
+          status: 400
         })
 
       browser = await chromium.launch({
         executablePath:
           process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH ||
           (existsSync('/usr/bin/chromium') ? '/usr/bin/chromium' : undefined),
-        args: ['--no-sandbox'],
+        args: ['--no-sandbox']
       })
       const context = await browser.newContext({
-        viewport: { width: 1440, height: 1000 },
+        viewport: { width: 1440, height: 1000 }
       })
-      await context.addCookies([
-        { name: 'attackbox_session', value: a.token, url: f.base },
-      ])
+      await context.addCookies([{ name: 'attackbox_session', value: a.token, url: f.base }])
       const page = await context.newPage(),
         errors = []
       page.setDefaultTimeout(10000)
-      page.on('pageerror', (error) => errors.push(error.message))
+      page.on('pageerror', error => errors.push(error.message))
       const navigation = page.getByRole('navigation', {
         name: '个人中心',
-        exact: true,
+        exact: true
       })
       await page.goto(f.base + '/me')
       await page
@@ -120,63 +110,54 @@ test(
         .waitFor()
       assert.equal(
         await page.locator('.personal-resume-button').getAttribute('href'),
-        `/learn/modules/${active.slug}/chapter-2`,
+        `/learn/modules/${active.slug}/chapter-2`
       )
       assert.equal(await page.locator('.personal-record').count(), 2)
       assert.equal(
         await page
           .getByRole('progressbar', { name: 'Linux 权限与提权的章节进度' })
           .getAttribute('aria-valuenow'),
-        '33',
+        '33'
       )
-      assert.equal(
-        await page.getByText('另一个用户的专属记录', { exact: true }).count(),
-        0,
-      )
+      assert.equal(await page.getByText('另一个用户的专属记录', { exact: true }).count(), 0)
       await snapshot(page, 'learning-graphite')
-      const filtersBefore = await page
-        .getByRole('group', { name: '筛选学习记录' })
-        .boundingBox()
+      const filtersBefore = await page.getByRole('group', { name: '筛选学习记录' }).boundingBox()
       await page
         .getByRole('group', { name: '筛选学习记录' })
         .getByRole('button', { name: '已完成', exact: true })
         .click()
       assert.equal(await page.locator('.personal-record').count(), 1)
       assert.equal(await page.locator('.personal-resume').count(), 1)
-      const filtersAfter = await page
-        .getByRole('group', { name: '筛选学习记录' })
-        .boundingBox()
+      const filtersAfter = await page.getByRole('group', { name: '筛选学习记录' }).boundingBox()
       assert.ok(
         Math.abs(filtersBefore.y - filtersAfter.y) < 1,
-        'filter controls remain stationary when filtering records',
+        'filter controls remain stationary when filtering records'
       )
       assert.equal(
         await page.locator('.personal-record').getAttribute('href'),
-        `/learn/modules/${done.slug}`,
+        `/learn/modules/${done.slug}`
       )
       await page
         .getByRole('group', { name: '筛选学习记录' })
         .getByRole('button', { name: '进行中', exact: true })
         .click()
       assert.equal(await page.locator('.personal-record').count(), 1)
-      await navigation
-        .getByRole('link', { name: '挑战记录', exact: true })
-        .click()
+      await navigation.getByRole('link', { name: '挑战记录', exact: true }).click()
       await page.waitForURL('**/me?tab=challenges')
       await page
         .getByRole('link', {
           name: 'Active Directory 横向移动，进行中',
-          exact: true,
+          exact: true
         })
         .waitFor()
       assert.equal(
         await page
           .getByRole('link', {
             name: 'Active Directory 横向移动，进行中',
-            exact: true,
+            exact: true
           })
           .getAttribute('href'),
-        `/challenges/${partial}`,
+        `/challenges/${partial}`
       )
       await page
         .getByRole('group', { name: '筛选挑战记录' })
@@ -187,37 +168,34 @@ test(
       await page
         .getByRole('link', {
           name: 'Active Directory 横向移动，进行中',
-          exact: true,
+          exact: true
         })
         .waitFor()
       assert.equal(
         await navigation
           .getByRole('link', { name: '挑战记录', exact: true })
           .getAttribute('aria-current'),
-        'page',
+        'page'
       )
       await snapshot(page, 'challenges-graphite')
 
-      await navigation
-        .getByRole('link', { name: '账户资料', exact: true })
-        .click()
+      await navigation.getByRole('link', { name: '账户资料', exact: true }).click()
       const name = page.getByLabel('昵称', { exact: true }),
         save = page.getByRole('button', { name: '保存资料', exact: true })
       assert.equal(await save.isDisabled(), true)
       await name.fill('草稿昵称')
-      await navigation
-        .getByRole('link', { name: '学习记录', exact: true })
-        .click()
-      await navigation
-        .getByRole('link', { name: '账户资料', exact: true })
-        .click()
+      await navigation.getByRole('link', { name: '学习记录', exact: true }).click()
+      await navigation.getByRole('link', { name: '账户资料', exact: true }).click()
       assert.equal(await name.inputValue(), '草稿昵称')
-      await navigation.getByRole('link', {name:'通知',exact:true}).click()
-      await page.getByRole('alertdialog').getByRole('button', {name:'继续编辑',exact:true}).click()
+      await navigation.getByRole('link', { name: '通知', exact: true }).click()
+      await page
+        .getByRole('alertdialog')
+        .getByRole('button', { name: '继续编辑', exact: true })
+        .click()
       assert.equal(
         new URL(page.url()).pathname,
         '/me',
-        'leaving with unsaved input can be cancelled',
+        'leaving with unsaved input can be cancelled'
       )
       await page.getByRole('button', { name: '取消修改', exact: true }).click()
       assert.equal(await name.inputValue(), 'Lin')
@@ -225,18 +203,15 @@ test(
       assert.equal(await name.getAttribute('aria-invalid'), 'true')
       assert.equal(await save.isDisabled(), true)
       await name.fill('新的昵称')
-      await page.route('**/api/me/profile', (route) =>
+      await page.route('**/api/me/profile', route =>
         route.fulfill({
           status: 503,
           contentType: 'application/json',
-          body: JSON.stringify({ message: '网络暂不可用' }),
-        }),
+          body: JSON.stringify({ message: '网络暂不可用' })
+        })
       )
       await save.click()
-      await page
-        .getByRole('alert')
-        .getByText('网络暂不可用', { exact: true })
-        .waitFor()
+      await page.getByRole('alert').getByText('网络暂不可用', { exact: true }).waitFor()
       assert.equal(await name.inputValue(), '新的昵称')
       await page.unroute('**/api/me/profile')
       await name.fill('  River  ')
@@ -244,14 +219,10 @@ test(
       await page.getByText('资料已保存', { exact: true }).waitFor()
       assert.equal(await name.inputValue(), 'River')
       assert.equal(await save.isDisabled(), true)
+      assert.equal((await f.request('/api/auth/me', { actor: a })).response.status, 200)
       assert.equal(
-        (await f.request('/api/auth/me', { actor: a })).response.status,
-        200,
-      )
-      assert.equal(
-        (await f.sql`select display_name from users where id=${a.id}`)[0]
-          .display_name,
-        'River',
+        (await f.sql`select display_name from users where id=${a.id}`)[0].display_name,
+        'River'
       )
       await page.getByRole('button', { name: /用户菜单/ }).click()
       await page
@@ -261,26 +232,14 @@ test(
       await page.getByRole('button', { name: '深色外观', exact: true }).click()
       await page.keyboard.press('Escape')
       await snapshot(page, 'profile-midnight')
-      await navigation
-        .getByRole('link', { name: '学习记录', exact: true })
-        .click()
+      await navigation.getByRole('link', { name: '学习记录', exact: true }).click()
       await page.locator('.personal-resume').waitFor()
       await snapshot(page, 'learning-midnight')
       await page.setViewportSize({ width: 390, height: 844 })
-      assert.ok(
-        await page.evaluate(
-          () => document.documentElement.scrollWidth <= innerWidth,
-        ),
-      )
+      assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth))
       await snapshot(page, 'learning-mobile')
-      await navigation
-        .getByRole('link', { name: '账户资料', exact: true })
-        .click()
-      assert.ok(
-        await page.evaluate(
-          () => document.documentElement.scrollWidth <= innerWidth,
-        ),
-      )
+      await navigation.getByRole('link', { name: '账户资料', exact: true }).click()
+      assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth))
       await snapshot(page, 'profile-mobile')
 
       // Keep the Nuxt app alive across a real logout/login to check client cache ownership.
@@ -302,60 +261,49 @@ test(
       await page
         .getByRole('link', {
           name: '另一个用户的专属记录，进行中',
-          exact: true,
+          exact: true
         })
         .waitFor()
-      assert.equal(
-        await page.getByRole('link', { name: /Linux 权限与提权/ }).count(),
-        0,
-      )
+      assert.equal(await page.getByRole('link', { name: /Linux 权限与提权/ }).count(), 0)
 
       const emptyContext = await browser.newContext({
-        viewport: { width: 1440, height: 1000 },
+        viewport: { width: 1440, height: 1000 }
       })
       await emptyContext.addCookies([
-        { name: 'attackbox_session', value: empty.token, url: f.base },
+        { name: 'attackbox_session', value: empty.token, url: f.base }
       ])
       const fresh = await emptyContext.newPage()
-      fresh.on('pageerror', (error) => errors.push(error.message))
+      fresh.on('pageerror', error => errors.push(error.message))
       await fresh.goto(f.base + '/me?tab=profile')
-      await fresh.route('**/api/me/learning', (route) =>
+      await fresh.route('**/api/me/learning', route =>
         route.fulfill({
           status: 503,
           contentType: 'application/json',
-          body: '{}',
-        }),
+          body: '{}'
+        })
       )
       await fresh
         .getByRole('navigation', { name: '个人中心', exact: true })
         .getByRole('link', { name: '学习记录', exact: true })
         .click()
-      await fresh
-        .getByRole('heading', { name: '暂时无法读取学习记录', exact: true })
-        .waitFor()
+      await fresh.getByRole('heading', { name: '暂时无法读取学习记录', exact: true }).waitFor()
       await fresh.unroute('**/api/me/learning')
       await fresh.getByRole('button', { name: '重试', exact: true }).click()
-      await fresh
-        .getByRole('heading', { name: '从一个感兴趣的模块开始', exact: true })
-        .waitFor()
+      await fresh.getByRole('heading', { name: '从一个感兴趣的模块开始', exact: true }).waitFor()
       assert.equal(await fresh.locator('.personal-record').count(), 0)
       await snapshot(fresh, 'learning-empty')
       await fresh
         .getByRole('navigation', { name: '个人中心', exact: true })
         .getByRole('link', { name: '挑战记录', exact: true })
         .click()
-      await fresh
-        .getByRole('heading', { name: '拿下你的第一个 Flag', exact: true })
-        .waitFor()
+      await fresh.getByRole('heading', { name: '拿下你的第一个 Flag', exact: true }).waitFor()
       assert.equal(await fresh.locator('.personal-record').count(), 0)
       assert.deepEqual(errors, [])
     } finally {
       await browser?.close()
-      for (const id of moduleIds)
-        await f.sql`delete from modules where id=${id}`
-      for (const id of challengeIds)
-        await f.sql`delete from challenges where id=${id}`
+      for (const id of moduleIds) await f.sql`delete from modules where id=${id}`
+      for (const id of challengeIds) await f.sql`delete from challenges where id=${id}`
       await f.cleanup()
     }
-  },
+  }
 )

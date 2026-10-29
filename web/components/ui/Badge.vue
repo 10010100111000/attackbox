@@ -10,7 +10,7 @@ interface Props {
 const props = withDefaults(defineProps<Props>(), {
   variant: 'neutral',
   dot: false,
-  class: undefined,
+  class: undefined
 })
 
 const variantClasses: Record<'neutral' | 'success' | 'warning' | 'error' | 'brand', string> = {
@@ -18,7 +18,7 @@ const variantClasses: Record<'neutral' | 'success' | 'warning' | 'error' | 'bran
   success: 'bg-[var(--success-bg)] text-[var(--success-ink)] border-transparent',
   warning: 'bg-[rgba(235,160,50,0.14)] text-[#e6a84f] border-transparent',
   error: 'bg-[var(--error-bg)] text-[var(--error-ink)] border-transparent',
-  brand: 'bg-[var(--brand-soft)] text-[var(--brand)] border-[var(--brand-border)]',
+  brand: 'bg-[var(--brand-soft)] text-[var(--brand)] border-[var(--brand-border)]'
 }
 
 const dotColors: Record<'neutral' | 'success' | 'warning' | 'error' | 'brand', string> = {
@@ -26,7 +26,7 @@ const dotColors: Record<'neutral' | 'success' | 'warning' | 'error' | 'brand', s
   success: 'bg-[var(--success-ink)]',
   warning: 'bg-[#e6a84f]',
   error: 'bg-[var(--error-ink)]',
-  brand: 'bg-[var(--brand)]',
+  brand: 'bg-[var(--brand)]'
 }
 </script>
 

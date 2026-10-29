@@ -14,7 +14,7 @@ const { data, pending, error, refresh } = await useLazyFetch<{ data: TargetTempl
   '/api/admin/target-templates',
   {
     key: 'admin:target-templates',
-    query: computed(() => ({ search: search.value, page: page.value })),
+    query: computed(() => ({ search: search.value, page: page.value }))
   }
 )
 
@@ -128,4 +128,3 @@ function submit() {
     </footer>
   </div>
 </template>
-

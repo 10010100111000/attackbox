@@ -29,7 +29,14 @@ export interface SandboxNodesResponse {
 }
 
 export interface SandboxPolicy {
-  resources: { cpu_weight: number; memory_max_mb: number; memory_swap_max_mb: number; pids_max: number; io_write_bytes_sec: number; io_write_iops: number }
+  resources: {
+    cpu_weight: number
+    memory_max_mb: number
+    memory_swap_max_mb: number
+    pids_max: number
+    io_write_bytes_sec: number
+    io_write_iops: number
+  }
   storage: { tmpfs_tmp_size: string; tmpfs_run_size: string }
   security: { read_only_proc_sys: boolean; mask_sysrq: boolean }
 }
@@ -50,5 +57,15 @@ export interface SandboxStatus {
   available: boolean
   instance: SandboxInstance | null
 }
-export interface SandboxTicket { url: string; ticket: string; expiresAt: string; sandboxId: string; stream: 'cli' | 'gui' }
-export interface AdminSandboxInstance extends SandboxInstance { userId: string; email: string | null; displayName: string | null }
+export interface SandboxTicket {
+  url: string
+  ticket: string
+  expiresAt: string
+  sandboxId: string
+  stream: 'cli' | 'gui'
+}
+export interface AdminSandboxInstance extends SandboxInstance {
+  userId: string
+  email: string | null
+  displayName: string | null
+}

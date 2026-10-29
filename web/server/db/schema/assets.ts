@@ -7,11 +7,11 @@ import {
   timestamp,
   uniqueIndex,
   index,
-  check,
-} from 'drizzle-orm/pg-core';
-import { sql } from 'drizzle-orm';
-import { bytea } from './types';
-import { users } from './auth';
+  check
+} from 'drizzle-orm/pg-core'
+import { sql } from 'drizzle-orm'
+import { bytea } from './types'
+import { users } from './auth'
 
 export const assets = pgTable(
   'assets',
@@ -27,14 +27,14 @@ export const assets = pgTable(
       .notNull()
       .references(() => users.id, { onDelete: 'restrict' }),
     createdAt: timestamp('created_at', { withTimezone: true, mode: 'date' }).notNull().defaultNow(),
-    archivedAt: timestamp('archived_at', { withTimezone: true, mode: 'date' }),
+    archivedAt: timestamp('archived_at', { withTimezone: true, mode: 'date' })
   },
-  (table) => [
+  table => [
     uniqueIndex('assets_storage_key_unique_idx').on(table.storageKey),
     index('assets_sha256_idx').on(table.sha256),
     index('assets_uploaded_by_idx').on(table.uploadedBy),
     check('assets_visibility_check', sql`${table.visibility} in ('public', 'private')`),
     check('assets_byte_size_check', sql`${table.byteSize} >= 0`),
-    check('assets_sha256_len_check', sql`octet_length(${table.sha256}) = 32`),
+    check('assets_sha256_len_check', sql`octet_length(${table.sha256}) = 32`)
   ]
-);
+)

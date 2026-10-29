@@ -12,7 +12,7 @@ import {
   ExternalLink,
   LockKeyhole,
   Bell,
-  MessageSquarePlus,
+  MessageSquarePlus
 } from 'lucide-vue-next'
 import { useAuth } from '~/composables/useAuth'
 
@@ -65,8 +65,15 @@ const currentSection = computed<AdminSectionKey>(() => {
   return 'modules'
 })
 
-const sectionMeta: Record<AdminSectionKey, { groupLabel: string; groupHref: string; title: string }> = {
-  'runtime-policy': { groupLabel: '系统管理', groupHref: '/admin/runtime-policy', title: '运行策略' },
+const sectionMeta: Record<
+  AdminSectionKey,
+  { groupLabel: string; groupHref: string; title: string }
+> = {
+  'runtime-policy': {
+    groupLabel: '系统管理',
+    groupHref: '/admin/runtime-policy',
+    title: '运行策略'
+  },
   'learn-home': { groupLabel: '内容管理', groupHref: '/admin/learn-home', title: '首页管理' },
   notifications: { groupLabel: '系统管理', groupHref: '/admin/notifications', title: '站内通知' },
   feedback: { groupLabel: '账户管理', groupHref: '/admin/feedback', title: '用户反馈' },
@@ -75,21 +82,22 @@ const sectionMeta: Record<AdminSectionKey, { groupLabel: string; groupHref: stri
   modules: { groupLabel: '内容管理', groupHref: '/admin/modules', title: '学习模块' },
   routes: { groupLabel: '内容管理', groupHref: '/admin/routes', title: '学习路线' },
   users: { groupLabel: '账户管理', groupHref: '/admin/users', title: '用户管理' },
-  'target-templates': { groupLabel: '环境管理', groupHref: '/admin/target-templates', title: '靶场模板' },
+  'target-templates': {
+    groupLabel: '环境管理',
+    groupHref: '/admin/target-templates',
+    title: '靶场模板'
+  },
   nodes: { groupLabel: '环境管理', groupHref: '/admin/nodes', title: '节点管理' },
-  instances: { groupLabel: '环境管理', groupHref: '/admin/instances', title: '运行实例' },
+  instances: { groupLabel: '环境管理', groupHref: '/admin/instances', title: '运行实例' }
 }
 
 const currentBreadcrumb = computed(() => sectionMeta[currentSection.value])
-
 </script>
 
 <template>
   <div class="admin-shell">
     <!-- 校验中 -->
-    <div v-if="isChecking" class="admin-loading">
-      正在验证管理员身份…
-    </div>
+    <div v-if="isChecking" class="admin-loading">正在验证管理员身份…</div>
 
     <!-- 非管理员拦截提示 -->
     <div v-else-if="!isAdmin" class="admin-denied">
@@ -101,7 +109,10 @@ const currentBreadcrumb = computed(() => sectionMeta[currentSection.value])
         <p>当前登录账号不是管理员，无法访问管理后台。</p>
         <div class="denied-actions">
           <NuxtLink to="/learn" class="btn primary">返回学习平台</NuxtLink>
-          <NuxtLink :to="'/auth?returnTo=' + encodeURIComponent(route.fullPath)" class="btn secondary">
+          <NuxtLink
+            :to="'/auth?returnTo=' + encodeURIComponent(route.fullPath)"
+            class="btn secondary"
+          >
             切换账号登录
           </NuxtLink>
         </div>
@@ -135,7 +146,14 @@ const currentBreadcrumb = computed(() => sectionMeta[currentSection.value])
             <BookOpen :size="16" class="nav-icon" aria-hidden="true" />
             <span>学习模块</span>
           </NuxtLink>
-          <NuxtLink to="/admin/references" class="admin-nav-link" :class="{ active: currentSection === 'references' }"><BookOpen :size="16" class="nav-icon" aria-hidden="true"/><span>参考资料</span></NuxtLink>
+          <NuxtLink
+            to="/admin/references"
+            class="admin-nav-link"
+            :class="{ active: currentSection === 'references' }"
+            ><BookOpen :size="16" class="nav-icon" aria-hidden="true" /><span
+              >参考资料</span
+            ></NuxtLink
+          >
           <NuxtLink
             to="/admin/routes"
             class="admin-nav-link"
@@ -144,7 +162,12 @@ const currentBreadcrumb = computed(() => sectionMeta[currentSection.value])
             <Route :size="16" class="nav-icon" aria-hidden="true" />
             <span>学习路线</span>
           </NuxtLink>
-          <NuxtLink to="/admin/learn-home" class="admin-nav-link" :class="{active:currentSection==='learn-home'}"><LayoutTemplate :size="16" class="nav-icon"/><span>首页管理</span></NuxtLink>
+          <NuxtLink
+            to="/admin/learn-home"
+            class="admin-nav-link"
+            :class="{ active: currentSection === 'learn-home' }"
+            ><LayoutTemplate :size="16" class="nav-icon" /><span>首页管理</span></NuxtLink
+          >
 
           <div class="nav-group-label">账户管理</div>
           <NuxtLink
@@ -155,7 +178,14 @@ const currentBreadcrumb = computed(() => sectionMeta[currentSection.value])
             <Users :size="16" class="nav-icon" aria-hidden="true" />
             <span>用户管理</span>
           </NuxtLink>
-          <NuxtLink to="/admin/feedback" class="admin-nav-link" :class="{ active: currentSection === 'feedback' }"><MessageSquarePlus :size="16" class="nav-icon" aria-hidden="true" /><span>用户反馈</span></NuxtLink>
+          <NuxtLink
+            to="/admin/feedback"
+            class="admin-nav-link"
+            :class="{ active: currentSection === 'feedback' }"
+            ><MessageSquarePlus :size="16" class="nav-icon" aria-hidden="true" /><span
+              >用户反馈</span
+            ></NuxtLink
+          >
 
           <div class="nav-group-label">环境管理</div>
           <NuxtLink
@@ -184,9 +214,18 @@ const currentBreadcrumb = computed(() => sectionMeta[currentSection.value])
           </NuxtLink>
 
           <div class="nav-group-label">系统管理</div>
-          <NuxtLink to="/admin/runtime-policy" class="admin-nav-link" :class="{active:currentSection==='runtime-policy'}"><Settings :size="16" class="nav-icon"/>运行策略</NuxtLink>
-          <NuxtLink to="/admin/notifications" class="admin-nav-link" :class="{active:currentSection==='notifications'}"><Bell :size="16" class="nav-icon"/>站内通知</NuxtLink>
-
+          <NuxtLink
+            to="/admin/runtime-policy"
+            class="admin-nav-link"
+            :class="{ active: currentSection === 'runtime-policy' }"
+            ><Settings :size="16" class="nav-icon" />运行策略</NuxtLink
+          >
+          <NuxtLink
+            to="/admin/notifications"
+            class="admin-nav-link"
+            :class="{ active: currentSection === 'notifications' }"
+            ><Bell :size="16" class="nav-icon" />站内通知</NuxtLink
+          >
         </nav>
 
         <div class="sidebar-bottom">
@@ -194,7 +233,6 @@ const currentBreadcrumb = computed(() => sectionMeta[currentSection.value])
             <ExternalLink :size="14" aria-hidden="true" />
             <span>预览学习前台</span>
           </NuxtLink>
-
         </div>
       </aside>
 
@@ -202,7 +240,9 @@ const currentBreadcrumb = computed(() => sectionMeta[currentSection.value])
       <div class="admin-main-wrap">
         <header class="admin-topbar">
           <div class="topbar-crumb">
-            <NuxtLink :to="currentBreadcrumb.groupHref">{{ currentBreadcrumb.groupLabel }}</NuxtLink>
+            <NuxtLink :to="currentBreadcrumb.groupHref">{{
+              currentBreadcrumb.groupLabel
+            }}</NuxtLink>
             <span>/</span>
             <span class="crumb-active">{{ currentBreadcrumb.title }}</span>
           </div>

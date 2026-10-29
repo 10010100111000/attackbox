@@ -42,10 +42,8 @@ const variantClasses: Record<'primary' | 'secondary' | 'outline' | 'ghost' | 'da
     'bg-[var(--btn-primary-bg)] text-[var(--btn-primary-fg)] font-semibold hover:bg-[var(--btn-primary-hover)] shadow-[var(--btn-primary-shadow)] active:opacity-90 transition-all duration-150',
   secondary:
     'border border-[var(--line)] bg-[var(--paper)] text-[var(--ink)] hover:bg-[var(--soft)] hover:text-[var(--ink)] active:opacity-90 font-medium',
-  outline:
-    'border border-line bg-transparent text-foreground hover:bg-card active:opacity-90',
-  ghost:
-    'bg-transparent text-muted hover:text-foreground hover:bg-card active:opacity-90',
+  outline: 'border border-line bg-transparent text-foreground hover:bg-card active:opacity-90',
+  ghost: 'bg-transparent text-muted hover:text-foreground hover:bg-card active:opacity-90',
   danger:
     'border border-transparent bg-transparent text-[var(--error-ink)] hover:bg-[var(--error-bg)] active:opacity-90 font-medium'
 }

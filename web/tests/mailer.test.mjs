@@ -4,7 +4,7 @@ import { createResendMailer, mailConfig } from '../server/utils/mailer.ts'
 const config = {
   apiKey: 'fake-test-key',
   from: 'AttackBox <hello@example.test>',
-  baseUrl: 'https://learn.example.test',
+  baseUrl: 'https://learn.example.test'
 }
 test('Resend sends absolute verification/reset links with private credentials and idempotency', async () => {
   const calls = []
@@ -35,20 +35,17 @@ test('Resend errors never expose provider responses or keys', async () => {
     async () => {
       throw Error('SECRET network detail')
     },
-    async () => new Response('{}'),
+    async () => new Response('{}')
   ]) {
     await assert.rejects(
-      createResendMailer(config, transport).sendVerificationEmail(
-        'u@example.test',
-        'token',
-      ),
-      { message: 'mail_delivery_failed' },
+      createResendMailer(config, transport).sendVerificationEmail('u@example.test', 'token'),
+      { message: 'mail_delivery_failed' }
     )
   }
 })
 test('email links require a configured trusted origin', () => {
   const keys = ['RESEND_API_KEY', 'MAIL_FROM', 'APP_BASE_URL'],
-    old = keys.map((k) => process.env[k])
+    old = keys.map(k => process.env[k])
   try {
     process.env.RESEND_API_KEY = 'test'
     process.env.MAIL_FROM = config.from
@@ -57,7 +54,7 @@ test('email links require a configured trusted origin', () => {
       'http://external.test',
       'https://u:p@example.test',
       'https://example.test/path',
-      'https://example.test/?q=x',
+      'https://example.test/?q=x'
     ]) {
       process.env.APP_BASE_URL = origin
       assert.throws(mailConfig, { message: 'mail_configuration_invalid' })

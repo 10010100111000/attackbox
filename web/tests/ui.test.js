@@ -11,13 +11,13 @@ test('cn() utility merges classes and resolves tailwind conflicts', async () => 
   const { cn } = await import('../utils/cn.ts')
   assert.equal(typeof cn, 'function')
   assert.equal(cn('bg-red-500', 'bg-blue-500'), 'bg-blue-500')
-  assert.equal(cn('p-4', { 'text-white': true, 'hidden': false }), 'p-4 text-white')
+  assert.equal(cn('p-4', { 'text-white': true, hidden: false }), 'p-4 text-white')
   assert.equal(cn('px-2 py-1', 'px-4'), 'py-1 px-4')
 })
 
 test('main.css contains all required design tokens and accessibility rules', () => {
   const css = readFileSync(resolve(rootDir, 'assets/css/main.css'), 'utf-8')
-  
+
   // Theme tokens
   assert.ok(css.includes('--bg-app: #090a0e;'))
   assert.ok(css.includes('--bg-card: #111217;'))
@@ -32,7 +32,7 @@ test('main.css contains all required design tokens and accessibility rules', () 
   assert.ok(css.includes('--gradient-warm:'))
   assert.ok(css.includes('--selection-bg:'))
   assert.ok(css.includes('--card-glow:'))
-  
+
   // Radii
   assert.ok(css.includes('--radius-sm: 4px;'))
   assert.ok(css.includes('--radius-md: 7px;'))
@@ -42,7 +42,7 @@ test('main.css contains all required design tokens and accessibility rules', () 
   // Light theme with accessible error color
   assert.ok(css.includes("[data-theme='graphite']"))
   assert.ok(css.includes('--color-error: #c53030;'))
-  
+
   // Accessibility
   assert.ok(css.includes(':focus-visible'))
   assert.ok(css.includes('prefers-reduced-motion: reduce'))
@@ -121,7 +121,10 @@ test('Admin pages adopt standard UI components instead of handcrafting duplicate
   assert.ok(routes.includes('<UiBadge'))
   assert.ok(routes.includes('<UiEmptyState'))
 
-  const templates = readFileSync(resolve(rootDir, 'pages/admin/target-templates/index.vue'), 'utf-8')
+  const templates = readFileSync(
+    resolve(rootDir, 'pages/admin/target-templates/index.vue'),
+    'utf-8'
+  )
   assert.ok(templates.includes('<UiNotice'))
   assert.ok(templates.includes('<UiBadge'))
   assert.ok(templates.includes('<UiEmptyState'))

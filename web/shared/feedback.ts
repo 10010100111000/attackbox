@@ -1,17 +1,17 @@
 export const feedbackCategories = [
   { value: 'bug', label: '遇到问题' },
   { value: 'content', label: '内容纠错' },
-  { value: 'suggestion', label: '功能建议' },
+  { value: 'suggestion', label: '功能建议' }
 ] as const
 
 export const feedbackStatuses = [
   { value: 'new', label: '未处理' },
   { value: 'in_progress', label: '处理中' },
-  { value: 'resolved', label: '已解决' },
+  { value: 'resolved', label: '已解决' }
 ] as const
 
-export type FeedbackCategory = typeof feedbackCategories[number]['value']
-export type FeedbackStatus = typeof feedbackStatuses[number]['value']
+export type FeedbackCategory = (typeof feedbackCategories)[number]['value']
+export type FeedbackStatus = (typeof feedbackStatuses)[number]['value']
 
 export interface FeedbackItem {
   id: string

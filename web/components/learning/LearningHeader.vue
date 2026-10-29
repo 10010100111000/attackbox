@@ -84,7 +84,9 @@ const isDiscussActive = computed(() => route.path.startsWith('/discuss'))
   font-size: 14px;
   color: var(--muted);
   text-decoration: none;
-  transition: color 0.15s ease, border-color 0.15s ease;
+  transition:
+    color 0.15s ease,
+    border-color 0.15s ease;
 }
 
 .main-nav a:hover {
@@ -97,16 +99,36 @@ const isDiscussActive = computed(() => route.path.startsWith('/discuss'))
   font-weight: 600;
 }
 
-.brand:hover .brand-logo { transform: rotate(-6deg) translateY(-1px); }
-@media (prefers-reduced-motion: reduce) { .brand-logo { transition:none;transform:none!important; } }
+.brand:hover .brand-logo {
+  transform: rotate(-6deg) translateY(-1px);
+}
+@media (prefers-reduced-motion: reduce) {
+  .brand-logo {
+    transition: none;
+    transform: none !important;
+  }
+}
 @media (max-width: 640px) {
   .learning-header {
     padding: 0 16px;
   }
-  .header-left { gap: 14px; min-width: 0; }
-  .brand > span { display: none; }
-  .brand { width:auto; flex-shrink: 0; }
-  .main-nav { gap: 12px; }
-  .main-nav a { font-size: 13px; white-space: nowrap; }
+  .header-left {
+    gap: 14px;
+    min-width: 0;
+  }
+  .brand > span {
+    display: none;
+  }
+  .brand {
+    width: auto;
+    flex-shrink: 0;
+  }
+  .main-nav {
+    gap: 12px;
+  }
+  .main-nav a {
+    font-size: 13px;
+    white-space: nowrap;
+  }
 }
 </style>

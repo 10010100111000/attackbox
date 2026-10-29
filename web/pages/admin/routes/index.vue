@@ -1,33 +1,44 @@
 <script setup lang="ts">
-const confirmAction = useConfirm()
 import { ref } from 'vue'
 import type { RouteSummary } from '~/shared/routes'
 import { Plus, Route } from 'lucide-vue-next'
+const confirmAction = useConfirm()
 
 definePageMeta({ layout: 'admin' })
 useHead({ title: '学习路线 — AttackBox' })
 
-const { data, pending, error, refresh } = await useLazyFetch<{ data: RouteSummary[] }>('/api/admin/routes', {
-  key: 'admin:routes',
-})
+const { data, pending, error, refresh } = await useLazyFetch<{ data: RouteSummary[] }>(
+  '/api/admin/routes',
+  {
+    key: 'admin:routes'
+  }
+)
 const notice = ref('')
 const deleting = ref('')
 
 async function remove(route: RouteSummary) {
   if (deleting.value) return
-  if (!(await confirmAction({title:'删除学习路线？',description:`删除“${route.title}”，模块与学习记录会保留。`,confirmLabel:'删除路线'}))) return
+  if (
+    !(await confirmAction({
+      title: '删除学习路线？',
+      description: `删除“${route.title}”，模块与学习记录会保留。`,
+      confirmLabel: '删除路线'
+    }))
+  )
+    return
   deleting.value = route.id
   notice.value = ''
   try {
     await $fetch(`/api/admin/routes/${route.id}`, {
       method: 'DELETE',
-      body: { lockVersion: route.lockVersion },
+      body: { lockVersion: route.lockVersion }
     })
     await refresh()
   } catch (e: any) {
     notice.value = e?.data?.message || '删除失败'
+  } finally {
+    deleting.value = ''
   }
-  finally { deleting.value = '' }
 }
 </script>
 
@@ -101,4 +112,3 @@ async function remove(route: RouteSummary) {
     </div>
   </div>
 </template>
-

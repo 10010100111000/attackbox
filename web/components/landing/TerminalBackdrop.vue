@@ -1,13 +1,7 @@
 <script setup lang="ts">
 import { useTerminalPlayer } from '~/composables/useTerminalPlayer'
 
-const {
-  branch,
-  typedCommand,
-  showCursor,
-  feedLines,
-  isClearing
-} = useTerminalPlayer()
+const { branch, typedCommand, showCursor, feedLines, isClearing } = useTerminalPlayer()
 </script>
 
 <template>
@@ -15,13 +9,10 @@ const {
     <div class="terminal-screen">
       <div class="terminal-feed" :class="{ 'is-clearing': isClearing }">
         <div class="terminal-line dim quiet">// {{ branch }}</div>
-        <div class="terminal-line command">$ {{ typedCommand }}<span v-if="showCursor" class="cursor" /></div>
-        <div
-          v-for="(row, idx) in feedLines"
-          :key="idx"
-          class="terminal-line"
-          :class="row.type"
-        >
+        <div class="terminal-line command">
+          $ {{ typedCommand }}<span v-if="showCursor" class="cursor" />
+        </div>
+        <div v-for="(row, idx) in feedLines" :key="idx" class="terminal-line" :class="row.type">
           {{ row.text }}
         </div>
       </div>
@@ -47,7 +38,10 @@ const {
   height: 100%;
   padding: 68px max(55px, calc((100vw - 1240px) / 2));
   overflow: hidden;
-  font: 18px / 34px "SFMono-Regular", Consolas, monospace;
+  font:
+    18px / 34px 'SFMono-Regular',
+    Consolas,
+    monospace;
   white-space: pre;
   color: #b8a9b8;
 }

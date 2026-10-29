@@ -27,36 +27,55 @@ export function parseRepositoryConfig(body: Record<string, unknown>): Repository
     .replace(/^https:\/\/github\.com\//, '')
     .replace(/\.git\/?$/, '')
     .replace(/\/$/, '')
-  if (!/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(repository) || repository.split('/').some(p => p === '.' || p === '..')) {
-    throw createError({ statusCode: 400, message: '请填写 GitHub owner/repository 或标准 HTTPS 仓库链接' })
+  if (
+    !/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(repository) ||
+    repository.split('/').some(p => p === '.' || p === '..')
+  ) {
+    throw createError({
+      statusCode: 400,
+      message: '请填写 GitHub owner/repository 或标准 HTTPS 仓库链接'
+    })
   }
   const branch = String(body.branch || 'main').trim()
-  const directory = String(body.directory || '').trim().replace(/^\.\/$/, '').replace(/\/$/, '')
+  const directory = String(body.directory || '')
+    .trim()
+    .replace(/^\.\/$/, '')
+    .replace(/\/$/, '')
   if (!branch || branch.length > 200 || /[\s\\?#]/.test(branch)) {
     throw createError({ statusCode: 400, message: '分支名无效' })
   }
   if (directory.length > 500 || directory.split('/').length > 16) {
     throw createError({ statusCode: 400, message: '教程目录过长或层级过深' })
   }
-  if (directory && (directory.startsWith('/') || directory.includes('\\') || directory.split('/').some(p => !p || p === '.' || p === '..'))) {
+  if (
+    directory &&
+    (directory.startsWith('/') ||
+      directory.includes('\\') ||
+      directory.split('/').some(p => !p || p === '.' || p === '..'))
+  ) {
     throw createError({ statusCode: 400, message: '教程目录必须是仓库内相对路径' })
   }
   return { repository, branch, directory }
 }
 
 // Fixed GitHub API host; no arbitrary URLs, redirects, shell commands or repo scripts.
-export async function githubJson(config: RepositoryConfig, token: string, suffix: string, signal?: AbortSignal): Promise<any> {
+export async function githubJson(
+  config: RepositoryConfig,
+  token: string,
+  suffix: string,
+  signal?: AbortSignal
+): Promise<any> {
   try {
     return await $fetch(`https://api.github.com/repos/${config.repository}/${suffix}`, {
       headers: {
         ...(token ? { Authorization: `Bearer ${token}` } : {}),
         Accept: 'application/vnd.github+json',
-        'X-GitHub-Api-Version': '2022-11-28',
+        'X-GitHub-Api-Version': '2022-11-28'
       },
       timeout: 20000,
       retry: 0,
       redirect: 'error',
-      signal,
+      signal
     })
   } catch (e: any) {
     const status = e?.response?.status
@@ -67,20 +86,30 @@ export async function githubJson(config: RepositoryConfig, token: string, suffix
           ? 'GitHub 凭据无效、权限不足或访问受限'
           : status === 404
             ? '仓库、分支或目录不存在，或 Token 没有读取权限'
-            : 'GitHub 访问失败，请稍后手动重试',
+            : 'GitHub 访问失败，请稍后手动重试'
     })
   }
 }
 
 export async function githubCommit(config: RepositoryConfig, token: string, signal?: AbortSignal) {
-  const result = await githubJson(config, token, `commits/${encodeURIComponent(config.branch)}`, signal)
+  const result = await githubJson(
+    config,
+    token,
+    `commits/${encodeURIComponent(config.branch)}`,
+    signal
+  )
   if (!/^[a-f0-9]{40}$/.test(result.sha)) {
     throw createError({ statusCode: 502, message: 'GitHub 返回无效提交' })
   }
   return result.sha as string
 }
 
-export async function githubDirectory(config: RepositoryConfig, token: string, commit: string, signal?: AbortSignal) {
+export async function githubDirectory(
+  config: RepositoryConfig,
+  token: string,
+  commit: string,
+  signal?: AbortSignal
+) {
   let tree = (await githubJson(config, token, `git/commits/${commit}`, signal)).tree?.sha
   for (const component of config.directory.split('/').filter(Boolean)) {
     const result = await githubJson(config, token, `git/trees/${tree}`, signal)
@@ -105,21 +134,32 @@ export async function fetchGithubTree(config: RepositoryConfig, token: string, s
   }
   for (const entry of result.tree as GithubTreeEntry[]) {
     if (entry.mode === '120000' || (entry.type !== 'blob' && entry.type !== 'tree')) {
-      throw createError({ statusCode: 400, message: `教程目录不支持符号链接或子模块 (${entry.path})` })
+      throw createError({
+        statusCode: 400,
+        message: `教程目录不支持符号链接或子模块 (${entry.path})`
+      })
     }
   }
   return { commit, treeSha, entries: result.tree as GithubTreeEntry[] }
 }
 
 /** Downloads a single file blob by its Git SHA only when its content is needed. */
-export async function fetchGithubBlob(config: RepositoryConfig, token: string, sha: string, expectedSize?: number): Promise<Buffer> {
+export async function fetchGithubBlob(
+  config: RepositoryConfig,
+  token: string,
+  sha: string,
+  expectedSize?: number
+): Promise<Buffer> {
   const signal = AbortSignal.timeout(60000)
   const blob = await githubJson(config, token, `git/blobs/${sha}`, signal)
   if (blob.encoding !== 'base64' || typeof blob.content !== 'string') {
     throw createError({ statusCode: 502, message: 'GitHub 文件编码无效' })
   }
   const data = Buffer.from(blob.content, 'base64')
-  if ((expectedSize !== undefined && data.length !== expectedSize) || data.length > 10 * 1024 * 1024) {
+  if (
+    (expectedSize !== undefined && data.length !== expectedSize) ||
+    data.length > 10 * 1024 * 1024
+  ) {
     throw createError({ statusCode: 502, message: 'GitHub 文件大小不一致或超出 10 MiB 限制' })
   }
   return data

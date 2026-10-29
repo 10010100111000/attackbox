@@ -1,9 +1,9 @@
 <script setup lang="ts">
-const confirmAction = useConfirm()
 import { ref, computed } from 'vue'
 import { useLazyFetch, useHead } from '#imports'
 import { ExternalLink } from 'lucide-vue-next'
 import type { AdminModuleListItem } from '~/shared/content'
+const confirmAction = useConfirm()
 
 definePageMeta({
   layout: 'admin'
@@ -16,9 +16,14 @@ useHead({
 type AdminModuleItem = AdminModuleListItem
 
 const difficultyLabels = { beginner: '基础入门', intermediate: '中级进阶', advanced: '高阶实战' }
-const { data: response, pending, error, refresh } = await useLazyFetch<{ ok: boolean; data: AdminModuleItem[] }>(
-  '/api/admin/modules', {key:'admin:modules'}
-)
+const {
+  data: response,
+  pending,
+  error,
+  refresh
+} = await useLazyFetch<{ ok: boolean; data: AdminModuleItem[] }>('/api/admin/modules', {
+  key: 'admin:modules'
+})
 
 const modules = computed<AdminModuleItem[]>(() => {
   return response.value?.data || []
@@ -52,11 +57,27 @@ const filteredModules = computed(() => {
 
 async function deleteModule(id: string) {
   if (deleting.value) return
-  if (!(await confirmAction({title:'永久删除模块？',description:'模块及其全部章节、题目和学习记录将被删除，此操作无法撤销。',confirmLabel:'删除模块'}))) return
-  deleting.value = id; notice.value = ''
-  try { await $fetch(`/api/admin/modules/${id}`, { method: 'DELETE', body: { lockVersion: modules.value.find(m => m.id === id)?.lockVersion } }); await refresh() }
-  catch (error: any) { notice.value = error?.data?.message || '删除失败' }
-  finally { deleting.value = '' }
+  if (
+    !(await confirmAction({
+      title: '永久删除模块？',
+      description: '模块及其全部章节、题目和学习记录将被删除，此操作无法撤销。',
+      confirmLabel: '删除模块'
+    }))
+  )
+    return
+  deleting.value = id
+  notice.value = ''
+  try {
+    await $fetch(`/api/admin/modules/${id}`, {
+      method: 'DELETE',
+      body: { lockVersion: modules.value.find(m => m.id === id)?.lockVersion }
+    })
+    await refresh()
+  } catch (error: any) {
+    notice.value = error?.data?.message || '删除失败'
+  } finally {
+    deleting.value = ''
+  }
 }
 </script>
 
@@ -68,13 +89,21 @@ async function deleteModule(id: string) {
         <h1 class="page-title">学习模块</h1>
         <p class="page-desc">预览 Git 教程，管理发布状态与运行配置。</p>
       </div>
-      <div class="module-source-actions"><UiButton variant="secondary" size="sm" href="/api/admin/content/template" download="教程模板.md">下载 MD 模板</UiButton><UiButton size="sm" to="/admin/content">检查 Git 更新</UiButton></div>
+      <div class="module-source-actions">
+        <UiButton
+          variant="secondary"
+          size="sm"
+          href="/api/admin/content/template"
+          download="教程模板.md"
+          >下载 MD 模板</UiButton
+        ><UiButton size="sm" to="/admin/content">检查 Git 更新</UiButton>
+      </div>
     </div>
     <!-- 筛选与搜索工具条 -->
     <div class="filter-bar">
       <div class="filters-tabs" role="tablist">
         <button
-          v-for="tab in (['全部', '已发布', '未发布'] as const)"
+          v-for="tab in ['全部', '已发布', '未发布'] as const"
           :key="tab"
           type="button"
           class="tab-btn"
@@ -122,26 +151,46 @@ async function deleteModule(id: string) {
                 <strong class="module-name">
                   {{ m.title }}
                 </strong>
-                <span v-if="m.source" class="module-slug">{{m.source.path}}</span>
+                <span v-if="m.source" class="module-slug">{{ m.source.path }}</span>
                 <span class="module-slug">/learn/modules/{{ m.slug }}</span>
               </div>
             </td>
             <td>
               <div class="status-cell">
-                <UiBadge :variant="m.status === 'published' ? 'success' : 'neutral'">{{ m.status === 'published' ? '已发布' : '未发布' }}</UiBadge>
+                <UiBadge :variant="m.status === 'published' ? 'success' : 'neutral'">{{
+                  m.status === 'published' ? '已发布' : '未发布'
+                }}</UiBadge>
               </div>
             </td>
             <td>{{ m.chapterCount }} 章节</td>
             <td>
-              <span>{{ m.category?.name || '未分类' }}</span> · <span class="diff-tag">{{ difficultyLabels[m.difficulty] }}</span>
+              <span>{{ m.category?.name || '未分类' }}</span> ·
+              <span class="diff-tag">{{ difficultyLabels[m.difficulty] }}</span>
             </td>
             <td class="text-right">
               <div class="action-cell">
-                <UiButton variant="secondary" size="xs" class="module-detail-link" :to="`/admin/modules/${m.id}`">
+                <UiButton
+                  variant="secondary"
+                  size="xs"
+                  class="module-detail-link"
+                  :to="`/admin/modules/${m.id}`"
+                >
                   查看详情
                 </UiButton>
-                <UiButton v-if="m.status !== 'published'" variant="danger" size="xs" class="delete-btn" :disabled="!!deleting" :loading="deleting === m.id" @click="deleteModule(m.id)">删除</UiButton>
-                <UiButton variant="secondary" size="xs" class="module-preview-link"
+                <UiButton
+                  v-if="m.status !== 'published'"
+                  variant="danger"
+                  size="xs"
+                  class="delete-btn"
+                  :disabled="!!deleting"
+                  :loading="deleting === m.id"
+                  @click="deleteModule(m.id)"
+                  >删除</UiButton
+                >
+                <UiButton
+                  variant="secondary"
+                  size="xs"
+                  class="module-preview-link"
                   v-if="m.status === 'published'"
                   :to="`/learn/modules/${m.slug}`"
                   target="_blank"
@@ -163,7 +212,6 @@ async function deleteModule(id: string) {
     </div>
 
     <p class="footnote">新导入模块默认未发布；已有模块同步后保留发布状态。</p>
-
   </div>
 </template>
 

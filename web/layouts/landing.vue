@@ -1,5 +1,5 @@
 <script setup lang="ts">
-const {currentUser}=useAuth()
+const { currentUser } = useAuth()
 </script>
 <template>
   <div class="landing-layout brand-experience" data-theme="midnight">
@@ -9,7 +9,7 @@ const {currentUser}=useAuth()
           <img src="/logo.png" alt="AttackBox Logo" class="brand-logo" width="31" height="31" />
           <span>AttackBox</span>
         </NuxtLink>
-        <UserMenu v-if="currentUser"/><NuxtLink v-else to="/learn" class="platform-link">
+        <UserMenu v-if="currentUser" /><NuxtLink v-else to="/learn" class="platform-link">
           <span>进入平台</span>
         </NuxtLink>
       </header>
@@ -21,9 +21,7 @@ const {currentUser}=useAuth()
 
     <div class="wrap">
       <footer class="footer">
-        <NuxtLink to="/" class="footer-brand">
-          AttackBox
-        </NuxtLink>
+        <NuxtLink to="/" class="footer-brand"> AttackBox </NuxtLink>
         <span class="copyright">© 2026 AttackBox</span>
       </footer>
     </div>
@@ -69,7 +67,6 @@ const {currentUser}=useAuth()
     object-fit: contain;
     display: block;
   }
-
 
   .platform-link {
     border: 1px solid rgba(255, 255, 255, 0.15);
@@ -144,7 +141,10 @@ const {currentUser}=useAuth()
     display: inline-flex;
     gap: 38px;
     align-items: center;
-    transition: transform 0.2s cubic-bezier(0.22, 1, 0.36, 1), background 0.2s, box-shadow 0.2s;
+    transition:
+      transform 0.2s cubic-bezier(0.22, 1, 0.36, 1),
+      background 0.2s,
+      box-shadow 0.2s;
   }
 
   .primary:hover {
@@ -158,7 +158,13 @@ const {currentUser}=useAuth()
     z-index: 2;
     pointer-events: none;
     background:
-      radial-gradient(ellipse at 50% 47%, #090a0ef2 0%, #090a0ee3 26%, #090a0e77 58%, #090a0e44 80%),
+      radial-gradient(
+        ellipse at 50% 47%,
+        #090a0ef2 0%,
+        #090a0ee3 26%,
+        #090a0e77 58%,
+        #090a0e44 80%
+      ),
       linear-gradient(0deg, #090a0e, transparent 22%, transparent 80%, #090a0e);
   }
 
@@ -210,7 +216,10 @@ const {currentUser}=useAuth()
     overflow: hidden;
     isolation: isolate;
     display: block;
-    transition: transform 0.3s, border-color 0.3s, box-shadow 0.3s;
+    transition:
+      transform 0.3s,
+      border-color 0.3s,
+      box-shadow 0.3s;
   }
 
   .module-card:hover {
@@ -238,7 +247,11 @@ const {currentUser}=useAuth()
     position: absolute;
     inset: 0;
     z-index: 2;
-    background: radial-gradient(280px circle at var(--mx, 50%) var(--my, 40%), color-mix(in srgb, var(--glow) 14%, transparent), transparent 75%);
+    background: radial-gradient(
+      280px circle at var(--mx, 50%) var(--my, 40%),
+      color-mix(in srgb, var(--glow) 14%, transparent),
+      transparent 75%
+    );
     opacity: 0;
     transition: opacity 0.35s;
   }
@@ -255,17 +268,15 @@ const {currentUser}=useAuth()
     object-fit: cover;
     opacity: 0.45;
     filter: saturate(0.35);
-    transition: transform 0.7s, opacity 0.5s;
+    transition:
+      transform 0.7s,
+      opacity 0.5s;
   }
 
   .module-card:hover img {
     transform: scale(1.07);
     opacity: 0.65;
   }
-
-
-
-
 
   .card-topline {
     position: absolute;
@@ -286,7 +297,9 @@ const {currentUser}=useAuth()
   }
 
   .level {
-    font: 9px / 1.5 -apple-system, sans-serif;
+    font:
+      9px / 1.5 -apple-system,
+      sans-serif;
     letter-spacing: 0;
     border: 1px solid rgba(255, 255, 255, 0.1);
     border-radius: var(--radius-sm, 4px);
@@ -294,7 +307,6 @@ const {currentUser}=useAuth()
     color: #d2b29c;
     background: rgba(23, 21, 26, 0.5);
   }
-
 
   .card-copy {
     padding: 0 23px 21px;
@@ -330,13 +342,10 @@ const {currentUser}=useAuth()
     padding-top: 13px;
   }
 
-
-
   .cloud-art {
-    background: radial-gradient(ellipse at 55% 30%, rgba(138, 91, 71, 0.2), transparent 66%), #121318;
+    background:
+      radial-gradient(ellipse at 55% 30%, rgba(138, 91, 71, 0.2), transparent 66%), #121318;
   }
-
-
 
   .diagram {
     position: absolute;

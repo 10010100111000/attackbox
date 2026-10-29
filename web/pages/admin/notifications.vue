@@ -1,6 +1,7 @@
 <script setup lang="ts">
-const confirmAction = useConfirm()
 import type { NotificationList } from '~/shared/notifications'
+
+const confirmAction = useConfirm()
 definePageMeta({ layout: 'admin' })
 useHead({ title: '站内通知 — AttackBox' })
 const page = ref(1),
@@ -20,7 +21,7 @@ async function publish() {
     await $fetch('/api/admin/notifications', {
       method: 'POST',
       body: form.value,
-      retry: false,
+      retry: false
     })
     form.value = { title: '', body: '', link: '' }
     page.value = 1
@@ -35,14 +36,21 @@ async function publish() {
 }
 async function withdraw(id: string) {
   if (busy.value) return
-  if (!(await confirmAction({title:'撤回通知？',description:'撤回后，用户将无法再看到这条通知。',confirmLabel:'撤回通知'}))) return
+  if (
+    !(await confirmAction({
+      title: '撤回通知？',
+      description: '撤回后，用户将无法再看到这条通知。',
+      confirmLabel: '撤回通知'
+    }))
+  )
+    return
   busy.value = true
   message.value = ''
   failed.value = false
   try {
     await $fetch(`/api/admin/notifications/${id}/withdraw`, {
       method: 'POST',
-      retry: false,
+      retry: false
     })
     await refresh()
     message.value = '通知已撤回'
@@ -60,38 +68,24 @@ async function withdraw(id: string) {
       <h1>站内通知</h1>
       <p>发布课程更新与平台公告，向所有登录用户展示，也包括之后注册的用户。</p>
     </header>
-    <UiNotice v-if="message" :variant="failed ? 'error' : 'success'" class="mb-6">{{ message }}</UiNotice>
+    <UiNotice v-if="message" :variant="failed ? 'error' : 'success'" class="mb-6">{{
+      message
+    }}</UiNotice>
     <div class="announcement-editor">
       <form @submit.prevent="publish">
         <h2>发布通知</h2>
         <label>
           标题
-          <input
-            :disabled="busy"
-            v-model="form.title"
-            required
-            maxlength="120"
-          />
+          <input :disabled="busy" v-model="form.title" required maxlength="120" />
         </label>
         <label>
           正文
-          <textarea
-            :disabled="busy"
-            v-model="form.body"
-            required
-            maxlength="8000"
-            rows="7"
-          />
+          <textarea :disabled="busy" v-model="form.body" required maxlength="8000" rows="7" />
         </label>
         <label>
           相关页面
           <small>可选</small>
-          <input
-            :disabled="busy"
-            v-model="form.link"
-            maxlength="500"
-            placeholder="/learn"
-          />
+          <input :disabled="busy" v-model="form.link" maxlength="500" placeholder="/learn" />
         </label>
         <UiButton
           type="submit"
@@ -112,7 +106,7 @@ async function withdraw(id: string) {
     <section class="announcement-history">
       <h2>已发布通知</h2>
       <UiNotice v-if="error" variant="error" class="mb-4">列表读取失败</UiNotice>
-      <UiBusyIndicator v-else-if="pending && !data" label="通知管理加载"/>
+      <UiBusyIndicator v-else-if="pending && !data" label="通知管理加载" />
       <UiEmptyState
         v-else-if="!data?.data.items.length"
         title="暂无通知"
@@ -139,9 +133,16 @@ async function withdraw(id: string) {
         </UiButton>
       </div>
       <nav v-if="data && data.data.total > 20">
-        <UiButton variant="secondary" size="xs" :disabled="page === 1" @click="page--">上一页</UiButton>
+        <UiButton variant="secondary" size="xs" :disabled="page === 1" @click="page--"
+          >上一页</UiButton
+        >
         <span class="text-xs text-muted">{{ page }}</span>
-        <UiButton variant="secondary" size="xs" :disabled="page * 20 >= data.data.total" @click="page++">
+        <UiButton
+          variant="secondary"
+          size="xs"
+          :disabled="page * 20 >= data.data.total"
+          @click="page++"
+        >
           下一页
         </UiButton>
       </nav>

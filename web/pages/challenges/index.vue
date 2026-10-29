@@ -10,14 +10,17 @@ useHead({ title: '挑战 — AttackBox' })
 const { currentUser } = useAuth()
 const learner = computed(() => currentUser.value?.id || '')
 
-const { data, pending, error, refresh } = useCatalogData<{ data: ChallengeSummary[] }>(() => `challenges:list:${learner.value || 'guest'}`, '/api/challenges')
+const { data, pending, error, refresh } = useCatalogData<{ data: ChallengeSummary[] }>(
+  () => `challenges:list:${learner.value || 'guest'}`,
+  '/api/challenges'
+)
 
 const query = ref('')
 const category = ref('')
 const difficulty = ref('')
 
 const categories = computed(() => [
-  ...new Set(data.value?.data.map(c => c.category).filter(Boolean) || []),
+  ...new Set(data.value?.data.map(c => c.category).filter(Boolean) || [])
 ])
 
 const rows = computed(
@@ -33,7 +36,7 @@ const rows = computed(
 const labels: Record<string, string> = {
   beginner: '入门',
   intermediate: '进阶',
-  advanced: '高级',
+  advanced: '高级'
 }
 
 function stagePercent(c: ChallengeSummary): number {
@@ -71,10 +74,18 @@ function stagePercent(c: ChallengeSummary): number {
     </p>
 
     <div v-else class="cards">
-      <NuxtLink v-for="c in rows" :key="c.id" :to="`/challenges/${c.id}`" class="card" :data-difficulty="c.difficulty">
+      <NuxtLink
+        v-for="c in rows"
+        :key="c.id"
+        :to="`/challenges/${c.id}`"
+        class="card"
+        :data-difficulty="c.difficulty"
+      >
         <div class="meta">
           <div class="meta-tags">
-            <span class="diff-pill" :class="c.difficulty">{{ labels[c.difficulty] || '挑战' }}</span>
+            <span class="diff-pill" :class="c.difficulty">{{
+              labels[c.difficulty] || '挑战'
+            }}</span>
             <span class="cat-label">{{ c.category || '综合' }}</span>
           </div>
           <CheckCircle2
@@ -104,12 +115,24 @@ function stagePercent(c: ChallengeSummary): number {
       </NuxtLink>
     </div>
 
-    <div v-if="!pending && !error && !rows.length" class="empty"><Flag :size="27" class="empty-flag" aria-hidden="true"/><p>暂无符合条件的挑战。</p><NuxtLink to="/learn">先挑个模块热热身</NuxtLink></div>
+    <div v-if="!pending && !error && !rows.length" class="empty">
+      <Flag :size="27" class="empty-flag" aria-hidden="true" />
+      <p>暂无符合条件的挑战。</p>
+      <NuxtLink to="/learn">先挑个模块热热身</NuxtLink>
+    </div>
   </div>
 </template>
 
 <style scoped>
-.empty-flag{color:var(--learning-spark);transform:rotate(-8deg);margin:0 auto 12px}.empty a{color:var(--green);font-size:13px}
+.empty-flag {
+  color: var(--learning-spark);
+  transform: rotate(-8deg);
+  margin: 0 auto 12px;
+}
+.empty a {
+  color: var(--green);
+  font-size: 13px;
+}
 
 .page-head {
   display: flex;
@@ -194,7 +217,10 @@ input {
   flex-direction: column;
   overflow: hidden;
   animation: surface-rise 0.28s cubic-bezier(0.22, 1, 0.36, 1) both;
-  transition: border-color 0.22s ease, transform 0.22s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.22s ease;
+  transition:
+    border-color 0.22s ease,
+    transform 0.22s cubic-bezier(0.22, 1, 0.36, 1),
+    box-shadow 0.22s ease;
 }
 
 .card:hover {
@@ -286,7 +312,9 @@ footer {
 }
 
 .card-arrow {
-  transition: transform 0.18s ease, color 0.18s ease;
+  transition:
+    transform 0.18s ease,
+    color 0.18s ease;
 }
 
 .card:hover .card-arrow {

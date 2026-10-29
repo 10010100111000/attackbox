@@ -14,9 +14,12 @@ const emit = defineEmits<{
 }>()
 const { currentTheme } = useTheme()
 const container = ref<HTMLElement | null>(null)
-const message = ref(''), loading = ref(false)
+const message = ref(''),
+  loading = ref(false)
 const configuration = ref<{ enabled: boolean; siteKey: string }>()
-let widget: string | undefined, alive = true, generation = 0
+let widget: string | undefined,
+  alive = true,
+  generation = 0
 
 function invalidate(text = '') {
   emit('update:modelValue', '')
@@ -31,10 +34,16 @@ async function setup() {
   if (widget) turnstileApi()?.remove(widget)
   widget = undefined
   try {
-    const config = await $fetch<{ enabled: boolean; siteKey: string }>('/api/auth/challenge', { retry: false, timeout: 10000 })
+    const config = await $fetch<{ enabled: boolean; siteKey: string }>('/api/auth/challenge', {
+      retry: false,
+      timeout: 10000
+    })
     if (!alive || generation !== ownGeneration) return
     configuration.value = config
-    if (config?.enabled === false) { emit('update:ready', true); return }
+    if (config?.enabled === false) {
+      emit('update:ready', true)
+      return
+    }
     if (config?.enabled !== true || !config.siteKey) throw Error('configuration unavailable')
     await loadTurnstile()
     await nextTick()
@@ -55,7 +64,7 @@ async function setup() {
       },
       'error-callback': () => {
         if (alive && generation === ownGeneration) invalidate('验证暂不可用，请重试。')
-      },
+      }
     })
   } catch {
     if (alive && generation === ownGeneration) invalidate('人机验证加载失败，请重试。')
@@ -70,7 +79,9 @@ function reset() {
   if (widget) turnstileApi()?.reset(widget)
 }
 watch(() => props.resetKey, reset)
-watch(currentTheme, () => { if (configuration.value?.enabled) void setup() })
+watch(currentTheme, () => {
+  if (configuration.value?.enabled) void setup()
+})
 onMounted(setup)
 onBeforeUnmount(() => {
   alive = false
@@ -80,7 +91,11 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div class="auth-challenge" :class="{ visible: configuration?.enabled || message }" :inert="disabled || undefined">
+  <div
+    class="auth-challenge"
+    :class="{ visible: configuration?.enabled || message }"
+    :inert="disabled || undefined"
+  >
     <div ref="container" />
     <div v-if="message" class="challenge-error">
       <span role="alert">{{ message }}</span>
@@ -90,11 +105,41 @@ onBeforeUnmount(() => {
 </template>
 
 <style scoped>
-.auth-challenge { display: none; }
-.auth-challenge.visible { display: grid; gap: 8px; margin: 0 0 18px; min-width: 0; }
-.auth-challenge.visible:has(> div:empty):not(:has(.challenge-error)) { display: none; margin: 0; }
-.auth-challenge > div { max-width: 100%; }
-.challenge-error { display: flex; align-items: center; gap: 10px; font-size: 12px; line-height: 1.8; color: var(--color-error); }
-.challenge-error button { flex-shrink: 0; background: none; border: 0; padding: 2px; color: var(--text-main); text-decoration: underline; cursor: pointer; }
-.challenge-error button:focus-visible { outline: 2px solid var(--accent-coral); outline-offset: 3px; }
+.auth-challenge {
+  display: none;
+}
+.auth-challenge.visible {
+  display: grid;
+  gap: 8px;
+  margin: 0 0 18px;
+  min-width: 0;
+}
+.auth-challenge.visible:has(> div:empty):not(:has(.challenge-error)) {
+  display: none;
+  margin: 0;
+}
+.auth-challenge > div {
+  max-width: 100%;
+}
+.challenge-error {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 12px;
+  line-height: 1.8;
+  color: var(--color-error);
+}
+.challenge-error button {
+  flex-shrink: 0;
+  background: none;
+  border: 0;
+  padding: 2px;
+  color: var(--text-main);
+  text-decoration: underline;
+  cursor: pointer;
+}
+.challenge-error button:focus-visible {
+  outline: 2px solid var(--accent-coral);
+  outline-offset: 3px;
+}
 </style>

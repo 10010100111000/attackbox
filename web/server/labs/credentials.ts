@@ -1,5 +1,31 @@
-import {createCipheriv,createDecipheriv,randomBytes} from 'node:crypto'
-import {createError} from 'h3'
-function key(){const v=process.env.CONTENT_CREDENTIALS_KEY;if(!v||!/^[a-f0-9]{64}$/i.test(v))throw createError({statusCode:503,message:'请配置 CONTENT_CREDENTIALS_KEY 以保存部署变量'});return Buffer.from(v,'hex')}
-export function sealVariables(id:string,variables:Record<string,string>){if(!Object.keys(variables).length)return null;const nonce=randomBytes(12),c=createCipheriv('aes-256-gcm',key(),nonce);c.setAAD(Buffer.from('attackbox:lab:variables:'+id));const body=Buffer.concat([c.update(JSON.stringify(variables),'utf8'),c.final()]);return [nonce,c.getAuthTag(),body].map(b=>b.toString('base64url')).join('.')}
-export function openVariables(id:string,value:string|null){if(!value)return {} as Record<string,string>;try{const [n,t,b]=value.split('.').map(x=>Buffer.from(x,'base64url'));const c=createDecipheriv('aes-256-gcm',key(),n!);c.setAAD(Buffer.from('attackbox:lab:variables:'+id));c.setAuthTag(t!);return JSON.parse(Buffer.concat([c.update(b!),c.final()]).toString('utf8')) as Record<string,string>}catch{throw createError({statusCode:503,message:'部署变量无法解密，请检查加密密钥'})}}
+import { createCipheriv, createDecipheriv, randomBytes } from 'node:crypto'
+import { createError } from 'h3'
+function key() {
+  const v = process.env.CONTENT_CREDENTIALS_KEY
+  if (!v || !/^[a-f0-9]{64}$/i.test(v))
+    throw createError({ statusCode: 503, message: '请配置 CONTENT_CREDENTIALS_KEY 以保存部署变量' })
+  return Buffer.from(v, 'hex')
+}
+export function sealVariables(id: string, variables: Record<string, string>) {
+  if (!Object.keys(variables).length) return null
+  const nonce = randomBytes(12),
+    c = createCipheriv('aes-256-gcm', key(), nonce)
+  c.setAAD(Buffer.from('attackbox:lab:variables:' + id))
+  const body = Buffer.concat([c.update(JSON.stringify(variables), 'utf8'), c.final()])
+  return [nonce, c.getAuthTag(), body].map(b => b.toString('base64url')).join('.')
+}
+export function openVariables(id: string, value: string | null) {
+  if (!value) return {} as Record<string, string>
+  try {
+    const [n, t, b] = value.split('.').map(x => Buffer.from(x, 'base64url'))
+    const c = createDecipheriv('aes-256-gcm', key(), n!)
+    c.setAAD(Buffer.from('attackbox:lab:variables:' + id))
+    c.setAuthTag(t!)
+    return JSON.parse(Buffer.concat([c.update(b!), c.final()]).toString('utf8')) as Record<
+      string,
+      string
+    >
+  } catch {
+    throw createError({ statusCode: 503, message: '部署变量无法解密，请检查加密密钥' })
+  }
+}

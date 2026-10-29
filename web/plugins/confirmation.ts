@@ -3,6 +3,8 @@ import { createConfirmationController, type ConfirmationRequest } from '~/utils/
 
 export default defineNuxtPlugin(() => {
   const request = shallowRef<ConfirmationRequest | null>(null)
-  const controller = createConfirmationController(value => { request.value = value })
+  const controller = createConfirmationController(value => {
+    request.value = value
+  })
   return { provide: { confirmation: { request, controller } } }
 })

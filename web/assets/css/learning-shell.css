@@ -9,7 +9,9 @@
   --learning-edge: clamp(24px, 4vw, 80px);
   --learning-brand-width: 128px;
   --learning-nav-gap: 36px;
-  --learning-content-start: calc(var(--learning-edge) + var(--learning-brand-width) + var(--learning-nav-gap));
+  --learning-content-start: calc(
+    var(--learning-edge) + var(--learning-brand-width) + var(--learning-nav-gap)
+  );
 }
 
 .learning-shell {
@@ -49,7 +51,7 @@
   }
 }
 
-:root[data-theme="midnight"] .learning-layout {
+:root[data-theme='midnight'] .learning-layout {
   --learning-spark: #d8a57b;
   --tone-red: #e06c75;
   --tone-red-soft: rgba(224, 108, 117, 0.14);

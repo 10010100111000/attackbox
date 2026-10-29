@@ -8,11 +8,10 @@ export const defaultRuntimePolicy: RuntimePolicy = {
   sandboxTtlMinutes: 60,
   sandboxIdleMinutes: 10,
   targetTtlMinutes: 60,
-  lockVersion: 0,
+  lockVersion: 0
 }
 export function parseRuntimePolicy(value: unknown): RuntimePolicy {
-  if (!value || typeof value !== 'object' || Array.isArray(value))
-    throw Error('运行策略格式无效')
+  if (!value || typeof value !== 'object' || Array.isArray(value)) throw Error('运行策略格式无效')
   const v = value as Record<string, unknown>
   const integer = (key: string, min: number, max: number) => {
     const n = v[key]
@@ -25,6 +24,6 @@ export function parseRuntimePolicy(value: unknown): RuntimePolicy {
     sandboxTtlMinutes,
     sandboxIdleMinutes: integer('sandboxIdleMinutes', 1, sandboxTtlMinutes),
     targetTtlMinutes: integer('targetTtlMinutes', 1, 1440),
-    lockVersion: integer('lockVersion', 0, 2147483646),
+    lockVersion: integer('lockVersion', 0, 2147483646)
   }
 }

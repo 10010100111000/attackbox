@@ -47,7 +47,9 @@ useHead({
   meta: [
     {
       name: 'description',
-      content: computed(() => descriptions[currentMode.value] || '登录 AttackBox，继续你的安全学习与实践。')
+      content: computed(
+        () => descriptions[currentMode.value] || '登录 AttackBox，继续你的安全学习与实践。'
+      )
     }
   ]
 })
@@ -105,15 +107,9 @@ watch(currentMode, () => {
         @switch-mode="handleSwitchMode"
       />
 
-      <VerifyView
-        v-else-if="currentMode === 'verify'"
-        @switch-mode="handleSwitchMode"
-      />
+      <VerifyView v-else-if="currentMode === 'verify'" @switch-mode="handleSwitchMode" />
 
-      <ResetPasswordForm
-        v-else-if="currentMode === 'reset'"
-        @switch-mode="handleSwitchMode"
-      />
+      <ResetPasswordForm v-else-if="currentMode === 'reset'" @switch-mode="handleSwitchMode" />
     </section>
   </main>
 </template>

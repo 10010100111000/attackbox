@@ -22,8 +22,8 @@ const form = ref({
   chapters: props.detail.chapters.map(c => ({
     chapterId: c.chapterId,
     targetMode: c.targetMode,
-    targetTemplateId: c.targetTemplateId,
-  })),
+    targetTemplateId: c.targetTemplateId
+  }))
 })
 const original = ref(JSON.stringify(form.value))
 const version = ref(props.detail.module.lockVersion)
@@ -34,23 +34,35 @@ function applyDetail(value: AdminModuleDetail) {
   form.value = {
     defaultTargetTemplateId: value.module.defaultTargetTemplateId,
     prerequisiteModuleIds: value.prerequisites.map(m => m.id),
-    chapters: value.chapters.map(c => ({ chapterId: c.chapterId, targetMode: c.targetMode, targetTemplateId: c.targetTemplateId })),
+    chapters: value.chapters.map(c => ({
+      chapterId: c.chapterId,
+      targetMode: c.targetMode,
+      targetTemplateId: c.targetTemplateId
+    }))
   }
   original.value = JSON.stringify(form.value)
   selected.value = Math.min(selected.value, Math.max(0, value.chapters.length - 1))
 }
-watch(() => props.detail, value => {
-  if (!busy.value && !dirty.value && !needsReload.value) applyDetail(value)
+watch(
+  () => props.detail,
+  value => {
+    if (!busy.value && !dirty.value && !needsReload.value) applyDetail(value)
+  }
+)
+useEditorGuard({
+  dirty,
+  busy,
+  title: '放弃运行配置？',
+  description: '当前未保存的运行配置将丢失。'
 })
-useEditorGuard({ dirty, busy, title: '放弃运行配置？', description: '当前未保存的运行配置将丢失。' })
 
 const { data: targets } = useLazyFetch<{ data: { id: string; name: string; enabled: boolean }[] }>(
   '/api/admin/target-templates/options',
-  { key: 'admin:content:targets' },
+  { key: 'admin:content:targets' }
 )
 const { data: moduleOptions } = useLazyFetch<{ data: { id: string; title: string }[] }>(
   '/api/admin/modules',
-  { key: 'admin:content:modules' },
+  { key: 'admin:content:modules' }
 )
 const chapter = computed(() => props.detail.chapters[selected.value])
 
@@ -83,9 +95,16 @@ async function operate(task: () => Promise<string>) {
 async function retryRead() {
   if (busy.value) return
   busy.value = true
-  try { await reloadDetail();failed.value = false;notice.value = '最新数据已载入' }
-  catch { failed.value = true;notice.value = '最新数据读取失败，请重试' }
-  finally { busy.value = false }
+  try {
+    await reloadDetail()
+    failed.value = false
+    notice.value = '最新数据已载入'
+  } catch {
+    failed.value = true
+    notice.value = '最新数据读取失败，请重试'
+  } finally {
+    busy.value = false
+  }
 }
 
 function save() {
@@ -93,7 +112,9 @@ function save() {
   const submitted = JSON.parse(JSON.stringify(form.value)) as typeof form.value
   void operate(async () => {
     await $fetch(`/api/admin/modules/${props.detail.module.id}/runtime`, {
-      method: 'PUT', body: { ...submitted, lockVersion: version.value }, retry: false,
+      method: 'PUT',
+      body: { ...submitted, lockVersion: version.value },
+      retry: false
     })
     original.value = JSON.stringify(submitted)
     return '运行配置已保存'
@@ -103,9 +124,14 @@ function save() {
 function publish() {
   if (dirty.value) return
   void operate(async () => {
-    await $fetch(`/api/admin/modules/${props.detail.module.id}/${props.detail.module.status === 'published' ? 'unpublish' : 'publish'}`, {
-      method: 'POST', body: { lockVersion: version.value }, retry: false,
-    })
+    await $fetch(
+      `/api/admin/modules/${props.detail.module.id}/${props.detail.module.status === 'published' ? 'unpublish' : 'publish'}`,
+      {
+        method: 'POST',
+        body: { lockVersion: version.value },
+        retry: false
+      }
+    )
     return '发布状态已更新'
   })
 }
@@ -114,10 +140,14 @@ function syncFromGit() {
   if (dirty.value) return
   void operate(async () => {
     const response = await $fetch<{ data: SyncModuleResult }>('/api/admin/content/sync', {
-      method: 'POST', body: { moduleId: props.detail.module.id }, retry: false,
+      method: 'POST',
+      body: { moduleId: props.detail.module.id },
+      retry: false
     })
     clearNuxtData(k => k.startsWith('admin:') || k.startsWith('learning:'))
-    return response.data.synced[0]?.action === 'unchanged' ? '已是最新，无内容变化' : '已从 Git 同步最新内容'
+    return response.data.synced[0]?.action === 'unchanged'
+      ? '已是最新，无内容变化'
+      : '已从 Git 同步最新内容'
   })
 }
 </script>
@@ -137,7 +167,9 @@ function syncFromGit() {
         </p>
       </div>
       <div class="actions">
-        <UiButton variant="secondary" size="sm"
+        <UiButton
+          variant="secondary"
+          size="sm"
           v-if="detail.source?.url"
           :href="detail.source.url"
           target="_blank"
@@ -145,24 +177,38 @@ function syncFromGit() {
         >
           查看源文件
         </UiButton>
-        <UiButton variant="secondary" size="sm" :disabled="busy || dirty || needsReload" @click="syncFromGit">
+        <UiButton
+          variant="secondary"
+          size="sm"
+          :disabled="busy || dirty || needsReload"
+          @click="syncFromGit"
+        >
           <RefreshCw :size="13" />同步最新内容
         </UiButton>
-        <UiButton variant="secondary" size="sm"
+        <UiButton
+          variant="secondary"
+          size="sm"
           v-if="detail.module.status === 'published'"
           :to="`/learn/modules/${detail.module.slug}`"
           target="_blank"
         >
           前台预览<ExternalLink :size="13" />
         </UiButton>
-        <UiButton variant="primary" size="sm" :disabled="busy || dirty || needsReload" @click="publish">
+        <UiButton
+          variant="primary"
+          size="sm"
+          :disabled="busy || dirty || needsReload"
+          @click="publish"
+        >
           {{ detail.module.status === 'published' ? '下架' : '发布' }}
         </UiButton>
       </div>
     </header>
     <UiNotice v-if="notice" :variant="failed ? 'error' : 'success'" class="mb-5">
       {{ notice }}
-      <UiButton v-if="needsReload" variant="secondary" size="xs" :disabled="busy" @click="retryRead">重新读取</UiButton>
+      <UiButton v-if="needsReload" variant="secondary" size="xs" :disabled="busy" @click="retryRead"
+        >重新读取</UiButton
+      >
     </UiNotice>
     <nav class="tabs">
       <button :class="{ active: tab === 'content' }" @click="tab = 'content'">内容预览</button>
@@ -190,7 +236,10 @@ function syncFromGit() {
           />
           <p class="hint">封面在 Markdown 配置头填写 cover: ./images/cover.webp，同步后生效。</p>
           <p>{{ detail.module.summary }}</p>
-          <MarkdownView :content="detail.module.descriptionMarkdown" :image-urls="detail.imageUrls" />
+          <MarkdownView
+            :content="detail.module.descriptionMarkdown"
+            :image-urls="detail.imageUrls"
+          />
           <ul>
             <li v-for="goal in detail.module.learningOutcomes" :key="goal">{{ goal }}</li>
           </ul>
@@ -201,7 +250,9 @@ function syncFromGit() {
           <h2>{{ chapter.title }}</h2>
           <span>
             {{ chapter.access === 'public' ? '公开' : '登录可读' }}
-            <template v-if="chapter.durationMinutes"> · {{ chapter.durationMinutes }} 分钟</template>
+            <template v-if="chapter.durationMinutes">
+              · {{ chapter.durationMinutes }} 分钟</template
+            >
           </span>
         </div>
         <MarkdownView :content="chapter.bodyMarkdown" :image-urls="detail.imageUrls" />
@@ -209,7 +260,9 @@ function syncFromGit() {
           <h2>章节练习</h2>
           <div v-for="q in chapter.questions" :key="q.id">
             <MarkdownView :content="q.promptMarkdown" :image-urls="detail.imageUrls" />
-            <p class="hint">{{ q.normalization }} · {{ q.hasAnswer ? '已配置答案' : '未配置答案' }}</p>
+            <p class="hint">
+              {{ q.normalization }} · {{ q.hasAnswer ? '已配置答案' : '未配置答案' }}
+            </p>
           </div>
         </div>
       </section>
@@ -219,7 +272,11 @@ function syncFromGit() {
         <h2>实验环境</h2>
         <label>
           模块默认靶机
-          <TargetTemplateSelect id="module-default-target" v-model="form.defaultTargetTemplateId" :options="targets?.data || []" />
+          <TargetTemplateSelect
+            id="module-default-target"
+            v-model="form.defaultTargetTemplateId"
+            :options="targets?.data || []"
+          />
         </label>
         <div v-for="(ch, index) in form.chapters" :key="ch.chapterId" class="chapter-config">
           <label>
@@ -249,8 +306,16 @@ function syncFromGit() {
           </option>
         </select>
         <div class="actions">
-          <UiButton type="submit" :loading="busy" :disabled="!dirty || needsReload">保存运行配置</UiButton>
-          <UiButton variant="secondary" type="button" :disabled="!dirty || busy || needsReload" @click="applyDetail(detail)">取消修改</UiButton>
+          <UiButton type="submit" :loading="busy" :disabled="!dirty || needsReload"
+            >保存运行配置</UiButton
+          >
+          <UiButton
+            variant="secondary"
+            type="button"
+            :disabled="!dirty || busy || needsReload"
+            @click="applyDetail(detail)"
+            >取消修改</UiButton
+          >
           <span v-if="dirty" class="hint">有未保存修改</span>
         </div>
       </fieldset>

@@ -14,7 +14,7 @@ const props = withDefaults(defineProps<Props>(), {
   variant: 'info',
   title: undefined,
   dismissible: false,
-  class: undefined,
+  class: undefined
 })
 
 const emit = defineEmits<{
@@ -25,16 +25,18 @@ const iconMap = {
   info: Info,
   success: CheckCircle2,
   warning: AlertTriangle,
-  error: AlertCircle,
+  error: AlertCircle
 }
 
-const role = computed(() => (props.variant === 'error' || props.variant === 'warning' ? 'alert' : 'status'))
+const role = computed(() =>
+  props.variant === 'error' || props.variant === 'warning' ? 'alert' : 'status'
+)
 
 const variantClasses: Record<NonNullable<Props['variant']>, string> = {
   info: 'bg-[var(--soft)] text-[var(--ink)] border-[var(--line)]',
   success: 'bg-[var(--success-bg)] text-[var(--success-ink)] border-transparent',
   warning: 'bg-[rgba(235,160,50,0.14)] text-[#e6a84f] border-transparent',
-  error: 'bg-[var(--error-bg)] text-[var(--error-ink)] border-transparent',
+  error: 'bg-[var(--error-bg)] text-[var(--error-ink)] border-transparent'
 }
 </script>
 
@@ -49,12 +51,7 @@ const variantClasses: Record<NonNullable<Props['variant']>, string> = {
       )
     "
   >
-    <component
-      :is="iconMap[variant]"
-      :size="15"
-      class="flex-shrink-0 mt-0.5"
-      aria-hidden="true"
-    />
+    <component :is="iconMap[variant]" :size="15" class="flex-shrink-0 mt-0.5" aria-hidden="true" />
     <div class="flex-1 min-w-0">
       <strong v-if="title" class="block font-semibold mb-1">{{ title }}</strong>
       <div class="notice-content">

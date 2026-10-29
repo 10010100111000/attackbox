@@ -1,30 +1,30 @@
-import { drizzle } from 'drizzle-orm/postgres-js';
-import { migrate } from 'drizzle-orm/postgres-js/migrator';
-import postgres from 'postgres';
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { drizzle } from 'drizzle-orm/postgres-js'
+import { migrate } from 'drizzle-orm/postgres-js/migrator'
+import postgres from 'postgres'
+import path from 'node:path'
+import { fileURLToPath } from 'node:url'
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+const __filename = fileURLToPath(import.meta.url)
+const __dirname = path.dirname(__filename)
 
 export async function runMigrations(connectionUrl?: string) {
-  const url = connectionUrl || process.env.DATABASE_URL;
+  const url = connectionUrl || process.env.DATABASE_URL
   if (!url) {
-    throw new Error('DATABASE_URL environment variable is required');
+    throw new Error('DATABASE_URL environment variable is required')
   }
 
   // 迁移使用 max: 1 的独占连接
-  const migrationClient = postgres(url, { max: 1 });
-  const db = drizzle(migrationClient);
+  const migrationClient = postgres(url, { max: 1 })
+  const db = drizzle(migrationClient)
 
-  const migrationsFolder = path.resolve(__dirname, 'migrations');
-  console.log(`Running migrations from ${migrationsFolder}...`);
+  const migrationsFolder = path.resolve(__dirname, 'migrations')
+  console.log(`Running migrations from ${migrationsFolder}...`)
 
   try {
-    await migrate(db, { migrationsFolder });
-    console.log('Migrations applied successfully.');
+    await migrate(db, { migrationsFolder })
+    console.log('Migrations applied successfully.')
   } finally {
-    await migrationClient.end();
+    await migrationClient.end()
   }
 }
 
@@ -32,8 +32,8 @@ export async function runMigrations(connectionUrl?: string) {
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
   runMigrations()
     .then(() => process.exit(0))
-    .catch((err) => {
-      console.error('Migration failed:', err);
-      process.exit(1);
-    });
+    .catch(err => {
+      console.error('Migration failed:', err)
+      process.exit(1)
+    })
 }

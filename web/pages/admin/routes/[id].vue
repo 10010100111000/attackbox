@@ -10,10 +10,9 @@ useHead({ title: '编辑路线 — AttackBox' })
 const id = String(useRoute().params.id)
 const isNew = id === 'new'
 
-const { data: source } = await useLazyFetch<{ data: { id: string; title: string; status: string }[] }>(
-  '/api/admin/modules',
-  { key: 'admin:route-module-options' }
-)
+const { data: source } = await useLazyFetch<{
+  data: { id: string; title: string; status: string }[]
+}>('/api/admin/modules', { key: 'admin:route-module-options' })
 
 const title = ref('')
 const summary = ref('')
@@ -25,7 +24,8 @@ const failed = ref(false)
 const busy = ref(false)
 const loaded = ref(isNew)
 const query = ref('')
-const snapshot = () => JSON.stringify({ title: title.value, summary: summary.value, ids: ids.value })
+const snapshot = () =>
+  JSON.stringify({ title: title.value, summary: summary.value, ids: ids.value })
 const original = ref(snapshot())
 const dirty = computed(() => loaded.value && snapshot() !== original.value)
 
@@ -59,10 +59,11 @@ const selected = computed(() =>
   ids.value.map(id => source.value?.data.find(m => m.id === id)).filter(Boolean)
 )
 
-const options = computed(() =>
-  source.value?.data.filter(
-    m => !ids.value.includes(m.id) && m.title.toLowerCase().includes(query.value.toLowerCase())
-  ) || []
+const options = computed(
+  () =>
+    source.value?.data.filter(
+      m => !ids.value.includes(m.id) && m.title.toLowerCase().includes(query.value.toLowerCase())
+    ) || []
 )
 
 function move(index: number, delta: number) {
@@ -87,9 +88,9 @@ async function save(intent: 'draft' | 'publish') {
           summary: submitted.summary,
           moduleIds: submitted.ids,
           lockVersion: version.value,
-          intent,
+          intent
         },
-        retry: false,
+        retry: false
       }
     )
     await clearNuxtData('admin:routes')
@@ -150,7 +151,9 @@ async function save(intent: 'draft' | 'publish') {
       </div>
     </header>
 
-    <UiNotice v-if="notice" :variant="failed ? 'error' : 'success'" class="mb-5">{{ notice }}</UiNotice>
+    <UiNotice v-if="notice" :variant="failed ? 'error' : 'success'" class="mb-5">{{
+      notice
+    }}</UiNotice>
 
     <fieldset v-if="loaded" class="grid" :disabled="busy">
       <section class="panel">
@@ -403,5 +406,4 @@ small {
 .module-choice:hover:not(:disabled) {
   background: var(--soft);
 }
-
 </style>

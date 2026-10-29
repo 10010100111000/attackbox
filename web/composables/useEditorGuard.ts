@@ -19,7 +19,7 @@ export function useEditorGuard(options: EditorGuardOptions) {
       title: options.title,
       description: options.description,
       confirmLabel: '放弃修改',
-      cancelLabel: '继续编辑',
+      cancelLabel: '继续编辑'
     })
     return accepted && !toValue(options.busy)
   }

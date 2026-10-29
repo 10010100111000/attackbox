@@ -10,6 +10,8 @@ export default defineNuxtPlugin(nuxtApp => {
   // contain a visitor's identity; restore it after mounting without blocking forms.
   if (nuxtApp.payload.prerenderedAt || !isInitialized.value) {
     isInitialized.value = false
-    nuxtApp.hook('app:mounted', () => { void fetchMe() })
+    nuxtApp.hook('app:mounted', () => {
+      void fetchMe()
+    })
   }
 })

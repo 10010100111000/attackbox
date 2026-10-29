@@ -1,15 +1,26 @@
-import {getRuntimePolicy} from './runtime-policy'
+import { getRuntimePolicy } from './runtime-policy'
 import { experimentNode } from '../../shared/target-runtime'
 import { randomBytes } from 'node:crypto'
 import { and, eq, ne, sql } from 'drizzle-orm'
 import { createError } from 'h3'
 import { db } from '../db'
-import { targetInstances, targetTemplates,labPreparations, chapters, modules, challenges } from '../db/schema'
-import {composeTargetOperation} from './compose-target-runtime'
+import {
+  targetInstances,
+  targetTemplates,
+  labPreparations,
+  chapters,
+  modules,
+  challenges
+} from '../db/schema'
+import { composeTargetOperation } from './compose-target-runtime'
 import { chapterContext } from './learning'
 import { sandboxHub, sandboxController } from '../sandbox'
 
-export async function targetScope(user: string, input: Record<string, unknown>, runner: typeof db = db) {
+export async function targetScope(
+  user: string,
+  input: Record<string, unknown>,
+  runner: typeof db = db
+) {
   if (input.kind === 'challenge') {
     if (typeof input.challengeId !== 'string' || !/^[a-f0-9-]{36}$/.test(input.challengeId)) {
       throw createError({ statusCode: 400, message: '挑战参数无效' })
@@ -24,7 +35,11 @@ export async function targetScope(user: string, input: Record<string, unknown>, 
     return { scope: 'challenge:' + c.id, templateId: c.targetTemplateId }
   }
 
-  if (input.kind !== 'chapter' || typeof input.moduleSlug !== 'string' || typeof input.chapterSlug !== 'string') {
+  if (
+    input.kind !== 'chapter' ||
+    typeof input.moduleSlug !== 'string' ||
+    typeof input.chapterSlug !== 'string'
+  ) {
     throw createError({ statusCode: 400, message: '章节参数无效' })
   }
   const { chapter } = await chapterContext(runner, input.moduleSlug, input.chapterSlug, user)
@@ -33,7 +48,7 @@ export async function targetScope(user: string, input: Record<string, unknown>, 
       mode: chapters.targetMode,
       template: chapters.targetTemplateId,
       moduleTemplate: modules.defaultTargetTemplateId,
-      module: modules.id,
+      module: modules.id
     })
     .from(chapters)
     .innerJoin(modules, eq(modules.id, chapters.moduleId))
@@ -41,7 +56,7 @@ export async function targetScope(user: string, input: Record<string, unknown>, 
 
   return {
     scope: c!.mode === 'custom' ? 'chapter:' + chapter.id : 'module:' + c!.module,
-    templateId: c!.mode === 'none' ? null : c!.mode === 'custom' ? c!.template : c!.moduleTemplate,
+    templateId: c!.mode === 'none' ? null : c!.mode === 'custom' ? c!.template : c!.moduleTemplate
   }
 }
 
@@ -51,7 +66,7 @@ function view(row: typeof targetInstances.$inferSelect) {
     expiresAt: row.expiresAt,
     state: row.state,
     instance: row.result,
-    updatedAt: row.updatedAt,
+    updatedAt: row.updatedAt
   }
 }
 
@@ -70,7 +85,9 @@ export async function targetOperation(
       .where(
         and(
           eq(targetInstances.userId, user),
-          action === 'stop' ? eq(targetInstances.id, String(input.id || '')) : eq(targetInstances.scope, scope!.scope)
+          action === 'stop'
+            ? eq(targetInstances.id, String(input.id || ''))
+            : eq(targetInstances.scope, scope!.scope)
         )
       )
     if (!existing) return null
@@ -84,12 +101,7 @@ export async function targetOperation(
     const [existing] = await tx
       .select()
       .from(targetInstances)
-      .where(
-        and(
-          eq(targetInstances.userId, user),
-          eq(targetInstances.scope, scope!.scope)
-        )
-      )
+      .where(and(eq(targetInstances.userId, user), eq(targetInstances.scope, scope!.scope)))
 
     if (!scope?.templateId) {
       throw createError({ statusCode: 409, message: '未关联靶机模板' })
@@ -102,18 +114,43 @@ export async function targetOperation(
       throw createError({ statusCode: 409, message: '靶机模板已停用' })
     }
     const attacker = sandboxController().status(user).instance
-    const activeTargets = await tx.select({nodeId:targetInstances.nodeId}).from(targetInstances).where(and(eq(targetInstances.userId,user),ne(targetInstances.state,'stopped')))
+    const activeTargets = await tx
+      .select({ nodeId: targetInstances.nodeId })
+      .from(targetInstances)
+      .where(and(eq(targetInstances.userId, user), ne(targetInstances.state, 'stopped')))
     let preferredNodeId: string | null
-    try { preferredNodeId=experimentNode(attacker?.nodeId,activeTargets.map(t=>t.nodeId)) }
-    catch { throw createError({statusCode:409,message:'已有实验环境分布在不同节点，请先停止冲突的靶机'}) }
+    try {
+      preferredNodeId = experimentNode(
+        attacker?.nodeId,
+        activeTargets.map(t => t.nodeId)
+      )
+    } catch {
+      throw createError({
+        statusCode: 409,
+        message: '已有实验环境分布在不同节点，请先停止冲突的靶机'
+      })
+    }
     if (existing && existing.state !== 'stopped') {
       return existing
     }
     const nodes = hub
       .snapshot()
-      .nodes.filter(n => n.state === 'online' && !n.settings.draining && n.bootId && hub.composeNodes.has(n.id))
-    const prepared=await tx.select().from(labPreparations).where(and(eq(labPreparations.templateId,template.id),eq(labPreparations.templateVersion,template.revision),sql`${labPreparations.deploymentId} is not null`))
-    const eligible = (preferredNodeId ? nodes.filter(n => n.id === preferredNodeId) : nodes).filter(n=>prepared.some(p=>p.nodeId===n.id&&p.bootId===n.bootId&&p.deploymentId))
+      .nodes.filter(
+        n => n.state === 'online' && !n.settings.draining && n.bootId && hub.composeNodes.has(n.id)
+      )
+    const prepared = await tx
+      .select()
+      .from(labPreparations)
+      .where(
+        and(
+          eq(labPreparations.templateId, template.id),
+          eq(labPreparations.templateVersion, template.revision),
+          sql`${labPreparations.deploymentId} is not null`
+        )
+      )
+    const eligible = (preferredNodeId ? nodes.filter(n => n.id === preferredNodeId) : nodes).filter(
+      n => prepared.some(p => p.nodeId === n.id && p.bootId === n.bootId && p.deploymentId)
+    )
 
     if (!eligible.length) {
       throw createError({ statusCode: 503, message: '当前可用节点尚未准备此靶场，请联系管理员' })
@@ -128,10 +165,10 @@ export async function targetOperation(
       bootId: node.bootId!,
       state: 'starting',
       expiresAt: new Date(Date.now() + (await getRuntimePolicy()).targetTtlMinutes * 60 * 1000),
-      deploymentId:prepared.find(p=>p.nodeId===node.id)!.deploymentId!,
+      deploymentId: prepared.find(p => p.nodeId === node.id)!.deploymentId!,
       result: null,
       revision: (existing?.revision || 0) + 1,
-      updatedAt: new Date(),
+      updatedAt: new Date()
     }
     if (existing) {
       await tx.delete(targetInstances).where(eq(targetInstances.id, existing.id))
@@ -143,7 +180,7 @@ export async function targetOperation(
   if (!row) return null
   if (row.state === 'stopped') return view(row)
   if (row.expiresAt.getTime() <= Date.now()) action = 'stop'
-  return composeTargetOperation(row,action)
+  return composeTargetOperation(row, action)
 }
 
 export async function stopUserTargets(userId: string): Promise<'none' | 'released' | 'pending'> {

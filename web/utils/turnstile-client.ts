@@ -29,7 +29,10 @@ export function loadTurnstile() {
     const timer = setTimeout(fail, 10000)
     script.onload = () => {
       if (settled) return
-      if (!turnstileApi()) { fail(); return }
+      if (!turnstileApi()) {
+        fail()
+        return
+      }
       settled = true
       clearTimeout(timer)
       resolve()

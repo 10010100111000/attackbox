@@ -20,10 +20,7 @@ const emit = defineEmits<{
     @change="emit('update:modelValue', ($event.target as HTMLSelectElement).value || null)"
   >
     <option value="">不关联模板</option>
-    <option
-      v-if="modelValue && !options.some(t => t.id === modelValue)"
-      :value="modelValue"
-    >
+    <option v-if="modelValue && !options.some(t => t.id === modelValue)" :value="modelValue">
       当前模板（信息未加载）
     </option>
     <option

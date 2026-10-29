@@ -1,9 +1,20 @@
 export const defaultRegistrationDomains = [
-  'gmail.com', 'googlemail.com',
-  'outlook.com', 'hotmail.com', 'live.com', 'msn.com',
-  'icloud.com', 'me.com', 'mac.com',
-  'qq.com', 'foxmail.com', '163.com', '126.com', 'yeah.net',
-  'yahoo.com', 'aliyun.com',
+  'gmail.com',
+  'googlemail.com',
+  'outlook.com',
+  'hotmail.com',
+  'live.com',
+  'msn.com',
+  'icloud.com',
+  'me.com',
+  'mac.com',
+  'qq.com',
+  'foxmail.com',
+  '163.com',
+  '126.com',
+  'yeah.net',
+  'yahoo.com',
+  'aliyun.com'
 ] as const
 
 export function registrationEmailAllowed(email: string, domains: readonly string[]): boolean {

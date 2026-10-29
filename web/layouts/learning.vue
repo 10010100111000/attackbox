@@ -187,10 +187,18 @@ import LearningHeader from '~/components/learning/LearningHeader.vue'
   animation: node-pulse 4s ease-in-out infinite;
 }
 
-.node-2 { animation-delay: -1.2s; }
-.node-3 { animation-delay: -2.4s; }
-.node-4 { animation-delay: -0.8s; }
-.node-5 { animation-delay: -3.1s; }
+.node-2 {
+  animation-delay: -1.2s;
+}
+.node-3 {
+  animation-delay: -2.4s;
+}
+.node-4 {
+  animation-delay: -0.8s;
+}
+.node-5 {
+  animation-delay: -3.1s;
+}
 
 .learning-main {
   flex: 1;

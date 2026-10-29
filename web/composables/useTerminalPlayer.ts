@@ -95,9 +95,10 @@ export interface TerminalPlayerReturn {
 }
 
 export function useTerminalPlayer(options: UseTerminalPlayerOptions = {}): TerminalPlayerReturn {
-  const initialKey = options.initialScene && SCENE_KEYS.includes(options.initialScene)
-    ? options.initialScene
-    : 'nmap'
+  const initialKey =
+    options.initialScene && SCENE_KEYS.includes(options.initialScene)
+      ? options.initialScene
+      : 'nmap'
 
   const sceneKey = ref<SceneKey>(initialKey)
   const branch = computed(() => TERMINAL_SCENES[sceneKey.value]?.branch ?? '')

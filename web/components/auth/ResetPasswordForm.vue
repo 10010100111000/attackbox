@@ -115,7 +115,12 @@ async function submit() {
 
         <div class="signup">
           <span>链接已失效？</span>
-          <button type="button" class="text-button" :disabled="busy" @click="emit('switch-mode', 'recover')">
+          <button
+            type="button"
+            class="text-button"
+            :disabled="busy"
+            @click="emit('switch-mode', 'recover')"
+          >
             重新申请重置链接
           </button>
         </div>

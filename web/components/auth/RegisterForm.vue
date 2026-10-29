@@ -9,7 +9,7 @@ interface Props {
 }
 
 const props = withDefaults(defineProps<Props>(), {
-  modelValueEmail: '',
+  modelValueEmail: ''
 })
 
 const emit = defineEmits<{
@@ -17,7 +17,10 @@ const emit = defineEmits<{
   (e: 'switch-mode', mode: 'login'): void
 }>()
 
-const { data: registrationPolicy } = useLazyFetch<{domains:string[]}>('/api/auth/registration-policy', { key:'auth:registration-policy', server:false })
+const { data: registrationPolicy } = useLazyFetch<{ domains: string[] }>(
+  '/api/auth/registration-policy',
+  { key: 'auth:registration-policy', server: false }
+)
 const email = ref(props.modelValueEmail)
 const password = ref('')
 const busy = ref(false)
@@ -35,11 +38,11 @@ const statusMessage = ref('')
 
 watch(
   () => props.modelValueEmail,
-  (val) => {
+  val => {
     if (val !== undefined && val !== email.value) {
       email.value = val
     }
-  },
+  }
 )
 
 function onEmailInput(val: string) {
@@ -63,7 +66,10 @@ function validate(): boolean {
   if (!trimmedEmail || !emailRegex.test(trimmedEmail)) {
     emailError.value = '请输入有效的邮箱地址。'
     firstErrorId = 'email'
-  } else if (registrationPolicy.value && !registrationEmailAllowed(trimmedEmail, registrationPolicy.value.domains)) {
+  } else if (
+    registrationPolicy.value &&
+    !registrationEmailAllowed(trimmedEmail, registrationPolicy.value.domains)
+  ) {
     emailError.value = '该邮箱域名暂不支持注册。'
     firstErrorId = 'email'
   } else {
@@ -130,11 +136,7 @@ async function handleSubmit() {
         没有收到时，请检查垃圾邮件或重新发送。
       </p>
       <AuthResendVerification :email="email" />
-      <button
-        type="button"
-        class="back-button"
-        @click="$emit('switch-mode', 'login')"
-      >
+      <button type="button" class="back-button" @click="$emit('switch-mode', 'login')">
         <span>返回登录</span>
       </button>
     </div>
@@ -193,12 +195,18 @@ async function handleSubmit() {
             />
           </div>
 
-        <AuthChallenge v-model="turnstileToken" v-model:ready="challengeReady" action="register" :reset-key="challengeReset" :disabled="busy" />
+          <AuthChallenge
+            v-model="turnstileToken"
+            v-model:ready="challengeReady"
+            action="register"
+            :reset-key="challengeReset"
+            :disabled="busy"
+          />
           <!-- 注册提交按钮 -->
           <Button
             variant="primary"
             :loading="busy"
-          :disabled="!challengeReady"
+            :disabled="!challengeReady"
             type="submit"
             class="submit w-full h-[46px] text-xs font-semibold rounded-md gap-4"
           >
@@ -206,24 +214,14 @@ async function handleSubmit() {
           </Button>
 
           <!-- 状态反馈提示 -->
-          <p
-            v-if="statusMessage"
-            id="status"
-            class="status"
-            role="status"
-            aria-live="polite"
-          >
+          <p v-if="statusMessage" id="status" class="status" role="status" aria-live="polite">
             {{ statusMessage }}
           </p>
         </fieldset>
       </form>
 
       <!-- 返回登录 -->
-      <button
-        class="back-button"
-        type="button"
-        @click="$emit('switch-mode', 'login')"
-      >
+      <button class="back-button" type="button" @click="$emit('switch-mode', 'login')">
         <span>返回登录</span>
       </button>
 

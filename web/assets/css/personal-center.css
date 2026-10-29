@@ -29,7 +29,9 @@
   border-radius: 16px;
   background: var(--avatar-bg);
   color: var(--avatar-fg);
-  box-shadow: var(--avatar-shadow), 0 0 0 4px var(--soft);
+  box-shadow:
+    var(--avatar-shadow),
+    0 0 0 4px var(--soft);
   font-size: 18px;
   font-weight: 700;
   letter-spacing: -0.3px;
@@ -78,13 +80,19 @@
   font-size: 13px;
   font-weight: 500;
   text-decoration: none;
-  transition: background 0.16s ease, color 0.16s ease, border-color 0.16s ease, transform 0.16s ease;
+  transition:
+    background 0.16s ease,
+    color 0.16s ease,
+    border-color 0.16s ease,
+    transform 0.16s ease;
 }
 
 .personal-navigation a > svg {
   color: var(--muted);
   flex-shrink: 0;
-  transition: color 0.16s ease, transform 0.16s ease;
+  transition:
+    color 0.16s ease,
+    transform 0.16s ease;
 }
 
 .personal-navigation a:hover {
@@ -97,7 +105,7 @@
   transform: translateX(1px);
 }
 
-.personal-navigation a[aria-current="page"] {
+.personal-navigation a[aria-current='page'] {
   background: var(--soft);
   color: var(--ink);
   border-color: var(--line);
@@ -105,7 +113,7 @@
   font-weight: 600;
 }
 
-.personal-navigation a[aria-current="page"] > svg {
+.personal-navigation a[aria-current='page'] > svg {
   color: var(--brand);
 }
 
@@ -146,7 +154,10 @@
   text-decoration: none;
   cursor: pointer;
   white-space: nowrap;
-  transition: background 0.15s ease, border-color 0.15s ease, transform 0.15s ease;
+  transition:
+    background 0.15s ease,
+    border-color 0.15s ease,
+    transform 0.15s ease;
 }
 
 .personal-text-link:hover {
@@ -167,7 +178,8 @@
   border: 1px solid rgba(195, 154, 123, 0.16);
   border-radius: 14px;
   color: var(--ink);
-  background: radial-gradient(ellipse at 85% 30%, rgba(163, 107, 66, 0.12), transparent 60%),
+  background:
+    radial-gradient(ellipse at 85% 30%, rgba(163, 107, 66, 0.12), transparent 60%),
     linear-gradient(120deg, var(--soft), var(--paper));
   box-shadow: var(--surface-highlight), var(--card-shadow);
   overflow: hidden;
@@ -223,7 +235,9 @@
   font-size: 12px;
   font-weight: 600;
   text-decoration: none;
-  transition: transform 0.16s ease, background 0.16s ease;
+  transition:
+    transform 0.16s ease,
+    background 0.16s ease;
 }
 
 .personal-resume-button:hover {
@@ -318,7 +332,10 @@
   font-size: 12px;
   font-weight: 500;
   cursor: pointer;
-  transition: background 0.15s ease, color 0.15s ease, box-shadow 0.15s ease;
+  transition:
+    background 0.15s ease,
+    color 0.15s ease,
+    box-shadow 0.15s ease;
 }
 
 .personal-filters button:hover {
@@ -372,7 +389,9 @@
   border-radius: 11px;
   background: var(--soft);
   color: var(--ink);
-  transition: transform 0.18s ease, border-color 0.18s ease;
+  transition:
+    transform 0.18s ease,
+    border-color 0.18s ease;
 }
 
 .personal-record:hover .personal-record-icon {
@@ -545,7 +564,10 @@
   text-decoration: none;
   cursor: pointer;
   white-space: nowrap;
-  transition: transform 0.16s ease, background 0.16s ease, opacity 0.16s ease;
+  transition:
+    transform 0.16s ease,
+    background 0.16s ease,
+    opacity 0.16s ease;
 }
 
 .personal-button.secondary {
@@ -674,7 +696,9 @@
   color: var(--ink);
   font: inherit;
   font-size: 13px;
-  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  transition:
+    border-color 0.15s ease,
+    box-shadow 0.15s ease;
 }
 
 .personal-field input:focus {

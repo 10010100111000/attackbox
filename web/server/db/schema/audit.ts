@@ -1,13 +1,6 @@
-import {
-  pgTable,
-  uuid,
-  varchar,
-  timestamp,
-  jsonb,
-  index,
-} from 'drizzle-orm/pg-core';
-import { inet } from './types';
-import { users } from './auth';
+import { pgTable, uuid, varchar, timestamp, jsonb, index } from 'drizzle-orm/pg-core'
+import { inet } from './types'
+import { users } from './auth'
 
 export const auditLogs = pgTable(
   'audit_logs',
@@ -20,10 +13,10 @@ export const auditLogs = pgTable(
     metadata: jsonb('metadata').notNull().default({}),
     requestId: uuid('request_id'),
     ip: inet('ip'),
-    createdAt: timestamp('created_at', { withTimezone: true, mode: 'date' }).notNull().defaultNow(),
+    createdAt: timestamp('created_at', { withTimezone: true, mode: 'date' }).notNull().defaultNow()
   },
-  (table) => [
+  table => [
     index('audit_logs_target_created_idx').on(table.targetType, table.targetId, table.createdAt),
-    index('audit_logs_actor_created_idx').on(table.actorUserId, table.createdAt),
+    index('audit_logs_actor_created_idx').on(table.actorUserId, table.createdAt)
   ]
-);
+)

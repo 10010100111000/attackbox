@@ -1,12 +1,18 @@
 <script setup lang="ts">
 withDefaults(defineProps<{ inline?: boolean; label?: string }>(), {
   inline: false,
-  label: '请稍候',
+  label: '请稍候'
 })
 </script>
 
 <template>
-  <span class="busy-indicator" :class="{ inline }" role="status" :aria-label="label" aria-live="polite">
+  <span
+    class="busy-indicator"
+    :class="{ inline }"
+    role="status"
+    :aria-label="label"
+    aria-live="polite"
+  >
     <svg class="busy-orbit" viewBox="0 0 32 32" aria-hidden="true">
       <circle cx="16" cy="16" r="10" class="orbit-track" />
       <g class="orbit-dots">

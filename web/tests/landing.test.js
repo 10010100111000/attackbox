@@ -28,7 +28,7 @@ test('landing component and layout files exist', () => {
 
 test('TerminalBackdrop.vue consumes useTerminalPlayer and defines terminal-screen, feed, and cursor', () => {
   const content = readFileSync(resolve(rootDir, 'components/landing/TerminalBackdrop.vue'), 'utf-8')
-  
+
   // Consumes composable
   assert.ok(content.includes('useTerminalPlayer'))
   assert.ok(content.includes('branch'))
@@ -53,7 +53,9 @@ test('TerminalBackdrop.vue consumes useTerminalPlayer and defines terminal-scree
 
   // Styles
   assert.ok(content.includes('radial-gradient(ellipse at 18% 50%, #a0674917, transparent 55%)'))
-  assert.ok(content.includes('"SFMono-Regular", Consolas, monospace'))
+  assert.ok(content.includes('SFMono-Regular'))
+  assert.ok(content.includes('Consolas'))
+  assert.ok(content.includes('monospace'))
   assert.ok(content.includes('animation: blink'))
 })
 
@@ -61,7 +63,7 @@ test('landing uses public module data and direct browsing links', () => {
   const page = readFileSync(resolve(rootDir, 'pages/index.vue'), 'utf-8')
   const hero = readFileSync(resolve(rootDir, 'components/landing/HeroSection.vue'), 'utf-8')
   const header = readFileSync(resolve(rootDir, 'layouts/landing.vue'), 'utf-8')
-  assert.ok(page.includes("await useFetch"))
+  assert.ok(page.includes('await useFetch'))
   assert.ok(page.includes("'/api/landing'"))
   assert.ok(page.includes('catalog-empty'))
   for (const file of ['FeaturedModule.vue', 'ModuleRail.vue']) {

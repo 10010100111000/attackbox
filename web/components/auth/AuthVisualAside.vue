@@ -24,7 +24,7 @@ const bgImage = '/images/auth-explore.webp'
     <div class="visual-text" aria-hidden="true">
       <div class="visual-tag">STAY CURIOUS.</div>
       <h2>让好奇，<span>有迹可循。</span></h2>
-      <p class="visual-subtitle">从一个问题开始，<br>在实践中找到自己的答案。</p>
+      <p class="visual-subtitle">从一个问题开始，<br />在实践中找到自己的答案。</p>
     </div>
 
     <!-- 底部状态标语 -->
@@ -54,7 +54,13 @@ const bgImage = '/images/auth-explore.webp'
   position: absolute;
   inset: 0;
   z-index: -1;
-  background: linear-gradient(0deg, #101116 3%, rgba(17, 17, 23, 0.6) 26%, rgba(21, 19, 23, 0.81) 48%, rgba(23, 20, 25, 0.33) 100%);
+  background: linear-gradient(
+    0deg,
+    #101116 3%,
+    rgba(17, 17, 23, 0.6) 26%,
+    rgba(21, 19, 23, 0.81) 48%,
+    rgba(23, 20, 25, 0.33) 100%
+  );
   pointer-events: none;
 }
 
@@ -110,7 +116,10 @@ const bgImage = '/images/auth-explore.webp'
 }
 
 .visual-tag {
-  font: 9px/1 "SFMono-Regular", Consolas, monospace;
+  font:
+    9px/1 'SFMono-Regular',
+    Consolas,
+    monospace;
   letter-spacing: 2px;
   color: #a78675;
   margin-bottom: 25px;
@@ -142,7 +151,10 @@ const bgImage = '/images/auth-explore.webp'
   display: flex;
   align-items: center;
   justify-content: space-between;
-  font: 8px "SFMono-Regular", Consolas, monospace;
+  font:
+    8px 'SFMono-Regular',
+    Consolas,
+    monospace;
   letter-spacing: 1px;
   color: #69616d;
   z-index: 2;

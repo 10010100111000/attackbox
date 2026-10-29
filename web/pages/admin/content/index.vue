@@ -1,8 +1,15 @@
 <script setup lang="ts">
-const confirmAction = useConfirm()
 import { computed, ref, watch } from 'vue'
-import { ArrowLeft, GitBranch, Download, RefreshCw, CheckCircle2, FolderGit2 } from 'lucide-vue-next'
+import {
+  ArrowLeft,
+  GitBranch,
+  Download,
+  RefreshCw,
+  CheckCircle2,
+  FolderGit2
+} from 'lucide-vue-next'
 import type { RepoScanReport, RepoModuleEntry, SyncModuleResult } from '~/shared/content-sync'
+const confirmAction = useConfirm()
 
 definePageMeta({ layout: 'admin' })
 useHead({ title: 'Git 教程同步 — AttackBox' })
@@ -15,10 +22,13 @@ interface Settings {
   version: number
 }
 
-const { data: settings, error: settingsError, refresh } = useLazyFetch<{ data: Settings }>(
-  '/api/admin/content/repository',
-  { key: 'admin:content:repository' },
-)
+const {
+  data: settings,
+  error: settingsError,
+  refresh
+} = useLazyFetch<{ data: Settings }>('/api/admin/content/repository', {
+  key: 'admin:content:repository'
+})
 
 const form = ref({ repository: '', branch: 'main', directory: '', token: '' })
 const busy = ref('')
@@ -33,11 +43,11 @@ watch(
         repository: value.data.repository,
         branch: value.data.branch,
         directory: value.data.directory,
-        token: '',
+        token: ''
       }
     }
   },
-  { immediate: true },
+  { immediate: true }
 )
 
 const dirty = computed(
@@ -46,11 +56,11 @@ const dirty = computed(
     (form.value.repository !== settings.value.data.repository ||
       form.value.branch !== settings.value.data.branch ||
       form.value.directory !== settings.value.data.directory ||
-      !!form.value.token),
+      !!form.value.token)
 )
 
 const changedModules = computed(() =>
-  (scan.value?.modules || []).filter(m => m.status === 'new' || m.status === 'modified'),
+  (scan.value?.modules || []).filter(m => m.status === 'new' || m.status === 'modified')
 )
 
 async function perform(label: string, task: () => Promise<void>) {
@@ -70,7 +80,7 @@ function save() {
   void perform('保存配置', async () => {
     await $fetch('/api/admin/content/repository', {
       method: 'PUT',
-      body: { ...form.value, version: settings.value?.data.version || 0 },
+      body: { ...form.value, version: settings.value?.data.version || 0 }
     })
     form.value.token = ''
     await refresh()
@@ -79,11 +89,18 @@ function save() {
 }
 
 async function clearToken() {
-  if (!(await confirmAction({title:'清除只读 Token？',description:'已经导入的教程不受影响。再次同步私有仓库前需要重新配置凭据。',confirmLabel:'清除 Token'}))) return
+  if (
+    !(await confirmAction({
+      title: '清除只读 Token？',
+      description: '已经导入的教程不受影响。再次同步私有仓库前需要重新配置凭据。',
+      confirmLabel: '清除 Token'
+    }))
+  )
+    return
   void perform('清除凭据', async () => {
     await $fetch('/api/admin/content/repository', {
       method: 'PUT',
-      body: { ...form.value, token: '', version: settings.value?.data.version, clearToken: true },
+      body: { ...form.value, token: '', version: settings.value?.data.version, clearToken: true }
     })
     await refresh()
     message.value = '凭据已清除'
@@ -93,7 +110,7 @@ async function clearToken() {
 function testConnection() {
   void perform('测试连接', async () => {
     const response = await $fetch<{ data: { commit: string } }>('/api/admin/content/test', {
-      method: 'POST',
+      method: 'POST'
     })
     message.value = `连接成功 · 最新提交 ${response.data.commit.slice(0, 12)}`
   })
@@ -102,7 +119,7 @@ function testConnection() {
 function scanRepo() {
   void perform('读取仓库差异', async () => {
     const response = await $fetch<{ data: RepoScanReport }>('/api/admin/content/pull', {
-      method: 'POST',
+      method: 'POST'
     })
     scan.value = response.data
   })
@@ -112,16 +129,17 @@ function syncSingle(item: RepoModuleEntry, force = false) {
   void perform(`同步 ${item.title}`, async () => {
     const response = await $fetch<{ data: SyncModuleResult }>('/api/admin/content/sync', {
       method: 'POST',
-      body: { sourcePath: item.sourcePath, force },
+      body: { sourcePath: item.sourcePath, force }
     })
     const res = response.data.synced[0]
     clearNuxtData(k => k.startsWith('admin:') || k.startsWith('learning:'))
     const refreshed = await $fetch<{ data: RepoScanReport }>('/api/admin/content/pull', {
-      method: 'POST',
+      method: 'POST'
     })
     scan.value = refreshed.data
     if (res) {
-      const actionLabel = res.action === 'created' ? '已新增导入' : res.action === 'updated' ? '已差异更新' : '无变化'
+      const actionLabel =
+        res.action === 'created' ? '已新增导入' : res.action === 'updated' ? '已差异更新' : '无变化'
       message.value = `${res.title}：${actionLabel}（下载图片 ${res.downloadedImages} 张，复用未变图片 ${res.reusedImages} 张）`
     }
   })
@@ -132,11 +150,11 @@ function syncAllChanged() {
   void perform('同步全部变更模块', async () => {
     const response = await $fetch<{ data: SyncModuleResult }>('/api/admin/content/sync', {
       method: 'POST',
-      body: {},
+      body: {}
     })
     clearNuxtData(k => k.startsWith('admin:') || k.startsWith('learning:'))
     const refreshed = await $fetch<{ data: RepoScanReport }>('/api/admin/content/pull', {
-      method: 'POST',
+      method: 'POST'
     })
     scan.value = refreshed.data
     message.value = `已同步 ${response.data.synced.length} 个模块`
@@ -146,16 +164,19 @@ function syncAllChanged() {
 
 <template>
   <div class="git-content-page">
-    <NuxtLink class="back" to="/admin/modules">
-      <ArrowLeft :size="14" />学习模块
-    </NuxtLink>
+    <NuxtLink class="back" to="/admin/modules"> <ArrowLeft :size="14" />学习模块 </NuxtLink>
 
     <header class="page-header">
       <div>
         <h1>Git 教程同步</h1>
         <p>按模块目录直接读取 Git 差异，仅下载有变化的 Markdown 与新增图片，直接入库生效。</p>
       </div>
-      <UiButton variant="secondary" size="sm" href="/api/admin/content/template" download="教程模板.md">
+      <UiButton
+        variant="secondary"
+        size="sm"
+        href="/api/admin/content/template"
+        download="教程模板.md"
+      >
         <Download :size="15" />下载 MD 模板
       </UiButton>
     </header>
@@ -175,7 +196,12 @@ function syncAllChanged() {
           <div class="settings-grid">
             <label>
               GitHub 私有仓库
-              <input v-model="form.repository" placeholder="owner/repository" autocomplete="off" required />
+              <input
+                v-model="form.repository"
+                placeholder="owner/repository"
+                autocomplete="off"
+                required
+              />
             </label>
             <label>
               分支
@@ -217,7 +243,13 @@ function syncAllChanged() {
               <RefreshCw :size="14" />
               <span>读取仓库差异</span>
             </UiButton>
-            <UiButton v-if="settings?.data.hasToken" variant="ghost" size="sm" type="button" @click="clearToken">
+            <UiButton
+              v-if="settings?.data.hasToken"
+              variant="ghost"
+              size="sm"
+              type="button"
+              @click="clearToken"
+            >
               清除凭据
             </UiButton>
             <UiBusyIndicator v-if="busy" inline :label="busy" />
@@ -231,9 +263,8 @@ function syncAllChanged() {
         <div>
           <h2><FolderGit2 :size="17" />仓库模块差异列表</h2>
           <p>
-            Commit <code>{{ scan.commit.slice(0, 12) }}</code> · 共发现 {{ scan.modules.length }} 个模块（{{
-              changedModules.length
-            }}
+            Commit <code>{{ scan.commit.slice(0, 12) }}</code> · 共发现
+            {{ scan.modules.length }} 个模块（{{ changedModules.length }}
             个待导入或有更新）
           </p>
         </div>
@@ -255,10 +286,28 @@ function syncAllChanged() {
           <div class="module-meta">
             <div class="module-title-line flex items-center gap-2">
               <strong>{{ item.title }}</strong>
-              <UiBadge :variant="item.status === 'new' ? 'brand' : item.status === 'modified' ? 'warning' : 'success'" dot>
-                {{ item.status === 'new' ? '新增未导入' : item.status === 'modified' ? '有内容更新' : '已是最新' }}
+              <UiBadge
+                :variant="
+                  item.status === 'new'
+                    ? 'brand'
+                    : item.status === 'modified'
+                      ? 'warning'
+                      : 'success'
+                "
+                dot
+              >
+                {{
+                  item.status === 'new'
+                    ? '新增未导入'
+                    : item.status === 'modified'
+                      ? '有内容更新'
+                      : '已是最新'
+                }}
               </UiBadge>
-              <UiBadge v-if="item.moduleStatus" :variant="item.moduleStatus === 'published' ? 'success' : 'neutral'">
+              <UiBadge
+                v-if="item.moduleStatus"
+                :variant="item.moduleStatus === 'published' ? 'success' : 'neutral'"
+              >
                 {{ item.moduleStatus === 'published' ? '线上已发布' : '未发布草稿' }}
               </UiBadge>
             </div>

@@ -6,10 +6,10 @@ import {
   timestamp,
   uniqueIndex,
   index,
-  check,
-} from 'drizzle-orm/pg-core';
-import { sql } from 'drizzle-orm';
-import { bytea, inet } from './types';
+  check
+} from 'drizzle-orm/pg-core'
+import { sql } from 'drizzle-orm'
+import { bytea, inet } from './types'
 
 export const users = pgTable(
   'users',
@@ -23,16 +23,16 @@ export const users = pgTable(
     emailVerifiedAt: timestamp('email_verified_at', { withTimezone: true, mode: 'date' }),
     createdAt: timestamp('created_at', { withTimezone: true, mode: 'date' }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'date' }).notNull().defaultNow(),
-    lastLoginAt: timestamp('last_login_at', { withTimezone: true, mode: 'date' }),
+    lastLoginAt: timestamp('last_login_at', { withTimezone: true, mode: 'date' })
   },
-  (table) => [
+  table => [
     uniqueIndex('users_email_unique_idx').on(table.email),
     check('users_email_lower_trimmed_check', sql`${table.email} = lower(btrim(${table.email}))`),
     check('users_display_name_non_empty_check', sql`length(btrim(${table.displayName})) > 0`),
     check('users_role_check', sql`${table.role} in ('user', 'admin')`),
-    check('users_status_check', sql`${table.status} in ('pending', 'active', 'suspended')`),
+    check('users_status_check', sql`${table.status} in ('pending', 'active', 'suspended')`)
   ]
-);
+)
 
 export const authSessions = pgTable(
   'auth_sessions',
@@ -44,18 +44,20 @@ export const authSessions = pgTable(
     tokenHash: bytea('token_hash').notNull(),
     createdAt: timestamp('created_at', { withTimezone: true, mode: 'date' }).notNull().defaultNow(),
     expiresAt: timestamp('expires_at', { withTimezone: true, mode: 'date' }).notNull(),
-    lastSeenAt: timestamp('last_seen_at', { withTimezone: true, mode: 'date' }).notNull().defaultNow(),
+    lastSeenAt: timestamp('last_seen_at', { withTimezone: true, mode: 'date' })
+      .notNull()
+      .defaultNow(),
     revokedAt: timestamp('revoked_at', { withTimezone: true, mode: 'date' }),
     ip: inet('ip'),
-    userAgent: varchar('user_agent', { length: 512 }),
+    userAgent: varchar('user_agent', { length: 512 })
   },
-  (table) => [
+  table => [
     uniqueIndex('auth_sessions_token_hash_unique_idx').on(table.tokenHash),
     index('auth_sessions_user_expires_idx').on(table.userId, table.expiresAt),
     check('auth_sessions_token_hash_len_check', sql`octet_length(${table.tokenHash}) = 32`),
-    check('auth_sessions_expires_after_created_check', sql`${table.expiresAt} > ${table.createdAt}`),
+    check('auth_sessions_expires_after_created_check', sql`${table.expiresAt} > ${table.createdAt}`)
   ]
-);
+)
 
 export const emailTokens = pgTable(
   'email_tokens',
@@ -69,12 +71,15 @@ export const emailTokens = pgTable(
     tokenHash: bytea('token_hash').notNull(),
     createdAt: timestamp('created_at', { withTimezone: true, mode: 'date' }).notNull().defaultNow(),
     expiresAt: timestamp('expires_at', { withTimezone: true, mode: 'date' }).notNull(),
-    consumedAt: timestamp('consumed_at', { withTimezone: true, mode: 'date' }),
+    consumedAt: timestamp('consumed_at', { withTimezone: true, mode: 'date' })
   },
-  (table) => [
+  table => [
     uniqueIndex('email_tokens_token_hash_unique_idx').on(table.tokenHash),
-    check('email_tokens_purpose_check', sql`${table.purpose} in ('verify_email', 'reset_password')`),
+    check(
+      'email_tokens_purpose_check',
+      sql`${table.purpose} in ('verify_email', 'reset_password')`
+    ),
     check('email_tokens_token_hash_len_check', sql`octet_length(${table.tokenHash}) = 32`),
-    check('email_tokens_expires_after_created_check', sql`${table.expiresAt} > ${table.createdAt}`),
+    check('email_tokens_expires_after_created_check', sql`${table.expiresAt} > ${table.createdAt}`)
   ]
-);
+)

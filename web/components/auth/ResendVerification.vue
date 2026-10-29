@@ -6,19 +6,20 @@ const address = ref(props.email || ''),
 const id = useId()
 watch(
   () => props.email,
-  (email) => {
+  email => {
     if (email) address.value = email
-  },
+  }
 )
 async function resend() {
   if (busy.value) return
   busy.value = true
   message.value = ''
   try {
-    const result = await $fetch<{ message: string }>(
-      '/api/auth/resend-verification',
-      { method: 'POST', body: { email: address.value }, retry: false },
-    )
+    const result = await $fetch<{ message: string }>('/api/auth/resend-verification', {
+      method: 'POST',
+      body: { email: address.value },
+      retry: false
+    })
     message.value = result.message
   } catch (e: any) {
     message.value = e?.data?.statusMessage || '邮件发送暂不可用，请稍后重试'

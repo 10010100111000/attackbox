@@ -13,11 +13,8 @@ const props = defineProps<{
 }>()
 const percent = computed(() =>
   props.total > 0
-    ? Math.min(
-        100,
-        Math.max(0, Math.round((props.completed / props.total) * 100)),
-      )
-    : 0,
+    ? Math.min(100, Math.max(0, Math.round((props.completed / props.total) * 100)))
+    : 0
 )
 const unit = computed(() => (props.kind === 'learning' ? '章节' : '阶段'))
 const date = computed(() => {
@@ -28,7 +25,7 @@ const date = computed(() => {
     : new Intl.DateTimeFormat('zh-CN', {
         month: 'short',
         day: 'numeric',
-        timeZone: 'Asia/Shanghai',
+        timeZone: 'Asia/Shanghai'
       }).format(value)
 })
 </script>

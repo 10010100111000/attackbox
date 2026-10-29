@@ -38,12 +38,23 @@ const performanceNow = (): number => {
  * to create mouse-following gradient shimmer effects.
  */
 export function handleCardPointerMove(e: PointerEvent, target?: HTMLElement | null): void {
-  if (typeof window !== 'undefined' && window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+  if (
+    typeof window !== 'undefined' &&
+    window.matchMedia &&
+    window.matchMedia('(prefers-reduced-motion: reduce)').matches
+  ) {
     return
   }
 
-  const card = target || (e.currentTarget as HTMLElement) || (e.target as HTMLElement)?.closest?.('[data-module]')
-  if (!card || typeof (card as HTMLElement).getBoundingClientRect !== 'function' || !(card as HTMLElement).style) {
+  const card =
+    target ||
+    (e.currentTarget as HTMLElement) ||
+    (e.target as HTMLElement)?.closest?.('[data-module]')
+  if (
+    !card ||
+    typeof (card as HTMLElement).getBoundingClientRect !== 'function' ||
+    !(card as HTMLElement).style
+  ) {
     return
   }
 
@@ -77,7 +88,13 @@ export function useModuleRail(
   let visibilityObserver: IntersectionObserver | null = null
 
   const isPaused = computed(() => {
-    return !isLoopRunning.value || isProgrammaticallyPaused.value || railHovered.value || railFocused.value || !railVisible.value
+    return (
+      !isLoopRunning.value ||
+      isProgrammaticallyPaused.value ||
+      railHovered.value ||
+      railFocused.value ||
+      !railVisible.value
+    )
   })
 
   const cloneCards = () => {
@@ -146,14 +163,25 @@ export function useModuleRail(
 
   const advanceShelf = (now: number, dt: number) => {
     const rail = railRef.value
-    if (!rail || !loopWidth || !railVisible.value || isProgrammaticallyPaused.value || railHovered.value || railFocused.value || now < resumeAt) {
+    if (
+      !rail ||
+      !loopWidth ||
+      !railVisible.value ||
+      isProgrammaticallyPaused.value ||
+      railHovered.value ||
+      railFocused.value ||
+      now < resumeAt
+    ) {
       return
     }
 
-    const isReduced = typeof window !== 'undefined' && window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    const isReduced =
+      typeof window !== 'undefined' &&
+      window.matchMedia &&
+      window.matchMedia('(prefers-reduced-motion: reduce)').matches
     const speed = isReduced ? reducedSpeed : baseSpeed
 
-    shelfPosition = ((shelfPosition + dt * speed) % loopWidth + loopWidth) % loopWidth
+    shelfPosition = (((shelfPosition + dt * speed) % loopWidth) + loopWidth) % loopWidth
     rail.scrollLeft = shelfPosition
   }
 
@@ -293,17 +321,20 @@ export function useModuleRail(
 
     // IntersectionObserver to sleep rAF loop when off-screen
     if (typeof IntersectionObserver !== 'undefined') {
-      visibilityObserver = new IntersectionObserver((entries) => {
-        const isIntersecting = entries[0]?.isIntersecting ?? false
-        railVisible.value = isIntersecting
-        if (isIntersecting) {
-          if (options.autoStart ?? true) {
-            startLoop()
+      visibilityObserver = new IntersectionObserver(
+        entries => {
+          const isIntersecting = entries[0]?.isIntersecting ?? false
+          railVisible.value = isIntersecting
+          if (isIntersecting) {
+            if (options.autoStart ?? true) {
+              startLoop()
+            }
+          } else {
+            stopLoop()
           }
-        } else {
-          stopLoop()
-        }
-      }, { rootMargin: '100px' })
+        },
+        { rootMargin: '100px' }
+      )
       visibilityObserver.observe(rail)
     } else {
       railVisible.value = true

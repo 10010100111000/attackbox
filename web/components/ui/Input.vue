@@ -100,15 +100,17 @@ const sizeClasses: Record<'sm' | 'md', string> = {
         @keydown="handleKeyEvent"
         @keyup="handleKeyEvent"
         @blur="handleBlur"
-        :class="cn(
-          'flex w-full rounded-md border border-line bg-input text-foreground placeholder:text-muted/60 transition-colors',
-          'focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-accent focus-visible:border-accent',
-          'disabled:cursor-not-allowed disabled:opacity-50',
-          sizeClasses[props.size] || sizeClasses.md,
-          type === 'password' && 'pr-10',
-          error && 'border-error focus-visible:ring-error focus-visible:border-error',
-          inputClass
-        )"
+        :class="
+          cn(
+            'flex w-full rounded-md border border-line bg-input text-foreground placeholder:text-muted/60 transition-colors',
+            'focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-accent focus-visible:border-accent',
+            'disabled:cursor-not-allowed disabled:opacity-50',
+            sizeClasses[props.size] || sizeClasses.md,
+            type === 'password' && 'pr-10',
+            error && 'border-error focus-visible:ring-error focus-visible:border-error',
+            inputClass
+          )
+        "
       />
 
       <button
@@ -125,18 +127,10 @@ const sizeClasses: Record<'sm' | 'md', string> = {
     </div>
 
     <div v-if="capsLockActive || error" class="mt-1 space-y-1">
-      <p
-        v-if="capsLockActive"
-        class="text-xs text-accent flex items-center gap-1"
-      >
+      <p v-if="capsLockActive" class="text-xs text-accent flex items-center gap-1">
         大写锁定已开启
       </p>
-      <p
-        v-if="error"
-        :id="errorId"
-        class="text-xs text-error"
-        role="alert"
-      >
+      <p v-if="error" :id="errorId" class="text-xs text-error" role="alert">
         {{ error }}
       </p>
     </div>

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, onMounted, computed } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
+import { useRoute } from 'vue-router'
 import Button from '~/components/ui/Button.vue'
 import { useAuth } from '~/composables/useAuth'
 
@@ -9,7 +9,6 @@ const emit = defineEmits<{
 }>()
 
 const route = useRoute()
-const router = useRouter()
 const { verifyEmail } = useAuth()
 
 type VerifyState = 'pending' | 'success' | 'error' | 'missing'
@@ -21,8 +20,7 @@ const emailParam = computed(() => {
 })
 
 onMounted(async () => {
-  const token =
-    typeof route.query.token === 'string' ? route.query.token.trim() : ''
+  const token = typeof route.query.token === 'string' ? route.query.token.trim() : ''
   if (!token) {
     status.value = 'missing'
     errorMessage.value = '请打开验证邮件中的链接，或重新申请验证邮件。'
@@ -52,10 +50,9 @@ function goToLogin() {
   <div class="auth-form">
     <!-- 校验中 -->
     <div v-if="status === 'pending'" class="verify-state">
-      <UiBusyIndicator inline label="邮箱验证" class="verification-busy"/>
+      <UiBusyIndicator inline label="邮箱验证" class="verification-busy" />
       <div class="eyebrow">ACCOUNT ACTIVATION</div>
       <h1 class="auth-title" id="form-title">邮箱验证</h1>
-
     </div>
 
     <!-- 激活成功 -->
@@ -97,11 +94,7 @@ function goToLogin() {
           <span>尝试直接登录</span>
         </Button>
 
-        <button
-          type="button"
-          class="back-button"
-          @click="$emit('switch-mode', 'register')"
-        >
+        <button type="button" class="back-button" @click="$emit('switch-mode', 'register')">
           <span>返回重新注册</span>
         </button>
       </div>

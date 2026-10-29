@@ -8,23 +8,21 @@ const filter = ref('all')
 const filters = [
   { id: 'all', label: '全部' },
   { id: 'active', label: '进行中' },
-  { id: 'completed', label: '已完成' },
+  { id: 'completed', label: '已完成' }
 ]
 const difficulties: Record<string, string> = {
   beginner: '入门',
   intermediate: '进阶',
-  advanced: '高级',
+  advanced: '高级'
 }
 const { data, pending, error, refresh } = await useLazyAsyncData(
   () => `account:challenges:${currentUser.value?.id || 'guest'}`,
   async () => {
     const owner = currentUser.value?.id
     if (!owner) return []
-    const result = await request<{ data: ChallengeSummary[] }>(
-      '/api/me/challenges',
-    )
+    const result = await request<{ data: ChallengeSummary[] }>('/api/me/challenges')
     return currentUser.value?.id === owner ? result.data : []
-  },
+  }
 )
 const records = computed(() => data.value || [])
 function complete(item: ChallengeSummary) {
@@ -32,10 +30,9 @@ function complete(item: ChallengeSummary) {
 }
 const visible = computed(() =>
   records.value.filter(
-    (item) =>
-      filter.value === 'all' ||
-      (filter.value === 'completed' ? complete(item) : !complete(item)),
-  ),
+    item =>
+      filter.value === 'all' || (filter.value === 'completed' ? complete(item) : !complete(item))
+  )
 )
 </script>
 
@@ -48,7 +45,9 @@ const visible = computed(() =>
       <NuxtLink to="/challenges" class="personal-text-link">探索挑战</NuxtLink>
     </header>
     <div v-if="pending && !data" class="personal-loading" role="status">
-      <UiBusyIndicator inline class="personal-loading-mark" aria-hidden="true"/><span class="personal-skeleton personal-skeleton-title" />
+      <UiBusyIndicator inline class="personal-loading-mark" aria-hidden="true" /><span
+        class="personal-skeleton personal-skeleton-title"
+      />
       <span class="personal-skeleton" />
       <span class="personal-skeleton" />
       <span class="personal-sr-only">正在读取挑战记录…</span>
@@ -57,13 +56,7 @@ const visible = computed(() =>
       <Flag :size="27" aria-hidden="true" />
       <h2>暂时无法读取挑战记录</h2>
       <p>已通过的阶段不会丢失，请稍后重试。</p>
-      <button
-        type="button"
-        class="personal-button secondary"
-        @click="refresh()"
-      >
-        重试
-      </button>
+      <button type="button" class="personal-button secondary" @click="refresh()">重试</button>
     </div>
     <template v-else-if="records.length">
       <div class="personal-list-heading first">
@@ -86,11 +79,7 @@ const visible = computed(() =>
           :key="item.id"
           :title="item.title"
           :to="`/challenges/${item.id}`"
-          :subtitle="
-            [item.category, difficulties[item.difficulty]]
-              .filter(Boolean)
-              .join(' · ')
-          "
+          :subtitle="[item.category, difficulties[item.difficulty]].filter(Boolean).join(' · ')"
           :completed="item.completedStages"
           :total="item.totalStages"
           :complete="complete(item)"
@@ -100,23 +89,13 @@ const visible = computed(() =>
       </div>
       <div v-else class="personal-filter-empty">
         <p>
-          {{
-            filter === 'completed'
-              ? '还没有全部通关的挑战。'
-              : '当前记录中的挑战都已通关。'
-          }}
+          {{ filter === 'completed' ? '还没有全部通关的挑战。' : '当前记录中的挑战都已通关。' }}
         </p>
-        <button
-          type="button"
-          class="personal-text-link"
-          @click="filter = 'all'"
-        >
+        <button type="button" class="personal-text-link" @click="filter = 'all'">
           查看全部记录
         </button>
       </div>
-      <p class="personal-footnote">
-        记录至少通过一个阶段的已发布挑战，按最近通过时间排序。
-      </p>
+      <p class="personal-footnote">记录至少通过一个阶段的已发布挑战，按最近通过时间排序。</p>
     </template>
     <div v-else class="personal-empty">
       <span class="personal-empty-icon">

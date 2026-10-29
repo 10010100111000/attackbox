@@ -1,11 +1,11 @@
 <script setup lang="ts">
-const confirmAction = useConfirm()
 import { ref, computed, onMounted } from 'vue'
 import { ArrowLeft, Plus, ArrowUp, ArrowDown, X } from 'lucide-vue-next'
 import { useEditorGuard } from '~/composables/useEditorGuard'
 import TargetTemplateSelect from '~/components/admin/TargetTemplateSelect.vue'
 import MarkdownView from '~/components/ui/MarkdownView.vue'
 import type { Challenge } from '~/shared/challenges'
+const confirmAction = useConfirm()
 
 definePageMeta({ layout: 'admin', key: r => r.fullPath })
 useHead({ title: '编辑挑战 — AttackBox' })
@@ -36,19 +36,21 @@ const form = ref({
   difficulty: 'beginner',
   bodyMarkdown: '',
   targetTemplateId: null as string | null,
-  stages: [] as StageDraft[],
+  stages: [] as StageDraft[]
 })
 
 const original = ref(JSON.stringify(form.value))
 const dirty = computed(() => loaded.value && JSON.stringify(form.value) !== original.value)
 
 useEditorGuard({ dirty, busy, title: '放弃挑战修改？', description: '未保存的修改将丢失。' })
-onMounted(() => { ready.value = true })
+onMounted(() => {
+  ready.value = true
+})
 
 const {
   data: options,
   error: optionsError,
-  refresh: retryOptions,
+  refresh: retryOptions
 } = await useLazyFetch<{ data: { id: string; name: string; enabled: boolean }[] }>(
   '/api/admin/target-templates/options',
   { key: 'admin:challenge-target-options' }
@@ -71,8 +73,8 @@ async function load() {
         title: s.title,
         promptMarkdown: s.promptMarkdown,
         hint: s.hint,
-        flag: s.flag || '',
-      })),
+        flag: s.flag || ''
+      }))
     }
     version.value = c.lockVersion
     status.value = c.status
@@ -89,7 +91,13 @@ async function load() {
 
 const initialLoading = ref(!isNew)
 onMounted(async () => {
- if (!isNew) {try {await load()} finally {initialLoading.value=false}}
+  if (!isNew) {
+    try {
+      await load()
+    } finally {
+      initialLoading.value = false
+    }
+  }
 })
 
 function add() {
@@ -97,7 +105,7 @@ function add() {
     title: `阶段 ${form.value.stages.length + 1}`,
     promptMarkdown: '',
     hint: '',
-    flag: '',
+    flag: ''
   })
 }
 
@@ -109,10 +117,23 @@ function move(i: number, delta: number) {
 
 async function reload() {
   if (busy.value) return
-  if (dirty.value && !(await confirmAction({title:'重新读取挑战？',description:'当前未保存的输入将被替换。',confirmLabel:'重新读取',cancelLabel:'继续编辑'}))) return
+  if (
+    dirty.value &&
+    !(await confirmAction({
+      title: '重新读取挑战？',
+      description: '当前未保存的输入将被替换。',
+      confirmLabel: '重新读取',
+      cancelLabel: '继续编辑'
+    }))
+  )
+    return
   if (busy.value) return
   busy.value = true
-  try { await load() } finally { busy.value = false }
+  try {
+    await load()
+  } finally {
+    busy.value = false
+  }
 }
 
 async function save(intent: 'draft' | 'publish') {
@@ -125,7 +146,7 @@ async function save(intent: 'draft' | 'publish') {
       {
         method: isNew ? 'POST' : 'PUT',
         body: { ...form.value, lockVersion: version.value, intent },
-        retry: false,
+        retry: false
       }
     )
     if (isNew) {
@@ -191,7 +212,14 @@ async function save(intent: 'draft' | 'publish') {
     <UiNotice v-if="notice" :variant="conflict ? 'error' : 'info'" class="mb-5">
       <div class="flex items-center justify-between gap-3 w-full">
         <span>{{ notice }}</span>
-        <UiButton v-if="conflict || !loaded" type="button" variant="secondary" size="xs" @click="reload">重新读取</UiButton>
+        <UiButton
+          v-if="conflict || !loaded"
+          type="button"
+          variant="secondary"
+          size="xs"
+          @click="reload"
+          >重新读取</UiButton
+        >
       </div>
     </UiNotice>
 
@@ -253,7 +281,9 @@ async function save(intent: 'draft' | 'publish') {
           </label>
           <p v-if="optionsError" role="alert">
             模板读取失败，原配置保留。
-            <UiButton variant="secondary" size="xs" type="button" @click="retryOptions()">重试</UiButton>
+            <UiButton variant="secondary" size="xs" type="button" @click="retryOptions()"
+              >重试</UiButton
+            >
           </p>
           <small>关联后，学习者可在挑战页按需启动独享靶机容器。</small>
         </section>
@@ -315,12 +345,7 @@ async function save(intent: 'draft' | 'publish') {
 
             <label>
               标准 Flag
-              <input
-                v-model="s.flag"
-                maxlength="2000"
-                autocomplete="off"
-                placeholder="flag{...}"
-              />
+              <input v-model="s.flag" maxlength="2000" autocomplete="off" placeholder="flag{...}" />
             </label>
 
             <div class="text-field">
@@ -329,7 +354,13 @@ async function save(intent: 'draft' | 'publish') {
             </div>
           </div>
 
-          <UiButton type="button" variant="secondary" size="sm" :disabled="form.stages.length >= 30" @click="add">
+          <UiButton
+            type="button"
+            variant="secondary"
+            size="sm"
+            :disabled="form.stages.length >= 30"
+            @click="add"
+          >
             <Plus :size="14" aria-hidden="true" />
             <span>添加阶段</span>
           </UiButton>
@@ -465,5 +496,4 @@ fieldset {
   padding: 0;
   min-width: 0;
 }
-
 </style>

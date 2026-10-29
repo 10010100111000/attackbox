@@ -38,12 +38,12 @@ const { data, pending, error, refresh } = await useLazyAsyncData(
     if (!currentUser.value) return null
     const owner = currentUser.value.id
     const r = await request<{ data: NotificationList }>('/api/me/notifications', {
-      query: { page: page.value },
+      query: { page: page.value }
     })
     if (currentUser.value?.id !== owner) return null
     setUnread(r.data.unread)
     return r.data
-  },
+  }
 )
 
 watch([page, () => currentUser.value?.id], () => {
@@ -63,26 +63,20 @@ function read(item: NotificationItem) {
   if (item.readAt) return
   const owner = currentUser.value?.id
   void enqueue(async () => {
-    if (
-      !alive ||
-      currentUser.value?.id !== owner ||
-      !data.value?.items.some((n) => n.id === item.id)
-    )
+    if (!alive || currentUser.value?.id !== owner || !data.value?.items.some(n => n.id === item.id))
       return
     try {
-      const r = await $fetch<{ unread: number }>(
-        `/api/me/notifications/${item.id}/read`,
-        { method: 'POST', retry: false },
-      )
+      const r = await $fetch<{ unread: number }>(`/api/me/notifications/${item.id}/read`, {
+        method: 'POST',
+        retry: false
+      })
       if (alive && currentUser.value?.id === owner) {
         const readAt = new Date().toISOString()
         if (data.value) {
           data.value = {
             ...data.value,
             unread: r.unread,
-            items: data.value.items.map((n) =>
-              n.id === item.id ? { ...n, readAt } : n,
-            ),
+            items: data.value.items.map(n => (n.id === item.id ? { ...n, readAt } : n))
           }
         }
         if (selected.value?.id === item.id) {
@@ -91,11 +85,7 @@ function read(item: NotificationItem) {
         setUnread(r.unread)
       }
     } catch (e: any) {
-      if (
-        alive &&
-        currentUser.value?.id === owner &&
-        selected.value?.id === item.id
-      ) {
+      if (alive && currentUser.value?.id === owner && selected.value?.id === item.id) {
         message.value = e?.data?.message || '已读状态保存失败'
       }
     }
@@ -111,16 +101,16 @@ async function remove() {
   try {
     await enqueue(async () => {
       if (!alive || currentUser.value?.id !== owner) return
-      const r = await $fetch<{ deleted: true; unread: number }>(
-        `/api/me/notifications/${id}`,
-        { method: 'DELETE', retry: false },
-      )
+      const r = await $fetch<{ deleted: true; unread: number }>(`/api/me/notifications/${id}`, {
+        method: 'DELETE',
+        retry: false
+      })
       if (!alive || currentUser.value?.id !== owner || !data.value) return
       data.value = {
         ...data.value,
-        items: data.value.items.filter((item) => item.id !== id),
+        items: data.value.items.filter(item => item.id !== id),
         total: Math.max(0, data.value.total - 1),
-        unread: r.unread,
+        unread: r.unread
       }
       setUnread(r.unread)
       if (selected.value?.id === id) selected.value = null
@@ -138,21 +128,15 @@ async function remove() {
 
 <template>
   <AccountShell section="notifications">
-    <section
-      ref="container"
-      class="notification-section"
-      aria-labelledby="notification-title"
-    >
+    <section ref="container" class="notification-section" aria-labelledby="notification-title">
       <header class="personal-section-heading">
         <h1 id="notification-title">通知</h1>
-        <span v-if="data?.unread" class="notification-count">
-          {{ data.unread }} 条未读
-        </span>
+        <span v-if="data?.unread" class="notification-count"> {{ data.unread }} 条未读 </span>
       </header>
 
       <p v-if="error" role="alert">
         消息读取失败。
-        <button class="personal-text-link" @click="refresh">重试</button>
+        <button class="personal-text-link" @click="refresh()">重试</button>
       </p>
 
       <UiBusyIndicator v-else-if="pending && !data" label="通知加载" />
@@ -183,18 +167,10 @@ async function remove() {
             <i v-if="!item.readAt" class="unread-dot" aria-label="未读" />
           </button>
 
-          <nav
-            v-if="data.total > data.pageSize"
-            class="notification-pagination"
-          >
-            <button :disabled="page === 1 || pending" @click="page--">
-              上一页
-            </button>
+          <nav v-if="data.total > data.pageSize" class="notification-pagination">
+            <button :disabled="page === 1 || pending" @click="page--">上一页</button>
             <span>{{ page }}</span>
-            <button
-              :disabled="page * data.pageSize >= data.total || pending"
-              @click="page++"
-            >
+            <button :disabled="page * data.pageSize >= data.total || pending" @click="page++">
               下一页
             </button>
           </nav>
@@ -232,11 +208,7 @@ async function remove() {
             <span class="sender-name">{{ selected.sender.name }}</span>
           </div>
           <p class="notification-body">{{ selected.body }}</p>
-          <NuxtLink
-            v-if="selected.link"
-            :to="selected.link"
-            class="personal-text-link"
-          >
+          <NuxtLink v-if="selected.link" :to="selected.link" class="personal-text-link">
             查看相关内容
           </NuxtLink>
           <p v-if="message" role="alert" class="notification-error">

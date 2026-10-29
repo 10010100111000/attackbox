@@ -1,38 +1,125 @@
 <script setup lang="ts">
 import type { HomeSlide } from '~/shared/learn-home'
 import { Pause, Play } from 'lucide-vue-next'
-const props = defineProps<{slides: HomeSlide[]; autoplay: boolean; intervalSeconds: number}>()
-const index = ref(0), hovered = ref(false), focused = ref(false), paused = ref(false), hidden = ref(false), reduced = ref(false)
+const props = defineProps<{ slides: HomeSlide[]; autoplay: boolean; intervalSeconds: number }>()
+const index = ref(0),
+  hovered = ref(false),
+  focused = ref(false),
+  paused = ref(false),
+  hidden = ref(false),
+  reduced = ref(false)
 const slide = computed(() => props.slides[index.value])
-let mounted = false, timer: ReturnType<typeof setInterval> | undefined, media: MediaQueryList | undefined
+let mounted = false,
+  timer: ReturnType<typeof setInterval> | undefined,
+  media: MediaQueryList | undefined
 function syncTimer() {
-  clearInterval(timer); timer = undefined
-  if (mounted && props.autoplay && props.slides.length > 1 && !hovered.value && !focused.value && !paused.value && !hidden.value && !reduced.value)
-    timer = setInterval(() => { index.value = (index.value + 1) % props.slides.length }, props.intervalSeconds * 1000)
+  clearInterval(timer)
+  timer = undefined
+  if (
+    mounted &&
+    props.autoplay &&
+    props.slides.length > 1 &&
+    !hovered.value &&
+    !focused.value &&
+    !paused.value &&
+    !hidden.value &&
+    !reduced.value
+  )
+    timer = setInterval(() => {
+      index.value = (index.value + 1) % props.slides.length
+    }, props.intervalSeconds * 1000)
 }
-function select(i: number) { index.value = i; syncTimer() }
-function focusOut(e: FocusEvent) { if (!(e.currentTarget as HTMLElement).contains(e.relatedTarget as Node | null)) focused.value = false }
-function visibility() { hidden.value = document.hidden }
-function motion() { reduced.value = !!media?.matches }
-watch(() => props.slides, () => { index.value = 0; syncTimer() })
-watch([hovered, focused, paused, hidden, reduced, () => props.autoplay, () => props.intervalSeconds], syncTimer)
+function select(i: number) {
+  index.value = i
+  syncTimer()
+}
+function focusOut(e: FocusEvent) {
+  if (!(e.currentTarget as HTMLElement).contains(e.relatedTarget as Node | null))
+    focused.value = false
+}
+function visibility() {
+  hidden.value = document.hidden
+}
+function motion() {
+  reduced.value = !!media?.matches
+}
+watch(
+  () => props.slides,
+  () => {
+    index.value = 0
+    syncTimer()
+  }
+)
+watch(
+  [hovered, focused, paused, hidden, reduced, () => props.autoplay, () => props.intervalSeconds],
+  syncTimer
+)
 onMounted(() => {
-  mounted = true; media = window.matchMedia('(prefers-reduced-motion: reduce)'); motion(); visibility()
-  media.addEventListener('change', motion); document.addEventListener('visibilitychange', visibility); syncTimer()
+  mounted = true
+  media = window.matchMedia('(prefers-reduced-motion: reduce)')
+  motion()
+  visibility()
+  media.addEventListener('change', motion)
+  document.addEventListener('visibilitychange', visibility)
+  syncTimer()
 })
-onUnmounted(() => { mounted = false; clearInterval(timer); media?.removeEventListener('change', motion); document.removeEventListener('visibilitychange', visibility) })
+onUnmounted(() => {
+  mounted = false
+  clearInterval(timer)
+  media?.removeEventListener('change', motion)
+  document.removeEventListener('visibilitychange', visibility)
+})
 </script>
 <template>
- <section v-if="slide" class="feature-banner" aria-roledescription="轮播" aria-label="推荐内容" @mouseenter="hovered=true" @mouseleave="hovered=false" @focusin="focused=true" @focusout="focusOut" @keydown.left.prevent="select((index-1+slides.length)%slides.length)" @keydown.right.prevent="select((index+1)%slides.length)">
-  <div class="carousel-copy" :aria-live="paused || !autoplay ? 'polite' : 'off'">
-   <div class="feature-label">{{ slide.label }}</div><h1>{{ slide.title }}</h1><p>{{ slide.description }}</p><NuxtLink :to="slide.href" class="btn">{{ slide.cta }}</NuxtLink>
-  </div>
-  <div class="banner-art" aria-hidden="true"><div class="terminal-art"><div class="dots"><i/><i/><i/></div><div class="cmd">{{ slide.command }}</div><div class="dim">{{ slide.caption }}</div><div class="cursor-line">▍</div></div></div>
-  <div v-if="slides.length>1" class="carousel-pagination" aria-label="选择推荐内容">
-   <button v-for="(s,i) in slides" :key="s.id" class="carousel-dot" :class="{active:index===i}" :aria-label="`第 ${i+1} 项：${s.title}`" :aria-current="index===i ? 'true' : undefined" @click="select(i)"><span/></button>
-   <button v-if="autoplay && !reduced" class="carousel-dot" :aria-label="paused ? '播放轮播' : '暂停轮播'" :aria-pressed="paused" @click="paused=!paused"><Play v-if="paused" :size="12"/><Pause v-else :size="12"/></button>
-  </div>
- </section>
+  <section
+    v-if="slide"
+    class="feature-banner"
+    aria-roledescription="轮播"
+    aria-label="推荐内容"
+    @mouseenter="hovered = true"
+    @mouseleave="hovered = false"
+    @focusin="focused = true"
+    @focusout="focusOut"
+    @keydown.left.prevent="select((index - 1 + slides.length) % slides.length)"
+    @keydown.right.prevent="select((index + 1) % slides.length)"
+  >
+    <div class="carousel-copy" :aria-live="paused || !autoplay ? 'polite' : 'off'">
+      <div class="feature-label">{{ slide.label }}</div>
+      <h1>{{ slide.title }}</h1>
+      <p>{{ slide.description }}</p>
+      <NuxtLink :to="slide.href" class="btn">{{ slide.cta }}</NuxtLink>
+    </div>
+    <div class="banner-art" aria-hidden="true">
+      <div class="terminal-art">
+        <div class="dots"><i /><i /><i /></div>
+        <div class="cmd">{{ slide.command }}</div>
+        <div class="dim">{{ slide.caption }}</div>
+        <div class="cursor-line">▍</div>
+      </div>
+    </div>
+    <div v-if="slides.length > 1" class="carousel-pagination" aria-label="选择推荐内容">
+      <button
+        v-for="(s, i) in slides"
+        :key="s.id"
+        class="carousel-dot"
+        :class="{ active: index === i }"
+        :aria-label="`第 ${i + 1} 项：${s.title}`"
+        :aria-current="index === i ? 'true' : undefined"
+        @click="select(i)"
+      >
+        <span />
+      </button>
+      <button
+        v-if="autoplay && !reduced"
+        class="carousel-dot"
+        :aria-label="paused ? '播放轮播' : '暂停轮播'"
+        :aria-pressed="paused"
+        @click="paused = !paused"
+      >
+        <Play v-if="paused" :size="12" /><Pause v-else :size="12" />
+      </button>
+    </div>
+  </section>
 </template>
 <style scoped>
 /* 轮播 Banner (完全匹配原型，移除了验证性的 controls) */
@@ -44,7 +131,8 @@ onUnmounted(() => { mounted = false; clearInterval(timer); media?.removeEventLis
   align-items: center;
   padding: 22px 28px;
   border: 1px solid rgba(195, 154, 123, 0.16);
-  background: radial-gradient(ellipse at 82% 50%, rgba(163, 107, 66, 0.14), transparent 62%),
+  background:
+    radial-gradient(ellipse at 82% 50%, rgba(163, 107, 66, 0.14), transparent 62%),
     linear-gradient(120deg, var(--soft), var(--paper));
   box-shadow: var(--surface-highlight), var(--card-shadow);
   border-radius: 12px;
@@ -132,7 +220,13 @@ onUnmounted(() => { mounted = false; clearInterval(timer); media?.removeEventLis
   transform: rotate(-4deg);
   border: 1px solid var(--line);
   box-shadow: 9px 10px 0 var(--soft);
-  font: 12px/2 ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font:
+    12px/2 ui-monospace,
+    SFMono-Regular,
+    Menlo,
+    Monaco,
+    Consolas,
+    monospace;
   overflow-wrap: anywhere;
 }
 
@@ -196,7 +290,10 @@ onUnmounted(() => { mounted = false; clearInterval(timer); media?.removeEventLis
   border-radius: 5px;
   background: var(--muted);
   opacity: 0.35;
-  transition: width 0.2s ease, opacity 0.2s ease, background-color 0.2s ease;
+  transition:
+    width 0.2s ease,
+    opacity 0.2s ease,
+    background-color 0.2s ease;
 }
 
 .carousel-dot.active span {
@@ -205,19 +302,21 @@ onUnmounted(() => { mounted = false; clearInterval(timer); media?.removeEventLis
   background: var(--ink);
 }
 
-.feature-banner h1,.feature-banner p {
+.feature-banner h1,
+.feature-banner p {
   display: -webkit-box;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
   overflow: hidden;
 }
 
-button:focus-visible,a:focus-visible {
+button:focus-visible,
+a:focus-visible {
   outline: 2px solid var(--green);
   outline-offset: 3px;
 }
 
-@media(max-width:640px) {
+@media (max-width: 640px) {
   .feature-banner {
     grid-template-columns: 1fr;
     padding: 24px 22px 46px;
@@ -230,7 +329,7 @@ button:focus-visible,a:focus-visible {
   }
 }
 
-@media(prefers-reduced-motion:reduce) {
+@media (prefers-reduced-motion: reduce) {
   .cursor-line {
     animation: none;
   }

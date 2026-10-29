@@ -11,29 +11,20 @@ const sections = [
   { id: 'learning', label: '学习记录', icon: BookOpen, to: '/me' },
   { id: 'challenges', label: '挑战记录', icon: Flag, to: '/me?tab=challenges' },
   { id: 'profile', label: '账户资料', icon: Settings2, to: '/me?tab=profile' },
-  { id: 'notifications', label: '通知', icon: Bell, to: '/notifications' },
+  { id: 'notifications', label: '通知', icon: Bell, to: '/notifications' }
 ]
 </script>
 
 <template>
-  <div
-    class="learning-shell learning-shell--sidebar personal-center"
-    :data-section="props.section"
-  >
+  <div class="learning-shell learning-shell--sidebar personal-center" :data-section="props.section">
     <template v-if="currentUser">
       <aside class="personal-sidebar">
         <div class="personal-identity">
           <span class="personal-avatar" aria-hidden="true">
-            {{
-              (currentUser.displayName || currentUser.email)
-                .slice(0, 2)
-                .toUpperCase()
-            }}
+            {{ (currentUser.displayName || currentUser.email).slice(0, 2).toUpperCase() }}
           </span>
           <h2>{{ currentUser.displayName }}</h2>
-          <span v-if="currentUser.role === 'admin'" class="personal-role">
-            管理员
-          </span>
+          <span v-if="currentUser.role === 'admin'" class="personal-role"> 管理员 </span>
         </div>
         <nav class="personal-navigation" aria-label="个人中心">
           <NuxtLink
@@ -53,7 +44,7 @@ const sections = [
       </div>
     </template>
     <section v-else class="personal-guest">
-      <h1>{{ sections.find((s) => s.id === section)?.label }}</h1>
+      <h1>{{ sections.find(s => s.id === section)?.label }}</h1>
       <NuxtLink to="/auth" class="personal-button">登录 / 注册</NuxtLink>
     </section>
   </div>

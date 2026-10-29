@@ -8,7 +8,7 @@ interface Props {
 }
 
 const props = withDefaults(defineProps<Props>(), {
-  modelValueEmail: '',
+  modelValueEmail: ''
 })
 
 const emit = defineEmits<{
@@ -28,11 +28,11 @@ const statusMessage = ref('')
 
 watch(
   () => props.modelValueEmail,
-  (val) => {
+  val => {
     if (val !== undefined && val !== email.value) {
       email.value = val
     }
-  },
+  }
 )
 
 function onEmailInput(val: string) {
@@ -73,11 +73,9 @@ async function handleSubmit() {
   try {
     const res = await forgotPassword(cleanEmail)
     hasSent.value = true
-    statusMessage.value =
-      res?.message || '重置密码链接已发送至你的邮箱，请查收邮件。'
+    statusMessage.value = res?.message || '重置密码链接已发送至你的邮箱，请查收邮件。'
   } catch (err: any) {
-    statusMessage.value =
-      err?.data?.statusMessage || err?.message || '发送失败，请稍后重试'
+    statusMessage.value = err?.data?.statusMessage || err?.message || '发送失败，请稍后重试'
   } finally {
     busy.value = false
   }
@@ -128,31 +126,19 @@ async function handleSubmit() {
           class="submit w-full h-[46px] text-xs font-semibold rounded-md gap-4"
         >
           <span>
-            {{
-              hasSent ? '再次发送重置链接' : '发送重置链接'
-            }}
+            {{ hasSent ? '再次发送重置链接' : '发送重置链接' }}
           </span>
         </Button>
 
         <!-- 状态反馈提示 -->
-        <p
-          v-if="statusMessage"
-          id="status"
-          class="status"
-          role="status"
-          aria-live="polite"
-        >
+        <p v-if="statusMessage" id="status" class="status" role="status" aria-live="polite">
           {{ statusMessage }}
         </p>
       </fieldset>
     </form>
 
     <!-- 返回登录 -->
-    <button
-      class="back-button"
-      type="button"
-      @click="$emit('switch-mode', 'login')"
-    >
+    <button class="back-button" type="button" @click="$emit('switch-mode', 'login')">
       <span>返回登录</span>
     </button>
   </div>

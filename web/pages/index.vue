@@ -9,7 +9,9 @@ definePageMeta({
   layout: 'landing'
 })
 // Await SSR data so crawlers and visitors receive the same real module links.
-const { data, error } = await useFetch<{ data: PublicModule[] }>('/api/landing', { key: 'landing:modules' })
+const { data, error } = await useFetch<{ data: PublicModule[] }>('/api/landing', {
+  key: 'landing:modules'
+})
 if (import.meta.server && error.value) {
   const event = useRequestEvent()
   if (event) setResponseStatus(event, 503)
@@ -17,10 +19,11 @@ if (import.meta.server && error.value) {
 const modules = computed(() => data.value?.data || [])
 useSeoMeta({
   title: 'AttackBox — 理解原理，亲手验证。',
-  description: '从教程到实践，在 AttackBox 学习网络安全。浏览学习模块，阅读公开章节，在终端和实验环境中亲手验证。',
+  description:
+    '从教程到实践，在 AttackBox 学习网络安全。浏览学习模块，阅读公开章节，在终端和实验环境中亲手验证。',
   ogTitle: 'AttackBox — 理解原理，亲手验证。',
   ogDescription: '从教程到实践，探索网络安全。',
-  ogType: 'website',
+  ogType: 'website'
 })
 </script>
 

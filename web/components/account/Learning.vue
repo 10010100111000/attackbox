@@ -8,33 +8,27 @@ const filter = ref('all')
 const filters = [
   { id: 'all', label: '全部' },
   { id: 'active', label: '进行中' },
-  { id: 'completed', label: '已完成' },
+  { id: 'completed', label: '已完成' }
 ]
 const { data, pending, error, refresh } = await useLazyAsyncData(
   () => `account:learning:${currentUser.value?.id || 'guest'}`,
   async () => {
     const owner = currentUser.value?.id
     if (!owner) return []
-    const result = await request<{ data: LearningHistoryItem[] }>(
-      '/api/me/learning',
-    )
+    const result = await request<{ data: LearningHistoryItem[] }>('/api/me/learning')
     return currentUser.value?.id === owner ? result.data : []
-  },
+  }
 )
 const records = computed(() => data.value || [])
 const resume = computed(() =>
-  records.value.find(
-    (item) => !item.progress.isCompleted && item.progress.resumeChapterSlug,
-  ),
+  records.value.find(item => !item.progress.isCompleted && item.progress.resumeChapterSlug)
 )
 const visible = computed(() =>
   records.value.filter(
-    (item) =>
+    item =>
       filter.value === 'all' ||
-      (filter.value === 'completed'
-        ? item.progress.isCompleted
-        : !item.progress.isCompleted),
-  ),
+      (filter.value === 'completed' ? item.progress.isCompleted : !item.progress.isCompleted)
+  )
 )
 function destination(item: LearningHistoryItem) {
   const base = `/learn/modules/${encodeURIComponent(item.slug)}`
@@ -53,7 +47,9 @@ function destination(item: LearningHistoryItem) {
       <NuxtLink to="/learn" class="personal-text-link">浏览模块</NuxtLink>
     </header>
     <div v-if="pending && !data" class="personal-loading" role="status">
-      <UiBusyIndicator inline class="personal-loading-mark" aria-hidden="true"/><span class="personal-skeleton personal-skeleton-title" />
+      <UiBusyIndicator inline class="personal-loading-mark" aria-hidden="true" /><span
+        class="personal-skeleton personal-skeleton-title"
+      />
       <span class="personal-skeleton" />
       <span class="personal-skeleton" />
       <span class="personal-sr-only">正在读取学习记录…</span>
@@ -62,20 +58,10 @@ function destination(item: LearningHistoryItem) {
       <BookOpen :size="27" aria-hidden="true" />
       <h2>暂时无法读取学习记录</h2>
       <p>你的进度不会受影响，请稍后重试。</p>
-      <button
-        type="button"
-        class="personal-button secondary"
-        @click="refresh()"
-      >
-        重试
-      </button>
+      <button type="button" class="personal-button secondary" @click="refresh()">重试</button>
     </div>
     <template v-else-if="records.length">
-      <section
-        v-if="resume"
-        class="personal-resume"
-        aria-labelledby="personal-resume-title"
-      >
+      <section v-if="resume" class="personal-resume" aria-labelledby="personal-resume-title">
         <div class="personal-resume-copy">
           <span class="personal-resume-label">
             <span />
@@ -98,8 +84,7 @@ function destination(item: LearningHistoryItem) {
             <i :style="{ width: `${resume.progress.percent}%` }" />
           </span>
           <small>
-            {{ resume.progress.completedChapters }} /
-            {{ resume.progress.totalChapters }} 章节已完成
+            {{ resume.progress.completedChapters }} / {{ resume.progress.totalChapters }} 章节已完成
           </small>
         </div>
       </section>
@@ -137,23 +122,13 @@ function destination(item: LearningHistoryItem) {
       </div>
       <div v-else class="personal-filter-empty">
         <p>
-          {{
-            filter === 'completed'
-              ? '还没有已完成的模块。'
-              : '当前记录中的模块都已完成。'
-          }}
+          {{ filter === 'completed' ? '还没有已完成的模块。' : '当前记录中的模块都已完成。' }}
         </p>
-        <button
-          type="button"
-          class="personal-text-link"
-          @click="filter = 'all'"
-        >
+        <button type="button" class="personal-text-link" @click="filter = 'all'">
           查看全部记录
         </button>
       </div>
-      <p v-if="records.length === 20" class="personal-footnote">
-        显示最近学习的 20 个已发布模块。
-      </p>
+      <p v-if="records.length === 20" class="personal-footnote">显示最近学习的 20 个已发布模块。</p>
     </template>
     <div v-else class="personal-empty">
       <span class="personal-empty-icon">

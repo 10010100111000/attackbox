@@ -36,15 +36,17 @@ const emit = defineEmits<{
     :id="id"
     :name="name"
     :value="value"
-    @update:model-value="(val) => emit('update:modelValue', Boolean(val))"
-    :class="cn(
-      'peer h-[13px] w-[13px] shrink-0 rounded-[3px] border border-line bg-input',
-      'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-1',
-      'disabled:cursor-not-allowed disabled:opacity-50',
-      'data-[state=checked]:bg-accent data-[state=checked]:border-accent data-[state=checked]:text-accent-foreground',
-      'transition-colors inline-flex items-center justify-center p-0 select-none',
-      props.class
-    )"
+    @update:model-value="val => emit('update:modelValue', Boolean(val))"
+    :class="
+      cn(
+        'peer h-[13px] w-[13px] shrink-0 rounded-[3px] border border-line bg-input',
+        'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-1',
+        'disabled:cursor-not-allowed disabled:opacity-50',
+        'data-[state=checked]:bg-accent data-[state=checked]:border-accent data-[state=checked]:text-accent-foreground',
+        'transition-colors inline-flex items-center justify-center p-0 select-none',
+        props.class
+      )
+    "
   >
     <CheckboxIndicator class="flex items-center justify-center text-current w-full h-full">
       <Check class="h-2.5 w-2.5 stroke-[3]" />

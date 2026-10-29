@@ -13,10 +13,7 @@ test(
   async () => {
     const database = process.env.CONTENT_TEST_DATABASE_URL,
       url = new URL(database)
-    assert.ok(
-      ['127.0.0.1', 'localhost'].includes(url.hostname) &&
-        url.pathname.endsWith('_test'),
-    )
+    assert.ok(['127.0.0.1', 'localhost'].includes(url.hostname) && url.pathname.endsWith('_test'))
     const sql = postgres(database, { max: 2 }),
       emails = [],
       registered = []
@@ -43,25 +40,24 @@ test(
     reservation.listen(0, '127.0.0.1')
     await once(reservation, 'listening')
     const port = reservation.address().port
-    await new Promise((r) => reservation.close(r))
+    await new Promise(r => reservation.close(r))
     const base = `http://127.0.0.1:${port}`
     const req = async (path, body, cookie) => {
       const r = await fetch(base + path, {
         method: body ? 'POST' : 'GET',
         headers: {
           ...(body ? { 'content-type': 'application/json' } : {}),
-          ...(cookie ? { cookie } : {}),
+          ...(cookie ? { cookie } : {})
         },
-        body: body ? JSON.stringify(body) : undefined,
+        body: body ? JSON.stringify(body) : undefined
       })
       return {
         status: r.status,
         json: await r.json(),
-        cookie: r.headers.get('set-cookie')?.split(';')[0],
+        cookie: r.headers.get('set-cookie')?.split(';')[0]
       }
     }
-    const token = (mail) =>
-      new URL(mail.text.match(/http:\/\/\S+/)[0]).searchParams.get('token')
+    const token = mail => new URL(mail.text.match(/http:\/\/\S+/)[0]).searchParams.get('token')
     const email = `mail-${crypto.randomUUID()}@example.test`,
       password = 'LocalTestPassword123!'
     registered.push(email)
@@ -71,7 +67,7 @@ test(
         [
           '--import',
           new URL('./helpers/resend-capture.mjs', import.meta.url).pathname,
-          new URL('../.output/server/index.mjs', import.meta.url).pathname,
+          new URL('../.output/server/index.mjs', import.meta.url).pathname
         ],
         {
           env: {
@@ -87,13 +83,13 @@ test(
             RESEND_API_KEY: 'test-resend-only',
             MAIL_FROM: 'AttackBox <mail@example.test>',
             APP_BASE_URL: base,
-            RESEND_CAPTURE_URL: `http://127.0.0.1:${capture.address().port}`,
+            RESEND_CAPTURE_URL: `http://127.0.0.1:${capture.address().port}`
           },
-          stdio: ['ignore', 'pipe', 'pipe'],
-        },
+          stdio: ['ignore', 'pipe', 'pipe']
+        }
       )
-      app.stdout.on('data', (x) => (logs += x))
-      app.stderr.on('data', (x) => (logs += x))
+      app.stdout.on('data', x => (logs += x))
+      app.stderr.on('data', x => (logs += x))
       let ready = false
       for (let i = 0; i < 200; i++) {
         try {
@@ -101,87 +97,60 @@ test(
           ready = true
           break
         } catch {
-          await new Promise((r) => setTimeout(r, 100))
+          await new Promise(r => setTimeout(r, 100))
         }
       }
       assert.ok(ready, 'local app started')
       const registeredResponse = await req('/api/auth/register', {
         email,
-        password,
+        password
       })
       assert.equal(registeredResponse.status, 200)
       assert.deepEqual(Object.keys(registeredResponse.json), ['message'])
       assert.equal(emails.length, 1)
       const verify = token(emails[0])
       assert.ok(verify)
-      assert.equal(
-        (await req('/api/auth/login', { email, password })).status,
-        403,
-      )
-      await Promise.all(
-        [1, 2, 3].map(() => req('/api/auth/resend-verification', { email })),
-      )
+      assert.equal((await req('/api/auth/login', { email, password })).status, 403)
+      await Promise.all([1, 2, 3].map(() => req('/api/auth/resend-verification', { email })))
       assert.equal(emails.length, 1, 'cooldown survives concurrent requests')
-      assert.equal(
-        (await req('/api/auth/verify-email', { token: verify })).status,
-        200,
-      )
+      assert.equal((await req('/api/auth/verify-email', { token: verify })).status, 200)
       assert.ok(
-        [400, 403].includes(
-          (await req('/api/auth/verify-email', { token: verify })).status,
-        ),
+        [400, 403].includes((await req('/api/auth/verify-email', { token: verify })).status)
       )
       const login = await req('/api/auth/login', { email, password })
       assert.equal(login.status, 200)
       const reset = await req('/api/auth/forgot-password', { email }),
         unknown = await req('/api/auth/forgot-password', {
-          email: 'missing@example.test',
+          email: 'missing@example.test'
         })
       assert.deepEqual(reset.json, unknown.json)
       assert.equal(emails.length, 2)
       const resetToken = token(emails[1]),
         newPassword = 'ReplacementPassword123!'
       const concurrent = await Promise.all(
-        [1, 2].map(() =>
-          req('/api/auth/reset-password', { token: resetToken, newPassword }),
-        ),
+        [1, 2].map(() => req('/api/auth/reset-password', { token: resetToken, newPassword }))
       )
-      assert.deepEqual(concurrent.map((x) => x.status).sort(), [200, 400])
-      assert.equal(
-        (await req('/api/auth/me', undefined, login.cookie)).status,
-        401,
-      )
-      assert.equal(
-        (await req('/api/auth/login', { email, password })).status,
-        401,
-      )
-      assert.equal(
-        (await req('/api/auth/login', { email, password: newPassword })).status,
-        200,
-      )
+      assert.deepEqual(concurrent.map(x => x.status).sort(), [200, 400])
+      assert.equal((await req('/api/auth/me', undefined, login.cookie)).status, 401)
+      assert.equal((await req('/api/auth/login', { email, password })).status, 401)
+      assert.equal((await req('/api/auth/login', { email, password: newPassword })).status, 200)
       await sql`update email_tokens set created_at=now()-interval '2 minutes' where target_email=${email}`
       await req('/api/auth/forgot-password', { email })
       const expired = token(emails.at(-1))
       await sql`update email_tokens set created_at=now()-interval '2 minutes',expires_at=now()-interval '1 minute' where target_email=${email}`
       assert.equal(
-        (await req('/api/auth/reset-password', { token: expired, newPassword }))
-          .status,
-        400,
+        (await req('/api/auth/reset-password', { token: expired, newPassword })).status,
+        400
       )
       const beforeFailure = (
         await sql`select count(*)::int as n from email_tokens where target_email=${email}`
       )[0].n
       reject = true
-      assert.deepEqual(
-        (await req('/api/auth/forgot-password', { email })).json,
-        unknown.json,
-      )
+      assert.deepEqual((await req('/api/auth/forgot-password', { email })).json, unknown.json)
       reject = false
       assert.equal(
-        (
-          await sql`select count(*)::int as n from email_tokens where target_email=${email}`
-        )[0].n,
-        beforeFailure,
+        (await sql`select count(*)::int as n from email_tokens where target_email=${email}`)[0].n,
+        beforeFailure
       )
       const [account] = await sql`select id from users where email=${email}`
       for (let i = 0; i < 3; i++)
@@ -192,59 +161,59 @@ test(
       const pending = `pending-${crypto.randomUUID()}@example.test`
       registered.push(pending)
       reject = true
+      assert.equal((await req('/api/auth/register', { email: pending, password })).status, 503)
       assert.equal(
-        (await req('/api/auth/register', { email: pending, password })).status,
-        503,
-      )
-      assert.equal(
-        (
-          await sql`select count(*)::int as n from email_tokens where target_email=${pending}`
-        )[0].n,
+        (await sql`select count(*)::int as n from email_tokens where target_email=${pending}`)[0].n,
         0,
-        'failed send rolls back credentials',
+        'failed send rolls back credentials'
       )
       reject = false
       browser = await chromium.launch({
         executablePath: process.env.CHROMIUM_PATH || '/usr/bin/chromium',
-        args: ['--no-sandbox'],
+        args: ['--no-sandbox']
       })
       const page = await browser.newPage()
-      await page.goto(
-        base + '/auth?mode=verify&email=' + encodeURIComponent(pending),
-      )
-      await page
-        .getByRole('button', { name: '发送验证邮件', exact: true })
-        .click()
+      await page.goto(base + '/auth?mode=verify&email=' + encodeURIComponent(pending))
+      await page.getByRole('button', { name: '发送验证邮件', exact: true }).click()
       await page
         .getByRole('status')
         .getByText(/如果该邮箱符合条件/)
         .waitFor()
       assert.equal(emails.at(-1).to[0], pending)
       assert.equal(
-        (await req('/api/auth/verify-email', { token: token(emails.at(-1)) }))
-          .status,
-        200,
+        (await req('/api/auth/verify-email', { token: token(emails.at(-1)) })).status,
+        200
       )
       const browserEmail = `browser-${crypto.randomUUID()}@example.test`
       registered.push(browserEmail)
-      await page.goto(base+'/auth?mode=register')
+      await page.goto(base + '/auth?mode=register')
       await page.locator('#email:enabled').fill('blocked@mailinator.com')
       await page.locator('#password').fill(password)
-      await page.getByRole('button',{name:'继续创建账号',exact:true}).click()
-      await page.getByText('该邮箱域名暂不支持注册。',{exact:true}).waitFor()
-      assert.equal((await req('/api/auth/register',{email:'blocked@mailinator.com',password})).status,403)
+      await page.getByRole('button', { name: '继续创建账号', exact: true }).click()
+      await page.getByText('该邮箱域名暂不支持注册。', { exact: true }).waitFor()
+      assert.equal(
+        (await req('/api/auth/register', { email: 'blocked@mailinator.com', password })).status,
+        403
+      )
       await page.locator('#email:enabled').fill(browserEmail)
       await page.locator('#password').fill(password)
-      await page.getByRole('button',{name:'继续创建账号',exact:true}).click()
-      await page.getByRole('heading',{name:'账号创建成功',exact:true}).waitFor()
-      assert.equal(await page.getByText('一键激活并登录',{exact:true}).count(),0)
-      assert.equal(emails.at(-1).to[0],browserEmail)
-      assert.equal((await sql`select status from users where email=${browserEmail}`)[0].status,'pending')
-      const outside=`existing-${crypto.randomUUID()}@outside.test`
+      await page.getByRole('button', { name: '继续创建账号', exact: true }).click()
+      await page.getByRole('heading', { name: '账号创建成功', exact: true }).waitFor()
+      assert.equal(await page.getByText('一键激活并登录', { exact: true }).count(), 0)
+      assert.equal(emails.at(-1).to[0], browserEmail)
+      assert.equal(
+        (await sql`select status from users where email=${browserEmail}`)[0].status,
+        'pending'
+      )
+      const outside = `existing-${crypto.randomUUID()}@outside.test`
       registered.push(outside)
       await sql`insert into users(email,display_name,password_hash,status,email_verified_at) select ${outside},'Existing User',password_hash,'active',now() from users where email=${email}`
-      assert.equal((await req('/api/auth/forgot-password',{email:outside})).status,200)
-      assert.equal(emails.at(-1).to[0],outside,'existing accounts outside the registration list can still recover passwords')
+      assert.equal((await req('/api/auth/forgot-password', { email: outside })).status, 200)
+      assert.equal(
+        emails.at(-1).to[0],
+        outside,
+        'existing accounts outside the registration list can still recover passwords'
+      )
       assert.ok(!logs.includes('test-resend-only'))
       assert.ok(!logs.includes(verify))
       assert.ok(!logs.includes(resetToken))
@@ -256,10 +225,9 @@ test(
         app.kill('SIGTERM')
         await done
       }
-      await new Promise((r) => capture.close(r))
-      for (const email of registered)
-        await sql`delete from users where email=${email}`
+      await new Promise(r => capture.close(r))
+      for (const email of registered) await sql`delete from users where email=${email}`
       await sql.end()
     }
-  },
+  }
 )

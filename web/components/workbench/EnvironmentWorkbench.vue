@@ -5,10 +5,10 @@ import { useSandboxSession } from '~/composables/useSandboxSession'
 import { useTheme } from '~/composables/useTheme'
 import {
   LearningSandboxDesktop as SandboxDesktop,
-  WorkbenchTerminalWindows as TerminalWindows,
+  WorkbenchTerminalWindows as TerminalWindows
 } from '#components'
 
-const props = defineProps<{ mode: 'cli' | 'gui' }>()
+defineProps<{ mode: 'cli' | 'gui' }>()
 const { sandbox, loading, notice, guiElsewhere, resumeGUI, currentUser } = useSandboxSession()
 const root = ref<HTMLElement | null>(null)
 const fullscreenError = ref('')

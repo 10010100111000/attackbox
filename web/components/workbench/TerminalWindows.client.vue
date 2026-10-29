@@ -1,55 +1,147 @@
 <script setup lang="ts">
+import { ref, onMounted, onBeforeUnmount } from 'vue'
+import { Plus, LayoutGrid, Layers, Minus, Maximize2, X } from 'lucide-vue-next'
+import { LearningSandboxTerminal as SandboxTerminal } from '#components'
+
 const confirmAction = useConfirm()
-import {ref,onMounted,onBeforeUnmount} from 'vue'
-import {Plus,LayoutGrid,Layers,Minus,Maximize2,X} from 'lucide-vue-next'
-import {LearningSandboxTerminal as SandboxTerminal} from '#components'
-defineProps<{sandboxId:string}>()
-type WindowState={id:string;name:string;x:number;y:number;width:number;height:number;z:number;minimized:boolean;maximized:boolean}
-const windows=ref<WindowState[]>([]),area=ref<HTMLElement|null>(null),focused=ref('')
-let sequence=0,z=0,drag:{window:WindowState;dx:number;dy:number;target:HTMLElement;pointer:number}|null=null
-function focus(w:WindowState){w.z=++z;focused.value=w.id}
-function add(){
- const width=area.value?.clientWidth||1000,height=area.value?.clientHeight||700
- const offset=(sequence%6)*26
- const w:WindowState={id:globalThis.crypto?.randomUUID?.()||`terminal-${Date.now()}-${++z}`,name:`终端 ${++sequence}`,x:Math.min(24+offset,Math.max(0,width-360)),y:Math.min(20+offset,Math.max(0,height-240)),width:Math.min(850,width),height:Math.min(500,height),z:++z,minimized:false,maximized:false}
- windows.value.push(w);focused.value=w.id
+defineProps<{ sandboxId: string }>()
+type WindowState = {
+  id: string
+  name: string
+  x: number
+  y: number
+  width: number
+  height: number
+  z: number
+  minimized: boolean
+  maximized: boolean
 }
-async function closeAll(){if(await confirmAction({title:'关闭全部终端？',description:'仅关闭终端连接，沙箱环境仍会保留。',confirmLabel:'关闭终端',tone:'neutral'})){windows.value=[];focused.value=''}}
-function close(w:WindowState){windows.value=windows.value.filter(item=>item.id!==w.id);if(focused.value===w.id)focused.value=windows.value.at(-1)?.id||''}
-function arrange(tile:boolean){
- const width=area.value?.clientWidth||1000,height=area.value?.clientHeight||700
- const cols=Math.ceil(Math.sqrt(windows.value.length||1)),rows=Math.ceil(windows.value.length/cols)
- windows.value.forEach((w,i)=>{w.minimized=false;w.maximized=false;w.x=tile?(i%cols)*width/cols:20+(i%8)*28;w.y=tile?Math.floor(i/cols)*height/rows:16+(i%8)*28;w.width=tile?width/cols:Math.min(850,width-w.x);w.height=tile?height/rows:Math.min(500,height-w.y)})
+const windows = ref<WindowState[]>([]),
+  area = ref<HTMLElement | null>(null),
+  focused = ref('')
+let sequence = 0,
+  z = 0,
+  drag: {
+    window: WindowState
+    dx: number
+    dy: number
+    target: HTMLElement
+    pointer: number
+  } | null = null
+function focus(w: WindowState) {
+  w.z = ++z
+  focused.value = w.id
 }
-function begin(e:PointerEvent,w:WindowState){if(e.button!==0||w.maximized)return;focus(w);const target=e.currentTarget as HTMLElement;target.setPointerCapture(e.pointerId);drag={window:w,dx:e.clientX-w.x,dy:e.clientY-w.y,target,pointer:e.pointerId};e.preventDefault()}
-function move(e:PointerEvent){if(!drag)return;drag.window.x=Math.max(0,Math.min(e.clientX-drag.dx,(area.value?.clientWidth||1000)-120));drag.window.y=Math.max(0,Math.min(e.clientY-drag.dy,(area.value?.clientHeight||700)-38))}
-function end(){if(drag?.target.hasPointerCapture(drag.pointer))drag.target.releasePointerCapture(drag.pointer);drag=null}
-function key(e:KeyboardEvent){if(e.ctrlKey&&e.altKey&&e.code==='KeyT'){e.preventDefault();add()}}
-function reposition(){for(const w of windows.value){w.x=Math.min(w.x,Math.max(0,(area.value?.clientWidth||1000)-120));w.y=Math.min(w.y,Math.max(0,(area.value?.clientHeight||700)-38))}}
-onMounted(()=>{add();window.addEventListener('keydown',key);window.addEventListener('resize',reposition)})
-onBeforeUnmount(()=>{end();window.removeEventListener('keydown',key);window.removeEventListener('resize',reposition)})
+function restore(w: WindowState) {
+  w.minimized = false
+  focus(w)
+}
+function toggleMaximize(w: WindowState) {
+  focus(w)
+  w.maximized = !w.maximized
+}
+function add() {
+  const width = area.value?.clientWidth || 1000,
+    height = area.value?.clientHeight || 700
+  const offset = (sequence % 6) * 26
+  const w: WindowState = {
+    id: globalThis.crypto?.randomUUID?.() || `terminal-${Date.now()}-${++z}`,
+    name: `终端 ${++sequence}`,
+    x: Math.min(24 + offset, Math.max(0, width - 360)),
+    y: Math.min(20 + offset, Math.max(0, height - 240)),
+    width: Math.min(850, width),
+    height: Math.min(500, height),
+    z: ++z,
+    minimized: false,
+    maximized: false
+  }
+  windows.value.push(w)
+  focused.value = w.id
+}
+async function closeAll() {
+  if (
+    await confirmAction({
+      title: '关闭全部终端？',
+      description: '仅关闭终端连接，沙箱环境仍会保留。',
+      confirmLabel: '关闭终端',
+      tone: 'neutral'
+    })
+  ) {
+    windows.value = []
+    focused.value = ''
+  }
+}
+function close(w: WindowState) {
+  windows.value = windows.value.filter(item => item.id !== w.id)
+  if (focused.value === w.id) focused.value = windows.value.at(-1)?.id || ''
+}
+function arrange(tile: boolean) {
+  const width = area.value?.clientWidth || 1000,
+    height = area.value?.clientHeight || 700
+  const cols = Math.ceil(Math.sqrt(windows.value.length || 1)),
+    rows = Math.ceil(windows.value.length / cols)
+  windows.value.forEach((w, i) => {
+    w.minimized = false
+    w.maximized = false
+    w.x = tile ? ((i % cols) * width) / cols : 20 + (i % 8) * 28
+    w.y = tile ? (Math.floor(i / cols) * height) / rows : 16 + (i % 8) * 28
+    w.width = tile ? width / cols : Math.min(850, width - w.x)
+    w.height = tile ? height / rows : Math.min(500, height - w.y)
+  })
+}
+function begin(e: PointerEvent, w: WindowState) {
+  if (e.button !== 0 || w.maximized) return
+  focus(w)
+  const target = e.currentTarget as HTMLElement
+  target.setPointerCapture(e.pointerId)
+  drag = { window: w, dx: e.clientX - w.x, dy: e.clientY - w.y, target, pointer: e.pointerId }
+  e.preventDefault()
+}
+function move(e: PointerEvent) {
+  if (!drag) return
+  drag.window.x = Math.max(
+    0,
+    Math.min(e.clientX - drag.dx, (area.value?.clientWidth || 1000) - 120)
+  )
+  drag.window.y = Math.max(0, Math.min(e.clientY - drag.dy, (area.value?.clientHeight || 700) - 38))
+}
+function end() {
+  if (drag?.target.hasPointerCapture(drag.pointer)) drag.target.releasePointerCapture(drag.pointer)
+  drag = null
+}
+function key(e: KeyboardEvent) {
+  if (e.ctrlKey && e.altKey && e.code === 'KeyT') {
+    e.preventDefault()
+    add()
+  }
+}
+function reposition() {
+  for (const w of windows.value) {
+    w.x = Math.min(w.x, Math.max(0, (area.value?.clientWidth || 1000) - 120))
+    w.y = Math.min(w.y, Math.max(0, (area.value?.clientHeight || 700) - 38))
+  }
+}
+onMounted(() => {
+  add()
+  window.addEventListener('keydown', key)
+  window.addEventListener('resize', reposition)
+})
+onBeforeUnmount(() => {
+  end()
+  window.removeEventListener('keydown', key)
+  window.removeEventListener('resize', reposition)
+})
 </script>
 <template>
   <div class="terminal-desktop">
     <nav aria-label="终端窗口管理">
-      <button title="新建终端（Ctrl+Alt+T）" @click="add">
-        <Plus :size="15" />新建终端
-      </button>
+      <button title="新建终端（Ctrl+Alt+T）" @click="add"><Plus :size="15" />新建终端</button>
       <button :disabled="!windows.length" @click="arrange(true)">
         <LayoutGrid :size="15" />平铺
       </button>
-      <button :disabled="!windows.length" @click="arrange(false)">
-        <Layers :size="15" />层叠
-      </button>
+      <button :disabled="!windows.length" @click="arrange(false)"><Layers :size="15" />层叠</button>
       <button v-if="windows.length" @click="closeAll">全部关闭</button>
-      <button
-        v-for="w in windows.filter((w) => w.minimized)"
-        :key="w.id"
-        @click="
-          w.minimized = false;
-          focus(w);
-        "
-      >
+      <button v-for="w in windows.filter(w => w.minimized)" :key="w.id" @click="restore(w)">
         {{ w.name }}
       </button>
     </nav>
@@ -71,7 +163,7 @@ onBeforeUnmount(()=>{end();window.removeEventListener('keydown',key);window.remo
                 top: w.y + 'px',
                 width: w.width + 'px',
                 height: w.height + 'px',
-                zIndex: w.z,
+                zIndex: w.z
               }
         "
         :aria-label="w.name"
@@ -90,13 +182,7 @@ onBeforeUnmount(()=>{end();window.removeEventListener('keydown',key);window.remo
             <button :aria-label="`最小化 ${w.name}`" @click="w.minimized = true">
               <Minus :size="14" />
             </button>
-            <button
-              :aria-label="`展开或还原 ${w.name}`"
-              @click="
-                focus(w);
-                w.maximized = !w.maximized;
-              "
-            >
+            <button :aria-label="`展开或还原 ${w.name}`" @click="toggleMaximize(w)">
               <Maximize2 :size="13" />
             </button>
             <button :aria-label="`关闭 ${w.name}`" @click="close(w)">

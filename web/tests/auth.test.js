@@ -38,7 +38,10 @@ test('AuthVisualAside.vue matches visual design with mission taglines and backgr
   assert.ok(content.includes('class="visual-text"'))
   assert.ok(content.includes('STAY CURIOUS.'))
   assert.ok(content.includes('让好奇，<span>有迹可循。</span>'))
-  assert.ok(content.includes('从一个问题开始，<br>在实践中找到自己的答案。') || content.includes('从一个问题开始，<br />在实践中找到自己的答案。'))
+  assert.ok(
+    content.includes('从一个问题开始，<br>在实践中找到自己的答案。') ||
+      content.includes('从一个问题开始，<br />在实践中找到自己的答案。')
+  )
 
   // Visual footer
   assert.ok(content.includes('class="visual-foot"'))
@@ -47,7 +50,9 @@ test('AuthVisualAside.vue matches visual design with mission taglines and backgr
 
   // Background image
   assert.ok(content.includes('visual-bg') || content.includes('visual-backdrop'))
-  assert.ok(content.includes('/images/auth-explore.webp') || content.includes('/images/auth-explore.png'))
+  assert.ok(
+    content.includes('/images/auth-explore.webp') || content.includes('/images/auth-explore.png')
+  )
   assert.ok(content.includes('blur('))
 
   // Styling isolation / rules
@@ -80,8 +85,11 @@ test('LoginForm.vue defines credentials validation, ui components, and direct po
 
   // One-step navigation and safe pre-hydration submission
   assert.ok(!content.includes('isSuccessPreview'))
-  assert.ok(content.includes("navigateTo(loginDestination(route.query.returnTo), { replace: true })"))
-  assert.ok(content.includes('method="post" action="/api/auth/login"'))
+  assert.ok(
+    content.includes('navigateTo(loginDestination(route.query.returnTo), { replace: true })')
+  )
+  assert.ok(content.includes('method="post"'))
+  assert.ok(content.includes('action="/api/auth/login"'))
   assert.ok(content.includes('<fieldset :disabled="!mounted || busy"'))
 
   // Validation logic
@@ -104,7 +112,9 @@ test('RegisterForm.vue renders registration fields and email verification instru
   assert.ok(content.includes('创建账号，开始你的下一次探索。'))
   assert.ok(content.includes('继续创建账号'))
   assert.ok(content.includes('下一步验证邮箱，完成账号创建。'))
-  assert.ok(content.includes('验证邮件已发送')); assert.ok(!content.includes('verifyToken')); assert.ok(content.includes('AuthResendVerification'))
+  assert.ok(content.includes('验证邮件已发送'))
+  assert.ok(!content.includes('verifyToken'))
+  assert.ok(content.includes('AuthResendVerification'))
 
   // Password placeholder
   assert.ok(content.includes('设置密码，至少 6 位'))
@@ -182,13 +192,19 @@ test('VerifyView.vue defines pending, success, and error states for email activa
 })
 
 test('ResetPasswordForm.vue and ResendVerification.vue adopt consistent auth form structure and UI components', () => {
-  const resetContent = readFileSync(resolve(rootDir, 'components/auth/ResetPasswordForm.vue'), 'utf-8')
+  const resetContent = readFileSync(
+    resolve(rootDir, 'components/auth/ResetPasswordForm.vue'),
+    'utf-8'
+  )
   assert.ok(resetContent.includes('class="auth-form"'))
   assert.ok(resetContent.includes('ATTACKBOX ACCOUNT'))
   assert.ok(resetContent.includes('重设密码。'))
   assert.ok(resetContent.includes('submit w-full'))
 
-  const resendContent = readFileSync(resolve(rootDir, 'components/auth/ResendVerification.vue'), 'utf-8')
+  const resendContent = readFileSync(
+    resolve(rootDir, 'components/auth/ResendVerification.vue'),
+    'utf-8'
+  )
   assert.ok(resendContent.includes('<UiInput'))
   assert.ok(resendContent.includes('<UiButton'))
 })

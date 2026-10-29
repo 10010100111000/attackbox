@@ -5,13 +5,13 @@ const titles: Record<string, string> = {
   tip: '停下来，想一想',
   important: '重要提示',
   warning: '安全警告',
-  caution: '风险警示',
+  caution: '风险警示'
 }
 
 // Transform block tokens before inline parsing. Keep the original body tokens:
 // paragraphs, lists, nested quotes and fences retain MarkdownIt's block structure.
 export function callouts(md: InstanceType<typeof MarkdownIt>) {
-  md.core.ruler.after('block', 'callouts', (state) => {
+  md.core.ruler.after('block', 'callouts', state => {
     const tokens = state.tokens
     const stack: typeof tokens = []
     const ends = new Map<(typeof tokens)[number], (typeof tokens)[number]>()
@@ -32,10 +32,9 @@ export function callouts(md: InstanceType<typeof MarkdownIt>) {
         inline?.type !== 'inline'
       )
         continue
-      const marker =
-        /^\[!(NOTE|TIP|IMPORTANT|WARNING|CAUTION)\](?:[ \t]*\n|[ \t]+|$)/i.exec(
-          inline.content,
-        )
+      const marker = /^\[!(NOTE|TIP|IMPORTANT|WARNING|CAUTION)\](?:[ \t]*\n|[ \t]+|$)/i.exec(
+        inline.content
+      )
       if (!marker) continue
       const close = ends.get(open)
       if (!close) continue

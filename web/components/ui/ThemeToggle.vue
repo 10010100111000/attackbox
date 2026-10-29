@@ -32,6 +32,12 @@ const { currentTheme, setTheme } = useTheme()
   color: var(--muted);
   cursor: pointer;
 }
-.theme-toggle:hover { background: var(--soft); color: var(--ink); }
-.theme-toggle:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+.theme-toggle:hover {
+  background: var(--soft);
+  color: var(--ink);
+}
+.theme-toggle:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
 </style>

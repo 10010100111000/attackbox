@@ -1,51 +1,115 @@
 <script setup lang="ts">
 import { ref, computed, onBeforeUnmount, watch, useId } from 'vue'
-import { Terminal, Monitor, ExternalLink, Minus, X, Unplug, Plus, Columns2, Rows2 } from 'lucide-vue-next'
+import {
+  Terminal,
+  Monitor,
+  ExternalLink,
+  Minus,
+  X,
+  Unplug,
+  Plus,
+  Columns2,
+  Rows2
+} from 'lucide-vue-next'
 import { useSandboxSession } from '~/composables/useSandboxSession'
-import { LearningSandboxTerminal as SandboxTerminal, LearningSandboxDesktop as SandboxDesktop } from '#components'
+import {
+  LearningSandboxTerminal as SandboxTerminal,
+  LearningSandboxDesktop as SandboxDesktop
+} from '#components'
 const props = defineProps<{
-  active: boolean; mode: 'cli' | 'gui'; placement: 'bottom' | 'right'; sideAvailable: boolean
-  height: number; minHeight: number; maxHeight: number
-  width: number; minWidth: number; maxWidth: number
+  active: boolean
+  mode: 'cli' | 'gui'
+  placement: 'bottom' | 'right'
+  sideAvailable: boolean
+  height: number
+  minHeight: number
+  maxHeight: number
+  width: number
+  minWidth: number
+  maxWidth: number
 }>()
 const emit = defineEmits<{
-  'update:height': [height: number]; 'update:width': [width: number]
-  'update:placement': [placement: 'bottom' | 'right']; minimize: []; 'resize-end': []
+  'update:height': [height: number]
+  'update:width': [width: number]
+  'update:placement': [placement: 'bottom' | 'right']
+  minimize: []
+  'resize-end': []
 }>()
 const panelId = useId()
 const isRight = computed(() => props.placement === 'right')
-const size = computed(() => isRight.value ? props.width : props.height)
-const minSize = computed(() => isRight.value ? props.minWidth : props.minHeight)
-const maxSize = computed(() => isRight.value ? props.maxWidth : props.maxHeight)
-const {sandbox,loading,notice,refresh:refreshSandbox,guiElsewhere,resumeGUI,openViewer,currentUser}=useSandboxSession()
+const size = computed(() => (isRight.value ? props.width : props.height))
+const minSize = computed(() => (isRight.value ? props.minWidth : props.minHeight))
+const maxSize = computed(() => (isRight.value ? props.maxWidth : props.maxHeight))
+const {
+  sandbox,
+  loading,
+  notice,
+  refresh: refreshSandbox,
+  guiElsewhere,
+  resumeGUI,
+  openViewer,
+  currentUser
+} = useSandboxSession()
 const route = useRoute()
 const desktopOpened = ref(false)
-const tabs = ref<{ id: string; label: string }[]>([]), selectedTab = ref('')
+const tabs = ref<{ id: string; label: string }[]>([]),
+  selectedTab = ref('')
 function addTerminal() {
-  const id = globalThis.crypto?.randomUUID?.() || `term-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 9)}`
+  const id =
+    globalThis.crypto?.randomUUID?.() ||
+    `term-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 9)}`
   const tab = { id, label: `终端 ${++terminalCount}` }
-  tabs.value.push(tab); selectedTab.value = tab.id
+  tabs.value.push(tab)
+  selectedTab.value = tab.id
 }
 let terminalCount = 0
-watch(() => props.mode, mode => {
-  if (mode === 'gui') desktopOpened.value = true
-  else if (sandbox.value.instance?.state === 'running' && !tabs.value.length) addTerminal()
-}, { immediate: true })
+watch(
+  () => props.mode,
+  mode => {
+    if (mode === 'gui') desktopOpened.value = true
+    else if (sandbox.value.instance?.state === 'running' && !tabs.value.length) addTerminal()
+  },
+  { immediate: true }
+)
 function closeTerminal(id: string) {
   const index = tabs.value.findIndex(t => t.id === id)
   tabs.value = tabs.value.filter(t => t.id !== id)
   if (selectedTab.value === id) selectedTab.value = tabs.value[Math.max(0, index - 1)]?.id || ''
 }
-watch(() => sandbox.value.instance?.id, (id, oldId) => {
-  if (id === oldId) return
-  tabs.value = []; selectedTab.value = ''; terminalCount = 0; desktopOpened.value = props.mode === 'gui'
-  if (id && props.mode === 'cli' && sandbox.value.instance?.state === 'running') addTerminal()
-})
-watch(() => sandbox.value.instance?.state, state => { if (state === 'running' && props.mode === 'cli' && !tabs.value.length) addTerminal() })
-const stateLabels = { creating: '创建中', running: '运行中', stopping: '释放中', cleanup_failed: '等待清理' }
-watch(() => props.active, active => { if(active)void refreshSandbox() })
+watch(
+  () => sandbox.value.instance?.id,
+  (id, oldId) => {
+    if (id === oldId) return
+    tabs.value = []
+    selectedTab.value = ''
+    terminalCount = 0
+    desktopOpened.value = props.mode === 'gui'
+    if (id && props.mode === 'cli' && sandbox.value.instance?.state === 'running') addTerminal()
+  }
+)
+watch(
+  () => sandbox.value.instance?.state,
+  state => {
+    if (state === 'running' && props.mode === 'cli' && !tabs.value.length) addTerminal()
+  }
+)
+const stateLabels = {
+  creating: '创建中',
+  running: '运行中',
+  stopping: '释放中',
+  cleanup_failed: '等待清理'
+}
+watch(
+  () => props.active,
+  active => {
+    if (active) void refreshSandbox()
+  }
+)
 const resizing = ref(false)
-let startPosition = 0, startSize = 0, grip: HTMLElement | null = null, pointerId: number | null = null
+let startPosition = 0,
+  startSize = 0,
+  grip: HTMLElement | null = null,
+  pointerId: number | null = null
 function setSize(value: number) {
   const bounded = Math.max(minSize.value, Math.min(maxSize.value, value))
   if (isRight.value) emit('update:width', bounded)
@@ -54,9 +118,12 @@ function setSize(value: number) {
 function stopResize() {
   const wasResizing = resizing.value
   resizing.value = false
-  const element = grip, pointer = pointerId
-  grip = null; pointerId = null
-  if (element && pointer !== null && element.hasPointerCapture(pointer)) element.releasePointerCapture(pointer)
+  const element = grip,
+    pointer = pointerId
+  grip = null
+  pointerId = null
+  if (element && pointer !== null && element.hasPointerCapture(pointer))
+    element.releasePointerCapture(pointer)
   if (wasResizing) emit('resize-end')
 }
 function startResize(event: PointerEvent) {
@@ -64,49 +131,198 @@ function startResize(event: PointerEvent) {
   event.preventDefault()
   startPosition = isRight.value ? event.clientX : event.clientY
   startSize = size.value
-  grip = event.currentTarget as HTMLElement; pointerId = event.pointerId
+  grip = event.currentTarget as HTMLElement
+  pointerId = event.pointerId
   grip.focus({ preventScroll: true })
-  grip.setPointerCapture(event.pointerId); resizing.value = true
+  grip.setPointerCapture(event.pointerId)
+  resizing.value = true
 }
 function moveResize(event: PointerEvent) {
-  if (resizing.value && event.pointerId === pointerId) setSize(startSize + startPosition - (isRight.value ? event.clientX : event.clientY))
+  if (resizing.value && event.pointerId === pointerId)
+    setSize(startSize + startPosition - (isRight.value ? event.clientX : event.clientY))
 }
 function keyResize(event: KeyboardEvent) {
   const grow = isRight.value ? 'ArrowLeft' : 'ArrowUp'
   const shrink = isRight.value ? 'ArrowRight' : 'ArrowDown'
   if (![grow, shrink, 'Home', 'End'].includes(event.key)) return
   event.preventDefault()
-  setSize(event.key === 'Home' ? minSize.value : event.key === 'End' ? maxSize.value : size.value + (event.key === grow ? 20 : -20))
+  setSize(
+    event.key === 'Home'
+      ? minSize.value
+      : event.key === 'End'
+        ? maxSize.value
+        : size.value + (event.key === grow ? 20 : -20)
+  )
   emit('resize-end')
 }
 watch([() => props.placement, () => props.active], stopResize)
 onBeforeUnmount(stopResize)
-
 </script>
 
 <template>
-  <section :id="panelId" class="practice-dock" :class="{ resizing, 'dock-right': placement === 'right' }" :style="isRight ? { width: `${width}px` } : { height: `${height}px` }" aria-label="练习环境面板">
-    <div class="dock-grip" role="separator" tabindex="0" :aria-label="isRight ? '调整练习面板宽度' : '调整练习面板高度'" :aria-orientation="isRight ? 'vertical' : 'horizontal'" :aria-controls="panelId" :aria-valuemin="minSize" :aria-valuemax="maxSize" :aria-valuenow="size" @pointerdown="startResize" @pointermove="moveResize" @pointerup="stopResize" @pointercancel="stopResize" @lostpointercapture="stopResize" @keydown="keyResize"><span /></div>
+  <section
+    :id="panelId"
+    class="practice-dock"
+    :class="{ resizing, 'dock-right': placement === 'right' }"
+    :style="isRight ? { width: `${width}px` } : { height: `${height}px` }"
+    aria-label="练习环境面板"
+  >
+    <div
+      class="dock-grip"
+      role="separator"
+      tabindex="0"
+      :aria-label="isRight ? '调整练习面板宽度' : '调整练习面板高度'"
+      :aria-orientation="isRight ? 'vertical' : 'horizontal'"
+      :aria-controls="panelId"
+      :aria-valuemin="minSize"
+      :aria-valuemax="maxSize"
+      :aria-valuenow="size"
+      @pointerdown="startResize"
+      @pointermove="moveResize"
+      @pointerup="stopResize"
+      @pointercancel="stopResize"
+      @lostpointercapture="stopResize"
+      @keydown="keyResize"
+    >
+      <span />
+    </div>
     <div class="dock-header">
-      <div class="dock-title"><Terminal v-if="mode === 'cli'" :size="15" aria-hidden="true" /><Monitor v-else :size="15" aria-hidden="true" />{{ mode === 'cli' ? '终端' : '桌面' }}<span v-if="sandbox.instance" class="sandbox-state">{{ sandbox.instance.connected ? stateLabels[sandbox.instance.state] : '节点断开' }}</span></div>
+      <div class="dock-title">
+        <Terminal v-if="mode === 'cli'" :size="15" aria-hidden="true" /><Monitor
+          v-else
+          :size="15"
+          aria-hidden="true"
+        />{{ mode === 'cli' ? '终端' : '桌面'
+        }}<span v-if="sandbox.instance" class="sandbox-state">{{
+          sandbox.instance.connected ? stateLabels[sandbox.instance.state] : '节点断开'
+        }}</span>
+      </div>
       <div class="dock-actions">
-        <button v-if="sideAvailable" type="button" class="placement-toggle" :title="placement === 'right' ? '切换为底部停靠' : '切换为右侧分屏'" :aria-label="placement === 'right' ? '切换为底部停靠' : '切换为右侧分屏'" @click="emit('update:placement', placement === 'right' ? 'bottom' : 'right')"><Rows2 v-if="placement === 'right'" :size="15" aria-hidden="true"/><Columns2 v-else :size="15" aria-hidden="true"/></button>
-        <button type="button" class="independent-open" @click="openViewer(mode)" title="在新标签页打开" aria-label="在新标签页打开"><ExternalLink :size="15" aria-hidden="true"/></button>
-        <button type="button" aria-label="收起练习面板" @click="emit('minimize')"><Minus :size="16" aria-hidden="true" /></button>
+        <button
+          v-if="sideAvailable"
+          type="button"
+          class="placement-toggle"
+          :title="placement === 'right' ? '切换为底部停靠' : '切换为右侧分屏'"
+          :aria-label="placement === 'right' ? '切换为底部停靠' : '切换为右侧分屏'"
+          @click="emit('update:placement', placement === 'right' ? 'bottom' : 'right')"
+        >
+          <Rows2 v-if="placement === 'right'" :size="15" aria-hidden="true" /><Columns2
+            v-else
+            :size="15"
+            aria-hidden="true"
+          />
+        </button>
+        <button
+          type="button"
+          class="independent-open"
+          @click="openViewer(mode)"
+          title="在新标签页打开"
+          aria-label="在新标签页打开"
+        >
+          <ExternalLink :size="15" aria-hidden="true" />
+        </button>
+        <button type="button" aria-label="收起练习面板" @click="emit('minimize')">
+          <Minus :size="16" aria-hidden="true" />
+        </button>
       </div>
     </div>
-    <p v-if="notice || sandbox.instance?.error" class="sandbox-notice" role="alert">{{ notice || sandbox.instance?.error }}</p>
-    <div v-if="!currentUser" class="dock-empty"><Unplug :size="26" aria-hidden="true" /><h2>登录后使用练习环境</h2><NuxtLink :to="'/auth?returnTo=' + encodeURIComponent(route.fullPath)" class="sandbox-primary">登录并继续</NuxtLink></div>
-    <UiBusyIndicator v-else-if="loading" class="dock-empty" label="环境状态加载"/>
-    <template v-else>
-    <div v-if="sandbox.instance?.state === 'running' && desktopOpened && !guiElsewhere" v-show="mode === 'gui'" class="desktop-area"><ClientOnly><SandboxDesktop :key="sandbox.instance.id" :sandbox-id="sandbox.instance.id" :active="active && mode === 'gui'" :auto-resize="true" /></ClientOnly></div>
-    <div v-if="sandbox.instance?.state === 'running' && mode==='gui' && guiElsewhere" class="dock-empty"><p>桌面已在其他页面打开</p><button @click="resumeGUI">在此继续操作</button></div>
-    <div v-if="sandbox.instance?.state === 'running'" v-show="mode === 'cli'" class="cli-area">
-      <div class="terminal-tabs" aria-label="终端列表"><div v-for="tab in tabs" :key="tab.id" class="terminal-tab" :class="{ selected: selectedTab === tab.id }"><button type="button" :aria-pressed="selectedTab === tab.id" @click="selectedTab = tab.id">{{ tab.label }}</button><button type="button" :aria-label="'关闭' + tab.label" @click="closeTerminal(tab.id)"><X :size="12" aria-hidden="true" /></button></div><button type="button" class="add-terminal" aria-label="新建终端" :disabled="!sandbox.instance.connected" @click="addTerminal"><Plus :size="15" aria-hidden="true" /></button></div>
-      <div class="terminal-workspace"><ClientOnly><SandboxTerminal v-for="tab in tabs" v-show="selectedTab === tab.id" :key="tab.id" :sandbox-id="sandbox.instance.id" :window-id="tab.id" :active="active && mode === 'cli' && selectedTab === tab.id" /></ClientOnly><div v-if="!tabs.length" class="dock-empty"><button type="button" class="sandbox-primary" @click="addTerminal">打开终端</button></div></div>
+    <p v-if="notice || sandbox.instance?.error" class="sandbox-notice" role="alert">
+      {{ notice || sandbox.instance?.error }}
+    </p>
+    <div v-if="!currentUser" class="dock-empty">
+      <Unplug :size="26" aria-hidden="true" />
+      <h2>登录后使用练习环境</h2>
+      <NuxtLink :to="'/auth?returnTo=' + encodeURIComponent(route.fullPath)" class="sandbox-primary"
+        >登录并继续</NuxtLink
+      >
     </div>
-    <div v-else-if="sandbox.instance" class="dock-empty" role="status"><UiBusyIndicator v-if="sandbox.instance.state !== 'cleanup_failed'" label="环境准备"/><h2 v-else>{{stateLabels[sandbox.instance.state]}}</h2><p>{{ sandbox.instance.state === 'cleanup_failed' ? '占用保留至节点确认释放，可重试释放环境。' : '状态将自动更新，你可以继续阅读。' }}</p></div>
-    <div v-else class="dock-empty"><Terminal :size="26" :stroke-width="1.5" aria-hidden="true" /><h2>{{ sandbox.available ? '准备开始实践' : '练习环境暂不可用' }}</h2><p>{{ sandbox.available ? '从正文顶部启动环境，再打开终端或桌面。' : '你可以继续阅读教程并完成章节练习。' }}</p></div>
+    <UiBusyIndicator v-else-if="loading" class="dock-empty" label="环境状态加载" />
+    <template v-else>
+      <div
+        v-if="sandbox.instance?.state === 'running' && desktopOpened && !guiElsewhere"
+        v-show="mode === 'gui'"
+        class="desktop-area"
+      >
+        <ClientOnly
+          ><SandboxDesktop
+            :key="sandbox.instance.id"
+            :sandbox-id="sandbox.instance.id"
+            :active="active && mode === 'gui'"
+            :auto-resize="true"
+        /></ClientOnly>
+      </div>
+      <div
+        v-if="sandbox.instance?.state === 'running' && mode === 'gui' && guiElsewhere"
+        class="dock-empty"
+      >
+        <p>桌面已在其他页面打开</p>
+        <button @click="resumeGUI">在此继续操作</button>
+      </div>
+      <div v-if="sandbox.instance?.state === 'running'" v-show="mode === 'cli'" class="cli-area">
+        <div class="terminal-tabs" aria-label="终端列表">
+          <div
+            v-for="tab in tabs"
+            :key="tab.id"
+            class="terminal-tab"
+            :class="{ selected: selectedTab === tab.id }"
+          >
+            <button
+              type="button"
+              :aria-pressed="selectedTab === tab.id"
+              @click="selectedTab = tab.id"
+            >
+              {{ tab.label }}</button
+            ><button type="button" :aria-label="'关闭' + tab.label" @click="closeTerminal(tab.id)">
+              <X :size="12" aria-hidden="true" />
+            </button>
+          </div>
+          <button
+            type="button"
+            class="add-terminal"
+            aria-label="新建终端"
+            :disabled="!sandbox.instance.connected"
+            @click="addTerminal"
+          >
+            <Plus :size="15" aria-hidden="true" />
+          </button>
+        </div>
+        <div class="terminal-workspace">
+          <ClientOnly
+            ><SandboxTerminal
+              v-for="tab in tabs"
+              v-show="selectedTab === tab.id"
+              :key="tab.id"
+              :sandbox-id="sandbox.instance.id"
+              :window-id="tab.id"
+              :active="active && mode === 'cli' && selectedTab === tab.id"
+          /></ClientOnly>
+          <div v-if="!tabs.length" class="dock-empty">
+            <button type="button" class="sandbox-primary" @click="addTerminal">打开终端</button>
+          </div>
+        </div>
+      </div>
+      <div v-else-if="sandbox.instance" class="dock-empty" role="status">
+        <UiBusyIndicator v-if="sandbox.instance.state !== 'cleanup_failed'" label="环境准备" />
+        <h2 v-else>{{ stateLabels[sandbox.instance.state] }}</h2>
+        <p>
+          {{
+            sandbox.instance.state === 'cleanup_failed'
+              ? '占用保留至节点确认释放，可重试释放环境。'
+              : '状态将自动更新，你可以继续阅读。'
+          }}
+        </p>
+      </div>
+      <div v-else class="dock-empty">
+        <Terminal :size="26" :stroke-width="1.5" aria-hidden="true" />
+        <h2>{{ sandbox.available ? '准备开始实践' : '练习环境暂不可用' }}</h2>
+        <p>
+          {{
+            sandbox.available
+              ? '从正文顶部启动环境，再打开终端或桌面。'
+              : '你可以继续阅读教程并完成章节练习。'
+          }}
+        </p>
+      </div>
     </template>
   </section>
 </template>
@@ -148,7 +364,8 @@ onBeforeUnmount(stopResize)
   border-radius: 3px;
 }
 
-.dock-grip:hover > span, .resizing .dock-grip > span {
+.dock-grip:hover > span,
+.resizing .dock-grip > span {
   background: var(--green);
 }
 
@@ -177,7 +394,8 @@ onBeforeUnmount(stopResize)
   flex-shrink: 0;
 }
 
-.dock-title, .dock-actions {
+.dock-title,
+.dock-actions {
   display: flex;
   align-items: center;
   gap: 8px;
@@ -236,7 +454,8 @@ onBeforeUnmount(stopResize)
   margin: 0;
 }
 
-button:focus-visible, .dock-grip:focus-visible {
+button:focus-visible,
+.dock-grip:focus-visible {
   outline: 2px solid var(--focus);
   outline-offset: -2px;
 }
@@ -294,7 +513,8 @@ button:focus-visible, .dock-grip:focus-visible {
   border-bottom-color: var(--green);
 }
 
-.terminal-tab button, .add-terminal {
+.terminal-tab button,
+.add-terminal {
   border: 0;
   background: transparent;
   color: var(--muted);
@@ -311,7 +531,7 @@ button:focus-visible, .dock-grip:focus-visible {
 }
 
 .add-terminal:disabled {
-  opacity: .5;
+  opacity: 0.5;
   cursor: not-allowed;
 }
 

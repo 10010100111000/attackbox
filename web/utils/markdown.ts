@@ -47,15 +47,19 @@ export interface MarkdownRenderResult {
 }
 
 function slugify(text: string): string {
-  return text
-    .toLowerCase()
-    .trim()
-    .replace(/[^\p{L}\p{N}\s_-]/gu, '')
-    .replace(/[\s_-]+/g, '-')
-    .replace(/^-+|-+$/g, '') || 'section'
+  return (
+    text
+      .toLowerCase()
+      .trim()
+      .replace(/[^\p{L}\p{N}\s_-]/gu, '')
+      .replace(/[\s_-]+/g, '-')
+      .replace(/^-+|-+$/g, '') || 'section'
+  )
 }
 
-export interface MarkdownOptions { copyCode?: boolean }
+export interface MarkdownOptions {
+  copyCode?: boolean
+}
 
 interface MarkdownRenderEnv extends Record<PropertyKey, unknown> {
   imageUrls?: Record<string, string>
@@ -69,7 +73,7 @@ export function createMarkdownRenderer(options: MarkdownOptions = {}) {
     html: false, // 严格转义任何原生 HTML，杜绝 XSS 注入
     linkify: true,
     breaks: false,
-    typographer: true,
+    typographer: true
   })
 
   md.use(callouts)
@@ -82,7 +86,7 @@ export function createMarkdownRenderer(options: MarkdownOptions = {}) {
     const lang = token.info.trim().split(/\s+/)[0] || ''
     const langName = lang.trim().toLowerCase()
     const displayLang = md.utils.escapeHtml(langName ? langName.toUpperCase() : 'CODE')
-    let highlighted = ''
+    let highlighted: string
     if (langName && hljs.getLanguage(langName)) {
       try {
         highlighted = hljs.highlight(str, { language: langName, ignoreIllegals: true }).value
@@ -92,8 +96,11 @@ export function createMarkdownRenderer(options: MarkdownOptions = {}) {
     } else {
       highlighted = md.utils.escapeHtml(str)
     }
-    const showCopy = env?.copyCode !== undefined ? env.copyCode !== false : options.copyCode !== false
-    const copyButton = showCopy ? '<button type="button" class="copy-code-btn">复制代码</button>' : ''
+    const showCopy =
+      env?.copyCode !== undefined ? env.copyCode !== false : options.copyCode !== false
+    const copyButton = showCopy
+      ? '<button type="button" class="copy-code-btn">复制代码</button>'
+      : ''
     return `<div class="code-block"><div class="code-top"><span>${displayLang}</span>${copyButton}</div><pre><code class="hljs ${langName ? 'language-' + md.utils.escapeHtml(langName) : ''}">${highlighted}</code></pre></div>\n`
   }
 
@@ -108,7 +115,11 @@ export function createMarkdownRenderer(options: MarkdownOptions = {}) {
     const hrefIndex = tokens[idx].attrIndex('href')
     if (hrefIndex >= 0) {
       const href = String(tokens[idx].attrs![hrefIndex][1])
-      const isSafe = /^https?:\/\//i.test(href) || /^mailto:/i.test(href) || /^#/i.test(href) || /^\//i.test(href)
+      const isSafe =
+        /^https?:\/\//i.test(href) ||
+        /^mailto:/i.test(href) ||
+        /^#/i.test(href) ||
+        /^\//i.test(href)
       if (!isSafe) {
         tokens[idx].attrs![hrefIndex][1] = '#unsafe-link-blocked'
       }
@@ -127,7 +138,13 @@ export function createMarkdownRenderer(options: MarkdownOptions = {}) {
       return self.renderToken(tokens, idx, renderOptions)
     }
 
-  md.renderer.rules.image = (tokens, index, renderOptions, env: MarkdownRenderEnv | undefined, self) => {
+  md.renderer.rules.image = (
+    tokens,
+    index,
+    renderOptions,
+    env: MarkdownRenderEnv | undefined,
+    self
+  ) => {
     const token = tokens[index]!
     const href = String(token.attrGet('src') || '')
     const imageUrls = env?.imageUrls
@@ -144,13 +161,28 @@ export function createMarkdownRenderer(options: MarkdownOptions = {}) {
       return self.renderToken(tokens, idx, renderOptions)
     }
 
-  md.renderer.rules.heading_open = function (tokens, idx, renderOptions, env: MarkdownRenderEnv | undefined, self) {
+  md.renderer.rules.heading_open = function (
+    tokens,
+    idx,
+    renderOptions,
+    env: MarkdownRenderEnv | undefined,
+    self
+  ) {
     const token = tokens[idx]!
     const level = parseInt(token.tag.slice(1), 10) || 2
     const nextToken = tokens[idx + 1]
-    const titleText = nextToken?.type === 'inline'
-      ? (nextToken.children || []).map(child => ['text', 'code_inline', 'image'].includes(child.type) ? child.content : ['softbreak', 'hardbreak'].includes(child.type) ? ' ' : '').join('')
-      : ''
+    const titleText =
+      nextToken?.type === 'inline'
+        ? (nextToken.children || [])
+            .map(child =>
+              ['text', 'code_inline', 'image'].includes(child.type)
+                ? child.content
+                : ['softbreak', 'hardbreak'].includes(child.type)
+                  ? ' '
+                  : ''
+            )
+            .join('')
+        : ''
 
     const baseSlug = slugify(titleText)
     let id = baseSlug
@@ -174,7 +206,11 @@ export function createMarkdownRenderer(options: MarkdownOptions = {}) {
 
 const defaultMarkdownRenderer = createMarkdownRenderer()
 
-export function renderMarkdown(content: string, imageUrls: Record<string,string> = {}, options: MarkdownOptions = {}): MarkdownRenderResult {
+export function renderMarkdown(
+  content: string,
+  imageUrls: Record<string, string> = {},
+  options: MarkdownOptions = {}
+): MarkdownRenderResult {
   if (!content) {
     return { html: '', headings: [] }
   }
@@ -185,7 +221,7 @@ export function renderMarkdown(content: string, imageUrls: Record<string,string>
     imageUrls,
     copyCode: options.copyCode,
     headings,
-    usedSlugs,
+    usedSlugs
   }
 
   const html = defaultMarkdownRenderer.render(content, env)

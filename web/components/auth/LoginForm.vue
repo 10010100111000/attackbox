@@ -20,7 +20,9 @@ const emit = defineEmits<{
 }>()
 
 const mounted = ref(false)
-onMounted(() => { mounted.value = true })
+onMounted(() => {
+  mounted.value = true
+})
 
 const email = ref(props.modelValueEmail)
 const password = ref('')
@@ -33,11 +35,14 @@ const emailError = ref('')
 const passwordError = ref('')
 const statusMessage = ref('')
 
-watch(() => props.modelValueEmail, (val) => {
-  if (val !== undefined && val !== email.value) {
-    email.value = val
+watch(
+  () => props.modelValueEmail,
+  val => {
+    if (val !== undefined && val !== email.value) {
+      email.value = val
+    }
   }
-})
+)
 
 function onEmailInput(val: string) {
   email.value = val
@@ -102,14 +107,13 @@ async function handleSubmit() {
     password.value = ''
     await navigateTo(loginDestination(route.query.returnTo), { replace: true })
   } catch (err: any) {
-    statusMessage.value = err?.data?.message || err?.data?.statusMessage || err?.message || '登录失败，请检查邮箱与密码'
+    statusMessage.value =
+      err?.data?.message || err?.data?.statusMessage || err?.message || '登录失败，请检查邮箱与密码'
   } finally {
     busy.value = false
     challengeReset.value++
   }
 }
-
-
 </script>
 
 <template>
@@ -119,100 +123,97 @@ async function handleSubmit() {
       <h1 class="auth-title" id="form-title">欢迎回来。</h1>
       <p class="intro">登录，继续你的学习与探索。</p>
 
-      <form id="auth-form" method="post" action="/api/auth/login" novalidate @submit.prevent="handleSubmit">
+      <form
+        id="auth-form"
+        method="post"
+        action="/api/auth/login"
+        novalidate
+        @submit.prevent="handleSubmit"
+      >
         <fieldset :disabled="!mounted || busy" class="auth-fields">
-        <!-- 邮箱字段 -->
-        <div class="field">
-          <div class="field-head">
-            <label for="email">邮箱</label>
+          <!-- 邮箱字段 -->
+          <div class="field">
+            <div class="field-head">
+              <label for="email">邮箱</label>
+            </div>
+            <Input
+              id="email"
+              name="email"
+              type="email"
+              inputmode="email"
+              autocapitalize="none"
+              autocorrect="off"
+              spellcheck="false"
+              autocomplete="email"
+              placeholder="you@example.com"
+              :model-value="email"
+              :error="emailError"
+              required
+              @update:model-value="onEmailInput"
+            />
           </div>
-          <Input
-            id="email"
-            name="email"
-            type="email"
-            inputmode="email"
-            autocapitalize="none"
-            autocorrect="off"
-            spellcheck="false"
-            autocomplete="email"
-            placeholder="you@example.com"
-            :model-value="email"
-            :error="emailError"
-            required
-            @update:model-value="onEmailInput"
-          />
-        </div>
 
-        <!-- 密码字段 -->
-        <div class="field">
-          <div class="field-head">
-            <label for="password">密码</label>
-            <button
-              class="field-link"
-              type="button"
-              @click="$emit('switch-mode', 'recover')"
-            >
-              忘记密码？
-            </button>
+          <!-- 密码字段 -->
+          <div class="field">
+            <div class="field-head">
+              <label for="password">密码</label>
+              <button class="field-link" type="button" @click="$emit('switch-mode', 'recover')">
+                忘记密码？
+              </button>
+            </div>
+            <Input
+              id="password"
+              name="password"
+              type="password"
+              autocomplete="current-password"
+              placeholder="输入你的密码"
+              :model-value="password"
+              :error="passwordError"
+              required
+              @update:model-value="onPasswordInput"
+            />
           </div>
-          <Input
-            id="password"
-            name="password"
-            type="password"
-            autocomplete="current-password"
-            placeholder="输入你的密码"
-            :model-value="password"
-            :error="passwordError"
-            required
-            @update:model-value="onPasswordInput"
+
+          <!-- 保持登录状态 -->
+          <label class="remember">
+            <Checkbox
+              id="remember"
+              name="remember"
+              :model-value="rememberMe"
+              @update:model-value="val => (rememberMe = val)"
+            />
+            <span>保持登录状态</span>
+          </label>
+
+          <AuthChallenge
+            v-model="turnstileToken"
+            v-model:ready="challengeReady"
+            action="login"
+            :reset-key="challengeReset"
+            :disabled="busy"
           />
-        </div>
+          <!-- 登录提交按钮 -->
+          <Button
+            variant="primary"
+            :loading="busy"
+            :disabled="!challengeReady"
+            type="submit"
+            class="submit w-full h-[46px] text-xs font-semibold rounded-md gap-4"
+          >
+            <span>登录</span>
+          </Button>
 
-        <!-- 保持登录状态 -->
-        <label class="remember">
-          <Checkbox
-            id="remember"
-            name="remember"
-            :model-value="rememberMe"
-            @update:model-value="(val) => rememberMe = val"
-          />
-          <span>保持登录状态</span>
-        </label>
-
-        <AuthChallenge v-model="turnstileToken" v-model:ready="challengeReady" action="login" :reset-key="challengeReset" :disabled="busy" />
-        <!-- 登录提交按钮 -->
-        <Button
-          variant="primary"
-          :loading="busy"
-          :disabled="!challengeReady"
-          type="submit"
-          class="submit w-full h-[46px] text-xs font-semibold rounded-md gap-4"
-        >
-          <span>登录</span>
-
-        </Button>
-
-        <!-- 状态反馈提示 -->
-        <p
-          v-if="statusMessage"
-          id="status"
-          class="status"
-          role="status"
-          aria-live="polite"
-        >
-          {{ statusMessage }}
-        </p>
+          <!-- 状态反馈提示 -->
+          <p v-if="statusMessage" id="status" class="status" role="status" aria-live="polite">
+            {{ statusMessage }}
+          </p>
         </fieldset>
       </form>
 
       <!-- 底部切换注册链接 -->
       <div class="signup">
         还没有账号？
-        <button
-          class="text-button"
-          type="button"
-          @click="$emit('switch-mode', 'register')"
-        >
+        <button class="text-button" type="button" @click="$emit('switch-mode', 'register')">
           创建账号
         </button>
       </div>

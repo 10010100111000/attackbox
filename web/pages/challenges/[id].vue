@@ -1,6 +1,14 @@
 <script setup lang="ts">
 import { ref, computed, watch, onMounted } from 'vue'
-import { ArrowLeft, CheckCircle2, LockKeyhole, Flag, Terminal, Monitor, ChevronUp } from 'lucide-vue-next'
+import {
+  ArrowLeft,
+  CheckCircle2,
+  LockKeyhole,
+  Flag,
+  Terminal,
+  Monitor,
+  ChevronUp
+} from 'lucide-vue-next'
 import MarkdownView from '~/components/ui/MarkdownView.vue'
 import PracticeDock from '~/components/learning/PracticeDock.vue'
 import { useAuth } from '~/composables/useAuth'
@@ -14,7 +22,7 @@ const learner = computed(() => currentUser.value?.id || '')
 
 const { data, error, refresh } = await useFetch<{ data: Challenge }>(`/api/challenges/${id}`, {
   key: `challenges:detail:${id}`,
-  watch: [learner],
+  watch: [learner]
 })
 
 const ready = ref(false)
@@ -31,9 +39,15 @@ const practiceMinimized = ref(false)
 const workspace = ref<HTMLElement | null>(null)
 const dock = usePracticeLayout(workspace)
 const { sandbox } = useSandboxSession()
-const environmentReady = computed(() => sandbox.value.instance?.state === 'running' && sandbox.value.instance.connected)
+const environmentReady = computed(
+  () => sandbox.value.instance?.state === 'running' && sandbox.value.instance.connected
+)
 watch(environmentReady, value => {
-  if (!value) { practiceOpened.value = false; practiceVisible.value = false; practiceMinimized.value = false }
+  if (!value) {
+    practiceOpened.value = false
+    practiceVisible.value = false
+    practiceMinimized.value = false
+  }
 })
 
 function openPractice(mode: 'cli' | 'gui') {
@@ -44,8 +58,12 @@ function openPractice(mode: 'cli' | 'gui') {
   practiceMinimized.value = false
 }
 
-function minimizePractice() { practiceMinimized.value = true }
-onMounted(() => { ready.value = true })
+function minimizePractice() {
+  practiceMinimized.value = true
+}
+onMounted(() => {
+  ready.value = true
+})
 
 watch(learner, () => {
   answers.value = {}
@@ -54,7 +72,7 @@ watch(learner, () => {
 
 useHead(() => ({
   title: c.value ? `${c.value.title} — AttackBox` : '挑战 — AttackBox',
-  meta: [{ name: 'description', content: c.value?.summary || '安全学习挑战' }],
+  meta: [{ name: 'description', content: c.value?.summary || '安全学习挑战' }]
 }))
 
 async function submit(stageId: string) {
@@ -63,7 +81,7 @@ async function submit(stageId: string) {
   try {
     const r = await $fetch<{ data: { correct: boolean } }>(`/api/challenges/${id}/attempt`, {
       method: 'POST',
-      body: { stageId, flag: answers.value[stageId] },
+      body: { stageId, flag: answers.value[stageId] }
     })
     feedback.value[stageId] = r.data.correct
       ? '阶段已通过'
@@ -71,7 +89,9 @@ async function submit(stageId: string) {
         ? 'Flag 不正确，可以查看提示后再试'
         : 'Flag 不正确，可以继续尝试'
     if (r.data.correct) {
-      delete answers.value[stageId]
+      answers.value = Object.fromEntries(
+        Object.entries(answers.value).filter(([key]) => key !== stageId)
+      )
       await refresh()
       clearNuxtData('challenges:list')
     }
@@ -118,121 +138,150 @@ async function submit(stageId: string) {
       </div>
     </div>
 
-    <div ref="workspace" class="challenge-workspace" :class="{ 'dock-is-right': practiceVisible && !practiceMinimized && dock.placement.value === 'right' }">
-    <div class="challenge-scroll">
-      <main class="challenge-detail">
-        <p v-if="error" role="alert">挑战不存在或尚未发布。</p>
-
-        <template v-else-if="c">
-          <header class="challenge-header">
-            <div class="eyebrow">{{ c.category || '综合挑战' }}</div>
-            <h1>{{ c.title }}</h1>
-            <p>{{ c.summary }}</p>
-            <div class="progress">
-              <Flag :size="16" aria-hidden="true" />
-              <span>
-                {{
-                  currentUser
-                    ? `${c.completedStages} / ${c.totalStages} 阶段已完成`
-                    : `${c.totalStages} 个阶段`
-                }}
-              </span>
-              <span v-if="currentUser && c.isCompleted" class="success">
-                <CheckCircle2 :size="16" aria-hidden="true" />
-                <span>挑战已完成</span>
-              </span>
-            </div>
-          </header>
-
-          <MarkdownView :content="c.bodyMarkdown" />
-          <TargetEnvironment v-if="c.target" :key="String($route.params.id)" :target="c.target" :context="{kind: 'challenge', challengeId: String($route.params.id)}" />
-
-          <section aria-label="阶段任务" class="stage-list">
-            <article v-for="(s, index) in c.stages" :key="s.id" class="stage">
-              <header class="stage-heading">
-                <span class="number">{{ String(index + 1).padStart(2, '0') }}</span>
-                <h2>{{ s.title }}</h2>
-                <CheckCircle2 v-if="s.passedAt" class="success" :size="20" aria-hidden="true" />
-                <LockKeyhole v-else-if="s.locked" :size="18" aria-hidden="true" />
-              </header>
-
-              <MarkdownView :content="s.promptMarkdown" />
-
-              <details v-if="s.hint" class="hint">
-                <summary>查看提示</summary>
-                <p>{{ s.hint }}</p>
-              </details>
-
-              <p v-if="s.passedAt" class="success" role="status">阶段已通过</p>
-              <NuxtLink
-                v-else-if="!currentUser"
-                :to="`/auth?returnTo=${encodeURIComponent('/challenges/' + id)}`"
-                class="login"
-              >
-                登录后提交 Flag
-              </NuxtLink>
-              <p v-else-if="s.locked" class="locked">完成前面的阶段后即可提交。</p>
-
-              <form v-else @submit.prevent="submit(s.id)">
-                <label class="sr-only" :for="`flag-${s.id}`">阶段 {{ index + 1 }} Flag</label>
-                <input
-                  :id="`flag-${s.id}`"
-                  v-model="answers[s.id]"
-                  placeholder="flag{...}"
-                  maxlength="2000"
-                  autocomplete="off"
-                  spellcheck="false"
-                  :disabled="busy || !ready"
-                />
-                <button :disabled="busy || !ready || !answers[s.id]?.trim()">
-                  <UiBusyLabel :busy="busy">提交 Flag</UiBusyLabel>
-                </button>
-              </form>
-
-              <p v-if="feedback[s.id] && !s.passedAt" role="status">
-                {{ feedback[s.id] }}
-              </p>
-            </article>
-          </section>
-        </template>
-      </main>
-    </div>
-
-    <PracticeDock
-      v-if="practiceOpened"
-      v-show="practiceVisible && !practiceMinimized"
-      :key="learner"
-      :active="practiceVisible && !practiceMinimized"
-      :height="dock.height.value" :width="dock.width.value" :placement="dock.placement.value"
-      :side-available="dock.sideAvailable.value" :min-width="dock.minWidth" :max-width="dock.maxWidth.value"
-      :min-height="dock.minHeight.value" :max-height="dock.maxHeight.value"
-      @update:height="dock.setHeight" @update:width="dock.setWidth"
-      @update:placement="dock.setPlacement" @resize-end="dock.persist"
-      :mode="practiceMode"
-      @minimize="minimizePractice"
-    />
-
-    <button
-      v-if="practiceVisible && practiceMinimized"
-      type="button"
-      class="dock-restore"
-      aria-label="恢复练习面板"
-      @click="practiceMinimized = false"
+    <div
+      ref="workspace"
+      class="challenge-workspace"
+      :class="{
+        'dock-is-right': practiceVisible && !practiceMinimized && dock.placement.value === 'right'
+      }"
     >
-      <Terminal v-if="practiceMode === 'cli'" :size="14" aria-hidden="true" />
-      <Monitor v-else :size="14" aria-hidden="true" />
-      <span>{{ practiceMode === 'cli' ? '终端' : '桌面' }}</span>
-      <ChevronUp :size="15" aria-hidden="true" />
-    </button>
+      <div class="challenge-scroll">
+        <main class="challenge-detail">
+          <p v-if="error" role="alert">挑战不存在或尚未发布。</p>
+
+          <template v-else-if="c">
+            <header class="challenge-header">
+              <div class="eyebrow">{{ c.category || '综合挑战' }}</div>
+              <h1>{{ c.title }}</h1>
+              <p>{{ c.summary }}</p>
+              <div class="progress">
+                <Flag :size="16" aria-hidden="true" />
+                <span>
+                  {{
+                    currentUser
+                      ? `${c.completedStages} / ${c.totalStages} 阶段已完成`
+                      : `${c.totalStages} 个阶段`
+                  }}
+                </span>
+                <span v-if="currentUser && c.isCompleted" class="success">
+                  <CheckCircle2 :size="16" aria-hidden="true" />
+                  <span>挑战已完成</span>
+                </span>
+              </div>
+            </header>
+
+            <MarkdownView :content="c.bodyMarkdown" />
+            <TargetEnvironment
+              v-if="c.target"
+              :key="String($route.params.id)"
+              :target="c.target"
+              :context="{ kind: 'challenge', challengeId: String($route.params.id) }"
+            />
+
+            <section aria-label="阶段任务" class="stage-list">
+              <article v-for="(s, index) in c.stages" :key="s.id" class="stage">
+                <header class="stage-heading">
+                  <span class="number">{{ String(index + 1).padStart(2, '0') }}</span>
+                  <h2>{{ s.title }}</h2>
+                  <CheckCircle2 v-if="s.passedAt" class="success" :size="20" aria-hidden="true" />
+                  <LockKeyhole v-else-if="s.locked" :size="18" aria-hidden="true" />
+                </header>
+
+                <MarkdownView :content="s.promptMarkdown" />
+
+                <details v-if="s.hint" class="hint">
+                  <summary>查看提示</summary>
+                  <p>{{ s.hint }}</p>
+                </details>
+
+                <p v-if="s.passedAt" class="success" role="status">阶段已通过</p>
+                <NuxtLink
+                  v-else-if="!currentUser"
+                  :to="`/auth?returnTo=${encodeURIComponent('/challenges/' + id)}`"
+                  class="login"
+                >
+                  登录后提交 Flag
+                </NuxtLink>
+                <p v-else-if="s.locked" class="locked">完成前面的阶段后即可提交。</p>
+
+                <form v-else @submit.prevent="submit(s.id)">
+                  <label class="sr-only" :for="`flag-${s.id}`">阶段 {{ index + 1 }} Flag</label>
+                  <input
+                    :id="`flag-${s.id}`"
+                    v-model="answers[s.id]"
+                    placeholder="flag{...}"
+                    maxlength="2000"
+                    autocomplete="off"
+                    spellcheck="false"
+                    :disabled="busy || !ready"
+                  />
+                  <button :disabled="busy || !ready || !answers[s.id]?.trim()">
+                    <UiBusyLabel :busy="busy">提交 Flag</UiBusyLabel>
+                  </button>
+                </form>
+
+                <p v-if="feedback[s.id] && !s.passedAt" role="status">
+                  {{ feedback[s.id] }}
+                </p>
+              </article>
+            </section>
+          </template>
+        </main>
+      </div>
+
+      <PracticeDock
+        v-if="practiceOpened"
+        v-show="practiceVisible && !practiceMinimized"
+        :key="learner"
+        :active="practiceVisible && !practiceMinimized"
+        :height="dock.height.value"
+        :width="dock.width.value"
+        :placement="dock.placement.value"
+        :side-available="dock.sideAvailable.value"
+        :min-width="dock.minWidth"
+        :max-width="dock.maxWidth.value"
+        :min-height="dock.minHeight.value"
+        :max-height="dock.maxHeight.value"
+        @update:height="dock.setHeight"
+        @update:width="dock.setWidth"
+        @update:placement="dock.setPlacement"
+        @resize-end="dock.persist"
+        :mode="practiceMode"
+        @minimize="minimizePractice"
+      />
+
+      <button
+        v-if="practiceVisible && practiceMinimized"
+        type="button"
+        class="dock-restore"
+        aria-label="恢复练习面板"
+        @click="practiceMinimized = false"
+      >
+        <Terminal v-if="practiceMode === 'cli'" :size="14" aria-hidden="true" />
+        <Monitor v-else :size="14" aria-hidden="true" />
+        <span>{{ practiceMode === 'cli' ? '终端' : '桌面' }}</span>
+        <ChevronUp :size="15" aria-hidden="true" />
+      </button>
     </div>
   </div>
 </template>
 
 <style scoped>
-.challenge-workspace { flex: 1; display: flex; flex-direction: column; min-width: 0; min-height: 0; overflow: hidden; }
-.challenge-workspace.dock-is-right { flex-direction: row; }
+.challenge-workspace {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+.challenge-workspace.dock-is-right {
+  flex-direction: row;
+}
 .challenge-workspace.dock-is-right .challenge-scroll {
-  min-width: 0; flex: 1 1 0; }
+  min-width: 0;
+  flex: 1 1 0;
+}
 
 .challenge-shell {
   display: flex;
@@ -379,7 +428,9 @@ h1 {
 
 .number {
   color: var(--muted);
-  font: 20px ui-monospace, monospace;
+  font:
+    20px ui-monospace,
+    monospace;
 }
 
 .hint {
@@ -412,7 +463,9 @@ input {
   color: var(--ink);
   border: 1px solid var(--line);
   border-radius: 6px;
-  font: 13px ui-monospace, monospace;
+  font:
+    13px ui-monospace,
+    monospace;
 }
 
 form button {
@@ -425,7 +478,9 @@ form button {
   cursor: pointer;
   font-size: 12px;
   font-weight: 600;
-  transition: transform 0.15s ease, background 0.15s ease;
+  transition:
+    transform 0.15s ease,
+    background 0.15s ease;
 }
 
 form button:hover:not(:disabled) {

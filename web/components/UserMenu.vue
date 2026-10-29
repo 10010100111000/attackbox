@@ -1,10 +1,5 @@
 <script setup lang="ts">
-import {
-  PopoverRoot,
-  PopoverTrigger,
-  PopoverPortal,
-  PopoverContent,
-} from 'reka-ui'
+import { PopoverRoot, PopoverTrigger, PopoverPortal, PopoverContent } from 'reka-ui'
 import { Bell, UserRound, Shield, LogOut, MessageSquarePlus } from 'lucide-vue-next'
 const { currentUser, logout } = useAuth(),
   { initTheme } = useTheme(),
@@ -25,14 +20,17 @@ watch(
     open.value = false
     feedbackOpen.value = false
     void refreshUnread()
-  },
+  }
 )
-watch(open, (v) => {
+watch(open, v => {
   if (v) void refreshUnread()
 })
 watch(
   () => route.fullPath,
-  () => { open.value = false; feedbackOpen.value = false },
+  () => {
+    open.value = false
+    feedbackOpen.value = false
+  }
 )
 async function composeFeedback() {
   open.value = false
@@ -64,21 +62,14 @@ async function exit() {
       <span>
         {{
           currentUser
-            ? (currentUser.displayName || currentUser.email)
-                .slice(0, 2)
-                .toUpperCase()
+            ? (currentUser.displayName || currentUser.email).slice(0, 2).toUpperCase()
             : '访'
         }}
       </span>
       <i v-if="unread" class="account-dot" />
     </PopoverTrigger>
     <PopoverPortal>
-      <PopoverContent
-        class="account-panel"
-        align="end"
-        :side-offset="10"
-        aria-label="用户菜单"
-      >
+      <PopoverContent class="account-panel" align="end" :side-offset="10" aria-label="用户菜单">
         <div class="account-identity">
           <strong>{{ currentUser?.displayName || '访客' }}</strong>
           <span>{{ currentUser?.email || '登录后继续学习' }}</span>
@@ -111,12 +102,7 @@ async function exit() {
           </NuxtLink>
         </nav>
         <div class="account-actions">
-          <button
-            v-if="currentUser"
-            class="account-exit"
-            :disabled="leaving"
-            @click="exit"
-          >
+          <button v-if="currentUser" class="account-exit" :disabled="leaving" @click="exit">
             <LogOut :size="15" />
             <UiBusyLabel :busy="leaving">退出登录</UiBusyLabel>
           </button>
@@ -145,7 +131,10 @@ async function exit() {
   letter-spacing: 0.3px;
   cursor: pointer;
   flex-shrink: 0;
-  transition: transform 0.16s ease, border-color 0.16s ease, box-shadow 0.16s ease;
+  transition:
+    transform 0.16s ease,
+    border-color 0.16s ease,
+    box-shadow 0.16s ease;
 }
 .account-trigger:hover {
   border-color: var(--brand);
@@ -174,7 +163,9 @@ async function exit() {
   border-radius: 16px;
   background: var(--popover-bg);
   color: var(--ink);
-  box-shadow: var(--surface-highlight), 0 18px 48px rgba(0, 0, 0, 0.48);
+  box-shadow:
+    var(--surface-highlight),
+    0 18px 48px rgba(0, 0, 0, 0.48);
   font-size: 13px;
 }
 .account-identity {

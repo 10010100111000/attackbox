@@ -4,13 +4,13 @@ import { renderMarkdown, type MarkdownHeading } from '~/utils/markdown'
 
 interface Props {
   content?: string
-  imageUrls?: Record<string,string>
+  imageUrls?: Record<string, string>
   copyable?: boolean
 }
 
 const props = withDefaults(defineProps<Props>(), {
   content: '',
-  copyable: true,
+  copyable: true
 })
 
 const emit = defineEmits<{
@@ -25,7 +25,7 @@ const parsed = computed(() => {
 
 watch(
   () => parsed.value.headings,
-  (headings) => {
+  headings => {
     emit('headings-loaded', headings)
   },
   { immediate: true }
@@ -38,34 +38,34 @@ function handleCopyClick(event: MouseEvent) {
   if (!btn) return
 
   const codeEl = btn.closest('.code-block')?.querySelector('pre code')
-  const codeToCopy = btn.dataset.code ? decodeURIComponent(btn.dataset.code) : (codeEl?.textContent ?? '')
+  const codeToCopy = btn.dataset.code
+    ? decodeURIComponent(btn.dataset.code)
+    : (codeEl?.textContent ?? '')
   if (!codeToCopy) return
   if (!navigator?.clipboard) {
     btn.textContent = '无法复制'
     return
   }
 
-  navigator.clipboard.writeText(codeToCopy).then(() => {
-    const originalText = btn.textContent
-    btn.textContent = '已复制 ✓'
-    btn.classList.add('copied')
-    setTimeout(() => {
-      btn.textContent = originalText
-      btn.classList.remove('copied')
-    }, 2000)
-  }).catch(() => {
-    btn.textContent = '复制失败'
-  })
+  navigator.clipboard
+    .writeText(codeToCopy)
+    .then(() => {
+      const originalText = btn.textContent
+      btn.textContent = '已复制 ✓'
+      btn.classList.add('copied')
+      setTimeout(() => {
+        btn.textContent = originalText
+        btn.classList.remove('copied')
+      }, 2000)
+    })
+    .catch(() => {
+      btn.textContent = '复制失败'
+    })
 }
 </script>
 
 <template>
-  <div
-    ref="containerRef"
-    class="markdown-body"
-    @click="handleCopyClick"
-    v-html="parsed.html"
-  />
+  <div ref="containerRef" class="markdown-body" @click="handleCopyClick" v-html="parsed.html" />
 </template>
 
 <style>

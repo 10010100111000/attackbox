@@ -6,5 +6,8 @@ export default defineNitroPlugin(async nitro => {
   sandboxController()
   const timer = setInterval(() => hub.sweep(), 3000)
   timer.unref()
-  nitro.hooks.hook('close', () => { clearInterval(timer); hub.shutdown() })
+  nitro.hooks.hook('close', () => {
+    clearInterval(timer)
+    hub.shutdown()
+  })
 })

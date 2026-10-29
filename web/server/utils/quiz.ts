@@ -1,18 +1,18 @@
-export type NormalizationKind = 'exact' | 'trim' | 'trim_casefold';
+export type NormalizationKind = 'exact' | 'trim' | 'trim_casefold'
 
 /**
  * 按照题目设定的规则规范化答案文本
  */
 export function normalizeAnswer(raw: string, mode: NormalizationKind = 'trim'): string {
-  const str = String(raw ?? '');
+  const str = String(raw ?? '')
   switch (mode) {
     case 'exact':
-      return str;
+      return str
     case 'trim_casefold':
-      return str.trim().toLowerCase();
+      return str.trim().toLowerCase()
     case 'trim':
     default:
-      return str.trim();
+      return str.trim()
   }
 }
 
@@ -22,7 +22,7 @@ export function verifyQuizAnswer(
   expectedAnswer: string | null,
   mode: NormalizationKind = 'trim'
 ): boolean {
-  if (expectedAnswer === null) return false;
-  const expected = normalizeAnswer(expectedAnswer, mode);
-  return expected.length > 0 && normalizeAnswer(userAnswer, mode) === expected;
+  if (expectedAnswer === null) return false
+  const expected = normalizeAnswer(expectedAnswer, mode)
+  return expected.length > 0 && normalizeAnswer(userAnswer, mode) === expected
 }

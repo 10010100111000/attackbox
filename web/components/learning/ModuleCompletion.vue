@@ -1,24 +1,39 @@
 <script setup lang="ts">
-import {Trophy,X} from 'lucide-vue-next'
-import {DialogRoot,DialogPortal,DialogOverlay,DialogContent,DialogTitle,DialogDescription,DialogClose} from 'reka-ui'
-defineProps<{open:boolean;moduleTitle:string;moduleSlug:string;chapterCount:number}>()
-const emit=defineEmits<{'update:open':[value:boolean]}>()
+import { Trophy, X } from 'lucide-vue-next'
+import {
+  DialogRoot,
+  DialogPortal,
+  DialogOverlay,
+  DialogContent,
+  DialogTitle,
+  DialogDescription,
+  DialogClose
+} from 'reka-ui'
+defineProps<{ open: boolean; moduleTitle: string; moduleSlug: string; chapterCount: number }>()
+const emit = defineEmits<{ 'update:open': [value: boolean] }>()
 </script>
 <template>
- <DialogRoot :open="open" @update:open="emit('update:open',$event)">
-  <DialogPortal>
-   <DialogOverlay class="completion-overlay"/>
-   <DialogContent class="completion-dialog">
-    <DialogClose class="dialog-close" aria-label="关闭完成提示"><X :size="18"/></DialogClose>
-    <div class="trophy"><Trophy :size="32" :stroke-width="1.5" aria-hidden="true"/></div>
-    <span class="completion-eyebrow">MODULE COMPLETE</span>
-    <DialogTitle class="completion-title">完成了，做得好。</DialogTitle>
-    <DialogDescription class="completion-description">你已完成「{{moduleTitle}}」的全部 {{chapterCount}} 个章节。</DialogDescription>
-    <NuxtLink :to="`/learn/modules/${moduleSlug}`" class="completion-link" @click="emit('update:open',false)">返回模块</NuxtLink>
-    <DialogClose class="stay-button">留在本章</DialogClose>
-   </DialogContent>
-  </DialogPortal>
- </DialogRoot>
+  <DialogRoot :open="open" @update:open="emit('update:open', $event)">
+    <DialogPortal>
+      <DialogOverlay class="completion-overlay" />
+      <DialogContent class="completion-dialog">
+        <DialogClose class="dialog-close" aria-label="关闭完成提示"><X :size="18" /></DialogClose>
+        <div class="trophy"><Trophy :size="32" :stroke-width="1.5" aria-hidden="true" /></div>
+        <span class="completion-eyebrow">MODULE COMPLETE</span>
+        <DialogTitle class="completion-title">完成了，做得好。</DialogTitle>
+        <DialogDescription class="completion-description"
+          >你已完成「{{ moduleTitle }}」的全部 {{ chapterCount }} 个章节。</DialogDescription
+        >
+        <NuxtLink
+          :to="`/learn/modules/${moduleSlug}`"
+          class="completion-link"
+          @click="emit('update:open', false)"
+          >返回模块</NuxtLink
+        >
+        <DialogClose class="stay-button">留在本章</DialogClose>
+      </DialogContent>
+    </DialogPortal>
+  </DialogRoot>
 </template>
 <style scoped>
 .completion-overlay {
@@ -69,7 +84,9 @@ const emit=defineEmits<{'update:open':[value:boolean]}>()
 }
 
 .completion-eyebrow {
-  font: 10px ui-monospace, monospace;
+  font:
+    10px ui-monospace,
+    monospace;
   letter-spacing: 2px;
   color: var(--muted);
 }

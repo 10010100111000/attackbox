@@ -1,6 +1,6 @@
 import path from 'node:path'
 import { resolveTreeImageEntry } from '../content/github-images'
-import { and, eq, sql, inArray } from 'drizzle-orm'
+import { eq, sql, inArray } from 'drizzle-orm'
 import { createError } from 'h3'
 import MarkdownIt from 'markdown-it'
 import { db } from '../db'
@@ -14,11 +14,10 @@ import {
   questionSources,
   assets,
   chapterAssets,
-  moduleImages,
+  moduleImages
 } from '../db/schema'
-import { ContentFormatError, parseModuleMarkdown, contentMatchKey } from '../content/parse-module'
-import type { ContentImage } from '../content/parse-module'
-import { hash, storeImage } from '../content/storage'
+import { parseModuleMarkdown, contentMatchKey } from '../content/parse-module'
+import { storeImage } from '../content/storage'
 import { fetchGithubTree, fetchGithubBlob } from '../content/github'
 import type { RepositoryConfig, GithubTreeEntry } from '../content/github'
 import { pruneUnusedCategories, saveModuleInTransaction } from './content'
@@ -39,7 +38,7 @@ const mediaTypes: Record<string, string> = {
   '.jpeg': 'image/jpeg',
   '.webp': 'image/webp',
   '.gif': 'image/gif',
-  '.avif': 'image/avif',
+  '.avif': 'image/avif'
 }
 
 const mdImageParser = new MarkdownIt({ html: false })
@@ -47,14 +46,21 @@ const mdImageParser = new MarkdownIt({ html: false })
 function extractMarkdownImageSrcs(markdown: string): string[] {
   return mdImageParser
     .parse(markdown, {})
-    .flatMap(t => (t.children || []).filter(c => c.type === 'image').map(c => String(c.attrGet('src'))))
+    .flatMap(t =>
+      (t.children || []).filter(c => c.type === 'image').map(c => String(c.attrGet('src')))
+    )
 }
 
 function parseManifest(raw: string | null | undefined): ModuleGitManifest | null {
   if (!raw || !raw.startsWith('{')) return null
   try {
     const parsed = JSON.parse(raw)
-    if (parsed && typeof parsed.md === 'string' && parsed.images && typeof parsed.images === 'object') {
+    if (
+      parsed &&
+      typeof parsed.md === 'string' &&
+      parsed.images &&
+      typeof parsed.images === 'object'
+    ) {
       return parsed as ModuleGitManifest
     }
   } catch {
@@ -67,16 +73,24 @@ function originKey(config: RepositoryConfig) {
   return `github:${config.repository.toLowerCase()}:${config.directory}`
 }
 
-
-async function ensureCategoryId(tx: Tx, categories: (typeof contentCategories.$inferSelect)[], key: string | null) {
+async function ensureCategoryId(
+  tx: Tx,
+  categories: (typeof contentCategories.$inferSelect)[],
+  key: string | null
+) {
   if (!key) return null
   const existing = categories.find(c => c.slug === key || c.name === key) || null
   if (existing) return existing.id
   const candidate =
-    /^[a-z0-9]+(-[a-z0-9]+)*$/.test(key) && key.length <= 100 && !categories.some(c => c.slug === key)
+    /^[a-z0-9]+(-[a-z0-9]+)*$/.test(key) &&
+    key.length <= 100 &&
+    !categories.some(c => c.slug === key)
       ? key
       : slugFor(undefined, 'category')
-  const [created] = await tx.insert(contentCategories).values({ name: key, slug: candidate }).returning()
+  const [created] = await tx
+    .insert(contentCategories)
+    .values({ name: key, slug: candidate })
+    .returning()
   categories.push(created!)
   return created!.id
 }
@@ -94,7 +108,10 @@ function discoverMarkdownEntries(entries: GithubTreeEntry[]): GithubTreeEntry[] 
 }
 
 /** Reads Git tree metadata and computes live diff status for every module without downloading file contents. */
-export async function scanRepositoryModules(config: RepositoryConfig, token: string): Promise<RepoScanReport> {
+export async function scanRepositoryModules(
+  config: RepositoryConfig,
+  token: string
+): Promise<RepoScanReport> {
   const { commit, entries } = await fetchGithubTree(config, token)
   const blobMap = new Map(entries.filter(e => e.type === 'blob').map(e => [e.path, e]))
   const mdEntries = discoverMarkdownEntries(entries)
@@ -104,12 +121,13 @@ export async function scanRepositoryModules(config: RepositoryConfig, token: str
 
   const [mods, sources] = await Promise.all([
     db.select().from(modules),
-    db.select().from(moduleSources),
+    db.select().from(moduleSources)
   ])
 
   const repoModules: RepoModuleEntry[] = mdEntries.map(mdEntry => {
     const title = path.posix.basename(mdEntry.path, '.md').trim()
-    const folder = path.posix.dirname(mdEntry.path) === '.' ? '根目录' : path.posix.dirname(mdEntry.path)
+    const folder =
+      path.posix.dirname(mdEntry.path) === '.' ? '根目录' : path.posix.dirname(mdEntry.path)
     const matchedSource =
       sources.find(s => s.sourcePath === mdEntry.path) ||
       sources.find(s => path.posix.basename(s.sourcePath, '.md').trim() === title)
@@ -129,7 +147,7 @@ export async function scanRepositoryModules(config: RepositoryConfig, token: str
         moduleSlug: null,
         moduleStatus: null,
         syncedCommit: null,
-        syncedAt: null,
+        syncedAt: null
       }
     }
 
@@ -169,7 +187,7 @@ export async function scanRepositoryModules(config: RepositoryConfig, token: str
       moduleSlug: matchedMod.slug,
       moduleStatus: matchedMod.status,
       syncedCommit: matchedSource?.commit || null,
-      syncedAt: matchedSource?.syncedAt ? matchedSource.syncedAt.toISOString() : null,
+      syncedAt: matchedSource?.syncedAt ? matchedSource.syncedAt.toISOString() : null
     }
   })
 
@@ -178,7 +196,7 @@ export async function scanRepositoryModules(config: RepositoryConfig, token: str
     repository: config.repository,
     branch: config.branch,
     directory: config.directory,
-    modules: repoModules,
+    modules: repoModules
   }
 }
 
@@ -187,7 +205,7 @@ export async function syncRepositoryModules(
   config: RepositoryConfig,
   token: string,
   actor: string,
-  options: { sourcePath?: string; moduleId?: string; force?: boolean },
+  options: { sourcePath?: string; moduleId?: string; force?: boolean }
 ): Promise<SyncModuleResult> {
   const { commit, entries } = await fetchGithubTree(config, token)
   const blobMap = new Map(entries.filter(e => e.type === 'blob').map(e => [e.path, e]))
@@ -198,13 +216,16 @@ export async function syncRepositoryModules(
 
   const [allMods, allSources] = await Promise.all([
     db.select().from(modules),
-    db.select().from(moduleSources),
+    db.select().from(moduleSources)
   ])
 
-  let targets: GithubTreeEntry[] = []
+  let targets: GithubTreeEntry[]
   if (options.sourcePath) {
-    const target = mdEntries.find(e => e.path === options.sourcePath || path.posix.dirname(e.path) === options.sourcePath)
-    if (!target) throw createError({ statusCode: 404, message: `仓库中未找到模块: ${options.sourcePath}` })
+    const target = mdEntries.find(
+      e => e.path === options.sourcePath || path.posix.dirname(e.path) === options.sourcePath
+    )
+    if (!target)
+      throw createError({ statusCode: 404, message: `仓库中未找到模块: ${options.sourcePath}` })
     targets = [target]
   } else if (options.moduleId) {
     const mod = allMods.find(m => m.id === options.moduleId)
@@ -212,14 +233,22 @@ export async function syncRepositoryModules(
     const src = allSources.find(s => s.moduleId === mod.id)
     const target =
       (src ? mdEntries.find(e => e.path === src.sourcePath) : undefined) ||
-      mdEntries.find(e => path.posix.basename(e.path, '.md').trim().normalize('NFKC') === mod.title.normalize('NFKC'))
-    if (!target) throw createError({ statusCode: 404, message: `Git 仓库中未找到与“${mod.title}”对应的 .md 文件` })
+      mdEntries.find(
+        e =>
+          path.posix.basename(e.path, '.md').trim().normalize('NFKC') ===
+          mod.title.normalize('NFKC')
+      )
+    if (!target)
+      throw createError({
+        statusCode: 404,
+        message: `Git 仓库中未找到与“${mod.title}”对应的 .md 文件`
+      })
     targets = [target]
   } else {
     // Sync all new or modified modules
     const report = await scanRepositoryModules(config, token)
     const changedPaths = new Set(
-      report.modules.filter(m => options.force || m.status !== 'up_to_date').map(m => m.sourcePath),
+      report.modules.filter(m => options.force || m.status !== 'up_to_date').map(m => m.sourcePath)
     )
     targets = mdEntries.filter(e => changedPaths.has(e.path))
   }
@@ -256,7 +285,9 @@ export async function syncRepositoryModules(
 
     const newManifest: ModuleGitManifest = {
       md: mdEntry.sha,
-      images: Object.fromEntries([...uniqueImages.entries()].map(([href, entry]) => [href, entry.sha])),
+      images: Object.fromEntries(
+        [...uniqueImages.entries()].map(([href, entry]) => [href, entry.sha])
+      )
     }
 
     // Check existing module_images in DB so unchanged images don't need to be downloaded from GitHub
@@ -272,7 +303,9 @@ export async function syncRepositoryModules(
       oldManifest.md === newManifest.md &&
       matchedSource?.sourcePath === mdEntry.path &&
       Object.keys(newManifest.images).length === Object.keys(oldManifest.images).length &&
-      Object.entries(newManifest.images).every(([href, sha]) => oldManifest.images[href] === sha && existingHrefToAssetId.has(href))
+      Object.entries(newManifest.images).every(
+        ([href, sha]) => oldManifest.images[href] === sha && existingHrefToAssetId.has(href)
+      )
     ) {
       await db
         .update(moduleSources)
@@ -284,20 +317,22 @@ export async function syncRepositoryModules(
         sourcePath: mdEntry.path,
         action: 'unchanged',
         downloadedImages: 0,
-        reusedImages: uniqueImages.size,
+        reusedImages: uniqueImages.size
       })
       continue
     }
 
     // Differential image download: ONLY download images whose Git blob SHA changed or isn't bound yet
-    const downloadedBlobs = new Map<string, { bytes: Buffer; sha256Hex: string; mediaType: string }>()
+    const downloadedBlobs = new Map<
+      string,
+      { bytes: Buffer; sha256Hex: string; mediaType: string }
+    >()
     let downloadedImages = 0
     let reusedImages = 0
 
     for (const [href, imgEntry] of uniqueImages.entries()) {
       const canReuse =
-        oldManifest?.images?.[href] === imgEntry.sha &&
-        existingHrefToAssetId.has(href)
+        oldManifest?.images?.[href] === imgEntry.sha && existingHrefToAssetId.has(href)
       if (canReuse) {
         reusedImages++
         continue
@@ -309,7 +344,7 @@ export async function syncRepositoryModules(
         downloadedBlobs.set(imgEntry.sha, {
           bytes,
           sha256Hex,
-          mediaType: mediaTypes[ext]!,
+          mediaType: mediaTypes[ext]!
         })
         downloadedImages++
       } else {
@@ -340,13 +375,23 @@ export async function syncRepositoryModules(
         ? await tx
             .select()
             .from(chapterQuestions)
-            .where(inArray(chapterQuestions.chapterId, existingChapters.map(c => c.id)))
+            .where(
+              inArray(
+                chapterQuestions.chapterId,
+                existingChapters.map(c => c.id)
+              )
+            )
         : []
       const existingQSources = existingChapters.length
         ? await tx
             .select()
             .from(questionSources)
-            .where(inArray(questionSources.chapterId, existingChapters.map(c => c.id)))
+            .where(
+              inArray(
+                questionSources.chapterId,
+                existingChapters.map(c => c.id)
+              )
+            )
         : []
 
       const usedChapterIds = new Set<string>()
@@ -354,13 +399,17 @@ export async function syncRepositoryModules(
         const linkedChId = existingChSources.find(cs => cs.matchKey === ch.matchKey)?.chapterId
         const matchedCh =
           (linkedChId ? existingChapters.find(c => c.id === linkedChId) : undefined) ||
-          existingChapters.find(c => contentMatchKey(c.title) === ch.matchKey && !usedChapterIds.has(c.id))
+          existingChapters.find(
+            c => contentMatchKey(c.title) === ch.matchKey && !usedChapterIds.has(c.id)
+          )
         if (matchedCh) usedChapterIds.add(matchedCh.id)
 
         const usedQuestionIds = new Set<string>()
         const questionInputs = ch.questions.map(q => {
           const linkedQId = matchedCh
-            ? existingQSources.find(qs => qs.chapterId === matchedCh.id && qs.matchKey === q.matchKey)?.questionId
+            ? existingQSources.find(
+                qs => qs.chapterId === matchedCh.id && qs.matchKey === q.matchKey
+              )?.questionId
             : undefined
           const matchedQ = matchedCh
             ? (linkedQId ? existingQuestions.find(eqQ => eqQ.id === linkedQId) : undefined) ||
@@ -368,7 +417,7 @@ export async function syncRepositoryModules(
                 eqQ =>
                   eqQ.chapterId === matchedCh.id &&
                   contentMatchKey(eqQ.promptMarkdown) === q.matchKey &&
-                  !usedQuestionIds.has(eqQ.id),
+                  !usedQuestionIds.has(eqQ.id)
               )
             : undefined
           if (matchedQ) usedQuestionIds.add(matchedQ.id)
@@ -377,7 +426,7 @@ export async function syncRepositoryModules(
             promptMarkdown: q.promptMarkdown,
             answer: q.answer,
             normalization: q.normalization,
-            errorHint: q.errorHint,
+            errorHint: q.errorHint
           }
         })
 
@@ -387,7 +436,7 @@ export async function syncRepositoryModules(
           access: ch.access,
           durationMinutes: ch.durationMinutes,
           bodyMarkdown: ch.bodyMarkdown,
-          questions: questionInputs,
+          questions: questionInputs
         }
       })
 
@@ -399,7 +448,7 @@ export async function syncRepositoryModules(
         difficulty: parsed.difficulty,
         categoryId,
         lockVersion: existingMod?.lockVersion,
-        chapters: chapterInputs,
+        chapters: chapterInputs
       }
 
       const saved = await saveModuleInTransaction(tx, existingMod?.id || null, actor, input)
@@ -412,7 +461,8 @@ export async function syncRepositoryModules(
       const assetMap = new Map<string, string>()
       const pendingStorageKeyToEntry = new Map<string, GithubTreeEntry>()
       for (const [href, imgEntry] of uniqueImages.entries()) {
-        const reusedId = oldManifest?.images?.[href] === imgEntry.sha ? existingHrefToAssetId.get(href) : undefined
+        const reusedId =
+          oldManifest?.images?.[href] === imgEntry.sha ? existingHrefToAssetId.get(href) : undefined
         if (reusedId) {
           assetMap.set(href, reusedId)
         } else {
@@ -425,7 +475,10 @@ export async function syncRepositoryModules(
 
       if (pendingStorageKeyToEntry.size > 0) {
         const storageKeys = [...pendingStorageKeyToEntry.keys()]
-        const foundAssets = await tx.select().from(assets).where(inArray(assets.storageKey, storageKeys))
+        const foundAssets = await tx
+          .select()
+          .from(assets)
+          .where(inArray(assets.storageKey, storageKeys))
         const storageKeyToAssetId = new Map(foundAssets.map(a => [a.storageKey, a.id]))
         const missingAssetRows: (typeof assets.$inferInsert)[] = []
         for (const [storageKey, imgEntry] of pendingStorageKeyToEntry.entries()) {
@@ -438,7 +491,7 @@ export async function syncRepositoryModules(
               byteSize: blob.bytes.length,
               sha256: Buffer.from(blob.sha256Hex, 'hex'),
               visibility: 'private',
-              uploadedBy: actor,
+              uploadedBy: actor
             })
           }
         }
@@ -462,7 +515,7 @@ export async function syncRepositoryModules(
           moduleId,
           href,
           assetId: assetMap.get(href)!,
-          public: descriptionImages.has(href) || href === parsed.cover,
+          public: descriptionImages.has(href) || href === parsed.cover
         })
       }
       if (moduleImageRows.length > 0) {
@@ -481,10 +534,13 @@ export async function syncRepositoryModules(
         await tx.delete(chapterAssets).where(inArray(chapterAssets.chapterId, storedChapterIds))
       }
       const allStoredQuestions = storedChapterIds.length
-        ? await tx.select().from(chapterQuestions).where(inArray(chapterQuestions.chapterId, storedChapterIds))
+        ? await tx
+            .select()
+            .from(chapterQuestions)
+            .where(inArray(chapterQuestions.chapterId, storedChapterIds))
         : []
       const questionsByChapterAndPos = new Map(
-        allStoredQuestions.map(q => [`${q.chapterId}:${q.position}`, q.id]),
+        allStoredQuestions.map(q => [`${q.chapterId}:${q.position}`, q.id])
       )
 
       const chapterSourceRows: (typeof chapterSources.$inferInsert)[] = []
@@ -498,11 +554,13 @@ export async function syncRepositoryModules(
           questionSourceRows.push({
             questionId: questionsByChapterAndPos.get(`${stored.id}:${index + 1}`)!,
             chapterId: stored.id,
-            matchKey: q.matchKey,
+            matchKey: q.matchKey
           })
         }
         const refs = chapterImageRefsByPos.get(ch.position) ?? new Set<string>()
-        for (const assetId of new Set([...refs].map(h => assetMap.get(h)).filter((id): id is string => !!id))) {
+        for (const assetId of new Set(
+          [...refs].map(h => assetMap.get(h)).filter((id): id is string => !!id)
+        )) {
           chapterAssetRows.push({ chapterId: stored.id, assetId })
         }
       }
@@ -524,7 +582,7 @@ export async function syncRepositoryModules(
           origin,
           sourcePath: mdEntry.path,
           sourceHash: JSON.stringify(newManifest),
-          commit,
+          commit
         })
         .onConflictDoUpdate({
           target: moduleSources.moduleId,
@@ -533,8 +591,8 @@ export async function syncRepositoryModules(
             sourcePath: mdEntry.path,
             sourceHash: JSON.stringify(newManifest),
             commit,
-            syncedAt: new Date(),
-          },
+            syncedAt: new Date()
+          }
         })
 
       await pruneUnusedCategories(tx)
@@ -547,7 +605,7 @@ export async function syncRepositoryModules(
       sourcePath: mdEntry.path,
       action: existingMod ? 'updated' : 'created',
       downloadedImages,
-      reusedImages,
+      reusedImages
     })
   }
 

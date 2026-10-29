@@ -12,7 +12,7 @@ const routeId = String(useRoute().params.id)
 
 const { data, error } = await useFetch<{ data: LearningRoute }>(`/api/routes/${routeId}`, {
   key: `learning:route:${routeId}`,
-  watch: [learner],
+  watch: [learner]
 })
 
 const route = computed(() => data.value?.data)
@@ -24,7 +24,7 @@ const next = computed(
 
 useHead(() => ({
   title: route.value ? `${route.value.title} — AttackBox` : '学习路线 — AttackBox',
-  meta: [{ name: 'description', content: route.value?.summary || '按推荐顺序学习相关模块。' }],
+  meta: [{ name: 'description', content: route.value?.summary || '按推荐顺序学习相关模块。' }]
 }))
 </script>
 
@@ -80,7 +80,9 @@ useHead(() => ({
         >
           <span class="number">
             <CheckCircle2
-              v-if="currentUser && item.chapterCount > 0 && item.completedChapters === item.chapterCount"
+              v-if="
+                currentUser && item.chapterCount > 0 && item.completedChapters === item.chapterCount
+              "
               :size="22"
               aria-hidden="true"
             />
@@ -174,7 +176,9 @@ h1 {
   padding: 12px 22px;
   font-size: 13px;
   font-weight: 600;
-  transition: transform 0.16s ease, background 0.16s ease;
+  transition:
+    transform 0.16s ease,
+    background 0.16s ease;
 }
 
 .cta:hover {
@@ -203,7 +207,9 @@ h1 {
 .number {
   width: 42px;
   color: var(--green);
-  font: 22px ui-monospace, monospace;
+  font:
+    22px ui-monospace,
+    monospace;
   flex-shrink: 0;
 }
 

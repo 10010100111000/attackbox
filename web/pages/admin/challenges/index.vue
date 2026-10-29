@@ -1,41 +1,53 @@
 <script setup lang="ts">
-const confirmAction = useConfirm()
 import { ref, computed } from 'vue'
 import { Plus, Search } from 'lucide-vue-next'
 import type { ChallengeSummary } from '~/shared/challenges'
+const confirmAction = useConfirm()
 
 definePageMeta({ layout: 'admin' })
 useHead({ title: '挑战管理 — AttackBox' })
 
-const { data, pending, error, refresh } = await useLazyFetch<{ data: ChallengeSummary[] }>('/api/admin/challenges', {
-  key: 'admin:challenges',
-})
+const { data, pending, error, refresh } = await useLazyFetch<{ data: ChallengeSummary[] }>(
+  '/api/admin/challenges',
+  {
+    key: 'admin:challenges'
+  }
+)
 
 const query = ref('')
 const notice = ref('')
 const deleting = ref('')
 
-const rows = computed(() =>
-  data.value?.data.filter(c =>
-    `${c.title} ${c.category}`.toLowerCase().includes(query.value.toLowerCase())
-  ) || []
+const rows = computed(
+  () =>
+    data.value?.data.filter(c =>
+      `${c.title} ${c.category}`.toLowerCase().includes(query.value.toLowerCase())
+    ) || []
 )
 
 async function remove(c: ChallengeSummary) {
   if (deleting.value) return
-  if (!(await confirmAction({title:'删除挑战？',description:`“${c.title}”及其阶段完成记录将被永久删除。`,confirmLabel:'删除挑战'}))) return
+  if (
+    !(await confirmAction({
+      title: '删除挑战？',
+      description: `“${c.title}”及其阶段完成记录将被永久删除。`,
+      confirmLabel: '删除挑战'
+    }))
+  )
+    return
   deleting.value = c.id
   notice.value = ''
   try {
     await $fetch(`/api/admin/challenges/${c.id}`, {
       method: 'DELETE',
-      body: { lockVersion: c.lockVersion },
+      body: { lockVersion: c.lockVersion }
     })
     await refresh()
   } catch (e: any) {
     notice.value = e?.data?.message || '删除失败'
+  } finally {
+    deleting.value = ''
   }
-  finally { deleting.value = '' }
 }
 </script>
 
@@ -114,4 +126,3 @@ async function remove(c: ChallengeSummary) {
     </div>
   </div>
 </template>
-

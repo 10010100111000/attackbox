@@ -12,9 +12,7 @@ definePageMeta({
 
 useHead({
   title: '学习 — AttackBox',
-  meta: [
-    { name: 'description', content: '选择一个模块开始，或沿着学习路线循序渐进。' }
-  ]
+  meta: [{ name: 'description', content: '选择一个模块开始，或沿着学习路线循序渐进。' }]
 })
 
 interface ModuleItem {
@@ -32,38 +30,83 @@ interface ModuleItem {
   chapterCount: number
 }
 
-const { data: routeResponse, pending: routesPending, error: routesError, refresh: refreshRoutes } = useCatalogData<{data:{id:string;title:string;summary:string;moduleCount:number}[]}>('learning:catalog:routes', '/api/routes')
+const {
+  data: routeResponse,
+  pending: routesPending,
+  error: routesError,
+  refresh: refreshRoutes
+} = useCatalogData<{ data: { id: string; title: string; summary: string; moduleCount: number }[] }>(
+  'learning:catalog:routes',
+  '/api/routes'
+)
 const { currentUser } = useAuth()
 const learnerId = computed(() => currentUser.value?.id || '')
-const { data: historyResponse } = useLazyFetch<{ data: LearningHistoryItem[] }>('/api/me/learning', { key: 'learning:history', watch: [learnerId], immediate: !!learnerId.value })
-const recentLearning = computed(() => learnerId.value ? historyResponse.value?.data?.find(item => !item.progress.isCompleted) || null : null)
-const { data: response, pending, error, refresh } = useCatalogData<{ ok: boolean; data: ModuleItem[] }>('learning:catalog:modules', '/api/modules')
+const { data: historyResponse } = useLazyFetch<{ data: LearningHistoryItem[] }>(
+  '/api/me/learning',
+  { key: 'learning:history', watch: [learnerId], immediate: !!learnerId.value }
+)
+const recentLearning = computed(() =>
+  learnerId.value
+    ? historyResponse.value?.data?.find(item => !item.progress.isCompleted) || null
+    : null
+)
+const {
+  data: response,
+  pending,
+  error,
+  refresh
+} = useCatalogData<{ ok: boolean; data: ModuleItem[] }>('learning:catalog:modules', '/api/modules')
 
 const modules = computed<ModuleItem[]>(() => {
   return response.value?.data || []
 })
 
-const { data: homeResponse, pending: homePending } = useCatalogData<{ data: Omit<import('~/shared/learn-home').LearnHome,'lockVersion'> }>('learning:catalog:home', '/api/learn-home')
+const { data: homeResponse, pending: homePending } = useCatalogData<{
+  data: Omit<import('~/shared/learn-home').LearnHome, 'lockVersion'>
+}>('learning:catalog:home', '/api/learn-home')
 
 const activeTab = ref<'modules' | 'paths'>(useRoute().query.tab === 'routes' ? 'paths' : 'modules')
 const selectedCategory = ref('全部模块')
 const searchQuery = ref('')
 const difficulty = ref('')
 const sortBy = ref('published')
-const historyByModule = computed(() => new Map((learnerId.value ? historyResponse.value?.data || [] : []).map(item => [item.moduleId, item.progress])))
+const historyByModule = computed(
+  () =>
+    new Map(
+      (learnerId.value ? historyResponse.value?.data || [] : []).map(item => [
+        item.moduleId,
+        item.progress
+      ])
+    )
+)
 const failedCovers = ref(new Set<string>())
 
-const categories = computed(() => ['全部模块', ...new Set(modules.value.flatMap(m => m.category ? [m.category.name] : []))])
-watch(categories, values => { if (!values.includes(selectedCategory.value)) selectedCategory.value = '全部模块' })
-const hasFilters = computed(() => !!searchQuery.value || !!difficulty.value || selectedCategory.value !== '全部模块')
-function resetFilters() { searchQuery.value = ''; difficulty.value = ''; selectedCategory.value = '全部模块' }
+const categories = computed(() => [
+  '全部模块',
+  ...new Set(modules.value.flatMap(m => (m.category ? [m.category.name] : [])))
+])
+watch(categories, values => {
+  if (!values.includes(selectedCategory.value)) selectedCategory.value = '全部模块'
+})
+const hasFilters = computed(
+  () => !!searchQuery.value || !!difficulty.value || selectedCategory.value !== '全部模块'
+)
+function resetFilters() {
+  searchQuery.value = ''
+  difficulty.value = ''
+  selectedCategory.value = '全部模块'
+}
 
 function difficultyToLabel(diff: string): string {
   switch (diff) {
-    case 'beginner': return '基础入门'
-    case 'intermediate': return '中级进阶'
-    case 'advanced': return '高阶实战'
-    default: return '学习模块'
+    case 'beginner':
+      return '基础入门'
+    case 'intermediate':
+      return '中级进阶'
+    case 'advanced':
+      return '高阶实战'
+    default:
+      return '学习模块'
   }
 }
 
@@ -77,7 +120,12 @@ const filteredModules = computed(() => {
   }
 
   if (difficulty.value) list = list.filter(m => m.difficulty === difficulty.value)
-  list = [...list].sort((a,b) => (sortBy.value === 'updated' ? b.updatedAt.localeCompare(a.updatedAt) : b.publishedAt.localeCompare(a.publishedAt)) || a.id.localeCompare(b.id))
+  list = [...list].sort(
+    (a, b) =>
+      (sortBy.value === 'updated'
+        ? b.updatedAt.localeCompare(a.updatedAt)
+        : b.publishedAt.localeCompare(a.publishedAt)) || a.id.localeCompare(b.id)
+  )
   const query = searchQuery.value.trim().toLowerCase()
   if (query) {
     list = list.filter(m => {
@@ -96,27 +144,32 @@ const filteredModules = computed(() => {
 // 与 landing.vue 卡片完全同源的低饱和度暗调微光主题 (克制、内敛、耐看)
 const artThemes = [
   {
-    gradient: 'radial-gradient(ellipse at 65% 25%, rgba(163, 107, 66, 0.20), transparent 68%), linear-gradient(180deg, rgba(216, 165, 123, 0.06), transparent)',
+    gradient:
+      'radial-gradient(ellipse at 65% 25%, rgba(163, 107, 66, 0.20), transparent 68%), linear-gradient(180deg, rgba(216, 165, 123, 0.06), transparent)',
     border: 'rgba(216, 165, 123, 0.22)',
     type: 'radar'
   },
   {
-    gradient: 'radial-gradient(ellipse at 65% 25%, rgba(110, 135, 160, 0.18), transparent 68%), linear-gradient(180deg, rgba(154, 176, 199, 0.06), transparent)',
+    gradient:
+      'radial-gradient(ellipse at 65% 25%, rgba(110, 135, 160, 0.18), transparent 68%), linear-gradient(180deg, rgba(154, 176, 199, 0.06), transparent)',
     border: 'rgba(154, 176, 199, 0.22)',
     type: 'grid'
   },
   {
-    gradient: 'radial-gradient(ellipse at 65% 25%, rgba(175, 110, 108, 0.18), transparent 68%), linear-gradient(180deg, rgba(211, 145, 143, 0.06), transparent)',
+    gradient:
+      'radial-gradient(ellipse at 65% 25%, rgba(175, 110, 108, 0.18), transparent 68%), linear-gradient(180deg, rgba(211, 145, 143, 0.06), transparent)',
     border: 'rgba(211, 145, 143, 0.22)',
     type: 'waves'
   },
   {
-    gradient: 'radial-gradient(ellipse at 65% 25%, rgba(69, 119, 120, 0.19), transparent 68%), linear-gradient(180deg, rgba(135, 184, 177, 0.06), transparent)',
+    gradient:
+      'radial-gradient(ellipse at 65% 25%, rgba(69, 119, 120, 0.19), transparent 68%), linear-gradient(180deg, rgba(135, 184, 177, 0.06), transparent)',
     border: 'rgba(135, 184, 177, 0.22)',
     type: 'nodes'
   },
   {
-    gradient: 'radial-gradient(ellipse at 65% 25%, rgba(130, 115, 155, 0.17), transparent 68%), linear-gradient(180deg, rgba(182, 156, 219, 0.05), transparent)',
+    gradient:
+      'radial-gradient(ellipse at 65% 25%, rgba(130, 115, 155, 0.17), transparent 68%), linear-gradient(180deg, rgba(182, 156, 219, 0.05), transparent)',
     border: 'rgba(182, 156, 219, 0.20)',
     type: 'rings'
   }
@@ -125,17 +178,40 @@ const artThemes = [
 function getModuleTheme(index: number) {
   return artThemes[index % artThemes.length]
 }
-
 </script>
 
 <template>
   <div class="learn-page">
     <div class="learning-shell learn-container">
-      <div v-if="homePending && !homeResponse" class="home-placeholder" aria-hidden="true"/>
-      <LearningHomeCarousel v-if="homeResponse?.data.enabled" :slides="homeResponse.data.slides" :autoplay="homeResponse.data.autoplay" :interval-seconds="homeResponse.data.intervalSeconds" />
+      <div v-if="homePending && !homeResponse" class="home-placeholder" aria-hidden="true" />
+      <LearningHomeCarousel
+        v-if="homeResponse?.data.enabled"
+        :slides="homeResponse.data.slides"
+        :autoplay="homeResponse.data.autoplay"
+        :interval-seconds="homeResponse.data.intervalSeconds"
+      />
 
-      <NuxtLink v-if="recentLearning && activeTab === 'modules'" :to="`/learn/modules/${recentLearning.slug}/${recentLearning.progress.resumeChapterSlug}`" class="recent-learning">
-        <div class="recent-copy"><span class="recent-label">继续学习</span><h2>{{ recentLearning.title }}</h2><p>{{ recentLearning.chapterTitle }}</p><div class="recent-progress" :aria-label="`已完成 ${recentLearning.progress.completedChapters} / ${recentLearning.progress.totalChapters} 章节`"><span :style="{ width: `${recentLearning.progress.percent}%` }" /></div><span class="recent-count">已完成 {{ recentLearning.progress.completedChapters }} / {{ recentLearning.progress.totalChapters }} 章节</span></div><span class="resume-action">继续学习</span>
+      <NuxtLink
+        v-if="recentLearning && activeTab === 'modules'"
+        :to="`/learn/modules/${recentLearning.slug}/${recentLearning.progress.resumeChapterSlug}`"
+        class="recent-learning"
+      >
+        <div class="recent-copy">
+          <span class="recent-label">继续学习</span>
+          <h2>{{ recentLearning.title }}</h2>
+          <p>{{ recentLearning.chapterTitle }}</p>
+          <div
+            class="recent-progress"
+            :aria-label="`已完成 ${recentLearning.progress.completedChapters} / ${recentLearning.progress.totalChapters} 章节`"
+          >
+            <span :style="{ width: `${recentLearning.progress.percent}%` }" />
+          </div>
+          <span class="recent-count"
+            >已完成 {{ recentLearning.progress.completedChapters }} /
+            {{ recentLearning.progress.totalChapters }} 章节</span
+          >
+        </div>
+        <span class="resume-action">继续学习</span>
       </NuxtLink>
       <!-- 二级标签栏 (学习模块 / 学习路线) -->
       <div class="page-tabs" role="tablist" aria-label="学习导航">
@@ -183,7 +259,22 @@ function getModuleTheme(index: number) {
           />
         </div>
 
-        <div class="discovery-controls"><span>{{ filteredModules.length }} 个模块</span><label>难度<select v-model="difficulty" aria-label="筛选难度"><option value="">全部难度</option><option value="beginner">基础入门</option><option value="intermediate">中级进阶</option><option value="advanced">高阶实战</option></select></label><label>排序<select v-model="sortBy" aria-label="模块排序"><option value="published">最新发布</option><option value="updated">最近更新</option></select></label></div>
+        <div class="discovery-controls">
+          <span>{{ filteredModules.length }} 个模块</span
+          ><label
+            >难度<select v-model="difficulty" aria-label="筛选难度">
+              <option value="">全部难度</option>
+              <option value="beginner">基础入门</option>
+              <option value="intermediate">中级进阶</option>
+              <option value="advanced">高阶实战</option>
+            </select></label
+          ><label
+            >排序<select v-model="sortBy" aria-label="模块排序">
+              <option value="published">最新发布</option>
+              <option value="updated">最近更新</option>
+            </select></label
+          >
+        </div>
         <!-- 加载状态 -->
         <LearningCatalogSkeleton v-if="pending && !response" label="正在读取学习模块" />
 
@@ -198,47 +289,136 @@ function getModuleTheme(index: number) {
           <NuxtLink
             v-for="(mod, index) in filteredModules"
             :key="mod.id"
-            :to="historyByModule.get(mod.id)?.resumeChapterSlug && !historyByModule.get(mod.id)?.isCompleted ? `/learn/modules/${mod.slug}/${historyByModule.get(mod.id)?.resumeChapterSlug}` : `/learn/modules/${mod.slug}`"
+            :to="
+              historyByModule.get(mod.id)?.resumeChapterSlug &&
+              !historyByModule.get(mod.id)?.isCompleted
+                ? `/learn/modules/${mod.slug}/${historyByModule.get(mod.id)?.resumeChapterSlug}`
+                : `/learn/modules/${mod.slug}`
+            "
             class="card"
           >
             <!-- 生成式渐变艺术区与微几何图腾 (保留发散设计) -->
-            <div
-              class="card-art"
-              :style="{ background: getModuleTheme(index).gradient }"
-            >
+            <div class="card-art" :style="{ background: getModuleTheme(index).gradient }">
               <!-- 几何 SVG 图腾 -->
-              <img v-if="mod.coverAssetId && !failedCovers.has(mod.id)" :src="`/api/modules/${mod.slug}/assets/${mod.coverAssetId}`" alt="" class="module-cover" loading="lazy" @error="failedCovers.add(mod.id)"/><svg v-else class="art-svg" viewBox="0 0 100 60" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+              <img
+                v-if="mod.coverAssetId && !failedCovers.has(mod.id)"
+                :src="`/api/modules/${mod.slug}/assets/${mod.coverAssetId}`"
+                alt=""
+                class="module-cover"
+                loading="lazy"
+                @error="failedCovers.add(mod.id)"
+              /><svg
+                v-else
+                class="art-svg"
+                viewBox="0 0 100 60"
+                fill="none"
+                xmlns="http://www.w3.org/2000/svg"
+                aria-hidden="true"
+              >
                 <!-- 节点网络 -->
                 <template v-if="getModuleTheme(index).type === 'nodes'">
                   <circle cx="20" cy="30" r="3" fill="currentColor" fill-opacity="0.3" />
                   <circle cx="50" cy="18" r="4" fill="currentColor" fill-opacity="0.4" />
                   <circle cx="80" cy="36" r="3" fill="currentColor" fill-opacity="0.3" />
                   <circle cx="45" cy="46" r="2.5" fill="currentColor" fill-opacity="0.25" />
-                  <line x1="20" y1="30" x2="50" y2="18" stroke="currentColor" stroke-opacity="0.25" stroke-dasharray="2 2" />
-                  <line x1="50" y1="18" x2="80" y2="36" stroke="currentColor" stroke-opacity="0.25" />
-                  <line x1="20" y1="30" x2="45" y2="46" stroke="currentColor" stroke-opacity="0.2" />
+                  <line
+                    x1="20"
+                    y1="30"
+                    x2="50"
+                    y2="18"
+                    stroke="currentColor"
+                    stroke-opacity="0.25"
+                    stroke-dasharray="2 2"
+                  />
+                  <line
+                    x1="50"
+                    y1="18"
+                    x2="80"
+                    y2="36"
+                    stroke="currentColor"
+                    stroke-opacity="0.25"
+                  />
+                  <line
+                    x1="20"
+                    y1="30"
+                    x2="45"
+                    y2="46"
+                    stroke="currentColor"
+                    stroke-opacity="0.2"
+                  />
                 </template>
 
                 <!-- 雷达波同心弧 -->
-                <template v-else-if="getModuleTheme(index).type === 'radar' || getModuleTheme(index).type === 'rings'">
-                  <circle cx="85" cy="55" r="22" stroke="currentColor" stroke-opacity="0.2" stroke-width="1.2" />
-                  <circle cx="85" cy="55" r="44" stroke="currentColor" stroke-opacity="0.15" stroke-dasharray="3 3" />
+                <template
+                  v-else-if="
+                    getModuleTheme(index).type === 'radar' || getModuleTheme(index).type === 'rings'
+                  "
+                >
+                  <circle
+                    cx="85"
+                    cy="55"
+                    r="22"
+                    stroke="currentColor"
+                    stroke-opacity="0.2"
+                    stroke-width="1.2"
+                  />
+                  <circle
+                    cx="85"
+                    cy="55"
+                    r="44"
+                    stroke="currentColor"
+                    stroke-opacity="0.15"
+                    stroke-dasharray="3 3"
+                  />
                   <circle cx="85" cy="55" r="66" stroke="currentColor" stroke-opacity="0.1" />
-                  <line x1="85" y1="55" x2="45" y2="20" stroke="currentColor" stroke-opacity="0.2" />
+                  <line
+                    x1="85"
+                    y1="55"
+                    x2="45"
+                    y2="20"
+                    stroke="currentColor"
+                    stroke-opacity="0.2"
+                  />
                 </template>
 
                 <!-- 网格线框 -->
                 <template v-else-if="getModuleTheme(index).type === 'grid'">
-                  <path d="M10 15L90 15M10 30L90 30M10 45L90 45" stroke="currentColor" stroke-opacity="0.15" stroke-width="1" />
-                  <path d="M25 5L25 55M50 5L50 55M75 5L75 55" stroke="currentColor" stroke-opacity="0.15" stroke-width="1" />
+                  <path
+                    d="M10 15L90 15M10 30L90 30M10 45L90 45"
+                    stroke="currentColor"
+                    stroke-opacity="0.15"
+                    stroke-width="1"
+                  />
+                  <path
+                    d="M25 5L25 55M50 5L50 55M75 5L75 55"
+                    stroke="currentColor"
+                    stroke-opacity="0.15"
+                    stroke-width="1"
+                  />
                   <circle cx="50" cy="30" r="3" fill="currentColor" fill-opacity="0.4" />
                 </template>
 
                 <!-- 拓扑等高波纹 -->
                 <template v-else>
-                  <path d="M10 45C30 35 45 50 65 38C75 32 85 40 90 35" stroke="currentColor" stroke-opacity="0.25" stroke-width="1.5" />
-                  <path d="M10 30C28 20 48 35 68 22C78 16 85 24 90 20" stroke="currentColor" stroke-opacity="0.18" stroke-width="1.2" stroke-dasharray="2 2" />
-                  <path d="M10 18C32 10 50 22 70 12C80 8 85 14 90 10" stroke="currentColor" stroke-opacity="0.1" stroke-width="1" />
+                  <path
+                    d="M10 45C30 35 45 50 65 38C75 32 85 40 90 35"
+                    stroke="currentColor"
+                    stroke-opacity="0.25"
+                    stroke-width="1.5"
+                  />
+                  <path
+                    d="M10 30C28 20 48 35 68 22C78 16 85 24 90 20"
+                    stroke="currentColor"
+                    stroke-opacity="0.18"
+                    stroke-width="1.2"
+                    stroke-dasharray="2 2"
+                  />
+                  <path
+                    d="M10 18C32 10 50 22 70 12C80 8 85 14 90 10"
+                    stroke="currentColor"
+                    stroke-opacity="0.1"
+                    stroke-width="1"
+                  />
                 </template>
               </svg>
 
@@ -250,18 +430,30 @@ function getModuleTheme(index: number) {
 
             <!-- 卡片主体 -->
             <div class="card-body">
-              <span class="tag" :class="mod.difficulty">{{ difficultyToLabel(mod.difficulty) }}</span>
+              <span class="tag" :class="mod.difficulty">{{
+                difficultyToLabel(mod.difficulty)
+              }}</span>
               <h2 class="card-title">{{ mod.title }}</h2>
               <p v-if="mod.summary" class="card-desc">{{ mod.summary }}</p>
 
               <div class="card-meta">
                 <span>{{ mod.chapterCount }} 章节</span>
-                <span v-if="mod.category">{{ mod.category.name }}</span><span v-if="mod.durationMinutes">约 {{ mod.durationMinutes }} 分钟</span>
+                <span v-if="mod.category">{{ mod.category.name }}</span
+                ><span v-if="mod.durationMinutes">约 {{ mod.durationMinutes }} 分钟</span>
               </div>
 
               <!-- 卡片底栏 (保持克制，去除多余 ↗ 箭头) -->
               <div class="card-bottom">
-                <span class="status-action">{{ historyByModule.get(mod.id)?.isCompleted ? '再次阅读' : historyByModule.has(mod.id) ? '继续学习' : '查看模块' }}</span><span v-if="historyByModule.has(mod.id)" class="status-label">{{ historyByModule.get(mod.id)?.percent }}%</span>
+                <span class="status-action">{{
+                  historyByModule.get(mod.id)?.isCompleted
+                    ? '再次阅读'
+                    : historyByModule.has(mod.id)
+                      ? '继续学习'
+                      : '查看模块'
+                }}</span
+                ><span v-if="historyByModule.has(mod.id)" class="status-label"
+                  >{{ historyByModule.get(mod.id)?.percent }}%</span
+                >
               </div>
             </div>
           </NuxtLink>
@@ -269,7 +461,17 @@ function getModuleTheme(index: number) {
 
         <!-- 空搜索结果 -->
         <div v-else class="empty-notice">
-          <BookOpen :size="28" class="empty-doodle" aria-hidden="true"/><p>{{ hasFilters ? '没找到合适的模块，换个方向试试？' : '这里还很安静。模块发布后，就会出现在这里。' }}</p><button v-if="hasFilters" type="button" class="filter-btn" @click="resetFilters">清除筛选</button>
+          <BookOpen :size="28" class="empty-doodle" aria-hidden="true" />
+          <p>
+            {{
+              hasFilters
+                ? '没找到合适的模块，换个方向试试？'
+                : '这里还很安静。模块发布后，就会出现在这里。'
+            }}
+          </p>
+          <button v-if="hasFilters" type="button" class="filter-btn" @click="resetFilters">
+            清除筛选
+          </button>
         </div>
       </div>
 
@@ -278,15 +480,30 @@ function getModuleTheme(index: number) {
         <LearningCatalogSkeleton v-if="routesPending && !routeResponse" label="正在读取学习路线" />
         <div v-else-if="routesError" class="state-panel error">
           <p>学习路线加载失败，请稍后重试。</p>
-          <button type="button" class="btn secondary" @click="() => refreshRoutes()">重新加载</button>
+          <button type="button" class="btn secondary" @click="() => refreshRoutes()">
+            重新加载
+          </button>
         </div>
-        <div v-else-if="routeResponse?.data.length" class="published-routes"><NuxtLink v-for="item in routeResponse.data" :key="item.id" :to="`/learn/routes/${item.id}`" class="published-route"><span>{{item.moduleCount}} 个模块</span><h2>{{item.title}}</h2><p>{{item.summary}}</p><ArrowRight :size="18" aria-hidden="true" /></NuxtLink></div><div v-else class="empty-notice"><BookOpen :size="24" aria-hidden="true"/><p>暂时没有已发布的路线。</p></div>
+        <div v-else-if="routeResponse?.data.length" class="published-routes">
+          <NuxtLink
+            v-for="item in routeResponse.data"
+            :key="item.id"
+            :to="`/learn/routes/${item.id}`"
+            class="published-route"
+            ><span>{{ item.moduleCount }} 个模块</span>
+            <h2>{{ item.title }}</h2>
+            <p>{{ item.summary }}</p>
+            <ArrowRight :size="18" aria-hidden="true"
+          /></NuxtLink>
+        </div>
+        <div v-else class="empty-notice">
+          <BookOpen :size="24" aria-hidden="true" />
+          <p>暂时没有已发布的路线。</p>
+        </div>
       </div>
 
       <!-- 短页靠底，长页随正文排列 -->
-      <footer class="footer-tagline">
-        LEARN WITH INTENTION. BUILD WITH CONFIDENCE.
-      </footer>
+      <footer class="footer-tagline">LEARN WITH INTENTION. BUILD WITH CONFIDENCE.</footer>
     </div>
   </div>
 </template>
@@ -312,7 +529,10 @@ function getModuleTheme(index: number) {
 }
 
 .art-index-pill {
-  transition: transform 0.18s ease, border-color 0.18s ease, color 0.18s ease;
+  transition:
+    transform 0.18s ease,
+    border-color 0.18s ease,
+    color 0.18s ease;
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
   font-size: 11px;
   color: var(--muted);
@@ -380,7 +600,9 @@ function getModuleTheme(index: number) {
   box-shadow: var(--surface-highlight);
   color: var(--ink);
   text-decoration: none;
-  transition: transform 0.18s ease, border-color 0.18s ease;
+  transition:
+    transform 0.18s ease,
+    border-color 0.18s ease;
 }
 
 .recent-learning:hover {
@@ -401,7 +623,7 @@ function getModuleTheme(index: number) {
   flex: 1;
   min-width: 0;
   display: grid;
-  grid-template-columns: minmax(0,1fr) 140px;
+  grid-template-columns: minmax(0, 1fr) 140px;
   column-gap: 20px;
 }
 
@@ -595,7 +817,10 @@ function getModuleTheme(index: number) {
   display: flex;
   flex-direction: column;
   animation: surface-rise 0.28s cubic-bezier(0.22, 1, 0.36, 1) both;
-  transition: transform 0.22s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.22s ease, border-color 0.22s ease;
+  transition:
+    transform 0.22s cubic-bezier(0.22, 1, 0.36, 1),
+    box-shadow 0.22s ease,
+    border-color 0.22s ease;
 }
 
 .card:hover {
@@ -740,7 +965,9 @@ function getModuleTheme(index: number) {
   border-radius: 10px;
   color: var(--ink);
   text-decoration: none;
-  transition: border-color 0.15s ease, transform 0.15s ease;
+  transition:
+    border-color 0.15s ease,
+    transform 0.15s ease;
 }
 
 .published-route:hover {

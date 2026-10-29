@@ -2,12 +2,7 @@ import type { Config } from 'tailwindcss'
 
 export default {
   darkMode: ['class', '[data-theme="midnight"]'],
-  content: [
-    './components/**/*.{vue,ts}',
-    './layouts/**/*.vue',
-    './pages/**/*.vue',
-    './app.vue'
-  ],
+  content: ['./components/**/*.{vue,ts}', './layouts/**/*.vue', './pages/**/*.vue', './app.vue'],
   theme: {
     extend: {
       colors: {
@@ -23,7 +18,7 @@ export default {
         accent: {
           DEFAULT: 'var(--accent-coral)',
           hover: 'var(--accent-hover)',
-          foreground: 'var(--text-on-accent)',
+          foreground: 'var(--text-on-accent)'
         },
         error: 'var(--color-error)'
       },
@@ -34,7 +29,14 @@ export default {
         xl: 'var(--radius-xl)'
       },
       fontFamily: {
-        sans: ['-apple-system', 'BlinkMacSystemFont', '"Segoe UI"', '"PingFang SC"', '"Microsoft Yahei"', 'sans-serif'],
+        sans: [
+          '-apple-system',
+          'BlinkMacSystemFont',
+          '"Segoe UI"',
+          '"PingFang SC"',
+          '"Microsoft Yahei"',
+          'sans-serif'
+        ],
         mono: ['"SFMono-Regular"', 'Consolas', 'monospace']
       },
       backgroundImage: {

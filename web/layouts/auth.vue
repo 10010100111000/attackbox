@@ -6,7 +6,7 @@
           <img src="/logo.png" alt="AttackBox Logo" class="brand-logo" width="31" height="31" />
           <span>AttackBox</span>
         </NuxtLink>
-        <UserMenu/>
+        <UserMenu />
       </header>
 
       <slot />
@@ -21,7 +21,8 @@
 <style scoped>
 .auth-layout {
   min-height: 100svh;
-  background: radial-gradient(ellipse at 18% 40%, var(--brand-warm-soft), transparent 55%), var(--bg-app);
+  background:
+    radial-gradient(ellipse at 18% 40%, var(--brand-warm-soft), transparent 55%), var(--bg-app);
   color: var(--text-main);
 }
 

@@ -1,19 +1,16 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import {
-  parseRuntimePolicy,
-  defaultRuntimePolicy,
-} from '../shared/runtime-policy.ts'
+import { parseRuntimePolicy, defaultRuntimePolicy } from '../shared/runtime-policy.ts'
 test('global runtime defaults and strict durations', () => {
   assert.deepEqual(defaultRuntimePolicy, {
     sandboxTtlMinutes: 60,
     sandboxIdleMinutes: 10,
     targetTtlMinutes: 60,
-    lockVersion: 0,
+    lockVersion: 0
   })
   assert.deepEqual(
     parseRuntimePolicy({ ...defaultRuntimePolicy, secret: 'ignored' }),
-    defaultRuntimePolicy,
+    defaultRuntimePolicy
   )
   for (const patch of [
     { sandboxTtlMinutes: 0 },
@@ -21,14 +18,11 @@ test('global runtime defaults and strict durations', () => {
     { targetTtlMinutes: 1441 },
     { sandboxTtlMinutes: '60' },
     { targetTtlMinutes: 1.5 },
-    { lockVersion: -1 },
+    { lockVersion: -1 }
   ])
-    assert.throws(() =>
-      parseRuntimePolicy({ ...defaultRuntimePolicy, ...patch }),
-    )
+    assert.throws(() => parseRuntimePolicy({ ...defaultRuntimePolicy, ...patch }))
   assert.equal(
-    parseRuntimePolicy({ ...defaultRuntimePolicy, targetTtlMinutes: 1440 })
-      .targetTtlMinutes,
-    1440,
+    parseRuntimePolicy({ ...defaultRuntimePolicy, targetTtlMinutes: 1440 }).targetTtlMinutes,
+    1440
   )
 })

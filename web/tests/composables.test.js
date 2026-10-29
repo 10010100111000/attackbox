@@ -201,8 +201,12 @@ test('useModuleRail clones original cards with loop-copy, removes duplicate IDs,
       tagName: 'A',
       attributes: { id: `link-${moduleId}`, href: '#' },
       tabIndex: 0,
-      setAttribute: function (a, v) { this.attributes[a] = v },
-      removeAttribute: function (a) { delete this.attributes[a] }
+      setAttribute: function (a, v) {
+        this.attributes[a] = v
+      },
+      removeAttribute: function (a) {
+        delete this.attributes[a]
+      }
     }
 
     return {
@@ -211,10 +215,16 @@ test('useModuleRail clones original cards with loop-copy, removes duplicate IDs,
       attributes: { 'data-module': moduleId, id: idAttr },
       tabIndex: 0,
       offsetLeft: moduleId === 'recon' ? 0 : 400,
-      getAttribute: function (attr) { return this.attributes[attr] || null },
-      setAttribute: function (attr, val) { this.attributes[attr] = val },
-      removeAttribute: function (attr) { delete this.attributes[attr] },
-      querySelectorAll: (sel) => {
+      getAttribute: function (attr) {
+        return this.attributes[attr] || null
+      },
+      setAttribute: function (attr, val) {
+        this.attributes[attr] = val
+      },
+      removeAttribute: function (attr) {
+        delete this.attributes[attr]
+      },
+      querySelectorAll: sel => {
         if (sel.includes('[id]')) return [subElem]
         if (sel.includes('a, button')) return [subElem]
         return []
@@ -224,8 +234,12 @@ test('useModuleRail clones original cards with loop-copy, removes duplicate IDs,
           tagName: 'A',
           attributes: { ...subElem.attributes },
           tabIndex: subElem.tabIndex,
-          setAttribute: function (a, v) { this.attributes[a] = v },
-          removeAttribute: function (a) { delete this.attributes[a] }
+          setAttribute: function (a, v) {
+            this.attributes[a] = v
+          },
+          removeAttribute: function (a) {
+            delete this.attributes[a]
+          }
         }
         const copy = {
           tagName: 'DIV',
@@ -233,14 +247,20 @@ test('useModuleRail clones original cards with loop-copy, removes duplicate IDs,
           attributes: { ...this.attributes },
           tabIndex: this.tabIndex,
           offsetLeft: this.offsetLeft + 800,
-          getAttribute: function (a) { return this.attributes[a] || null },
-          setAttribute: function (a, v) { this.attributes[a] = v },
-          removeAttribute: function (a) { delete this.attributes[a] },
+          getAttribute: function (a) {
+            return this.attributes[a] || null
+          },
+          setAttribute: function (a, v) {
+            this.attributes[a] = v
+          },
+          removeAttribute: function (a) {
+            delete this.attributes[a]
+          },
           remove: function () {
             const idx = childElements.indexOf(this)
             if (idx !== -1) childElements.splice(idx, 1)
           },
-          querySelectorAll: (sel) => {
+          querySelectorAll: sel => {
             if (sel.includes('[id]')) return [clonedSubElem]
             if (sel.includes('a, button')) return [clonedSubElem]
             return []
@@ -258,7 +278,7 @@ test('useModuleRail clones original cards with loop-copy, removes duplicate IDs,
   const mockRail = {
     scrollLeft: 0,
     children: childElements,
-    querySelectorAll: (selector) => {
+    querySelectorAll: selector => {
       if (selector.includes(':not([data-loop-copy])')) {
         return childElements.filter(c => !('loopCopy' in c.dataset))
       }
@@ -267,7 +287,7 @@ test('useModuleRail clones original cards with loop-copy, removes duplicate IDs,
       }
       return childElements
     },
-    appendChild: (el) => {
+    appendChild: el => {
       childElements.push(el)
       clonedElements.push(el)
     },
