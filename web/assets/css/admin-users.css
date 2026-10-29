@@ -1,9 +1,6 @@
-/* Scoped to .admin-shell layout to avoid duplicating across 5+ admin pages */
-.admin-shell {
-  .users-page {
-    width: 100%;
-    color: var(--ink);
-  }
+.users-page {
+  color: var(--ink);
+  width: 100%;
 
   .page-heading {
     display: flex;
@@ -30,63 +27,6 @@
     display: flex;
     align-items: center;
     gap: 12px;
-  }
-
-  button,
-  select,
-  input {
-    font: inherit;
-    color: inherit;
-    box-sizing: border-box;
-  }
-
-  button,
-  .page-heading > a {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    gap: 7px;
-    padding: 8px 14px;
-    border: 1px solid var(--line);
-    border-radius: 6px;
-    background: var(--paper);
-    color: var(--ink);
-    font-size: 12px;
-    font-weight: 550;
-    text-decoration: none;
-    cursor: pointer;
-    transition: background 0.15s ease, color 0.15s ease;
-  }
-
-  .page-heading > a {
-    background: var(--btn-primary-bg);
-    color: var(--btn-primary-fg);
-    border-color: transparent;
-    box-shadow: var(--btn-primary-shadow);
-    font-weight: 600;
-  }
-
-  .page-heading > a:hover {
-    opacity: 0.9;
-    text-decoration: none;
-  }
-
-  button:hover:not(:disabled) {
-    background: var(--soft);
-  }
-
-  button:disabled {
-    opacity: 0.45;
-    cursor: default;
-  }
-
-  a {
-    color: var(--green);
-    text-decoration: none;
-  }
-
-  a:hover {
-    text-decoration: underline;
   }
 
   .panel {
@@ -182,80 +122,23 @@
     color: var(--ink);
     font-size: 14px;
     font-weight: 600;
+    text-decoration: none;
+  }
+
+  .user-name:hover,
+  .history-link:hover,
+  .section-link:hover {
+    text-decoration: underline;
+  }
+
+  .history-link,
+  .section-link {
+    color: var(--brand);
   }
 
   .actions {
     text-align: right;
     white-space: nowrap;
-  }
-
-  .actions > a,
-  .actions > button {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    min-height: 30px;
-    padding: 5px 11px;
-    border-radius: 5px;
-    font-size: 12px;
-    font-weight: 550;
-    vertical-align: middle;
-    text-decoration: none;
-  }
-
-  .actions > a {
-    border: 1px solid var(--line);
-    background: var(--paper);
-    color: var(--ink);
-  }
-
-  .actions > a:hover {
-    background: var(--soft);
-    text-decoration: none;
-  }
-
-  .actions > button {
-    margin-left: 8px;
-  }
-
-  .actions > button:hover:not(:disabled) {
-    background: var(--error-bg);
-    color: var(--error-ink);
-    border-color: transparent;
-  }
-
-  .status {
-    display: inline-flex;
-    align-items: center;
-    border-radius: 5px;
-    background: var(--soft);
-    font-size: 11px;
-    padding: 4px 8px;
-  }
-
-  .status.active {
-    background: var(--mint);
-    color: var(--green);
-  }
-
-  .status.suspended,
-  .danger {
-    color: var(--error-ink);
-  }
-
-  .empty {
-    display: flex;
-    align-items: center;
-    flex-direction: column;
-    justify-content: center;
-    min-height: 200px;
-    color: var(--muted);
-    font-size: 13px;
-    gap: 8px;
-  }
-
-  .empty p {
-    margin: 0;
   }
 
   .pagination {
@@ -269,15 +152,6 @@
   .pagination > div {
     display: flex;
     gap: 8px;
-  }
-
-  .notice {
-    padding: 13px 16px;
-    border-radius: 6px;
-    background: var(--soft);
-    font-size: 13px;
-    color: var(--ink);
-    margin: 0 0 20px;
   }
 
   .back {
@@ -337,10 +211,6 @@
     border-top: 1px solid var(--line);
     padding-top: 20px;
     margin-top: 25px;
-  }
-
-  .compact {
-    min-height: 140px;
   }
 
   .footnote {

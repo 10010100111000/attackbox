@@ -236,9 +236,9 @@ async function save(intent: 'draft' | 'publish') {
 
           <div class="section-head">
             <h2>正文</h2>
-            <button type="button" @click="preview = !preview">
+            <UiButton variant="secondary" size="xs" type="button" @click="preview = !preview">
               {{ preview ? '编辑' : '预览' }}
-            </button>
+            </UiButton>
           </div>
 
           <MarkdownView v-if="preview" :content="form.bodyMarkdown" />
@@ -263,7 +263,7 @@ async function save(intent: 'draft' | 'publish') {
           </label>
           <p v-if="optionsError" role="alert">
             模板读取失败，原配置保留。
-            <button type="button" @click="retryOptions()">重试</button>
+            <UiButton variant="secondary" size="xs" type="button" @click="retryOptions()">重试</UiButton>
           </p>
           <small>关联后，学习者可在挑战页按需启动独享靶机容器。</small>
         </section>
@@ -281,29 +281,35 @@ async function save(intent: 'draft' | 'publish') {
             <div class="section-head">
               <strong>阶段 {{ i + 1 }}</strong>
               <div class="actions">
-                <button
+                <UiButton
+                  variant="secondary"
+                  size="xs"
                   type="button"
                   :aria-label="`上移阶段 ${i + 1}`"
                   :disabled="i === 0"
                   @click="move(i, -1)"
                 >
                   <ArrowUp :size="14" aria-hidden="true" />
-                </button>
-                <button
+                </UiButton>
+                <UiButton
+                  variant="secondary"
+                  size="xs"
                   type="button"
                   :aria-label="`下移阶段 ${i + 1}`"
                   :disabled="i === form.stages.length - 1"
                   @click="move(i, 1)"
                 >
                   <ArrowDown :size="14" aria-hidden="true" />
-                </button>
-                <button
+                </UiButton>
+                <UiButton
+                  variant="danger"
+                  size="xs"
                   type="button"
                   :aria-label="`移除阶段 ${i + 1}`"
                   @click="form.stages.splice(i, 1)"
                 >
                   <X :size="14" aria-hidden="true" />
-                </button>
+                </UiButton>
               </div>
             </div>
 
@@ -380,26 +386,6 @@ h1 {
   margin: 0;
 }
 
-.status-badge {
-  font-size: 11px;
-  padding: 3px 8px;
-  border-radius: 5px;
-  background: var(--soft);
-  color: var(--muted);
-  font-weight: 550;
-}
-
-.status-badge.published {
-  background: var(--success-bg);
-  color: var(--success-ink);
-}
-
-.dirty-tag {
-  font-size: 12px;
-  color: var(--accent-coral);
-  font-weight: 600;
-}
-
 small,
 .hint,
 .section-head > span {
@@ -471,10 +457,6 @@ select {
   margin-top: 22px;
 }
 
-.stage-editor .actions button {
-  padding: 6px;
-}
-
 .hint {
   line-height: 1.7;
 }
@@ -487,53 +469,11 @@ select {
   margin-bottom: 0;
 }
 
-button {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 7px;
-  border: 1px solid var(--line);
-  background: var(--paper);
-  color: var(--ink);
-  border-radius: 6px;
-  padding: 9px 14px;
-  cursor: pointer;
-  font-size: 12px;
-  font-weight: 550;
-}
-
-button:disabled {
-  opacity: 0.4;
-  cursor: default;
-}
-
-.primary {
-  background: var(--btn-primary-bg);
-  color: var(--btn-primary-fg);
-  border-color: transparent;
-  box-shadow: var(--btn-primary-shadow);
-  font-weight: 600;
-}
-.primary:hover:not(:disabled) {
-  background: var(--btn-primary-hover);
-}
-
 fieldset {
   border: 0;
   margin: 0;
   padding: 0;
   min-width: 0;
-}
-
-.notice {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 14px 16px;
-  background: var(--soft);
-  border-radius: 6px;
-  font-size: 13px;
-  margin-bottom: 20px;
 }
 
 </style>

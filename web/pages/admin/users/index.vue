@@ -45,7 +45,7 @@ function date(value: string | null) { return value ? new Date(value).toLocaleStr
             </td>
             <td>{{ date(user.lastLoginAt) }}</td>
             <td>{{ user.instance ? instanceStateLabels[user.instance.state] : '未运行' }}</td>
-            <td class="actions"><NuxtLink :to="`/admin/users/${user.id}`">查看</NuxtLink></td>
+            <td class="actions"><UiButton variant="secondary" size="xs" :to="`/admin/users/${user.id}`">查看</UiButton></td>
           </tr>
         </tbody>
       </table>
@@ -68,3 +68,4 @@ function date(value: string | null) { return value ? new Date(value).toLocaleStr
     </footer>
   </div>
 </template>
+<style scoped src="~/assets/css/admin-users.css"></style>

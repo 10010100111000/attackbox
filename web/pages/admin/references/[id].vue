@@ -21,7 +21,7 @@ async function perform(intent:'publish'|'unpublish'|'delete'){
   <div class="reference-admin">
     <NuxtLink class="back" to="/admin/references"><ArrowLeft :size="14" aria-hidden="true"/>参考资料</NuxtLink>
     <AdminDataLoading :pending="pending" :has-data="!!data"/>
-    <UiNotice v-if="error||notice" type="error" class="mb-5">{{notice||'资料不存在或无法读取'}}</UiNotice>
+    <UiNotice v-if="error||notice" variant="error" class="mb-5">{{notice||'资料不存在或无法读取'}}</UiNotice>
     <template v-if="item">
       <header class="page-heading">
         <div>

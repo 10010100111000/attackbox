@@ -157,7 +157,6 @@ h1 { font-size: clamp(28px, 3.3vw, 38px); font-weight: 700; line-height: 1.3; le
 .module-meta .category-tag { color: var(--ink); }
 .start-learning-btn { display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; min-height: 44px; padding: 12px 26px; background: var(--btn-primary-bg); color: var(--btn-primary-fg); box-shadow: var(--btn-primary-shadow); border: 1px solid transparent; border-radius: 8px; font-size: 13px; font-weight: 600; text-decoration: none; transition: transform .16s ease, background .16s ease; }
 .start-learning-btn:hover { transform: translateY(-1px); background: var(--btn-primary-hover); }
-.start-learning-btn:hover { opacity: .85; }
 .module-content { padding-top: 32px; }
 .module-content.with-sidebar { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 40px; align-items: start; }
 .chapters-section { min-width: 0; }

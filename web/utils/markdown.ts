@@ -57,7 +57,7 @@ function slugify(text: string): string {
 
 export interface MarkdownOptions { copyCode?: boolean }
 
-interface MarkdownRenderEnv {
+interface MarkdownRenderEnv extends Record<PropertyKey, unknown> {
   imageUrls?: Record<string, string>
   copyCode?: boolean
   headings?: MarkdownHeading[]

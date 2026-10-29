@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Clock3, Terminal, Flag, Check } from 'lucide-vue-next'
+import { Clock3, Terminal, Flag } from 'lucide-vue-next'
 import type { RuntimePolicy } from '~/shared/runtime-policy'
 import { parseRuntimePolicy } from '~/shared/runtime-policy'
 definePageMeta({ layout: 'admin' })
@@ -279,46 +279,6 @@ footer {
 footer > div {
   display: flex;
   gap: 10px;
-}
-button {
-  border: 1px solid var(--line);
-  background: var(--paper);
-  color: var(--ink);
-  padding: 10px 16px;
-  border-radius: 7px;
-  cursor: pointer;
-  font: inherit;
-  font-size: 12px;
-}
-button.primary {
-  background: var(--btn-primary-bg);
-  color: var(--btn-primary-fg);
-  border-color: transparent;
-  box-shadow: var(--btn-primary-shadow);
-  font-weight: 600;
-}
-button.primary:hover:not(:disabled) {
-  background: var(--btn-primary-hover);
-}
-button:disabled {
-  opacity: 0.45;
-  cursor: default;
-}
-footer p {
-  display: flex;
-  gap: 7px;
-  align-items: center;
-  color: var(--success-ink);
-  margin: 0;
-}
-footer p.failure {
-  color: var(--error-ink);
-}
-button.text-button {
-  padding: 0;
-  border: 0;
-  background: transparent;
-  text-decoration: underline;
 }
 input:focus-visible,
 button:focus-visible {

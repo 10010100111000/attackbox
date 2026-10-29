@@ -1,5 +1,7 @@
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+const confirmAction = useConfirm()
+import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
+import { onBeforeRouteLeave, onBeforeRouteUpdate } from 'vue-router'
 import { ArrowLeft, ArrowUp, ArrowDown, X, Plus } from 'lucide-vue-next'
 import type { LearningRoute } from '~/shared/routes'
 
@@ -20,29 +22,50 @@ const ids = ref<string[]>([])
 const version = ref(0)
 const state = ref('unpublished')
 const notice = ref('')
+const failed = ref(false)
 const busy = ref(false)
 const loaded = ref(isNew)
 const query = ref('')
+const snapshot = () => JSON.stringify({ title: title.value, summary: summary.value, ids: ids.value })
+const original = ref(snapshot())
+const dirty = computed(() => loaded.value && snapshot() !== original.value)
+
+const leave = () => (busy.value ? false : !dirty.value || confirmAction({ title: '放弃路线修改？', description: '未保存的路线修改将丢失。', confirmLabel: '放弃修改', cancelLabel: '继续编辑' }))
+onBeforeRouteLeave(leave)
+onBeforeRouteUpdate(leave)
+
+function beforeUnload(e: BeforeUnloadEvent) {
+  if (dirty.value) {
+    e.preventDefault()
+    e.returnValue = ''
+  }
+}
 
 const request = useRequestFetch()
 const initialLoading = ref(!isNew)
 onMounted(async () => {
- try {
-if (!isNew) {
+  window.addEventListener('beforeunload', beforeUnload)
   try {
-    const r = await request<{ data: LearningRoute }>(`/api/admin/routes/${id}`)
-    title.value = r.data.title
-    summary.value = r.data.summary
-    ids.value = r.data.modules!.map(m => m.id)
-    version.value = r.data.lockVersion
-    state.value = r.data.status
-    loaded.value = true
-  } catch {
-    notice.value = '无法读取路线，请返回列表重试'
+    if (!isNew) {
+      try {
+        const r = await request<{ data: LearningRoute }>(`/api/admin/routes/${id}`)
+        title.value = r.data.title
+        summary.value = r.data.summary
+        ids.value = r.data.modules!.map(m => m.id)
+        version.value = r.data.lockVersion
+        state.value = r.data.status
+        original.value = snapshot()
+        loaded.value = true
+      } catch {
+        failed.value = true
+        notice.value = '无法读取路线，请返回列表重试'
+      }
+    }
+  } finally {
+    initialLoading.value = false
   }
-}
- } finally {initialLoading.value=false}
 })
+onBeforeUnmount(() => window.removeEventListener('beforeunload', beforeUnload))
 
 const selected = computed(() =>
   ids.value.map(id => source.value?.data.find(m => m.id === id)).filter(Boolean)
@@ -64,22 +87,27 @@ async function save(intent: 'draft' | 'publish') {
   if (busy.value || !loaded.value) return
   busy.value = true
   notice.value = ''
+  failed.value = false
+  const submitted = { title: title.value, summary: summary.value, ids: [...ids.value] }
   try {
     const r = await $fetch<{ data: { id: string } }>(
       isNew ? '/api/admin/routes' : `/api/admin/routes/${id}`,
       {
         method: isNew ? 'POST' : 'PUT',
         body: {
-          title: title.value,
-          summary: summary.value,
-          moduleIds: ids.value,
+          title: submitted.title,
+          summary: submitted.summary,
+          moduleIds: submitted.ids,
           lockVersion: version.value,
           intent,
         },
+        retry: false,
       }
     )
     await clearNuxtData('admin:routes')
+    original.value = JSON.stringify(submitted)
     if (isNew) {
+      busy.value = false
       await navigateTo(`/admin/routes/${r.data.id}`)
     } else {
       version.value++
@@ -87,6 +115,7 @@ async function save(intent: 'draft' | 'publish') {
       notice.value = intent === 'publish' ? '已保存并发布' : '已保存为草稿'
     }
   } catch (e: any) {
+    failed.value = true
     notice.value = e?.data?.message || '保存失败'
   } finally {
     busy.value = false
@@ -133,9 +162,9 @@ async function save(intent: 'draft' | 'publish') {
       </div>
     </header>
 
-    <UiNotice v-if="notice" variant="info" class="mb-5">{{ notice }}</UiNotice>
+    <UiNotice v-if="notice" :variant="failed ? 'error' : 'success'" class="mb-5">{{ notice }}</UiNotice>
 
-    <div v-if="loaded" class="grid">
+    <fieldset v-if="loaded" class="grid" :disabled="busy">
       <section class="panel">
         <h2>路线信息</h2>
         <label>
@@ -165,29 +194,35 @@ async function save(intent: 'draft' | 'publish') {
               {{ item!.title }}
               <small v-if="item!.status !== 'published'">尚未发布</small>
             </div>
-            <button
+            <UiButton
+              variant="secondary"
+              size="xs"
               type="button"
               :aria-label="`上移 ${item!.title}`"
               :disabled="index === 0"
               @click="move(index, -1)"
             >
               <ArrowUp :size="15" aria-hidden="true" />
-            </button>
-            <button
+            </UiButton>
+            <UiButton
+              variant="secondary"
+              size="xs"
               type="button"
               :aria-label="`下移 ${item!.title}`"
               :disabled="index === ids.length - 1"
               @click="move(index, 1)"
             >
               <ArrowDown :size="15" aria-hidden="true" />
-            </button>
-            <button
+            </UiButton>
+            <UiButton
+              variant="danger"
+              size="xs"
               type="button"
               :aria-label="`移除 ${item!.title}`"
               @click="ids.splice(index, 1)"
             >
               <X :size="15" aria-hidden="true" />
-            </button>
+            </UiButton>
           </li>
         </ol>
       </section>
@@ -197,6 +232,7 @@ async function save(intent: 'draft' | 'publish') {
         <input v-model="query" aria-label="搜索模块" placeholder="搜索模块名称" />
         <div class="choices">
           <button
+            class="module-choice"
             v-for="item in options"
             :key="item.id"
             type="button"
@@ -214,7 +250,7 @@ async function save(intent: 'draft' | 'publish') {
           <p v-if="!options.length" class="muted">没有可添加的模块</p>
         </div>
       </aside>
-    </div>
+    </fieldset>
   </div>
 </template>
 
@@ -243,20 +279,6 @@ h1 {
   margin: 0;
 }
 
-.status-badge {
-  font-size: 11px;
-  padding: 3px 8px;
-  border-radius: 5px;
-  background: var(--soft);
-  color: var(--muted);
-  font-weight: 550;
-}
-
-.status-badge.published {
-  background: var(--success-bg);
-  color: var(--success-ink);
-}
-
 .back {
   display: inline-flex;
   gap: 7px;
@@ -277,6 +299,10 @@ small {
   grid-template-columns: minmax(0, 1fr) 340px;
   gap: 24px;
   align-items: start;
+  min-width: 0;
+  border: 0;
+  padding: 0;
+  margin: 0;
 }
 
 .panel {
@@ -318,30 +344,27 @@ textarea {
   font-size: 13px;
 }
 
-button {
+.module-choice {
   display: inline-flex;
   align-items: center;
-  justify-content: center;
+  justify-content: space-between;
+  width: 100%;
+  text-align: left;
   gap: 9px;
-  border: 1px solid var(--line);
-  border-radius: 6px;
+  border: 0;
+  border-bottom: 1px solid var(--line);
+  border-radius: 0;
   background: var(--paper);
   color: var(--ink);
-  padding: 8px 14px;
+  padding: 14px 4px;
   cursor: pointer;
   font-size: 12px;
   font-weight: 550;
 }
 
-button:disabled {
+.module-choice:disabled {
   opacity: 0.4;
   cursor: default;
-}
-
-.primary {
-  background: var(--ink);
-  color: var(--paper);
-  border-color: var(--ink);
 }
 
 .outline-title {
@@ -383,36 +406,14 @@ small {
   margin-top: 5px;
 }
 
-li button {
-  padding: 6px;
-}
-
 .choices {
   max-height: 600px;
   overflow: auto;
   margin-top: 16px;
 }
 
-.choices button {
-  width: 100%;
-  text-align: left;
-  justify-content: space-between;
-  border: 0;
-  border-bottom: 1px solid var(--line);
-  border-radius: 0;
-  padding: 14px 4px;
-}
-
-.choices button:hover:not(:disabled) {
+.module-choice:hover:not(:disabled) {
   background: var(--soft);
-}
-
-.notice {
-  background: var(--soft);
-  padding: 14px 16px;
-  font-size: 13px;
-  border-radius: 6px;
-  margin-bottom: 20px;
 }
 
 </style>

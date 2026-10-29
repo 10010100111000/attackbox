@@ -6,7 +6,8 @@ useHead({ title: '站内通知 — AttackBox' })
 const page = ref(1),
   form = ref({ title: '', body: '', link: '' }),
   busy = ref(false),
-  message = ref('')
+  message = ref(''),
+  failed = ref(false)
 const { data, pending, error, refresh } = await useLazyFetch<{
   data: NotificationList
 }>('/api/admin/notifications', { key: 'admin:notifications', query: { page } })
@@ -14,6 +15,7 @@ async function publish() {
   if (busy.value) return
   busy.value = true
   message.value = ''
+  failed.value = false
   try {
     await $fetch('/api/admin/notifications', {
       method: 'POST',
@@ -25,6 +27,7 @@ async function publish() {
     await refresh()
     message.value = '通知已发布'
   } catch (e: any) {
+    failed.value = true
     message.value = e?.data?.message || '发布结果未确认，请先查看通知列表'
   } finally {
     busy.value = false
@@ -34,6 +37,8 @@ async function withdraw(id: string) {
   if (busy.value) return
   if (!(await confirmAction({title:'撤回通知？',description:'撤回后，用户将无法再看到这条通知。',confirmLabel:'撤回通知'}))) return
   busy.value = true
+  message.value = ''
+  failed.value = false
   try {
     await $fetch(`/api/admin/notifications/${id}/withdraw`, {
       method: 'POST',
@@ -42,6 +47,7 @@ async function withdraw(id: string) {
     await refresh()
     message.value = '通知已撤回'
   } catch (e: any) {
+    failed.value = true
     message.value = e?.data?.message || '撤回失败'
   } finally {
     busy.value = false
@@ -54,7 +60,7 @@ async function withdraw(id: string) {
       <h1>站内通知</h1>
       <p>发布课程更新与平台公告，向所有登录用户展示，也包括之后注册的用户。</p>
     </header>
-    <UiNotice v-if="message" variant="success" class="mb-6">{{ message }}</UiNotice>
+    <UiNotice v-if="message" :variant="failed ? 'error' : 'success'" class="mb-6">{{ message }}</UiNotice>
     <div class="announcement-editor">
       <form @submit.prevent="publish">
         <h2>发布通知</h2>
@@ -199,18 +205,6 @@ input {
 textarea {
   resize: vertical;
   line-height: 1.7;
-}
-button {
-  border: 1px solid var(--line);
-  border-radius: 7px;
-  background: var(--paper);
-  color: var(--ink);
-  padding: 9px 15px;
-  cursor: pointer;
-  font-size: 12px;
-}
-button:disabled {
-  opacity: 0.5;
 }
 .eyebrow {
   display: block;

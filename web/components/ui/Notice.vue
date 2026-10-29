@@ -4,14 +4,14 @@ import { Info, CheckCircle2, AlertTriangle, AlertCircle, X } from 'lucide-vue-ne
 import { cn } from '~/utils/cn'
 
 interface Props {
-  type?: 'info' | 'success' | 'warning' | 'error'
+  variant?: 'info' | 'success' | 'warning' | 'error'
   title?: string
   dismissible?: boolean
   class?: any
 }
 
 const props = withDefaults(defineProps<Props>(), {
-  type: 'info',
+  variant: 'info',
   title: undefined,
   dismissible: false,
   class: undefined,
@@ -28,9 +28,9 @@ const iconMap = {
   error: AlertCircle,
 }
 
-const role = computed(() => (props.type === 'error' || props.type === 'warning' ? 'alert' : 'status'))
+const role = computed(() => (props.variant === 'error' || props.variant === 'warning' ? 'alert' : 'status'))
 
-const typeClasses: Record<'info' | 'success' | 'warning' | 'error', string> = {
+const variantClasses: Record<NonNullable<Props['variant']>, string> = {
   info: 'bg-[var(--soft)] text-[var(--ink)] border-[var(--line)]',
   success: 'bg-[var(--success-bg)] text-[var(--success-ink)] border-transparent',
   warning: 'bg-[rgba(235,160,50,0.14)] text-[#e6a84f] border-transparent',
@@ -43,14 +43,14 @@ const typeClasses: Record<'info' | 'success' | 'warning' | 'error', string> = {
     :role="role"
     :class="
       cn(
-        'flex items-start gap-3 p-3.5 rounded-lg border text-xs leading-relaxed transition-all overflow-wrap-anywhere',
-        typeClasses[type] || typeClasses.info,
+        'flex items-start gap-3 p-3.5 rounded-lg border text-xs leading-relaxed [overflow-wrap:anywhere]',
+        variantClasses[variant],
         props.class
       )
     "
   >
     <component
-      :is="iconMap[type] || Info"
+      :is="iconMap[variant]"
       :size="15"
       class="flex-shrink-0 mt-0.5"
       aria-hidden="true"

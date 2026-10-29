@@ -22,7 +22,6 @@ const { data: settings, error: settingsError, refresh } = useLazyFetch<{ data: S
 
 const form = ref({ repository: '', branch: 'main', directory: '', token: '' })
 const busy = ref('')
-const syncingPath = ref('')
 const message = ref('')
 const scan = ref<RepoScanReport | null>(null)
 
@@ -64,7 +63,6 @@ async function perform(label: string, task: () => Promise<void>) {
     message.value = e?.data?.message || e?.data?.statusMessage || '操作失败，请检查仓库配置或重试'
   } finally {
     busy.value = ''
-    syncingPath.value = ''
   }
 }
 
@@ -111,7 +109,6 @@ function scanRepo() {
 }
 
 function syncSingle(item: RepoModuleEntry, force = false) {
-  syncingPath.value = item.sourcePath
   void perform(`同步 ${item.title}`, async () => {
     const response = await $fetch<{ data: SyncModuleResult }>('/api/admin/content/sync', {
       method: 'POST',
@@ -158,9 +155,9 @@ function syncAllChanged() {
         <h1>Git 教程同步</h1>
         <p>按模块目录直接读取 Git 差异，仅下载有变化的 Markdown 与新增图片，直接入库生效。</p>
       </div>
-      <a class="button" href="/api/admin/content/template" download="教程模板.md">
+      <UiButton variant="secondary" size="sm" href="/api/admin/content/template" download="教程模板.md">
         <Download :size="15" />下载 MD 模板
-      </a>
+      </UiButton>
     </header>
 
     <UiNotice v-if="message" variant="info" class="mb-4">{{ message }}</UiNotice>
@@ -277,13 +274,14 @@ function syncAllChanged() {
           </div>
 
           <div class="module-actions flex items-center gap-2">
-            <NuxtLink
+            <UiButton
               v-if="item.moduleId"
-              class="button"
+              variant="secondary"
+              size="xs"
               :to="`/admin/modules/${item.moduleId}`"
             >
               模块详情
-            </NuxtLink>
+            </UiButton>
             <UiButton
               v-if="item.status === 'new'"
               variant="primary"
@@ -409,51 +407,6 @@ input {
   gap: 10px;
   margin-top: 20px;
 }
-.button {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 7px;
-  padding: 8px 13px;
-  border: 1px solid var(--line);
-  border-radius: 6px;
-  background: var(--paper);
-  color: var(--ink);
-  font-size: 12px;
-  font-weight: 550;
-  cursor: pointer;
-  text-decoration: none;
-}
-.primary {
-  background: var(--btn-primary-bg);
-  color: var(--btn-primary-fg);
-  border-color: transparent;
-  box-shadow: var(--btn-primary-shadow);
-  font-weight: 600;
-}
-.primary:hover:not(:disabled) {
-  background: var(--btn-primary-hover);
-}
-button:disabled {
-  opacity: 0.45;
-  cursor: default;
-}
-.text-button {
-  border: 0;
-  background: transparent;
-  color: var(--muted);
-  font-size: 12px;
-  cursor: pointer;
-}
-.notice {
-  padding: 12px 16px;
-  background: var(--soft);
-  border-radius: 6px;
-  font-size: 12px;
-  margin-bottom: 18px;
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
-}
 .module-list {
   display: flex;
   flex-direction: column;
@@ -491,23 +444,6 @@ button:disabled {
 }
 .diff-reason {
   color: var(--ink);
-}
-.status-badge,
-.pub-badge {
-  font-size: 11px;
-  padding: 2px 7px;
-  border-radius: 4px;
-  font-weight: 500;
-}
-.badge-new,
-.badge-modified {
-  background: var(--success-bg);
-  color: var(--success-ink);
-}
-.badge-ok,
-.pub-badge {
-  background: var(--soft);
-  color: var(--muted);
 }
 .module-actions {
   display: flex;

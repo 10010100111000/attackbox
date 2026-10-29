@@ -2,7 +2,7 @@
 const confirmAction = useConfirm()
 import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
 import { useLazyFetch, useHead } from '#imports'
-import { RefreshCw, Monitor, CircleAlert } from 'lucide-vue-next'
+import { RefreshCw, Monitor } from 'lucide-vue-next'
 import type { AdminSandboxInstance } from '~/shared/sandbox'
 definePageMeta({ layout: 'admin' })
 useHead({ title: '运行实例 — AttackBox' })
@@ -27,7 +27,7 @@ onBeforeUnmount(() => { clearInterval(timer); window.removeEventListener('focus'
 <template>
   <div class="instances-page">
     <header><div><h1>运行实例</h1><p>管理当前由新平台分配的环境。</p></div><UiButton variant="secondary" size="sm" :loading="pending" :disabled="pending" @click="refresh()"><RefreshCw :size="14" aria-hidden="true" />刷新</UiButton></header>
-    <UiNotice v-if="notice || error" type="error" class="mb-5">{{ notice || '无法读取实例，请检查网络和管理员登录状态。' }}</UiNotice>
+    <UiNotice v-if="notice || error" variant="error" class="mb-5">{{ notice || '无法读取实例，请检查网络和管理员登录状态。' }}</UiNotice>
     <div v-if="instances.length" class="table-wrap"><table><thead><tr><th>用户 / 实例</th><th>节点 / IP</th><th>状态</th><th>启动 / 到期</th><th>最近活动</th><th class="actions">操作</th></tr></thead><tbody><tr v-for="instance in instances" :key="instance.id"><td><strong>{{ instance.displayName || '已删除的用户' }}</strong><span>{{ instance.email || instance.userId }}</span><code>{{ instance.id }}</code></td><td><strong>{{ instance.nodeId }}</strong><span>{{ instance.ip || '等待分配' }}</span><span>槽位 {{ instance.slot }} · {{ instance.policy.resources.memory_max_mb }} MB</span></td><td><span class="state" :class="instance.state">{{ labels[instance.state] }}</span><span v-if="!instance.connected" class="disconnected">节点断开</span><span v-if="instance.error" class="instance-error">{{ instance.error }}</span></td><td><span>{{ date(instance.startedAt) }}</span><span>{{ date(instance.expiresAt) }}</span></td><td>{{ date(instance.lastActiveAt) }}</td><td class="actions"><UiButton variant="danger" size="xs" :disabled="stopping.includes(instance.id) || instance.state === 'stopping'" @click="stop(instance)">{{ stopping.includes(instance.id) || instance.state === 'stopping' ? '释放中' : instance.state === 'cleanup_failed' ? '重试释放' : '释放' }}</UiButton></td></tr></tbody></table></div>
     <AdminDataLoading v-else-if="pending" :pending="pending" :has-data="!!data" />
     <UiEmptyState v-else-if="!error" title="当前没有实例" description="用户从学习页启动环境后，会在这里显示。"><template #icon><Monitor :size="28" :stroke-width="1.5" aria-hidden="true" /></template><template #action><UiButton variant="secondary" size="sm" to="/admin/nodes">查看节点状态</UiButton></template></UiEmptyState>
@@ -40,7 +40,6 @@ onBeforeUnmount(() => { clearInterval(timer); window.removeEventListener('focus'
 header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 28px; gap: 24px; }
 h1 { font-size: 24px; font-weight: 750; margin: 0 0 6px; }
 header p { color: var(--muted); font-size: 13px; margin: 0; }
-.refresh-btn { display: inline-flex; align-items: center; gap: 7px; border: 1px solid var(--line); background: var(--paper); color: var(--ink); padding: 8px 14px; border-radius: 6px; font-size: 12px; cursor: pointer; }
 .table-wrap { border: 1px solid var(--line); background: var(--paper); border-radius: 10px; overflow-x: auto; }
 table { width: 100%; min-width: 1050px; border-collapse: collapse; font-size: 12px; text-align: left; }
 th { color: var(--muted); background: var(--soft); font-weight: 500; font-size: 11px; }
@@ -53,12 +52,5 @@ td .state { color: var(--ink); }
 td .running { color: var(--success-ink); }
 td .disconnected, td .instance-error, td .cleanup_failed { color: var(--error-ink); max-width: 180px; }
 .actions { text-align: right; white-space: nowrap; }
-.stop-btn { padding: 7px 10px; border: 1px solid var(--line); background: transparent; color: var(--ink); border-radius: 5px; font-size: 12px; cursor: pointer; }
-.stop-btn:hover { color: var(--error-ink); background: var(--error-bg); border-color: transparent; }
-.stop-btn:disabled, .refresh-btn:disabled { opacity: .5; cursor: wait; }
-.notice { display: flex; align-items: center; gap: 8px; font-size: 12px; background: var(--error-bg); color: var(--error-ink); padding: 14px; border-radius: 7px; margin-bottom: 20px; }
-.empty { display: grid; justify-items: center; padding: 64px 24px; background: var(--paper); border: 1px dashed var(--line); border-radius: 10px; color: var(--muted); }
-.empty h2 { font-size: 16px; font-weight: 550; margin: 16px 0 8px; color: var(--ink); }
-.empty p, .empty a { font-size: 13px; } .empty a { margin-top: 16px; text-decoration: underline; color: var(--green); }
 .footnote { font-size: 12px; line-height: 1.8; color: var(--muted); margin-top: 20px; }
 </style>

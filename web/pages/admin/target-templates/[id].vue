@@ -77,7 +77,7 @@ const preparation=(node:string)=>preparations.value.find(p=>p.nodeId===node)
       <span>保存模板</span>
     </UiButton>
   </header>
-  <UiNotice v-if="message" :variant="failed ? 'error' : 'info'" class="mb-4" role="status">{{ message }}</UiNotice>
+  <UiNotice v-if="message" :variant="failed ? 'error' : 'info'" class="mb-4">{{ message }}</UiNotice>
   <AdminDataLoading :pending="busy" :has-data="loaded"/>
   <form v-if="loaded" @submit.prevent="save"><fieldset :disabled="busy">
    <div class="editor-grid">
@@ -85,13 +85,13 @@ const preparation=(node:string)=>preparations.value.find(p=>p.nodeId===node)
      <section class="panel"><h2>部署包</h2><div class="upload-row"><FileArchive :size="24"/><div><strong>{{preview?`${preview.services.length} 个服务 · ${preview.files} 个文件`:'选择 Compose 文件或 ZIP 部署包'}}</strong><p>ZIP 请保留 Compose 与配套文件的相对目录。</p></div><label class="file-button"><Upload :size="14"/>{{preview?'替换文件':'选择文件'}}<input type="file" accept=".zip,.yml,.yaml" :disabled="busy" @change="upload"/></label></div>
       <div class="source-actions"><UiButton type="button" variant="secondary" size="xs" @click="gitOpen=!gitOpen"><Github :size="14"/>从 GitHub 导入</UiButton><span class="muted">公开仓库可留空 Token；私有仓库使用只读 Token。</span></div>
       <div v-if="gitOpen" class="git-form"><label>GitHub 仓库<input v-model="gitForm.repository" placeholder="owner/repository 或 HTTPS 链接"/></label><div class="field-pair git-fields"><label>分支 / 标签<input v-model="gitForm.branch" placeholder="main"/></label><label>仓库内目录<input v-model="gitForm.directory" placeholder="留空读取仓库根目录"/></label></div><label>只读 Token<input v-model="gitForm.token" type="password" autocomplete="new-password" placeholder="公开仓库可留空"/></label><UiButton type="button" variant="primary" size="sm" :disabled="!gitForm.repository.trim()" @click="importGit"><Download :size="14"/>导入并预览</UiButton><p class="muted">凭据加密保存在靶场来源中，不回显，也不使用教程仓库凭据。</p></div>
-      <div v-if="preview?.source" class="git-source"><div><strong>{{preview.source.repository}}</strong><p class="muted">{{preview.source.branch}} · {{preview.source.directory||'仓库根目录'}} · <code :title="preview.source.commit">{{preview.source.commit.slice(0,12)}}</code></p></div><button type="button" :disabled="Object.keys(variables).some(k=>variables[k])||clearVariables.length>0" @click="checkGit">检查更新</button><div v-if="checkedCommit" class="update-confirm"><span>新提交 <code>{{checkedCommit.slice(0,12)}}</code></span><button type="button" :disabled="Object.keys(variables).some(k=>variables[k])||clearVariables.length>0" @click="importUpdate">确认导入更新</button></div></div>
+      <div v-if="preview?.source" class="git-source"><div><strong>{{preview.source.repository}}</strong><p class="muted">{{preview.source.branch}} · {{preview.source.directory||'仓库根目录'}} · <code :title="preview.source.commit">{{preview.source.commit.slice(0,12)}}</code></p></div><UiButton variant="secondary" size="xs" type="button" :disabled="Object.keys(variables).some(k=>variables[k])||clearVariables.length>0" @click="checkGit">检查更新</UiButton><div v-if="checkedCommit" class="update-confirm"><span>新提交 <code>{{checkedCommit.slice(0,12)}}</code></span><UiButton variant="secondary" size="xs" type="button" :disabled="Object.keys(variables).some(k=>variables[k])||clearVariables.length>0" @click="importUpdate">确认导入更新</UiButton></div></div>
       <label v-if="preview&&preview.composeFiles.length>1" class="compact">部署入口<select v-model="settings.file" @change="selectFile"><option v-for="file in preview.composeFiles" :key="file">{{file}}</option></select></label>
       <p v-for="note in preview?.notes" :key="note" class="muted">{{note}}</p><ul v-if="issues.length" class="problems"><li v-for="issue in issues" :key="issue">{{issue}}</li></ul>
       <table v-if="preview"><thead><tr><th>服务</th><th>镜像／构建</th><th>网络</th></tr></thead><tbody><tr v-for="service in preview.services" :key="service.name"><td>{{service.name}}</td><td><code>{{service.build?service.build.dockerfile:service.image}}</code><small v-if="service.build" class="build-context">本地构建 · {{service.build.context}}<span v-if="service.build.target"> · {{service.build.target}}</span></small></td><td>{{service.networks.join('、')}}</td></tr></tbody></table>
      </section>
      <section class="panel"><h2>基本信息</h2><label class="name-field">名称<input v-model="form.name" required maxlength="120"/></label><label>简介<textarea v-model="form.description" rows="2" maxlength="500"/></label><label>访问说明<textarea v-model="form.accessInstructions" rows="3" maxlength="4000" placeholder="可填写服务路径、练习账号等教学说明。"/></label></section>
-     <section v-if="preview?.variables.length" class="panel"><h2>部署变量</h2><p class="muted">变量加密保存，已保存的值不会回显。留空保留已有值或使用 Compose 默认值。</p><div class="variables"><label v-for="key in preview.variables" :key="key">{{key}}<button v-if="storedKeys.includes(key)" type="button" class="clear-variable" :aria-label="`清除 ${key} 的已保存值`" @click="clearVariables=clearVariables.includes(key)?clearVariables.filter(k=>k!==key):[...clearVariables,key]"><Trash2 :size="12"/>{{clearVariables.includes(key)?'待清除':'清除'}}</button><input v-model="variables[key]" type="password" autocomplete="new-password" :placeholder="clearVariables.includes(key)?'保存后清除，使用默认值':storedKeys.includes(key)?'已设置，留空保留':'输入变量值'"/></label></div></section>
+     <section v-if="preview?.variables.length" class="panel"><h2>部署变量</h2><p class="muted">变量加密保存，已保存的值不会回显。留空保留已有值或使用 Compose 默认值。</p><div class="variables"><label v-for="key in preview.variables" :key="key">{{key}}<UiButton variant="secondary" size="xs" v-if="storedKeys.includes(key)" type="button" class="float-right" :aria-label="`清除 ${key} 的已保存值`" @click="clearVariables=clearVariables.includes(key)?clearVariables.filter(k=>k!==key):[...clearVariables,key]"><Trash2 :size="12"/>{{clearVariables.includes(key)?'待清除':'清除'}}</UiButton><input v-model="variables[key]" type="password" autocomplete="new-password" :placeholder="clearVariables.includes(key)?'保存后清除，使用默认值':storedKeys.includes(key)?'已设置，留空保留':'输入变量值'"/></label></div></section>
     </div>
     <aside>
      <section class="panel"><h2>访问入口</h2><label>服务<select v-model="settings.entryService" :disabled="!preview"><option v-for="s in preview?.services" :key="s.name">{{s.name}}</option></select></label><div class="field-pair"><label>端口<input v-model.number="settings.entryPort" type="number" min="1" max="65535"/></label><label>接入网络<select v-model="settings.entryNetwork"><option v-for="network in networks" :key="network">{{network}}</option></select></label></div><label class="compact">网络规格<select v-model.number="settings.prefixBits"><option :value="28">/28 · 常规靶场</option><option :value="27">/27 · 较大靶场</option><option :value="26">/26</option><option :value="25">/25</option><option :value="24">/24</option></select></label><p class="muted">学员直连服务地址，不映射宿主机端口。</p><details><summary>默认资源策略</summary><p class="muted">整套靶场默认 1 GiB 内存、2 CPU、256 个进程，最多 8 个服务。</p></details></section>
@@ -228,7 +228,6 @@ textarea {
   gap: 9px;
 }
 
-button,
 .file-button {
   display: inline-flex;
   align-items: center;
@@ -242,23 +241,9 @@ button,
   font-size: 12px;
   cursor: pointer;
   text-decoration: none;
-}
-
-button:disabled {
-  opacity: 0.45;
-  cursor: default;
-}
-
-.primary {
-  background: var(--btn-primary-bg);
-  color: var(--btn-primary-fg);
-  border-color: transparent;
-  box-shadow: var(--btn-primary-shadow);
-  font-weight: 600;
-}
-
-.primary:hover:not(:disabled) {
-  background: var(--btn-primary-hover);
+  position: relative;
+  margin: 0;
+  overflow: hidden;
 }
 
 .upload-row {
@@ -288,12 +273,6 @@ button:disabled {
   font-size: 12px;
   color: var(--muted);
   margin: 7px 0 0;
-}
-
-.file-button {
-  position: relative;
-  margin: 0;
-  overflow: hidden;
 }
 
 .file-button input {
@@ -335,13 +314,6 @@ th:last-child {
 
 code {
   font-size: 11px;
-}
-
-.notice {
-  background: var(--soft);
-  border-radius: 6px;
-  padding: 14px 16px;
-  font-size: 13px;
 }
 
 .failure,
@@ -462,14 +434,5 @@ textarea {
 
 .node-log li {
   margin: 8px 0;
-}
-
-.clear-variable {
-  float: right;
-  padding: 1px 5px;
-  border: 0;
-  font-size: 10px;
-  color: var(--muted);
-  background: transparent;
 }
 </style>

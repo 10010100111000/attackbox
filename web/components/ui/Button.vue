@@ -1,5 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
+import type { RouteLocationRaw } from 'vue-router'
+import type { ClassValue } from 'clsx'
 import { cn } from '~/utils/cn'
 
 interface Props {
@@ -7,10 +9,11 @@ interface Props {
   size?: 'xs' | 'sm' | 'md' | 'lg'
   loading?: boolean
   disabled?: boolean
-  as?: string | any
-  to?: string | any
+  as?: 'button' | 'a'
+  to?: RouteLocationRaw
+  href?: string
   type?: 'button' | 'submit' | 'reset'
-  class?: any
+  class?: ClassValue
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -20,11 +23,19 @@ const props = withDefaults(defineProps<Props>(), {
   disabled: false,
   as: 'button',
   to: undefined,
+  href: undefined,
   type: 'button',
   class: undefined
 })
 
-const isLink = computed(() => !!props.to || props.as === 'NuxtLink')
+const blocked = computed(() => props.disabled || props.loading)
+
+function guardActivation(event: MouseEvent) {
+  if (blocked.value) {
+    event.preventDefault()
+    event.stopImmediatePropagation()
+  }
+}
 
 const variantClasses: Record<'primary' | 'secondary' | 'outline' | 'ghost' | 'danger', string> = {
   primary:
@@ -48,12 +59,11 @@ const sizeClasses: Record<'xs' | 'sm' | 'md' | 'lg', string> = {
 
 const buttonClasses = computed(() =>
   cn(
-    'inline-flex items-center justify-center font-medium transition-colors select-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent disabled:opacity-50 cursor-pointer',
+    'inline-flex items-center justify-center font-medium transition-colors select-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent disabled:opacity-50',
     variantClasses[props.variant] || variantClasses.primary,
     sizeClasses[props.size] || sizeClasses.md,
-    props.loading ? 'cursor-wait' : (props.disabled && 'pointer-events-none'),
-    (props.disabled || props.loading) && isLink.value && 'opacity-50',
-    props.disabled && isLink.value && 'pointer-events-none',
+    blocked.value && 'opacity-50',
+    props.loading ? 'cursor-wait' : props.disabled ? 'cursor-not-allowed' : 'cursor-pointer',
     props.class
   )
 )
@@ -61,25 +71,37 @@ const buttonClasses = computed(() =>
 
 <template>
   <NuxtLink
-    v-if="isLink"
-    :to="disabled || loading ? undefined : to"
-    :aria-disabled="disabled || loading ? 'true' : undefined"
+    v-if="to"
+    :to="blocked ? undefined : to"
+    :aria-disabled="blocked ? 'true' : undefined"
     :aria-busy="loading"
-    :tabindex="disabled || loading ? -1 : undefined"
+    :tabindex="blocked ? -1 : undefined"
     :class="buttonClasses"
+    @click.capture="guardActivation"
   >
     <UiBusyLabel :busy="loading"><slot /></UiBusyLabel>
   </NuxtLink>
 
-  <component
-    :is="as"
+  <a
+    v-else-if="as === 'a' || href"
+    :href="blocked ? undefined : href"
+    :aria-disabled="blocked ? 'true' : undefined"
+    :aria-busy="loading"
+    :tabindex="blocked ? -1 : undefined"
+    :class="buttonClasses"
+    @click.capture="guardActivation"
+  >
+    <UiBusyLabel :busy="loading"><slot /></UiBusyLabel>
+  </a>
+
+  <button
     v-else
-    :type="as === 'button' ? type : undefined"
-    :disabled="disabled || loading"
-    :aria-disabled="disabled || loading ? 'true' : undefined"
+    :type="type"
+    :disabled="blocked"
+    :aria-disabled="blocked ? 'true' : undefined"
     :aria-busy="loading"
     :class="buttonClasses"
   >
     <UiBusyLabel :busy="loading"><slot /></UiBusyLabel>
-  </component>
+  </button>
 </template>

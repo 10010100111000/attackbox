@@ -47,7 +47,8 @@ const emit = defineEmits<{
 const showPassword = ref(false)
 const capsLockActive = ref(false)
 
-const inputId = computed(() => props.id || useId())
+const generatedId = useId()
+const inputId = computed(() => props.id || generatedId)
 const errorId = computed(() => (props.error ? `${inputId.value}-error` : undefined))
 
 const actualType = computed(() => {

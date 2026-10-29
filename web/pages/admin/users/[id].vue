@@ -122,7 +122,7 @@ onBeforeUnmount(() => clearInterval(timer))
           </div>
           <div v-if="detail.history.length" class="history">
             <div v-for="item in detail.history" :key="item.moduleId" class="history-row">
-              <div><NuxtLink :to="`/learn/modules/${item.slug}`" target="_blank">{{ item.title }}</NuxtLink><span class="secondary">学习章节：{{ item.chapterTitle }}</span></div>
+              <div><NuxtLink class="history-link" :to="`/learn/modules/${item.slug}`" target="_blank">{{ item.title }}</NuxtLink><span class="secondary">学习章节：{{ item.chapterTitle }}</span></div>
               <div class="progress"><progress :value="item.progress.completedChapters" :max="item.progress.totalChapters || 1" :aria-label="`${item.title}学习进度`" /><span>{{ item.progress.completedChapters }} / {{ item.progress.totalChapters }}</span></div>
               <time>{{ date(item.lastVisitedAt) }}</time>
             </div>
@@ -136,3 +136,4 @@ onBeforeUnmount(() => clearInterval(timer))
     </template><UiBusyIndicator v-else label="用户资料加载"/>
   </div>
 </template>
+<style scoped src="~/assets/css/admin-users.css"></style>

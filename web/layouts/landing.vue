@@ -2,7 +2,7 @@
 const {currentUser}=useAuth()
 </script>
 <template>
-  <div class="landing-layout brand-experience">
+  <div class="landing-layout brand-experience" data-theme="midnight">
     <div class="wrap">
       <header class="header">
         <NuxtLink to="/" class="brand">

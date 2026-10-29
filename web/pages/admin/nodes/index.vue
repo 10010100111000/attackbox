@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
 import { useLazyFetch, useHead } from '#imports'
-import { Server, RefreshCw, CircleAlert, ChevronDown, SlidersHorizontal } from 'lucide-vue-next'
+import { Server, RefreshCw, ChevronDown, SlidersHorizontal } from 'lucide-vue-next'
 import type { SandboxNodesResponse, SandboxNodeSettings, SandboxNodeStatus } from '~/shared/sandbox'
 definePageMeta({ layout: 'admin' })
 useHead({ title: '节点管理 — AttackBox' })
@@ -77,7 +77,7 @@ onBeforeUnmount(() => { clearInterval(timer); window.removeEventListener('focus'
             <div class="node-identity"><Server :size="19" aria-hidden="true" /><div><h2 :id="`node-${node.id}`">{{ node.label }}</h2><code>{{ node.id }}</code></div></div>
             <div class="node-head-actions">
               <UiBadge v-if="node.settings.draining" variant="warning">排空中</UiBadge>
-              <UiBadge :variant="node.state === 'online' ? 'success' : 'neutral'" dot>
+              <UiBadge :variant="node.state === 'online' ? 'success' : 'neutral'" dot :class="['node-state', node.state]">
                 <UiBusyIndicator v-if="['registering','waiting'].includes(node.state)" inline :label="labels[node.state]"/>
                 <template v-else>{{ labels[node.state] }}</template>
               </UiBadge>
@@ -122,9 +122,7 @@ onBeforeUnmount(() => { clearInterval(timer); window.removeEventListener('focus'
 .page-head, .node-head { display: flex; align-items: center; justify-content: space-between; gap: 24px; }
 .page-head { margin-bottom: 28px; }
 h1 { margin: 0 0 6px; font-size: 24px; font-weight: 750; }
-.page-head p, .footnote { color: var(--muted); font-size: 13px; }
-.refresh-btn { display: inline-flex; align-items: center; gap: 7px; border: 1px solid var(--line); background: var(--paper); color: var(--ink); border-radius: 6px; padding: 8px 14px; font-size: 12px; cursor: pointer; }
-.refresh-btn:disabled { opacity: .6; cursor: wait; }
+.page-head p { color: var(--muted); font-size: 13px; }
 .summary { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; color: var(--muted); font-size: 13px; }
 .summary strong { color: var(--ink); font-size: 19px; }
 .observe-tag { font-size: 12px; }
@@ -133,9 +131,6 @@ h1 { margin: 0 0 6px; font-size: 24px; font-weight: 750; }
 .node-identity { display: flex; align-items: center; gap: 13px; }
 h2 { font-size: 16px; font-weight: 650; margin: 0 0 3px; }
 code { font: 12px ui-monospace, monospace; color: var(--muted); overflow-wrap: anywhere; }
-.node-state { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--muted); }
-.node-state i { width: 6px; height: 6px; background: currentColor; border-radius: 50%; }
-.node-state.online { color: var(--success-ink); }
 .node-metrics { display: grid; grid-template-columns: 1fr 1.5fr 1fr 1fr; margin: 0 24px; padding: 20px 0; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); gap: 20px; }
 .node-metrics span { display: block; margin-bottom: 10px; color: var(--muted); font-size: 11px; }
 .node-metrics strong { font-size: 18px; font-weight: 550; font-variant-numeric: tabular-nums; }
@@ -151,16 +146,8 @@ summary b { margin-left: 8px; color: var(--muted); font-weight: 500; }
 .inventory p { padding: 0 24px 18px; margin: 0; color: var(--muted); font-size: 12px; }
 table { width: 100%; border-collapse: collapse; text-align: left; font-size: 12px; }
 th, td { padding: 12px 24px; border-top: 1px solid var(--line); } th { color: var(--muted); font-weight: 500; }
-.empty { padding: 64px 24px; text-align: center; border: 1px dashed var(--line); border-radius: 10px; background: var(--paper); }
-.empty > svg { margin: 0 auto 18px; color: var(--muted); }
-.empty p { margin: 10px 0 18px; font-size: 13px; color: var(--muted); }
-.notice { display: flex; gap: 12px; padding: 18px; border-radius: 8px; font-size: 13px; margin-bottom: 20px; }
-.notice p { margin: 6px 0 0; } .notice button { text-decoration: underline; margin-left: 12px; }
-.error { background: var(--error-bg); color: var(--error-ink); }
-.footnote { font-size: 12px; margin-top: 20px; }
+.footnote { color: var(--muted); font-size: 12px; margin-top: 20px; }
 .node-head-actions { display: flex; align-items: center; gap: 14px; }
-.settings-btn { display: inline-flex; align-items: center; gap: 6px; background: transparent; border: 1px solid var(--line); color: var(--ink); border-radius: 5px; padding: 6px 10px; font-size: 12px; cursor: pointer; }
-.draining-tag { color: var(--muted); background: var(--soft); border-radius: 4px; padding: 4px 7px; font-size: 11px; }
 .node-settings { padding: 22px 24px; border-top: 1px solid var(--line); background: var(--hover); }
 fieldset { margin: 0; padding: 0; border: 0; min-width: 0; }
 .settings-title { display: flex; align-items: center; justify-content: space-between; margin-bottom: 22px; }
@@ -173,11 +160,5 @@ h3 { font-size: 14px; font-weight: 600; margin: 0; }
 .settings-grid .name-field input { width: 100%; }
 .settings-help { color: var(--muted); font-size: 11px; margin: 20px 0 0; line-height: 1.8; }
 .settings-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px; }
-.settings-actions button { border: 1px solid var(--line); border-radius: 5px; padding: 8px 16px; font-size: 12px; cursor: pointer; }
-.cancel-btn { background: var(--paper); color: var(--muted); }
-.save-btn { background: var(--btn-primary-bg); border-color: transparent !important; color: var(--btn-primary-fg); box-shadow: var(--btn-primary-shadow); font-weight: 600; }
-.save-btn:hover:not(:disabled) { background: var(--btn-primary-hover); }
-fieldset:disabled button, fieldset:disabled input { opacity: .6; cursor: wait; }
-.settings-error { color: var(--error-ink); font-size: 12px; margin: 16px 0 0; }
-.settings-error button { text-decoration: underline; background: transparent; border: 0; cursor: pointer; }
+fieldset:disabled input { opacity: .6; cursor: wait; }
 </style>

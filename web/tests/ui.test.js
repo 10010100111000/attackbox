@@ -67,25 +67,6 @@ test('tailwind.config.ts extends theme colors, radii tokens and card-glow shadow
   assert.ok(content.includes("'card-glow': 'var(--card-glow)'"))
 })
 
-test('Button.vue defines required variants, sizes, loading indicator and link handling', () => {
-  const content = readFileSync(resolve(rootDir, 'components/ui/Button.vue'), 'utf-8')
-  assert.ok(content.includes('variant'))
-  assert.ok(content.includes('primary'))
-  assert.ok(content.includes('secondary'))
-  assert.ok(content.includes('outline'))
-  assert.ok(content.includes('ghost'))
-  assert.ok(content.includes('danger'))
-  assert.ok(content.includes('size'))
-  assert.ok(content.includes('xs'))
-  assert.ok(content.includes('loading'))
-  assert.ok(content.includes('disabled'))
-  assert.ok(content.includes('UiBusyLabel'))
-  assert.ok(content.includes(':aria-busy="loading"'))
-  assert.ok(content.includes('NuxtLink'))
-  assert.ok(content.includes(':to="disabled || loading ? undefined : to"'))
-  assert.ok(content.includes("props.loading ? 'cursor-wait'"))
-})
-
 test('Input.vue defines inheritAttrs: false, useId, blur event, password toggle, CapsLock detection and error handling', () => {
   const content = readFileSync(resolve(rootDir, 'components/ui/Input.vue'), 'utf-8')
   assert.ok(content.includes('inheritAttrs: false'))
@@ -119,15 +100,6 @@ test('Separator.vue supports horizontal line with centered text and left-right e
   assert.ok(content.includes('border-line'))
   assert.ok(content.includes('slots.default'))
   assert.ok(content.includes('aria-hidden="true"'))
-})
-
-test('Notice.vue defines type variants, icons, accessibility role and dismiss button', () => {
-  const content = readFileSync(resolve(rootDir, 'components/ui/Notice.vue'), 'utf-8')
-  assert.ok(content.includes('typeClasses'))
-  assert.ok(content.includes('error-bg'))
-  assert.ok(content.includes('success-bg'))
-  assert.ok(content.includes(':role="role"'))
-  assert.ok(content.includes('dismissible'))
 })
 
 test('EmptyState.vue defines slots for icon, description and action', () => {

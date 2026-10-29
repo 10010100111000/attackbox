@@ -64,8 +64,8 @@ async function changeStatus(status: FeedbackStatus) {
     </UiNotice>
     <UiBusyIndicator v-else-if="pending && !result" label="反馈加载" />
     <template v-else>
-      <UiNotice v-if="message" variant="success" class="mb-4" role="status">{{ message }}</UiNotice>
-      <UiNotice v-if="saveError" variant="error" class="mb-4" role="alert">{{ saveError }}</UiNotice>
+      <UiNotice v-if="message" variant="success" class="mb-4">{{ message }}</UiNotice>
+      <UiNotice v-if="saveError" variant="error" class="mb-4">{{ saveError }}</UiNotice>
       <UiEmptyState
         v-if="!result?.items.length"
         :title="query.status === 'all' ? '还没有反馈' : '这个状态下还没有反馈'"
@@ -127,10 +127,6 @@ h1 { margin: 0; font-size: 24px; font-weight: 600; letter-spacing: -.5px; }
 .feedback-row.selected { border-color: var(--brand); box-shadow: inset 3px 0 0 var(--brand); }
 .row-top, .row-meta { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
 .feedback-category { font-size: 12px; font-weight: 550; }
-.feedback-status { display: inline-flex; align-items: center; gap: 6px; padding: 4px 8px; border-radius: 6px; font-size: 10px; white-space: nowrap; background: var(--soft); color: var(--muted); }
-.feedback-status::before { content: ''; width: 5px; height: 5px; background: currentColor; border-radius: 50%; }
-.feedback-status[data-status='new'] { background: var(--brand-soft); color: var(--brand); }
-.feedback-status[data-status='resolved'] { background: var(--success-bg); color: var(--success-ink); }
 .feedback-row p { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; margin: 14px 0; font-size: 13px; line-height: 1.8; white-space: pre-wrap; overflow-wrap: anywhere; }
 .row-meta { color: var(--muted); font-size: 11px; }
 .row-meta > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -140,7 +136,6 @@ h1 { margin: 0; font-size: 24px; font-weight: 600; letter-spacing: -.5px; }
 .detail-icon { display: grid; place-items: center; width: 40px; height: 40px; border-radius: 11px; background: var(--brand-soft); color: var(--brand); }
 .feedback-detail h2 { margin: 0 0 5px; font-size: 16px; font-weight: 600; }
 .feedback-detail header > div > span { color: var(--muted); font-size: 11px; }
-.feedback-detail header > .feedback-status { margin-left: auto; }
 .feedback-author { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: baseline; margin-top: 22px; font-size: 12px; }
 .feedback-author strong { font-weight: 550; }
 .feedback-author span { color: var(--muted); overflow-wrap: anywhere; }
@@ -153,10 +148,9 @@ h1 { margin: 0; font-size: 24px; font-weight: 600; letter-spacing: -.5px; }
 .feedback-detail footer { display: flex; align-items: center; gap: 14px; padding-top: 24px; margin-top: 24px; border-top: 1px solid var(--line); }
 .feedback-detail footer > span { font-size: 12px; color: var(--muted); }
 .feedback-detail footer > div { display: flex; gap: 6px; }
-.feedback-detail footer button, .feedback-pagination button { padding: 8px 12px; border: 1px solid var(--line); border-radius: 7px; background: transparent; color: var(--body); font-size: 11px; cursor: pointer; }
+.feedback-detail footer button { padding: 8px 12px; border: 1px solid var(--line); border-radius: 7px; background: transparent; color: var(--body); font-size: 11px; cursor: pointer; }
 .feedback-detail footer button.active { background: var(--brand-soft); border-color: var(--brand); color: var(--brand); opacity: 1; }
 .feedback-pagination { display: flex; gap: 14px; align-items: center; justify-content: space-between; margin-top: 8px; color: var(--muted); font-size: 11px; }
-.text-button { background: transparent; border: 0; color: var(--brand); cursor: pointer; font-size: 12px; }
-button:disabled { cursor: default; opacity: .55; }
+.feedback-row:disabled, .feedback-filters button:disabled, .feedback-detail footer button:disabled { cursor: default; opacity: .55; }
 button:focus-visible, a:focus-visible { outline: 2px solid var(--focus); outline-offset: 3px; }
 </style>

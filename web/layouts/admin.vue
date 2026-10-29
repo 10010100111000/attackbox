@@ -469,5 +469,3 @@ const currentBreadcrumb = computed(() => sectionMeta[currentSection.value])
   min-width: 0;
 }
 </style>
-
-<style src="~/assets/css/admin-users.css"></style>

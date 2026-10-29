@@ -29,38 +29,6 @@
   gap: 10px;
 }
 
-.reference-admin button,
-.reference-admin .button {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 7px;
-  min-height: 36px;
-  padding: 8px 13px;
-  border: 1px solid var(--line);
-  border-radius: 7px;
-  background: var(--paper);
-  color: var(--ink);
-  font-size: 12px;
-  cursor: pointer;
-  text-decoration: none;
-}
-
-.reference-admin button.primary {
-  background: var(--btn-primary-bg);
-  color: var(--btn-primary-fg);
-  border-color: transparent;
-}
-
-.reference-admin button.danger {
-  color: var(--error-ink);
-}
-
-.reference-admin button:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
 .reference-admin .panel {
   padding: 24px;
   margin-bottom: 24px;
@@ -73,17 +41,6 @@
   font-size: 16px;
   font-weight: 600;
   margin: 0 0 18px;
-}
-
-.reference-admin .notice {
-  font-size: 12px;
-  line-height: 1.8;
-  padding: 12px 16px;
-  color: var(--error-ink);
-  background: var(--error-bg);
-  border-radius: 7px;
-  margin-bottom: 20px;
-  overflow-wrap: anywhere;
 }
 
 .reference-admin table {
@@ -116,7 +73,7 @@
   width: 52%;
 }
 
-.reference-admin td a {
+.reference-admin .reference-link {
   color: var(--ink);
   font-weight: 600;
   text-decoration: none;
@@ -128,24 +85,6 @@
   color: var(--muted);
   margin-top: 7px;
   overflow-wrap: anywhere;
-}
-
-.reference-admin .status {
-  font-size: 11px;
-  color: var(--muted);
-}
-
-.reference-admin .status.published {
-  color: var(--success-ink);
-}
-
-.reference-admin .empty {
-  display: grid;
-  justify-items: center;
-  gap: 12px;
-  padding: 64px 24px;
-  color: var(--muted);
-  font-size: 13px;
 }
 
 .reference-admin .muted {
@@ -175,9 +114,4 @@
 
 .reference-admin .pages a {
   color: var(--ink);
-}
-
-.reference-admin :focus-visible {
-  outline: 2px solid var(--focus);
-  outline-offset: 3px;
 }
