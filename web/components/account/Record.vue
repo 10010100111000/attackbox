@@ -69,3 +69,132 @@ const date = computed(() => {
     </time>
   </NuxtLink>
 </template>
+
+<style scoped>
+.personal-record {
+  display: grid;
+  grid-template-columns: 42px minmax(0, 1fr) 160px 68px;
+  gap: 18px;
+  align-items: center;
+  padding: 20px 24px;
+  color: var(--ink);
+  text-decoration: none;
+  transition: background 0.15s ease;
+}
+
+.personal-record + .personal-record {
+  border-top: 1px solid var(--line);
+}
+
+.personal-record:hover {
+  background: var(--hover);
+}
+
+.personal-record-icon {
+  display: grid;
+  place-items: center;
+  width: 42px;
+  height: 42px;
+  border: 1px solid var(--line);
+  border-radius: 11px;
+  background: var(--soft);
+  color: var(--ink);
+  transition:
+    transform 0.18s ease,
+    border-color 0.18s ease;
+}
+
+.personal-record:hover .personal-record-icon {
+  transform: scale(1.04);
+  border-color: color-mix(in srgb, var(--ink) 24%, var(--line));
+}
+
+.personal-record-icon.complete {
+  color: var(--success-ink);
+  background: var(--success-bg);
+  border-color: color-mix(in srgb, var(--success-ink) 25%, transparent);
+}
+
+.personal-record-text {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+
+.personal-record-text strong {
+  font-size: 14px;
+  line-height: 1.45;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.personal-record-text > span {
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+
+.personal-record-progress {
+  display: grid;
+  gap: 8px;
+}
+
+.personal-record-count {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  color: var(--muted);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
+.personal-record-count .personal-complete {
+  color: var(--success-ink);
+  font-weight: 600;
+}
+
+.personal-record-date {
+  text-align: right;
+  font-size: 11px;
+  color: var(--muted);
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+@media (max-width: 1020px) {
+  .personal-record {
+    grid-template-columns: 38px minmax(0, 1fr) 130px;
+    gap: 14px;
+    padding: 20px;
+  }
+
+  .personal-record-date {
+    display: none;
+  }
+}
+
+@media (max-width: 760px) {
+  .personal-record {
+    grid-template-columns: 36px minmax(0, 1fr);
+    padding: 20px 18px;
+    gap: 12px;
+  }
+
+  .personal-record-icon {
+    width: 34px;
+    height: 34px;
+  }
+
+  .personal-record-progress {
+    grid-column: 2;
+    margin-top: 2px;
+    gap: 8px;
+  }
+
+  .personal-record-text strong {
+    font-size: 13px;
+  }
+}
+</style>

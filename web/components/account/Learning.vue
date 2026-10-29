@@ -140,3 +140,139 @@ function destination(item: LearningHistoryItem) {
     </div>
   </section>
 </template>
+
+<style scoped>
+.personal-resume-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 550;
+  letter-spacing: 0.3px;
+}
+
+.personal-resume-label > span {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--brand);
+  box-shadow: 0 0 8px var(--brand);
+}
+
+.personal-resume h2 {
+  margin: 14px 0 8px;
+  font-size: 22px;
+  font-weight: 650;
+  line-height: 1.4;
+  letter-spacing: -0.5px;
+  overflow-wrap: anywhere;
+}
+
+.personal-resume-copy > p {
+  font-size: 13px;
+  color: var(--muted);
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.personal-resume-button:hover {
+  transform: translateY(-1px);
+  background: var(--btn-primary-hover);
+}
+
+.personal-resume-progress {
+  display: flex;
+  flex-direction: column;
+  border-left: 1px solid var(--line);
+  padding-left: 28px;
+  gap: 8px;
+}
+
+.personal-resume-progress > strong {
+  font-size: 42px;
+  line-height: 1;
+  font-weight: 600;
+  letter-spacing: -2px;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink);
+}
+
+.personal-resume-progress > strong > span {
+  font-size: 18px;
+  letter-spacing: 0;
+  margin-left: 3px;
+  color: var(--muted);
+}
+
+.personal-resume-progress > span:not(.personal-progress) {
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.personal-resume-progress > small {
+  font-size: 11px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.personal-resume .personal-progress {
+  margin-top: 8px;
+  height: 5px;
+  background: var(--soft);
+}
+
+.personal-resume .personal-progress i {
+  background: var(--brand);
+}
+
+@media (max-width: 1020px) {
+  .personal-resume {
+    gap: 22px;
+    padding: 24px;
+    grid-template-columns: minmax(0, 1fr) 136px;
+  }
+
+  .personal-resume-progress {
+    padding-left: 22px;
+  }
+}
+
+@media (max-width: 760px) {
+  .personal-resume {
+    grid-template-columns: minmax(0, 1fr);
+    padding: 24px;
+    gap: 22px;
+  }
+
+  .personal-resume h2 {
+    font-size: 20px;
+  }
+
+  .personal-resume-progress {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    align-items: center;
+    border-left: 0;
+    padding-left: 0;
+    column-gap: 16px;
+  }
+
+  .personal-resume-progress > strong {
+    font-size: 28px;
+    grid-row: 1 / 4;
+  }
+
+  .personal-resume-progress > strong > span {
+    font-size: 13px;
+  }
+
+  .personal-resume .personal-progress {
+    margin: 0;
+  }
+
+  .personal-resume-progress > span:not(.personal-progress) {
+    display: none;
+  }
+}
+</style>
