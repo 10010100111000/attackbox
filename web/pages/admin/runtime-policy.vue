@@ -116,9 +116,10 @@ async function save() {
             <p>CLI 和 GUI 共用同一个沙箱。</p>
             <label for="sandbox-ttl">使用时长</label>
             <div class="number-field">
-              <input
+              <UiInput
                 id="sandbox-ttl"
                 v-model.number="draft.sandboxTtlMinutes"
+                bare
                 type="number"
                 min="1"
                 max="1440"
@@ -128,9 +129,10 @@ async function save() {
             </div>
             <label for="sandbox-idle">空闲回收时间</label>
             <div class="number-field">
-              <input
+              <UiInput
                 id="sandbox-idle"
                 v-model.number="draft.sandboxIdleMinutes"
+                bare
                 type="number"
                 min="1"
                 :max="draft.sandboxTtlMinutes"
@@ -148,9 +150,10 @@ async function save() {
             <p>学习与挑战中的私有靶场使用同一规则。</p>
             <label for="target-ttl">使用时长</label>
             <div class="number-field">
-              <input
+              <UiInput
                 id="target-ttl"
                 v-model.number="draft.targetTtlMinutes"
+                bare
                 type="number"
                 min="1"
                 max="1440"
@@ -259,14 +262,6 @@ label {
 }
 input {
   width: 116px;
-  box-sizing: border-box;
-  padding: 10px 12px;
-  border: 1px solid var(--line);
-  border-radius: 7px;
-  background: var(--bg);
-  color: var(--ink);
-  font: inherit;
-  font-size: 14px;
 }
 small {
   display: block;
@@ -299,7 +294,6 @@ footer > div {
   display: flex;
   gap: 10px;
 }
-input:focus-visible,
 button:focus-visible {
   outline: 2px solid var(--focus);
   outline-offset: 3px;

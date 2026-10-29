@@ -65,7 +65,7 @@ function stagePercent(c: ChallengeSummary): number {
     <p class="intro">从一个目标开始，逐步找到答案。</p>
 
     <div class="filters">
-      <input v-model="query" aria-label="搜索挑战" placeholder="搜索挑战" />
+      <UiInput v-model="query" bare size="sm" aria-label="搜索挑战" placeholder="搜索挑战" />
       <UiSelect v-model="category" aria-label="挑战分类" :options="categoryOptions" />
       <UiSelect v-model="difficulty" aria-label="挑战难度" :options="difficultyOptions" />
     </div>
@@ -174,7 +174,6 @@ h1 {
   margin-bottom: 26px;
 }
 
-input,
 button {
   padding: 10px 12px;
   background: var(--paper);
@@ -184,11 +183,6 @@ button {
   font-size: 13px;
   box-sizing: border-box;
   transition: border-color 0.15s ease;
-}
-
-input:focus {
-  outline: none;
-  border-color: var(--focus);
 }
 
 input {

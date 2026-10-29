@@ -1,16 +1,16 @@
-import test, { before, after } from 'node:test'
+import test, { before, after, afterEach } from 'node:test'
 import assert from 'node:assert/strict'
 import { chromium } from 'playwright'
+import { chromiumOptions } from './helpers/browser.mjs'
 import { uiFixture } from './helpers/ui-fixture.mjs'
 import { chooseOption } from './helpers/select.mjs'
 
 let fixture, browser
+const pageErrors = []
+afterEach(() => assert.deepEqual(pageErrors.splice(0), [], 'unexpected browser runtime errors'))
 before(async () => {
   fixture = await uiFixture()
-  browser = await chromium.launch({
-    executablePath: process.env.CHROMIUM_PATH || '/usr/bin/chromium',
-    args: ['--no-sandbox']
-  })
+  browser = await chromium.launch(chromiumOptions())
 })
 after(async () => {
   await browser?.close()
@@ -19,6 +19,7 @@ after(async () => {
 
 async function visit(path = '/') {
   const page = await browser.newPage()
+  page.on('pageerror', error => pageErrors.push(error.message))
   page.setDefaultTimeout(7000)
   await page.goto(fixture.base + path)
   return page
@@ -440,6 +441,140 @@ test('module actions reserve consistent columns and homepage controls use shared
     )
     await page.getByRole('button', { name: '添加推荐', exact: true }).click()
     assert.equal(await page.locator('.slide-row').count(), 2)
+  } finally {
+    await page.close()
+  }
+})
+
+test('bare inputs preserve DOM placement, native events, numeric modifiers and accessible field metadata', async () => {
+  const page = await visit('/controls')
+  try {
+    const input = page.getByRole('textbox', { name: 'Inline input', exact: true })
+    await input.waitFor()
+    assert.equal(await page.locator('.inline-row > input').count(), 1)
+    assert.equal(await input.evaluate(el => el.getBoundingClientRect().width), 160)
+    assert.equal(await input.getAttribute('aria-describedby'), 'external-help')
+    assert.equal(await input.getAttribute('maxlength'), '10')
+    const values = async () => JSON.parse(await page.locator('#control-values').textContent())
+    await input.fill('hello')
+    await input.press('Tab')
+    let state = await values()
+    assert.equal(state.text, 'hello')
+    assert.equal(state.events.input, 1)
+    assert.equal(state.events.change, 1)
+    assert.equal(state.events.blur, 1)
+    assert.ok(state.events.keydown > 0)
+    await input.evaluate(el => {
+      el.dispatchEvent(new CompositionEvent('compositionstart', { bubbles: true }))
+      el.value = 'ni'
+      el.dispatchEvent(new InputEvent('input', { bubbles: true, isComposing: true }))
+    })
+    assert.equal((await values()).text, 'hello')
+    await input.evaluate(el => {
+      el.value = '你好'
+      el.dispatchEvent(new CompositionEvent('compositionend', { bubbles: true }))
+    })
+    assert.equal((await values()).text, '你好')
+    await page.locator('#focus-input').click()
+    assert.equal(await input.evaluate(el => el === document.activeElement), true)
+    await page.locator('#toggle-error').click()
+    assert.equal(await input.getAttribute('aria-invalid'), 'true')
+    assert.equal(await input.getAttribute('aria-describedby'), 'external-help')
+    const enhanced = page.getByLabel('Enhanced password', { exact: true })
+    assert.equal(
+      await enhanced.getAttribute('aria-describedby'),
+      'external-help enhanced-password-error'
+    )
+    assert.equal(await page.locator('#enhanced-password-error').textContent(), 'Invalid')
+    assert.equal(await page.getByRole('button', { name: '显示密码', exact: true }).count(), 1)
+    await page.getByRole('button', { name: '显示密码', exact: true }).click()
+    assert.equal(await enhanced.getAttribute('type'), 'text')
+    assert.equal(
+      await page.getByLabel('Bare password', { exact: true }).getAttribute('type'),
+      'password'
+    )
+    const number = page.getByRole('spinbutton', { name: 'Numeric input' })
+    await number.fill('8')
+    assert.equal((await values()).amount, 8)
+    await number.fill('')
+    assert.equal((await values()).amount, '')
+    assert.equal(await number.evaluate(el => el.validity.valueMissing), true)
+    await number.fill('11')
+    assert.equal(await number.evaluate(el => el.validity.rangeOverflow), true)
+    await page.getByLabel('Trimmed input', { exact: true }).fill('  hello  ')
+    assert.equal((await values()).trimmed, 'hello')
+    const deferred = page.getByLabel('Deferred input', { exact: true })
+    await deferred.fill('wait for change')
+    assert.equal((await values()).deferred, '')
+    await deferred.press('Tab')
+    assert.equal((await values()).deferred, 'wait for change')
+  } finally {
+    await page.close()
+  }
+})
+
+test('checkboxes support label and keyboard activation, form values and disabled fieldsets; separators retain semantics', async () => {
+  const page = await visit('/controls')
+  try {
+    const checkbox = page.getByRole('checkbox', { name: 'Accept terms' })
+    await checkbox.waitFor()
+    assert.equal(await checkbox.isChecked(), false)
+    await page.getByText('Accept terms', { exact: true }).click()
+    assert.equal(await checkbox.isChecked(), true)
+    assert.equal(
+      await page.evaluate(() =>
+        new FormData(document.querySelector('#control-form')).get('accepted')
+      ),
+      'yes'
+    )
+    await checkbox.focus()
+    await page.keyboard.press('Space')
+    assert.equal(await checkbox.isChecked(), false)
+    assert.equal(
+      await page.evaluate(() =>
+        new FormData(document.querySelector('#control-form')).get('accepted')
+      ),
+      null
+    )
+    await page.locator('#disable-controls').click()
+    assert.equal(await checkbox.isDisabled(), true)
+    assert.equal(await page.getByLabel('Disabled input').isDisabled(), true)
+    assert.equal(await checkbox.evaluate(el => getComputedStyle(el).opacity), '0.5')
+    await checkbox.evaluate(el => el.click())
+    assert.equal(await checkbox.isChecked(), false)
+    assert.equal(await page.locator('#horizontal-separator').getAttribute('role'), 'separator')
+    assert.equal(
+      await page.locator('#vertical-separator').getAttribute('aria-orientation'),
+      'vertical'
+    )
+    assert.equal(await page.locator('#decorative-separator').getAttribute('role'), 'none')
+    assert.equal(await page.locator('#labeled-separator').textContent(), 'Other methods')
+    assert.equal(await page.locator('#labeled-separator [role="none"]').count(), 2)
+  } finally {
+    await page.close()
+  }
+})
+
+test('migrated homepage settings submit booleans and numeric values without changing label or grid structure', async () => {
+  const page = await visit('/admin/learn-home')
+  try {
+    let submitted
+    await page.route('**/api/admin/learn-home', route => {
+      if (route.request().method() !== 'PUT') return route.continue()
+      submitted = route.request().postDataJSON()
+      return route.fulfill({ json: { data: { ...submitted, lockVersion: 1 } } })
+    })
+    const enabled = page.getByRole('checkbox', { name: '显示推荐区' })
+    await enabled.waitFor()
+    assert.equal((await page.locator('.fields > label > input').count()) > 0, true)
+    await enabled.uncheck()
+    await page.getByRole('checkbox', { name: '自动轮播' }).check()
+    await page.getByRole('spinbutton', { name: /间隔/ }).fill('12')
+    await page.getByRole('button', { name: '保存首页', exact: true }).click()
+    await page.getByRole('status').filter({ hasText: '首页已更新' }).waitFor()
+    assert.equal(submitted.enabled, false)
+    assert.equal(submitted.autoplay, true)
+    assert.equal(submitted.intervalSeconds, 12)
   } finally {
     await page.close()
   }

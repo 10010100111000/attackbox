@@ -118,20 +118,26 @@ async function save(clearToken = false) {
       <fieldset :disabled="busy || needsReload">
         <div class="repo-fields">
           <label
-            >仓库<input
+            >仓库<UiInput
               v-model="form.repository"
+              bare
               required
               maxlength="240"
               placeholder="owner/repository"
           /></label>
-          <label>分支<input v-model="form.branch" required maxlength="200" /></label>
+          <label>分支<UiInput v-model="form.branch" bare required maxlength="200" /></label>
           <label
-            >资料目录<input v-model="form.directory" maxlength="500" placeholder="references"
+            >资料目录<UiInput
+              v-model="form.directory"
+              bare
+              maxlength="500"
+              placeholder="references"
           /></label>
         </div>
         <label class="token-field"
-          >只读 Token<input
+          >只读 Token<UiInput
             v-model="form.token"
+            bare
             type="password"
             autocomplete="new-password"
             maxlength="4096"
@@ -187,16 +193,7 @@ label {
   font-size: 12px;
   color: var(--muted);
 }
-input {
-  width: 100%;
-  height: 38px;
-  padding: 8px 11px;
-  border: 1px solid var(--line);
-  border-radius: 6px;
-  background: var(--soft);
-  color: var(--ink);
-  font-size: 13px;
-}
+
 .token-field {
   max-width: 460px;
   margin-top: 20px;

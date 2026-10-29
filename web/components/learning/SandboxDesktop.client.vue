@@ -152,10 +152,10 @@ onBeforeUnmount(() => {
     <div class="desktop-toolbar">
       <span v-if="state" role="status">{{ state }}</span
       ><UiBusyIndicator v-else inline label="桌面连接" /><label
-        ><input v-model="fit" type="checkbox" />自适应（取消后为原始尺寸）</label
+        ><UiCheckbox v-model="fit" />自适应（取消后为原始尺寸）</label
       ><PopoverRoot v-model:open="clipboardOpen"
         ><PopoverTrigger
-          class="clipboard-trigger"
+          class="desktop-action clipboard-trigger"
           :disabled="state !== '桌面已连接'"
           aria-label="桌面剪贴板"
           ><Clipboard :size="13" aria-hidden="true" />剪贴板</PopoverTrigger
@@ -190,9 +190,20 @@ onBeforeUnmount(() => {
             </div>
             <p v-if="clipboardMessage" role="status">{{ clipboardMessage }}</p>
             <PopoverArrow class="clipboard-arrow" /> </PopoverContent></PopoverPortal></PopoverRoot
-      ><button v-if="state === '桌面已连接'" type="button" @click="viewer?.sendCtrlAltDel()">
+      ><button
+        v-if="state === '桌面已连接'"
+        class="desktop-action"
+        type="button"
+        @click="viewer?.sendCtrlAltDel()"
+      >
         Ctrl Alt Del</button
-      ><button v-else-if="state" type="button" :disabled="connecting" @click="reconnect">
+      ><button
+        v-else-if="state"
+        class="desktop-action"
+        type="button"
+        :disabled="connecting"
+        @click="reconnect"
+      >
         重新连接
       </button>
     </div>
@@ -229,10 +240,7 @@ onBeforeUnmount(() => {
   align-items: center;
   gap: 5px;
 }
-.desktop-toolbar input {
-  accent-color: #60a5fa;
-}
-.desktop-toolbar button {
+.desktop-action {
   background: transparent;
   border: 0;
   color: #7dd3fc;
@@ -244,7 +252,7 @@ onBeforeUnmount(() => {
   align-items: center;
   gap: 5px;
 }
-.desktop-toolbar button:disabled {
+.desktop-action:disabled {
   opacity: 0.5;
   cursor: wait;
 }

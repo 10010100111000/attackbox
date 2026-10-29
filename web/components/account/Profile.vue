@@ -105,9 +105,10 @@ async function save() {
         <div class="personal-field">
           <label for="personal-nickname">昵称</label>
           <div>
-            <input
+            <UiInput
               id="personal-nickname"
               v-model="name"
+              bare
               :disabled="busy"
               :aria-invalid="invalid"
               :aria-describedby="invalid ? 'personal-name-error' : undefined"

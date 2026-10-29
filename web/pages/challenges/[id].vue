@@ -115,8 +115,8 @@ async function submit(stageId: string) {
       <div class="toolbar-tools" role="group" aria-label="练习环境">
         <LearningEnvironmentStatus />
         <button
-          type="button"
           v-if="environmentReady"
+          type="button"
           :disabled="!ready"
           :aria-pressed="practiceVisible && !practiceMinimized && practiceMode === 'cli'"
           @click="openPractice('cli')"
@@ -126,8 +126,8 @@ async function submit(stageId: string) {
           <span class="tool-word">终端</span>
         </button>
         <button
-          type="button"
           v-if="environmentReady"
+          type="button"
           :disabled="!ready"
           :aria-pressed="practiceVisible && !practiceMinimized && practiceMode === 'gui'"
           @click="openPractice('gui')"
@@ -207,18 +207,22 @@ async function submit(stageId: string) {
 
                 <form v-else @submit.prevent="submit(s.id)">
                   <label class="sr-only" :for="`flag-${s.id}`">阶段 {{ index + 1 }} Flag</label>
-                  <input
+                  <UiInput
                     :id="`flag-${s.id}`"
                     v-model="answers[s.id]"
+                    bare
                     placeholder="flag{...}"
                     maxlength="2000"
                     autocomplete="off"
                     spellcheck="false"
                     :disabled="busy || !ready"
                   />
-                  <button :disabled="busy || !ready || !answers[s.id]?.trim()">
-                    <UiBusyLabel :busy="busy">提交 Flag</UiBusyLabel>
-                  </button>
+                  <UiButton
+                    type="submit"
+                    :loading="busy"
+                    :disabled="!ready || !answers[s.id]?.trim()"
+                    >提交 Flag</UiButton
+                  >
                 </form>
 
                 <p v-if="feedback[s.id] && !s.passedAt" role="status">
@@ -243,11 +247,11 @@ async function submit(stageId: string) {
         :max-width="dock.maxWidth.value"
         :min-height="dock.minHeight.value"
         :max-height="dock.maxHeight.value"
+        :mode="practiceMode"
         @update:height="dock.setHeight"
         @update:width="dock.setWidth"
         @update:placement="dock.setPlacement"
         @resize-end="dock.persist"
-        :mode="practiceMode"
         @minimize="minimizePractice"
       />
 
@@ -459,39 +463,9 @@ form {
 input {
   flex: 1;
   min-width: 0;
-  padding: 11px 13px;
-  background: var(--paper);
-  color: var(--ink);
-  border: 1px solid var(--line);
-  border-radius: 6px;
   font:
     13px ui-monospace,
     monospace;
-}
-
-form button {
-  background: var(--btn-primary-bg);
-  color: var(--btn-primary-fg);
-  box-shadow: var(--btn-primary-shadow);
-  border: 0;
-  border-radius: 7px;
-  padding: 10px 20px;
-  cursor: pointer;
-  font-size: 12px;
-  font-weight: 600;
-  transition:
-    transform 0.15s ease,
-    background 0.15s ease;
-}
-
-form button:hover:not(:disabled) {
-  transform: translateY(-1px);
-  background: var(--btn-primary-hover);
-}
-
-form button:disabled {
-  opacity: 0.5;
-  cursor: default;
 }
 
 .locked,

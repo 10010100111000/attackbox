@@ -69,7 +69,13 @@ async function remove(c: ChallengeSummary) {
     <div class="filters">
       <label class="search">
         <Search :size="15" aria-hidden="true" />
-        <input v-model="query" aria-label="搜索挑战" placeholder="搜索名称或分类" />
+        <UiInput
+          v-model="query"
+          bare
+          size="sm"
+          aria-label="搜索挑战"
+          placeholder="搜索名称或分类"
+        />
       </label>
       <span class="count muted">{{ rows.length }} 个挑战</span>
     </div>

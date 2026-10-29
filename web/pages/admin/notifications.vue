@@ -77,16 +77,16 @@ async function withdraw(id: string) {
         <h2>发布通知</h2>
         <label>
           标题
-          <input :disabled="busy" v-model="form.title" required maxlength="120" />
+          <UiInput v-model="form.title" bare :disabled="busy" required maxlength="120" />
         </label>
         <label>
           正文
-          <UiTextarea :disabled="busy" v-model="form.body" required maxlength="8000" rows="7" />
+          <UiTextarea v-model="form.body" :disabled="busy" required maxlength="8000" rows="7" />
         </label>
         <label>
           相关页面
           <small>可选</small>
-          <input :disabled="busy" v-model="form.link" maxlength="500" placeholder="/learn" />
+          <UiInput v-model="form.link" bare :disabled="busy" maxlength="500" placeholder="/learn" />
         </label>
         <UiButton
           type="submit"
@@ -190,16 +190,7 @@ small,
 }
 input,
 textarea {
-  display: block;
-  width: 100%;
-  box-sizing: border-box;
   margin-top: 9px;
-  padding: 10px 12px;
-  background: var(--bg);
-  border: 1px solid var(--line);
-  border-radius: 7px;
-  color: var(--ink);
-  font: inherit;
 }
 input {
   max-width: 500px;

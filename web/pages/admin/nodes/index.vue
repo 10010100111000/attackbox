@@ -212,29 +212,32 @@ onBeforeUnmount(() => {
               <div class="settings-title">
                 <h3>节点设置</h3>
                 <label class="draining-switch"
-                  ><input v-model="draft.draining" type="checkbox" />排空：停止分配新实例</label
+                  ><UiCheckbox v-model="draft.draining" />排空：停止分配新实例</label
                 >
               </div>
               <div class="settings-grid">
                 <label class="name-field"
-                  >节点名称<input v-model="draft.label" required maxlength="80" /></label
+                  >节点名称<UiInput v-model="draft.label" bare required maxlength="80" /></label
                 ><label
-                  >并发实例上限<input
+                  >并发实例上限<UiInput
                     v-model.number="draft.maxSlots"
+                    bare
                     type="number"
                     min="1"
                     max="250"
                     required /></label
                 ><label
-                  >单实例内存 · MB<input
+                  >单实例内存 · MB<UiInput
                     v-model.number="draft.memoryMb"
+                    bare
                     type="number"
                     min="128"
                     max="65536"
                     required /></label
                 ><label
-                  >进程数上限<input
+                  >进程数上限<UiInput
                     v-model.number="draft.pidsMax"
+                    bare
                     type="number"
                     min="32"
                     max="4096"
@@ -500,9 +503,6 @@ h3 {
   font-size: 12px;
   color: var(--muted);
 }
-.draining-switch input {
-  accent-color: var(--green);
-}
 .settings-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
@@ -517,12 +517,6 @@ h3 {
 }
 .settings-grid input {
   width: 128px;
-  padding: 8px 10px;
-  color: var(--ink);
-  background: var(--paper);
-  border: 1px solid var(--line);
-  border-radius: 5px;
-  font-size: 13px;
 }
 .settings-grid .name-field input {
   width: 100%;
@@ -538,9 +532,5 @@ h3 {
   justify-content: flex-end;
   gap: 10px;
   margin-top: 20px;
-}
-fieldset:disabled input {
-  opacity: 0.6;
-  cursor: wait;
 }
 </style>

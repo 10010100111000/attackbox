@@ -260,8 +260,10 @@ function getModuleTheme(index: number) {
               {{ cat }}
             </button>
           </div>
-          <input
+          <UiInput
             v-model="searchQuery"
+            bare
+            size="sm"
             type="search"
             class="search-input"
             placeholder="搜索模块"
@@ -759,19 +761,7 @@ function getModuleTheme(index: number) {
 }
 
 .search-input {
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  padding: 8px 14px;
-  background: var(--paper);
   min-width: 220px;
-  font-size: 12px;
-  color: var(--ink);
-  outline: none;
-  transition: border-color 0.15s ease;
-}
-
-.search-input:focus {
-  border-color: var(--focus);
 }
 
 /* 状态容器 */

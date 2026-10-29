@@ -197,8 +197,9 @@ function syncAllChanged() {
           <div class="settings-grid">
             <label>
               GitHub 私有仓库
-              <input
+              <UiInput
                 v-model="form.repository"
+                bare
                 placeholder="owner/repository"
                 autocomplete="off"
                 required
@@ -206,17 +207,22 @@ function syncAllChanged() {
             </label>
             <label>
               分支
-              <input v-model="form.branch" placeholder="main" required />
+              <UiInput v-model="form.branch" bare placeholder="main" required />
             </label>
             <label>
               基础目录
-              <input v-model="form.directory" placeholder="留空为仓库根目录（自动扫描子文件夹）" />
+              <UiInput
+                v-model="form.directory"
+                bare
+                placeholder="留空为仓库根目录（自动扫描子文件夹）"
+              />
             </label>
             <label class="token-field">
               只读 Token
               <span>{{ settings?.data.hasToken ? '已配置，留空保持不变' : '未配置' }}</span>
-              <input
+              <UiInput
                 v-model="form.token"
+                bare
                 type="password"
                 autocomplete="new-password"
                 placeholder="仅授权当前仓库的 Contents: Read-only"
@@ -440,17 +446,7 @@ label {
   font-size: 12px;
   font-weight: 550;
 }
-input {
-  height: 38px;
-  width: 100%;
-  min-width: 0;
-  padding: 8px 10px;
-  border: 1px solid var(--line);
-  border-radius: 6px;
-  background: var(--bg);
-  color: var(--ink);
-  font-size: 12px;
-}
+
 .actions {
   display: flex;
   align-items: center;

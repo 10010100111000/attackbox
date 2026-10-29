@@ -457,19 +457,25 @@ const preparation = (node: string) => preparations.value.find(p => p.nodeId === 
               </div>
               <div v-if="gitOpen" class="git-form">
                 <label
-                  >GitHub 仓库<input
+                  >GitHub 仓库<UiInput
                     v-model="gitForm.repository"
+                    bare
                     placeholder="owner/repository 或 HTTPS 链接"
                 /></label>
                 <div class="field-pair git-fields">
-                  <label>分支 / 标签<input v-model="gitForm.branch" placeholder="main" /></label
+                  <label
+                    >分支 / 标签<UiInput v-model="gitForm.branch" bare placeholder="main" /></label
                   ><label
-                    >仓库内目录<input v-model="gitForm.directory" placeholder="留空读取仓库根目录"
+                    >仓库内目录<UiInput
+                      v-model="gitForm.directory"
+                      bare
+                      placeholder="留空读取仓库根目录"
                   /></label>
                 </div>
                 <label
-                  >只读 Token<input
+                  >只读 Token<UiInput
                     v-model="gitForm.token"
+                    bare
                     type="password"
                     autocomplete="new-password"
                     placeholder="公开仓库可留空" /></label
@@ -557,7 +563,7 @@ const preparation = (node: string) => preparations.value.find(p => p.nodeId === 
             <section class="panel">
               <h2>基本信息</h2>
               <label class="name-field"
-                >名称<input v-model="form.name" required maxlength="120" /></label
+                >名称<UiInput v-model="form.name" bare required maxlength="120" /></label
               ><label>简介<UiTextarea v-model="form.description" rows="2" maxlength="500" /></label
               ><label
                 >访问说明<UiTextarea
@@ -577,9 +583,9 @@ const preparation = (node: string) => preparations.value.find(p => p.nodeId === 
                 <label v-for="key in preview.variables" :key="key"
                   >{{ key
                   }}<UiButton
+                    v-if="storedKeys.includes(key)"
                     variant="secondary"
                     size="xs"
-                    v-if="storedKeys.includes(key)"
                     type="button"
                     class="float-right"
                     :aria-label="`清除 ${key} 的已保存值`"
@@ -591,8 +597,9 @@ const preparation = (node: string) => preparations.value.find(p => p.nodeId === 
                     ><Trash2 :size="12" />{{
                       clearVariables.includes(key) ? '待清除' : '清除'
                     }}</UiButton
-                  ><input
+                  ><UiInput
                     v-model="variables[key]"
+                    bare
                     type="password"
                     autocomplete="new-password"
                     :placeholder="
@@ -618,8 +625,9 @@ const preparation = (node: string) => preparations.value.find(p => p.nodeId === 
               /></label>
               <div class="field-pair">
                 <label
-                  >端口<input
+                  >端口<UiInput
                     v-model.number="settings.entryPort"
+                    bare
                     type="number"
                     min="1"
                     max="65535" /></label
@@ -646,9 +654,8 @@ const preparation = (node: string) => preparations.value.find(p => p.nodeId === 
             <section class="panel">
               <h2>关联状态</h2>
               <label class="toggle"
-                ><input
+                ><UiCheckbox
                   v-model="form.enabled"
-                  type="checkbox"
                   :disabled="!ready && !form.enabled"
                 />允许学习和挑战关联</label
               >
@@ -812,17 +819,7 @@ label:last-child {
 
 input:not([type='checkbox']):not([type='file']),
 textarea {
-  display: block;
-  width: 100%;
-  box-sizing: border-box;
-  border: 1px solid var(--line);
-  background: var(--bg);
-  color: var(--ink);
-  border-radius: 6px;
-  padding: 9px 11px;
-  font: inherit;
   margin-top: 8px;
-  min-height: 38px;
 }
 
 .name-field {

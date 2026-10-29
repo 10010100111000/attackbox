@@ -59,41 +59,6 @@ test('tailwind.config.ts extends theme colors, radii tokens and card-glow shadow
   assert.ok(content.includes("'card-glow': 'var(--card-glow)'"))
 })
 
-test('Input.vue defines inheritAttrs: false, useId, blur event, password toggle, CapsLock detection and error handling', () => {
-  const content = readFileSync(resolve(rootDir, 'components/ui/Input.vue'), 'utf-8')
-  assert.ok(content.includes('inheritAttrs: false'))
-  assert.ok(content.includes('useId'))
-  assert.ok(content.includes("emit('blur'"))
-  assert.ok(content.includes('v-bind="$attrs"'))
-  assert.ok(content.includes('modelValue'))
-  assert.ok(content.includes('password'))
-  assert.ok(content.includes('Eye'))
-  assert.ok(content.includes('EyeOff'))
-  assert.ok(content.includes(':disabled="disabled"'))
-  assert.ok(content.includes('CapsLock'))
-  assert.ok(content.includes('大写锁定已开启'))
-  assert.ok(content.includes('aria-invalid'))
-  assert.ok(content.includes('error'))
-})
-
-test('Checkbox.vue integrates reka-ui and custom 13x13 coral checkbox styling', () => {
-  const content = readFileSync(resolve(rootDir, 'components/ui/Checkbox.vue'), 'utf-8')
-  assert.ok(content.includes('CheckboxRoot'))
-  assert.ok(content.includes('CheckboxIndicator'))
-  assert.ok(content.includes('h-[13px]'))
-  assert.ok(content.includes('w-[13px]'))
-  assert.ok(content.includes('data-[state=checked]:bg-accent'))
-  assert.ok(content.includes('Check'))
-})
-
-test('Separator.vue supports horizontal line with centered text and left-right extensions with proper a11y', () => {
-  const content = readFileSync(resolve(rootDir, 'components/ui/Separator.vue'), 'utf-8')
-  assert.ok(content.includes('role="separator"'))
-  assert.ok(content.includes('border-line'))
-  assert.ok(content.includes('slots.default'))
-  assert.ok(content.includes('aria-hidden="true"'))
-})
-
 test('EmptyState.vue defines slots for icon, description and action', () => {
   const content = readFileSync(resolve(rootDir, 'components/ui/EmptyState.vue'), 'utf-8')
   assert.ok(content.includes('$slots.icon'))

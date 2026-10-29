@@ -236,7 +236,7 @@ async function save(intent: 'draft' | 'publish') {
           <h2>挑战内容</h2>
           <label>
             标题 *
-            <input v-model="form.title" maxlength="160" />
+            <UiInput v-model="form.title" bare maxlength="160" />
           </label>
 
           <div class="text-field">
@@ -247,7 +247,7 @@ async function save(intent: 'draft' | 'publish') {
           <div class="compact">
             <label>
               分类
-              <input v-model="form.category" maxlength="60" placeholder="例如 Web 安全" />
+              <UiInput v-model="form.category" bare maxlength="60" placeholder="例如 Web 安全" />
             </label>
             <label>
               难度
@@ -338,7 +338,7 @@ async function save(intent: 'draft' | 'publish') {
 
             <label>
               阶段标题
-              <input v-model="s.title" maxlength="160" />
+              <UiInput v-model="s.title" bare maxlength="160" />
             </label>
 
             <div class="text-field">
@@ -348,7 +348,13 @@ async function save(intent: 'draft' | 'publish') {
 
             <label>
               标准 Flag
-              <input v-model="s.flag" maxlength="2000" autocomplete="off" placeholder="flag{...}" />
+              <UiInput
+                v-model="s.flag"
+                bare
+                maxlength="2000"
+                autocomplete="off"
+                placeholder="flag{...}"
+              />
             </label>
 
             <div class="text-field">
@@ -446,17 +452,7 @@ label {
 
 input:not([type='checkbox']),
 textarea {
-  display: block;
-  width: 100%;
-  box-sizing: border-box;
-  background: var(--bg);
-  color: var(--ink);
-  border: 1px solid var(--line);
-  border-radius: 6px;
-  padding: 10px 12px;
   margin-top: 8px;
-  font: inherit;
-  font-size: 13px;
 }
 
 .compact {

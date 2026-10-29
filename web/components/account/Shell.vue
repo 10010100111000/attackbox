@@ -156,9 +156,6 @@ const sections = [
   border-radius: 16px;
   background: var(--paper);
   box-shadow: var(--surface-highlight), var(--card-shadow);
-}
-
-.personal-guest {
   grid-column: 1 / -1;
   width: min(600px, 100%);
   box-sizing: border-box;

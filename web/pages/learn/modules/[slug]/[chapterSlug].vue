@@ -432,8 +432,8 @@ useHead({
           :chapters="moduleData?.chapters || []"
           :sections="sections"
           :active-section="activeSection"
-          @section="goToSection"
           :collapsed="sidebarCollapsed"
+          @section="goToSection"
           @toggle="toggleSidebar"
         />
       </aside>
@@ -516,8 +516,8 @@ useHead({
               <MarkdownView
                 :content="chapterData.bodyMarkdown"
                 :copyable="true"
-                @headings-loaded="headingsLoaded"
                 :image-urls="chapterResponse?.data.imageUrls"
+                @headings-loaded="headingsLoaded"
               />
               <TargetEnvironment
                 v-if="chapterResponse?.data.target"
@@ -565,9 +565,10 @@ useHead({
                     <div class="q-prompt" v-html="q.promptHtml" />
                   </div>
                   <div v-if="!savedProgress.completedAt" class="answer-line">
-                    <input
+                    <UiInput
                       :id="`answer-${q.id}`"
                       v-model="userAnswers[q.id]"
+                      bare
                       type="text"
                       class="answer-input"
                       placeholder="输入你的答案"
@@ -581,15 +582,13 @@ useHead({
                       :disabled="answerFeedbacks[q.id]?.status === 'checking'"
                       @input="delete answerFeedbacks[q.id]"
                     />
-                    <button
+                    <UiButton
                       type="submit"
+                      variant="secondary"
                       class="answer-check-btn"
-                      :disabled="answerFeedbacks[q.id]?.status === 'checking'"
+                      :loading="answerFeedbacks[q.id]?.status === 'checking'"
+                      >校验答案</UiButton
                     >
-                      <UiBusyLabel :busy="answerFeedbacks[q.id]?.status === 'checking'"
-                        >校验答案</UiBusyLabel
-                      >
-                    </button>
                   </div>
                   <div
                     :id="`feedback-${q.id}`"
@@ -1021,37 +1020,11 @@ useHead({
   flex: 1 1 0;
   width: 0;
   min-width: 0;
-  padding: 11px 13px;
-  border: 1px solid var(--line);
-  border-radius: 6px;
-  background: var(--paper);
-  color: var(--ink);
   font: 13px/1.6 monospace;
 }
-.answer-input[aria-invalid='true'] {
-  border-color: var(--error-ink);
-}
+
 .answer-check-btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
   flex-shrink: 0;
-  padding: 10px 16px;
-  border: 1px solid var(--line);
-  border-radius: 6px;
-  background: var(--paper);
-  color: var(--ink);
-  font-size: 12px;
-  cursor: pointer;
-}
-.answer-check-btn:hover:not(:disabled) {
-  background: var(--soft);
-}
-.answer-check-btn:disabled,
-.answer-input:disabled {
-  opacity: 0.65;
-  cursor: wait;
 }
 .answer-feedback {
   display: flex;
@@ -1147,8 +1120,7 @@ svg {
   flex-shrink: 0;
 }
 a:focus-visible,
-button:focus-visible,
-input:focus-visible {
+button:focus-visible {
   outline: 2px solid var(--focus);
   outline-offset: 3px;
 }

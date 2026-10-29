@@ -115,8 +115,10 @@ async function deleteModule(id: string) {
         </button>
       </div>
 
-      <input
+      <UiInput
         v-model="searchQuery"
+        bare
+        size="sm"
         type="search"
         placeholder="搜索模块名称或标识…"
         class="search-box"
@@ -189,10 +191,10 @@ async function deleteModule(id: string) {
                   >删除</UiButton
                 >
                 <UiButton
+                  v-if="m.status === 'published'"
                   variant="secondary"
                   size="xs"
                   class="module-preview-link"
-                  v-if="m.status === 'published'"
                   :to="`/learn/modules/${m.slug}`"
                   target="_blank"
                   rel="noopener noreferrer"
@@ -278,17 +280,6 @@ async function deleteModule(id: string) {
 
 .search-box {
   width: 260px;
-  padding: 7px 12px;
-  border: 1px solid var(--line);
-  border-radius: 6px;
-  background: var(--paper);
-  color: var(--ink);
-  font-size: 13px;
-  outline: none;
-}
-
-.search-box:focus {
-  border-color: var(--green);
 }
 
 /* 表格容器 */

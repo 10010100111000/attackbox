@@ -133,11 +133,18 @@ useEditorGuard({
     <form v-else-if="draft" @submit.prevent="save">
       <fieldset :disabled="busy">
         <section class="settings">
-          <label><input v-model="draft.enabled" type="checkbox" />显示推荐区</label
-          ><label><input v-model="draft.autoplay" type="checkbox" />自动轮播</label
+          <label><UiCheckbox v-model="draft.enabled" />显示推荐区</label
+          ><label><UiCheckbox v-model="draft.autoplay" />自动轮播</label
           ><label
             >间隔
-            <input v-model.number="draft.intervalSeconds" type="number" min="5" max="30" required />
+            <UiInput
+              v-model.number="draft.intervalSeconds"
+              bare
+              type="number"
+              min="5"
+              max="30"
+              required
+            />
             秒</label
           >
         </section>
@@ -203,22 +210,22 @@ useEditorGuard({
             </div>
             <div class="fields">
               <label class="wide"
-                >标题 *<input v-model="item.title" maxlength="100" required /></label
-              ><label>标签<input v-model="item.label" maxlength="30" /></label
-              ><label class="toggle"
-                ><input v-model="item.enabled" type="checkbox" />在首页显示</label
+                >标题 *<UiInput v-model="item.title" bare maxlength="100" required /></label
+              ><label>标签<UiInput v-model="item.label" bare maxlength="30" /></label
+              ><label class="toggle"><UiCheckbox v-model="item.enabled" />在首页显示</label
               ><label class="wide"
                 >说明<UiTextarea v-model="item.description" maxlength="300" rows="3" /></label
-              ><label>按钮文字 *<input v-model="item.cta" maxlength="30" required /></label
+              ><label>按钮文字 *<UiInput v-model="item.cta" bare maxlength="30" required /></label
               ><label
-                >跳转路径 *<input
+                >跳转路径 *<UiInput
                   v-model="item.href"
+                  bare
                   list="home-destinations"
                   maxlength="300"
                   required
                 /><small>选择已发布模块或路线，也可填写本站路径。</small></label
-              ><label>终端装饰文字<input v-model="item.command" maxlength="100" /></label
-              ><label>终端说明<input v-model="item.caption" maxlength="100" /></label>
+              ><label>终端装饰文字<UiInput v-model="item.command" bare maxlength="100" /></label
+              ><label>终端说明<UiInput v-model="item.caption" bare maxlength="100" /></label>
             </div>
             <datalist id="home-destinations">
               <option v-for="m in modules?.data" :key="m.slug" :value="`/learn/modules/${m.slug}`">
@@ -307,11 +314,6 @@ fieldset {
   min-width: 0;
 }
 
-input,
-textarea {
-  font: inherit;
-}
-
 .slide-row {
   cursor: pointer;
   border: 1px solid var(--line);
@@ -326,18 +328,6 @@ textarea {
   margin-bottom: 8px;
   align-items: center;
   border-color: transparent;
-}
-
-input:not([type='checkbox']),
-textarea {
-  border: 1px solid var(--line);
-  border-radius: 6px;
-  background: var(--paper);
-  color: var(--ink);
-  padding: 9px 11px;
-  min-width: 0;
-  width: 100%;
-  box-sizing: border-box;
 }
 
 .settings {

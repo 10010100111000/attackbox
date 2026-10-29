@@ -70,9 +70,10 @@ async function save() {
     <fieldset :disabled="busy">
       <div class="personal-field">
         <label for="account-current-password">当前密码</label>
-        <input
+        <UiInput
           id="account-current-password"
           v-model="current"
+          bare
           type="password"
           autocomplete="current-password"
           maxlength="1024"
@@ -81,9 +82,10 @@ async function save() {
       </div>
       <div class="personal-field">
         <label for="account-new-password">新密码</label>
-        <input
+        <UiInput
           id="account-new-password"
           v-model="password"
+          bare
           type="password"
           autocomplete="new-password"
           minlength="6"
@@ -94,9 +96,10 @@ async function save() {
       </div>
       <div class="personal-field">
         <label for="account-confirm-password">确认新密码</label>
-        <input
+        <UiInput
           id="account-confirm-password"
           v-model="confirmation"
+          bare
           type="password"
           autocomplete="new-password"
           minlength="6"

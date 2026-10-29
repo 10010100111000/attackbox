@@ -17,6 +17,20 @@ concurrency:
 jobs:
   quality:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: browser-test-only
+          POSTGRES_DB: attackbox_browser_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
     defaults:
       run:
         working-directory: web
@@ -46,3 +60,39 @@ jobs:
 
       - name: Build
         run: npm run build
+
+      - name: Install browser
+        run: npx playwright install --with-deps chromium
+
+      - name: Shared component browser regressions
+        run: npm run test:ui-components
+
+      - name: Production auth form snapshots
+        run: npm run test:auth-styles
+
+      - name: Git cover sync and discovery browser regression
+        env:
+          DATABASE_URL: postgres://postgres:browser-test-only@127.0.0.1:5432/attackbox_browser_test
+          CONTENT_TEST_DATABASE_URL: postgres://postgres:browser-test-only@127.0.0.1:5432/attackbox_browser_test
+          CONTENT_TEST_BASE_URL: http://127.0.0.1:3158
+          CONTENT_DATA_DIR: ${{ runner.temp }}/attackbox-content
+          NITRO_HOST: 127.0.0.1
+          NITRO_PORT: 3158
+        run: |
+          npm run db:migrate
+          node .output/server/index.mjs > "$RUNNER_TEMP/attackbox-browser-server.log" 2>&1 &
+          test_server_pid=$!
+          trap 'kill "$test_server_pid"; cat "$RUNNER_TEMP/attackbox-browser-server.log"' EXIT
+          node --input-type=module <<'JS'
+          import { setTimeout } from 'node:timers/promises'
+          let ready = false
+          for (let attempt = 0; attempt < 50; attempt++) {
+            try {
+              const response = await fetch(`${process.env.CONTENT_TEST_BASE_URL}/api/modules`, { signal: AbortSignal.timeout(1000) })
+              if (response.ok) { ready = true; break }
+            } catch {}
+            await setTimeout(200)
+          }
+          if (!ready) throw new Error('Local test server did not become ready')
+          JS
+          npm run test:module-covers

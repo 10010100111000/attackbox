@@ -41,7 +41,14 @@ function submit() {
     <form class="filters" @submit.prevent="submit">
       <label class="search">
         <Search :size="15" aria-hidden="true" />
-        <input v-model="input" aria-label="搜索模板" placeholder="搜索模板名称" maxlength="100" />
+        <UiInput
+          v-model="input"
+          bare
+          size="sm"
+          aria-label="搜索模板"
+          placeholder="搜索模板名称"
+          maxlength="100"
+        />
       </label>
       <UiButton type="submit" variant="secondary" size="sm">搜索</UiButton>
       <UiButton type="button" variant="secondary" size="sm" :disabled="pending" @click="refresh()">

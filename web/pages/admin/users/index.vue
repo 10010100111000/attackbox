@@ -54,8 +54,10 @@ function date(value: string | null) {
     <AdminDataLoading :pending="pending" :has-data="!!data" />
     <form class="filters" @submit.prevent="filter">
       <label class="search"
-        ><Search :size="16" aria-hidden="true" /><input
+        ><Search :size="16" aria-hidden="true" /><UiInput
           v-model="searchInput"
+          bare
+          size="sm"
           aria-label="搜索用户"
           placeholder="搜索邮箱或昵称"
           maxlength="100"

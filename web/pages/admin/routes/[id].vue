@@ -161,7 +161,7 @@ async function save(intent: 'draft' | 'publish') {
         <h2>路线信息</h2>
         <label>
           名称 <span>*</span>
-          <input v-model="title" maxlength="160" placeholder="例如：Web 安全基础" />
+          <UiInput v-model="title" bare maxlength="160" placeholder="例如：Web 安全基础" />
         </label>
         <label>
           简介
@@ -221,12 +221,12 @@ async function save(intent: 'draft' | 'publish') {
 
       <aside class="panel">
         <h2>添加模块</h2>
-        <input v-model="query" aria-label="搜索模块" placeholder="搜索模块名称" />
+        <UiInput v-model="query" bare aria-label="搜索模块" placeholder="搜索模块名称" />
         <div class="choices">
           <button
-            class="module-choice"
             v-for="item in options"
             :key="item.id"
+            class="module-choice"
             type="button"
             :disabled="ids.length >= 100"
             @click="ids.push(item.id)"
@@ -323,17 +323,7 @@ label span {
 
 input:not([type='checkbox']),
 textarea {
-  display: block;
-  width: 100%;
-  box-sizing: border-box;
-  border: 1px solid var(--line);
-  background: var(--bg);
-  color: var(--ink);
-  border-radius: 6px;
-  padding: 10px 12px;
   margin-top: 8px;
-  font: inherit;
-  font-size: 13px;
 }
 
 .module-choice {

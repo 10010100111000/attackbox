@@ -194,7 +194,11 @@ API 响应与服务端渲染的 HTML／Nuxt payload 默认使用 `private, no-st
 
 后台编辑页通过 `useEditorGuard` 统一保护路由切换、参数变化与关闭页面；保存或重新读取期间禁用编辑。模块操作等待最新详情读取完成后再恢复操作；若写入成功但读取失败，保留原页面并提供只读重试，避免重复提交已经完成的操作。
 
-`npm --prefix web run test:ui-components` 使用本机 Chromium 验证真实 Vue 组件在两种主题下的颜色、链接禁用行为、路线保存保护与通知提示，不依赖数据库或 Worker。完整服务联调仍使用下述独立测试数据库。
+`UiInput` 默认提供密码显隐和内联错误；`bare` 模式只渲染原生输入根节点，用于 `label > input`、搜索栏和 flex 答案框。两种模式共用属性、焦点、输入事件和 `v-model` 修饰符处理；`bare` 的 `class` 作用于输入本身，错误说明由外部表单提供。输入框的边框、背景、焦点与禁用样式归组件所有，页面仅保留宽度、布局和必要的等宽字体。复选框统一使用 `UiCheckbox`；文件上传与反馈类型单选框仍保留原生语义。
+
+`npm --prefix web run test:ui-components` 使用真实 Vue 组件验证两种主题、编辑器保存保护、输入法、数值与延迟输入、属性透传、checkbox 键盘与表单行为，不依赖数据库或 Worker。测试 API 层使用独立传输，浏览器运行异常会使测试失败。可通过 `CHROMIUM_PATH` 指定浏览器；默认使用系统 Chromium，未安装时使用 Playwright 下载的浏览器（`cd web && npx playwright install chromium`）。
+
+`npm --prefix web run test:module-covers` 需要运行中的生产 Web 与隔离的本机 `_test` 数据库，同时设置 `CONTENT_TEST_BASE_URL`、`CONTENT_TEST_DATABASE_URL`，Web 与测试进程共用 `CONTENT_DATA_DIR`。它仅模拟 GitHub 传输，实际执行现行 Git 同步、数据库写入、图片存储与公开访问，以及前台搜索、难度筛选和封面失败回退。CI 在 PostgreSQL 服务上运行此回归，同时运行组件浏览器套件和认证表单排版检查。
 
 学习、挑战和个人中心使用同一套桌面内容网格；个人中心主内容列对齐导航「学习」，侧栏位于左侧辅助列。窄屏按内容宽度折叠。讨论入口提供占位页，尚无发帖功能。
 

@@ -4,6 +4,7 @@ import { createServer } from 'node:http'
 import { readFile, writeFile } from 'node:fs/promises'
 import { resolve, extname, sep } from 'node:path'
 import { chromium } from 'playwright'
+import { chromiumOptions } from './helpers/browser.mjs'
 
 // Serve the production prerender and its actual Nuxt chunks; no application
 // server or database is needed. Auth APIs are isolated fixtures.
@@ -54,10 +55,7 @@ test(
     let browser
     const snapshots = {}
     try {
-      browser = await chromium.launch({
-        executablePath: process.env.CHROMIUM_PATH || '/usr/bin/chromium',
-        args: ['--no-sandbox']
-      })
+      browser = await chromium.launch(chromiumOptions())
       for (const theme of ['graphite', 'midnight']) {
         const context = await browser.newContext({
           viewport: { width: 1440, height: 1000 },
