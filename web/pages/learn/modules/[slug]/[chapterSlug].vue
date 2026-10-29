@@ -113,14 +113,6 @@ const readerIdentity = computed(() => chapterResponse.value?.data.chapter.id ? `
 const readerContent = computed(() => chapterData.value?.bodyMarkdown || '')
 const { activeSection, goToSection } = useReaderNavigation(scrollElement, articleElement, readerIdentity, readerContent, sections)
 function headingsLoaded(headings: MarkdownHeading[]) { sections.value = headings.filter(heading => heading.level === 2) }
-function protectTutorialCopy(event: ClipboardEvent) {
-  const target = event.target as Element | null
-  if (target?.closest?.('input,textarea,[contenteditable="true"],.terminal-panel,.desktop-panel')) return
-  const selection = window.getSelection()
-  if (!articleElement.value || !selection?.rangeCount) return
-  const range = selection.getRangeAt(0)
-  if (Array.from(articleElement.value.querySelectorAll('.markdown-body,.chapter-main-title,.q-prompt')).some(element => range.intersectsNode(element))) event.preventDefault()
-}
 const {sandbox: readerSandbox} = useSandboxSession()
 const environmentReady = computed(() => readerSandbox.value.instance?.state === 'running' && readerSandbox.value.instance.connected)
 const practiceMode = ref<'cli' | 'gui'>('cli')
@@ -262,7 +254,7 @@ useHead({
 </script>
 
 <template>
-  <div class="reading-page" @copy.capture="protectTutorialCopy" @cut.capture="protectTutorialCopy">
+  <div class="reading-page">
     <div v-if="chapterError || (!chapterPending && !chapterData)" class="auth-gate-container">
       <section class="auth-gate-card">
         <LockKeyhole v-if="chapterError?.statusCode === 401" :size="28" aria-hidden="true" /><BookOpen v-else :size="28" aria-hidden="true" />
@@ -302,7 +294,7 @@ useHead({
           <article ref="articleElement" class="article-body">
             <div class="chapter-meta"><span>第 {{ chapterIndex + 1 }} / {{ moduleData?.chapters.length || 1 }} 章</span><span v-if="chapterData.durationMinutes"><Clock3 :size="13" aria-hidden="true" />约 {{ chapterData.durationMinutes }} 分钟</span></div>
             <h1 class="chapter-main-title">{{ chapterData.title }}</h1>
-            <MarkdownView :content="chapterData.bodyMarkdown" :copyable="false" @headings-loaded="headingsLoaded" :image-urls="chapterResponse?.data.imageUrls" />
+            <MarkdownView :content="chapterData.bodyMarkdown" @headings-loaded="headingsLoaded" :image-urls="chapterResponse?.data.imageUrls" />
             <TargetEnvironment v-if="chapterResponse?.data.target" :key="chapterResponse.data.chapter.id" :target="chapterResponse.data.target" :context="{kind: 'chapter', moduleSlug: String(route.params.slug), chapterSlug: String(route.params.chapterSlug)}" />
 
             <section v-if="chapterData.questions.length" id="quiz" class="quiz-card" aria-labelledby="quiz-title">
@@ -383,11 +375,6 @@ useHead({
 .article-body :deep(.markdown-body h3) { color: var(--ink); font-size: 19px; }
 .article-body :deep(.markdown-body pre) { font-size: 14px; }
 .article-body :deep(.markdown-body .callout p) { font-size: inherit; }
-.article-body :deep(.markdown-body a) { color: var(--green); }
-.article-body :deep(.markdown-body :not(pre) > code) { color: var(--ink); }
-.article-body :deep(.markdown-body blockquote) { border-left-color: var(--focus); background: var(--soft); }
-.article-body :deep(.markdown-body table) { display: block; max-width: 100%; overflow-x: auto; }
-.article-body :deep(.markdown-body img) { max-width: 100%; height: auto; }
 .quiz-card { width: 100%; margin-top: 44px; padding-top: 30px; border-top: 1px solid var(--line); }
 .quiz-head { display: flex; justify-content: space-between; align-items: center; gap: 14px; margin-bottom: 22px; }
 .quiz-head h2 { font-size: 22px; font-weight: 650; margin: 0; letter-spacing: -.4px; }

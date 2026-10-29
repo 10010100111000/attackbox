@@ -43,6 +43,7 @@
   --brand-border: rgba(223, 176, 134, 0.38);
   --green: var(--brand);
   --mint: var(--brand-soft);
+  --accent: var(--brand);
 
   --soft: #1d2230;
   --hover: #191e2a;
@@ -78,6 +79,7 @@
   --success-ink: #a3d4cd;
   --error-bg: rgba(225, 130, 130, 0.16);
   --error-ink: #f0acac;
+  --error: var(--error-ink);
 
   /* 决定前景与背景分离度的关键：卡片表面微光泽 + 1px 顶部高光棱线 + 深邃投影 */
   --card-surface: linear-gradient(180deg, rgba(255, 255, 255, 0.05) 0%, rgba(255, 255, 255, 0.008) 100%), var(--paper);
@@ -148,6 +150,7 @@
   --brand-border: rgba(156, 98, 62, 0.32);
   --green: var(--brand);
   --mint: var(--brand-soft);
+  --accent: var(--brand);
 
   --soft: #eae8e2;
   --hover: #f0eee9;
@@ -179,6 +182,7 @@
   --success-ink: #245e56;
   --error-bg: #fbeeee;
   --error-ink: #9e3533;
+  --error: var(--error-ink);
 
   --card-surface: linear-gradient(180deg, #ffffff 0%, #fcfbf9 100%);
   --surface-highlight: inset 0 1px 0 0 #ffffff;

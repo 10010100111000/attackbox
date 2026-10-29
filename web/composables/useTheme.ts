@@ -1,10 +1,8 @@
-import { ref } from 'vue'
-
 export type ThemeMode = 'midnight' | 'graphite'
 
-const currentTheme = ref<ThemeMode>('graphite')
-
 export function useTheme() {
+  const currentTheme = useState<ThemeMode>('attackbox-theme', () => 'graphite')
+
   function setTheme(theme: ThemeMode) {
     currentTheme.value = theme
     if (typeof window !== 'undefined') {

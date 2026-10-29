@@ -115,12 +115,10 @@ onBeforeUnmount(stopResize)
 .practice-dock { position: relative; flex-shrink: 0; min-width: 0; min-height: 0; display: flex; flex-direction: column; border-top: 1px solid var(--line); background: var(--paper); z-index: 5; }
 .practice-dock.dock-right { align-self: stretch; height: auto; border-top: 0; border-left: 1px solid var(--line); padding-left: 9px; }
 .dock-grip { height: 9px; flex-shrink: 0; display: grid; place-items: center; cursor: ns-resize; touch-action: none; }
+.dock-grip > span { width: 36px; height: 3px; background: var(--line); border-radius: 3px; }
+.dock-grip:hover > span, .resizing .dock-grip > span { background: var(--green); }
 .dock-right .dock-grip { position: absolute; left: 0; top: 0; bottom: 0; width: 9px; height: auto; cursor: ew-resize; }
 .dock-right .dock-grip > span { width: 3px; height: 36px; }
-.dock-grip > span { width: 36px; height: 3px; background: var(--line); border-radius: 3px; }
-.dock-grip:hover > span, .resizing .dock-right .dock-grip { position: absolute; left: 0; top: 0; bottom: 0; width: 9px; height: auto; cursor: ew-resize; }
-.dock-right .dock-grip > span { width: 3px; height: 36px; }
-.dock-grip > span { background: var(--green); }
 .dock-header { height: 38px; padding: 0 14px 0 20px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--line); flex-shrink: 0; }
 .dock-title, .dock-actions { display: flex; align-items: center; gap: 8px; }
 .dock-title { font-size: 12px; color: var(--ink); }

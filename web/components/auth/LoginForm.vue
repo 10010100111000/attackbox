@@ -313,24 +313,10 @@ h1 {
   margin-top: 17px;
 }
 
-.back-button {
-  font-size: 11px;
-  color: var(--text-muted);
-  background: none;
+.login-fields {
   border: 0;
+  margin: 0;
   padding: 0;
-  display: flex;
-  gap: 9px;
-  align-items: center;
-  margin-top: 23px;
-  cursor: pointer;
-  transition: color 0.2s;
+  min-width: 0;
 }
-
-.back-button:hover {
-  color: var(--text-main);
-}
-
 </style>
-
-<style scoped>.login-fields{border:0;margin:0;padding:0;min-width:0}</style>

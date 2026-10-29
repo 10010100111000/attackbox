@@ -131,8 +131,8 @@ function handleCopyClick(event: MouseEvent) {
 .markdown-body blockquote {
   margin: 1.5em 0;
   padding: 12px 18px;
-  border-left: 3px solid var(--accent);
-  background: var(--bg-card);
+  border-left: 3px solid var(--brand);
+  background: var(--soft, var(--bg-card));
   border-radius: 4px;
   color: var(--text-muted);
 }
@@ -203,7 +203,7 @@ function handleCopyClick(event: MouseEvent) {
   padding: 2px 6px;
   border-radius: 4px;
   background: rgba(125, 125, 125, 0.15);
-  color: var(--accent);
+  color: var(--ink, var(--text-main));
 }
 
 /* 代码块容器 */
@@ -240,7 +240,7 @@ function handleCopyClick(event: MouseEvent) {
 }
 
 .markdown-body .copy-code-btn:hover {
-  border-color: var(--accent);
+  border-color: var(--brand);
   color: var(--text-main);
 }
 
@@ -268,12 +268,23 @@ function handleCopyClick(event: MouseEvent) {
 
 /* 链接 */
 .markdown-body a {
-  color: var(--accent);
+  color: var(--green, var(--brand));
   text-decoration: underline;
   text-underline-offset: 3px;
 }
 
 .markdown-body a:hover {
   opacity: 0.85;
+}
+
+.markdown-body img {
+  max-width: 100%;
+  height: auto;
+}
+
+.markdown-body table {
+  display: block;
+  max-width: 100%;
+  overflow-x: auto;
 }
 </style>

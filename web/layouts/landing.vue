@@ -2,7 +2,7 @@
 const {currentUser}=useAuth()
 </script>
 <template>
-  <div class="landing-layout brand-experience" data-theme="midnight">
+  <div class="landing-layout brand-experience">
     <div class="wrap">
       <header class="header">
         <NuxtLink to="/" class="brand">
@@ -248,6 +248,8 @@ const {currentUser}=useAuth()
   }
 
   .module-art img {
+    position: absolute;
+    inset: 0;
     width: 100%;
     height: 100%;
     object-fit: cover;
@@ -279,6 +281,10 @@ const {currentUser}=useAuth()
     z-index: 3;
   }
 
+  .card-topline > span:first-child {
+    overflow-wrap: anywhere;
+  }
+
   .level {
     font: 9px / 1.5 -apple-system, sans-serif;
     letter-spacing: 0;
@@ -301,12 +307,17 @@ const {currentUser}=useAuth()
     letter-spacing: -0.5px;
     font-weight: 550;
     margin-bottom: 9px;
+    overflow-wrap: anywhere;
   }
 
   .card-copy p {
     font-size: 11px;
     color: #8c8593;
     margin-bottom: 20px;
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
   }
 
   .card-foot {
@@ -414,15 +425,42 @@ const {currentUser}=useAuth()
     outline-offset: 6px;
   }
 
-  .catalog-empty { display: grid; justify-items: center; gap: 18px; padding: 60px 24px; color: var(--text-muted); border: 1px solid var(--border-line); border-radius: 11px; background: radial-gradient(ellipse at 50% 100%, var(--brand-warm-soft), transparent 70%); }
-  .catalog-empty svg { color: var(--brand-warm); }
-  .catalog-empty p { font-size: 14px; }
-  .catalog-link { display: flex; justify-content: center; margin-top: 30px; }
-  .catalog-link a { color: var(--brand-warm); font-size: 12px; padding: 10px 16px; border-radius: 7px; border: 1px solid var(--border-line); }
-  .catalog-link a:hover { background: var(--brand-warm-soft); }
-  .module-art > img { position: absolute; inset: 0; }
-  .card-copy h3, .card-topline > span:first-child { overflow-wrap: anywhere; }
-  .card-copy p { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+  .catalog-empty {
+    display: grid;
+    justify-items: center;
+    gap: 18px;
+    padding: 60px 24px;
+    color: var(--text-muted);
+    border: 1px solid var(--border-line);
+    border-radius: 11px;
+    background: radial-gradient(ellipse at 50% 100%, var(--brand-warm-soft), transparent 70%);
+  }
+
+  .catalog-empty svg {
+    color: var(--brand-warm);
+  }
+
+  .catalog-empty p {
+    font-size: 14px;
+  }
+
+  .catalog-link {
+    display: flex;
+    justify-content: center;
+    margin-top: 30px;
+  }
+
+  .catalog-link a {
+    color: var(--brand-warm);
+    font-size: 12px;
+    padding: 10px 16px;
+    border-radius: 7px;
+    border: 1px solid var(--border-line);
+  }
+
+  .catalog-link a:hover {
+    background: var(--brand-warm-soft);
+  }
 
   .footer {
     border-top: 1px solid var(--border-line, rgba(255, 255, 255, 0.07));

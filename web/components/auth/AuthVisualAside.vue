@@ -1,10 +1,7 @@
 <script setup lang="ts">
-import { AUTH_BG_DATA_URI } from './authBgData'
-
 // Auth visual side panel presenting mission taglines and background illustration
 // Source asset: /images/auth-explore.webp
-// 使用独立静态 WebP 资产与异步解码，避免 Base64 膨胀 JS Bundle 及主线程同步解码阻塞
-const bgImage = AUTH_BG_DATA_URI
+const bgImage = '/images/auth-explore.webp'
 </script>
 
 <template>
