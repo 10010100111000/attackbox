@@ -40,20 +40,12 @@ test('main.css contains all required design tokens and accessibility rules', () 
   assert.ok(css.includes('--radius-xl: 18px;'))
 
   // Light theme with accessible error color
-  assert.ok(css.includes("[data-theme='light']"))
+  assert.ok(css.includes("[data-theme='graphite']"))
   assert.ok(css.includes('--color-error: #c53030;'))
   
   // Accessibility
   assert.ok(css.includes(':focus-visible'))
   assert.ok(css.includes('prefers-reduced-motion: reduce'))
-})
-
-test('animations.css contains keyframes and animation utility classes', () => {
-  const css = readFileSync(resolve(rootDir, 'assets/css/animations.css'), 'utf-8')
-  assert.ok(css.includes('@keyframes blink'))
-  assert.ok(css.includes('@keyframes spin'))
-  assert.ok(css.includes('.animate-blink'))
-  assert.ok(css.includes('.animate-spin-slow'))
 })
 
 test('tailwind.config.ts extends theme colors, radii tokens and card-glow shadow', async () => {

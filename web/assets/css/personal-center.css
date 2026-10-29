@@ -1,6 +1,4 @@
 .personal-center {
-  --personal-accent: var(--brand);
-  --personal-soft: var(--brand-soft);
   display: grid;
   align-items: start;
   padding-block: 32px 80px;
@@ -20,6 +18,7 @@
 }
 
 /* 解决黑色背景下头像不明显的问题，去除歪斜旋转与杂乱阴影 */
+
 .personal-avatar {
   display: grid;
   place-items: center;
@@ -157,6 +156,7 @@
 }
 
 /* 顶部继续学习 Bento 卡片 */
+
 .personal-resume {
   position: relative;
   display: grid;
@@ -167,8 +167,7 @@
   border: 1px solid rgba(195, 154, 123, 0.16);
   border-radius: 14px;
   color: var(--ink);
-  background:
-    radial-gradient(ellipse at 85% 30%, rgba(163, 107, 66, 0.12), transparent 60%),
+  background: radial-gradient(ellipse at 85% 30%, rgba(163, 107, 66, 0.12), transparent 60%),
     linear-gradient(120deg, var(--soft), var(--paper));
   box-shadow: var(--surface-highlight), var(--card-shadow);
   overflow: hidden;
@@ -209,6 +208,7 @@
 }
 
 /* 统一白色/曜石黑主操作按钮 */
+
 .personal-resume-button {
   display: inline-flex;
   align-items: center;
@@ -277,6 +277,7 @@
 }
 
 /* 列表标题与分段胶囊筛选器 */
+
 .personal-list-heading {
   display: flex;
   align-items: center;
@@ -332,6 +333,7 @@
 }
 
 /* 记录列表卡片 */
+
 .personal-record-list {
   overflow: hidden;
   border: 1px solid var(--line);
@@ -526,6 +528,7 @@
 }
 
 /* 统一全站高对比度白色/曜石黑按钮 */
+
 .personal-button {
   display: inline-flex;
   justify-content: center;
@@ -609,6 +612,7 @@
 }
 
 /* One account surface; profile and security share the same field geometry. */
+
 .personal-settings {
   overflow: hidden;
   border: 1px solid var(--line);
@@ -683,15 +687,10 @@
   border-color: var(--error-ink);
 }
 
-.personal-field-hint,
 .personal-field-error {
   font-size: 11px;
   line-height: 1.7;
   margin: 8px 0 0;
-  color: var(--muted);
-}
-
-.personal-field-error {
   color: var(--error-ink);
 }
 

@@ -1,0 +1,121 @@
+:where(.auth-form) {
+  width: 100%;
+}
+
+:where(.auth-form) .eyebrow {
+  font: 9px "SFMono-Regular", Consolas, monospace;
+  color: var(--brand-warm);
+  letter-spacing: 2px;
+  margin-bottom: 16px;
+}
+
+:where(.auth-form) .auth-title {
+  font-size: 32px;
+  letter-spacing: -1px;
+  font-weight: 550;
+  line-height: 1.4;
+  margin: 0;
+}
+
+:where(.auth-form) .intro {
+  font-size: 12px;
+  color: var(--text-muted);
+  margin-top: 10px;
+  margin-bottom: 31px;
+}
+
+:where(.auth-form) .field {
+  margin-bottom: 20px;
+}
+
+:where(.auth-form) .field-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 9px;
+}
+
+:where(.auth-form) .field label {
+  font-size: 11px;
+  color: var(--text-main);
+}
+
+:where(.auth-form) .field-link,
+:where(.auth-form) .text-button {
+  background: none;
+  border: 0;
+  padding: 0;
+  color: var(--text-muted);
+  font-size: 10px;
+  cursor: pointer;
+  transition: color 0.2s;
+}
+
+:where(.auth-form) .field-link:hover,
+:where(.auth-form) .text-button:hover {
+  color: var(--text-main);
+}
+
+:where(.auth-form) .signup {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  margin-top: 28px;
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+:where(.auth-form) .signup .text-button {
+  font-size: 11px;
+  color: var(--text-main);
+}
+
+:where(.auth-form) .status {
+  font-size: 11px;
+  color: var(--brand-warm);
+  line-height: 1.8;
+  padding: 12px 14px;
+  border: 1px solid rgba(201, 160, 124, 0.13);
+  background: rgba(177, 132, 102, 0.06);
+  border-radius: 7px;
+  margin-top: 17px;
+}
+
+:where(.auth-form) .auth-fields {
+  border: 0;
+  margin: 0;
+  padding: 0;
+  min-width: 0;
+}
+
+:where(.auth-form) .back-button {
+  font-size: 11px;
+  color: var(--text-muted);
+  background: none;
+  border: 0;
+  padding: 0;
+  display: flex;
+  gap: 9px;
+  align-items: center;
+  margin-top: 23px;
+  cursor: pointer;
+  transition: color 0.2s;
+}
+
+:where(.auth-form) .back-button:hover {
+  color: var(--text-main);
+}
+
+:where(.auth-form) .success-icon {
+  width: 42px;
+  height: 42px;
+  border: 1px solid rgba(188, 163, 131, 0.25);
+  border-radius: 12px;
+  display: grid;
+  place-items: center;
+  color: var(--brand);
+  background: var(--brand-soft);
+  font-size: 20px;
+  margin-bottom: 23px;
+}

@@ -36,6 +36,7 @@ onUnmounted(() => { mounted = false; clearInterval(timer); media?.removeEventLis
 </template>
 <style scoped>
 /* 轮播 Banner (完全匹配原型，移除了验证性的 controls) */
+
 .feature-banner {
   display: grid;
   grid-template-columns: 1fr 230px;
@@ -43,8 +44,7 @@ onUnmounted(() => { mounted = false; clearInterval(timer); media?.removeEventLis
   align-items: center;
   padding: 22px 28px;
   border: 1px solid rgba(195, 154, 123, 0.16);
-  background:
-    radial-gradient(ellipse at 82% 50%, rgba(163, 107, 66, 0.14), transparent 62%),
+  background: radial-gradient(ellipse at 82% 50%, rgba(163, 107, 66, 0.14), transparent 62%),
     linear-gradient(120deg, var(--soft), var(--paper));
   box-shadow: var(--surface-highlight), var(--card-shadow);
   border-radius: 12px;
@@ -57,6 +57,7 @@ onUnmounted(() => { mounted = false; clearInterval(timer); media?.removeEventLis
 .carousel-copy {
   min-width: 0;
   z-index: 2;
+  overflow-wrap: anywhere;
 }
 
 .feature-label {
@@ -113,6 +114,7 @@ onUnmounted(() => { mounted = false; clearInterval(timer); media?.removeEventLis
 }
 
 /* 轮播右侧倾斜终端艺术卡片 */
+
 .banner-art {
   height: 110px;
   position: relative;
@@ -131,6 +133,7 @@ onUnmounted(() => { mounted = false; clearInterval(timer); media?.removeEventLis
   border: 1px solid var(--line);
   box-shadow: 9px 10px 0 var(--soft);
   font: 12px/2 ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  overflow-wrap: anywhere;
 }
 
 .terminal-art .dots {
@@ -163,6 +166,7 @@ onUnmounted(() => { mounted = false; clearInterval(timer); media?.removeEventLis
 }
 
 /* 轮播分页胶囊指示器 (仅保留纯粹的分页点) */
+
 .carousel-pagination {
   position: absolute;
   bottom: 14px;
@@ -183,6 +187,7 @@ onUnmounted(() => { mounted = false; clearInterval(timer); media?.removeEventLis
   border-radius: 5px;
   border: none;
   cursor: pointer;
+  color: var(--muted);
 }
 
 .carousel-dot span {
@@ -200,9 +205,37 @@ onUnmounted(() => { mounted = false; clearInterval(timer); media?.removeEventLis
   background: var(--ink);
 }
 
+.feature-banner h1,.feature-banner p {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+}
 
-.carousel-copy {overflow-wrap:anywhere}.feature-banner h1,.feature-banner p{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow:hidden}.terminal-art {overflow-wrap:anywhere}.carousel-dot{color:var(--muted)}
-button:focus-visible,a:focus-visible{outline:2px solid var(--green);outline-offset:3px}
-@media(max-width:640px){.feature-banner{grid-template-columns:1fr;padding:24px 22px 46px}.banner-art{display:none}.feature-banner h1{font-size:23px}}
-@media(prefers-reduced-motion:reduce){.cursor-line{animation:none}.carousel-dot span{transition:none}}
+button:focus-visible,a:focus-visible {
+  outline: 2px solid var(--green);
+  outline-offset: 3px;
+}
+
+@media(max-width:640px) {
+  .feature-banner {
+    grid-template-columns: 1fr;
+    padding: 24px 22px 46px;
+  }
+  .banner-art {
+    display: none;
+  }
+  .feature-banner h1 {
+    font-size: 23px;
+  }
+}
+
+@media(prefers-reduced-motion:reduce) {
+  .cursor-line {
+    animation: none;
+  }
+  .carousel-dot span {
+    transition: none;
+  }
+}
 </style>

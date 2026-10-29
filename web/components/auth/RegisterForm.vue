@@ -118,12 +118,12 @@ async function handleSubmit() {
 </script>
 
 <template>
-  <div class="auth-form-wrapper">
+  <div class="auth-form">
     <!-- 注册完成后引导用户查收邮件 -->
     <div v-if="hasRegistered" class="success-content">
       <div class="success-icon" aria-hidden="true">✓</div>
       <div class="eyebrow">REGISTRATION SUCCESS</div>
-      <h1 id="form-title" tabindex="-1">账号创建成功</h1>
+      <h1 class="auth-title" id="form-title" tabindex="-1">账号创建成功</h1>
       <p class="intro">
         验证邮件已发送，请打开邮件中的链接完成激活。
         <br />
@@ -142,7 +142,7 @@ async function handleSubmit() {
     <!-- 正常注册表单 -->
     <div v-else>
       <div class="eyebrow">ATTACKBOX ACCOUNT</div>
-      <h1 id="form-title">从这里，开始。</h1>
+      <h1 class="auth-title" id="form-title">从这里，开始。</h1>
       <p class="intro">创建账号，开始你的下一次探索。</p>
 
       <form
@@ -234,95 +234,6 @@ async function handleSubmit() {
 </template>
 
 <style scoped>
-.auth-fields {
-  border: 0;
-  margin: 0;
-  padding: 0;
-  min-width: 0;
-}
-
-.success-icon {
-  width: 42px;
-  height: 42px;
-  border: 1px solid rgba(188, 163, 131, 0.25);
-  border-radius: 12px;
-  display: grid;
-  place-items: center;
-  color: var(--brand);
-  background: var(--brand-soft);
-  font-size: 20px;
-  margin-bottom: 23px;
-}
-.eyebrow {
-  font:
-    9px 'SFMono-Regular',
-    Consolas,
-    monospace;
-  color: var(--brand-warm);
-  letter-spacing: 2px;
-  margin-bottom: 16px;
-}
-
-h1 {
-  font-size: 32px;
-  letter-spacing: -1px;
-  font-weight: 550;
-  line-height: 1.4;
-  margin: 0;
-}
-
-.intro {
-  font-size: 12px;
-  color: var(--text-muted);
-  margin-top: 10px;
-  margin-bottom: 31px;
-}
-
-.field {
-  margin-bottom: 20px;
-}
-
-.field-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 9px;
-}
-
-.field label {
-  font-size: 11px;
-  color: var(--text-main);
-}
-
-.status {
-  font-size: 11px;
-  color: var(--brand-warm);
-  line-height: 1.8;
-  padding: 12px 14px;
-  border: 1px solid rgba(201, 160, 124, 0.13);
-  background: rgba(177, 132, 102, 0.06);
-  border-radius: 7px;
-  margin-top: 17px;
-}
-
-.back-button {
-  font-size: 11px;
-  color: var(--text-muted);
-  background: none;
-  border: 0;
-  padding: 0;
-  display: flex;
-  gap: 9px;
-  align-items: center;
-  margin-top: 23px;
-  cursor: pointer;
-  transition: color 0.2s;
-}
-
-.back-button:hover {
-  color: var(--text-main);
-}
-
 .hint {
   font-size: 10px;
   line-height: 1.9;
@@ -330,5 +241,3 @@ h1 {
   margin-top: 15px;
 }
 </style>
-
-

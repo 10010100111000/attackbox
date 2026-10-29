@@ -25,21 +25,21 @@ useEditorGuard({ dirty, busy, title: '放弃首页修改？', description: '当�
 </script>
 <template>
  <div class="home-manager">
-  <header><div><h1>首页管理</h1><p>管理学习首页的推荐内容，保存后直接生效。</p></div><NuxtLink to="/learn" target="_blank" rel="noopener">查看学习首页</NuxtLink></header>
-  <UiBusyIndicator v-if="pending&&!draft" label="首页设置加载"/><p v-else-if="error" role="alert">读取失败。<button @click="reload">重试</button></p>
+  <header><div><h1>首页管理</h1><p>管理学习首页的推荐内容，保存后直接生效。</p></div><NuxtLink class="home-preview-link" to="/learn" target="_blank" rel="noopener">查看学习首页</NuxtLink></header>
+  <UiBusyIndicator v-if="pending&&!draft" label="首页设置加载"/><p v-else-if="error" role="alert">读取失败。<UiButton variant="secondary" size="xs" @click="reload">重试</UiButton></p>
   <form v-else-if="draft" @submit.prevent="save">
    <fieldset :disabled="busy">
     <section class="settings"><label><input v-model="draft.enabled" type="checkbox">显示推荐区</label><label><input v-model="draft.autoplay" type="checkbox">自动轮播</label><label>间隔 <input v-model.number="draft.intervalSeconds" type="number" min="5" max="30" required> 秒</label></section>
     <div class="workspace">
-     <aside><div class="list-heading"><h2>推荐内容 <small>{{ draft.slides.length }}/10</small></h2><button type="button" :disabled="draft.slides.length>=10" aria-label="添加推荐" @click="add"><Plus :size="18"/></button></div><button v-for="(s,i) in draft.slides" :key="s.id" type="button" class="slide-row" :class="{selected:selected===i}" @click="selected=i"><span>{{ String(i+1).padStart(2,'0') }}</span><strong>{{ s.title||'未命名推荐' }}</strong><small>{{ s.enabled?'显示':'隐藏' }}</small></button><p v-if="!draft.slides.length">暂无推荐，点击添加开始。</p></aside>
-     <section v-if="item" class="editor"><div class="list-heading"><h2>编辑推荐</h2><div class="tools"><button type="button" aria-label="上移" :disabled="selected===0" @click="move(-1)"><ArrowUp :size="17"/></button><button type="button" aria-label="下移" :disabled="selected===draft.slides.length-1" @click="move(1)"><ArrowDown :size="17"/></button><button type="button" aria-label="删除推荐" @click="remove"><Trash2 :size="17"/></button></div></div>
+     <aside><div class="list-heading"><h2>推荐内容 <small>{{ draft.slides.length }}/10</small></h2><UiButton variant="secondary" size="sm" type="button" :disabled="draft.slides.length>=10" aria-label="添加推荐" @click="add"><Plus :size="18"/></UiButton></div><button v-for="(s,i) in draft.slides" :key="s.id" type="button" class="slide-row" :class="{selected:selected===i}" @click="selected=i"><span>{{ String(i+1).padStart(2,'0') }}</span><strong>{{ s.title||'未命名推荐' }}</strong><small>{{ s.enabled?'显示':'隐藏' }}</small></button><p v-if="!draft.slides.length">暂无推荐，点击添加开始。</p></aside>
+     <section v-if="item" class="editor"><div class="list-heading"><h2>编辑推荐</h2><div class="tools"><UiButton variant="secondary" size="sm" type="button" aria-label="上移" :disabled="selected===0" @click="move(-1)"><ArrowUp :size="17"/></UiButton><UiButton variant="secondary" size="sm" type="button" aria-label="下移" :disabled="selected===draft.slides.length-1" @click="move(1)"><ArrowDown :size="17"/></UiButton><UiButton variant="secondary" size="sm" type="button" aria-label="删除推荐" @click="remove"><Trash2 :size="17"/></UiButton></div></div>
       <div class="fields"><label class="wide">标题 *<input v-model="item.title" maxlength="100" required></label><label>标签<input v-model="item.label" maxlength="30"></label><label class="toggle"><input v-model="item.enabled" type="checkbox">在首页显示</label><label class="wide">说明<textarea v-model="item.description" maxlength="300" rows="3"/></label><label>按钮文字 *<input v-model="item.cta" maxlength="30" required></label><label>跳转路径 *<input v-model="item.href" list="home-destinations" maxlength="300" required><small>选择已发布模块或路线，也可填写本站路径。</small></label><label>终端装饰文字<input v-model="item.command" maxlength="100"></label><label>终端说明<input v-model="item.caption" maxlength="100"></label></div>
       <datalist id="home-destinations"><option v-for="m in modules?.data" :key="m.slug" :value="`/learn/modules/${m.slug}`">{{ m.title }}</option><option v-for="r in routes?.data" :key="r.id" :value="`/learn/routes/${r.id}`">{{ r.title }}</option></datalist>
      </section>
     </div>
     <section v-if="item" class="preview"><h2>当前项预览 <small>未保存的修改仅在此处展示</small></h2><LearningHomeCarousel :slides="[item]" :autoplay="false" :interval-seconds="draft.intervalSeconds"/></section>
    </fieldset>
-   <footer><p :role="failed?'alert':'status'">{{ message|| (dirty?'有未保存的修改':'') }}</p><button type="button" :disabled="busy||!dirty" @click="reset">取消修改</button><button type="button" :disabled="busy" @click="reload">重新载入</button><button class="primary" :disabled="busy||!dirty"><UiBusyLabel :busy="busy">保存首页</UiBusyLabel></button></footer>
+   <footer><p :role="failed?'alert':'status'">{{ message|| (dirty?'有未保存的修改':'') }}</p><UiButton variant="secondary" size="sm" type="button" :disabled="busy||!dirty" @click="reset">取消修改</UiButton><UiButton variant="secondary" size="sm" type="button" :disabled="busy" @click="reload">重新载入</UiButton><UiButton type="submit" :loading="busy" :disabled="busy||!dirty">保存首页</UiButton></footer>
   </form>
  </div>
 </template>
@@ -95,24 +95,25 @@ fieldset {
   min-width: 0;
 }
 
-button,
 input,
 textarea {
   font: inherit;
 }
 
-button {
+.slide-row {
   cursor: pointer;
   border: 1px solid var(--line);
   background: var(--paper);
   color: var(--ink);
   border-radius: 7px;
   padding: 8px 12px;
-}
-
-button:disabled {
-  opacity: 0.45;
-  cursor: default;
+  display: flex;
+  width: 100%;
+  gap: 10px;
+  text-align: left;
+  margin-bottom: 8px;
+  align-items: center;
+  border-color: transparent;
 }
 
 input:not([type='checkbox']),
@@ -165,16 +166,6 @@ aside {
   margin-bottom: 20px;
 }
 
-.slide-row {
-  display: flex;
-  width: 100%;
-  gap: 10px;
-  text-align: left;
-  margin-bottom: 8px;
-  align-items: center;
-  border-color: transparent;
-}
-
 .slide-row strong {
   flex: 1;
   overflow: hidden;
@@ -190,6 +181,11 @@ aside {
 .slide-row.selected {
   background: var(--soft);
   border-color: var(--line);
+}
+
+.slide-row:disabled {
+  opacity: .5;
+  cursor: not-allowed;
 }
 
 .editor {
@@ -238,19 +234,8 @@ footer p {
   flex: 1;
 }
 
-.primary {
-  background: var(--btn-primary-bg);
-  color: var(--btn-primary-fg);
-  border-color: transparent;
-  box-shadow: var(--btn-primary-shadow);
-  font-weight: 600;
-}
-
-.primary:hover:not(:disabled) {
-  background: var(--btn-primary-hover);
-}
-
-a {
+.home-preview-link {
   color: var(--muted);
+  text-decoration: none;
 }
 </style>

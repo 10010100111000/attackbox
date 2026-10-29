@@ -183,7 +183,7 @@ test('VerifyView.vue defines pending, success, and error states for email activa
 
 test('ResetPasswordForm.vue and ResendVerification.vue adopt consistent auth form structure and UI components', () => {
   const resetContent = readFileSync(resolve(rootDir, 'components/auth/ResetPasswordForm.vue'), 'utf-8')
-  assert.ok(resetContent.includes('auth-form-wrapper'))
+  assert.ok(resetContent.includes('class="auth-form"'))
   assert.ok(resetContent.includes('ATTACKBOX ACCOUNT'))
   assert.ok(resetContent.includes('重设密码。'))
   assert.ok(resetContent.includes('submit w-full'))

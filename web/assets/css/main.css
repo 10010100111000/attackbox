@@ -6,7 +6,7 @@
 [data-theme='midnight'] {
   color-scheme: dark;
 
-  /* 保留基础测试 Token */
+  /* 基础主题 Token */
   --bg-app: #090a0e;
   --bg-card: #111217;
   --bg-input: #121318;
@@ -22,7 +22,6 @@
    */
   --bg: #07080c;
   --paper: #141821;
-  --paper-glass: rgba(20, 24, 33, 0.84);
   --ink: #f4f3f0;
   --muted: #959aa6;
   --body: #c5c9d3;
@@ -38,12 +37,10 @@
 
   /* 低饱和暖铜砂金点缀色 (与 landing.vue 同源) */
   --brand: #dfb086;
-  --brand-hover: #ecc39d;
   --brand-soft: rgba(223, 176, 134, 0.13);
   --brand-border: rgba(223, 176, 134, 0.38);
   --green: var(--brand);
   --mint: var(--brand-soft);
-  --accent: var(--brand);
 
   --soft: #1d2230;
   --hover: #191e2a;
@@ -65,10 +62,6 @@
   --avatar-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.22), 0 4px 12px rgba(0, 0, 0, 0.5);
 
   /* 装饰与代码高亮面板 */
-  --art: #201d1d;
-  --art2: #1b202b;
-  --art3: #1b2426;
-  --art-ink: #dfb086;
   --code: #0a0c11;
   --code-ink: #e8ecf2;
   --code-muted: #8b92a2;
@@ -77,10 +70,8 @@
   /* 状态语义色 */
   --success-bg: rgba(135, 184, 177, 0.16);
   --success-ink: #a3d4cd;
-  --success: var(--success-ink);
   --error-bg: rgba(225, 130, 130, 0.16);
   --error-ink: #f0acac;
-  --error: var(--error-ink);
 
   /* 决定前景与背景分离度的关键：卡片表面微光泽 + 1px 顶部高光棱线 + 深邃投影 */
   --card-surface: linear-gradient(180deg, rgba(255, 255, 255, 0.05) 0%, rgba(255, 255, 255, 0.008) 100%), var(--paper);
@@ -115,7 +106,6 @@
   --radius-xl: 18px;
 }
 
-[data-theme='light'],
 [data-theme='graphite'] {
   color-scheme: light;
   --bg-app: #f4f3ef;
@@ -132,7 +122,6 @@
   /* 浅色模式同样拉开背景 (#f3f2ee) 与纯白前景卡片 (#ffffff) 的明度差 */
   --bg: #f3f2ee;
   --paper: #ffffff;
-  --paper-glass: rgba(255, 255, 255, 0.88);
   --ink: #18181b;
   --muted: #66646c;
   --body: #3f3d45;
@@ -146,12 +135,10 @@
   --btn-primary-shadow: 0 3px 10px rgba(24, 24, 27, 0.14);
 
   --brand: #9c623e;
-  --brand-hover: #824f30;
   --brand-soft: #f5ede6;
   --brand-border: rgba(156, 98, 62, 0.32);
   --green: var(--brand);
   --mint: var(--brand-soft);
-  --accent: var(--brand);
 
   --soft: #eae8e2;
   --hover: #f0eee9;
@@ -169,11 +156,6 @@
   --avatar-border: rgba(0, 0, 0, 0.18);
   --avatar-fg: #ffffff;
   --avatar-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
-
-  --art: #f2ece6;
-  --art2: #eaeef2;
-  --art3: #eaf0ee;
-  --art-ink: #8a5a3c;
   --code: #16171d;
   --code-ink: #eae8ee;
   --code-muted: #9b98a6;
@@ -181,10 +163,8 @@
 
   --success-bg: #e6f2ef;
   --success-ink: #245e56;
-  --success: var(--success-ink);
   --error-bg: #fbeeee;
   --error-ink: #9e3533;
-  --error: var(--error-ink);
 
   --card-surface: linear-gradient(180deg, #ffffff 0%, #fcfbf9 100%);
   --surface-highlight: inset 0 1px 0 0 #ffffff;
@@ -210,7 +190,7 @@ body {
 }
 
 /* 高对比度原生 <select> 下拉框样式 */
-select {
+select:not([multiple]) {
   appearance: none;
   -webkit-appearance: none;
   background-color: var(--select-bg);

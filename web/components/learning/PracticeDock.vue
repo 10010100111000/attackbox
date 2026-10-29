@@ -112,37 +112,227 @@ onBeforeUnmount(stopResize)
 </template>
 
 <style scoped>
-.practice-dock { position: relative; flex-shrink: 0; min-width: 0; min-height: 0; display: flex; flex-direction: column; border-top: 1px solid var(--line); background: var(--paper); z-index: 5; }
-.practice-dock.dock-right { align-self: stretch; height: auto; border-top: 0; border-left: 1px solid var(--line); padding-left: 9px; }
-.dock-grip { height: 9px; flex-shrink: 0; display: grid; place-items: center; cursor: ns-resize; touch-action: none; }
-.dock-grip > span { width: 36px; height: 3px; background: var(--line); border-radius: 3px; }
-.dock-grip:hover > span, .resizing .dock-grip > span { background: var(--green); }
-.dock-right .dock-grip { position: absolute; left: 0; top: 0; bottom: 0; width: 9px; height: auto; cursor: ew-resize; }
-.dock-right .dock-grip > span { width: 3px; height: 36px; }
-.dock-header { height: 38px; padding: 0 14px 0 20px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--line); flex-shrink: 0; }
-.dock-title, .dock-actions { display: flex; align-items: center; gap: 8px; }
-.dock-title { font-size: 12px; color: var(--ink); }
-.dock-actions { gap: 3px; }
-.dock-actions button { display: grid; place-items: center; width: 29px; height: 28px; padding: 0; border: 0; background: transparent; border-radius: 5px; color: var(--muted); cursor: pointer; }
-.dock-actions button:hover { background: var(--soft); color: var(--ink); }
-.dock-empty { flex: 1; min-height: 0; overflow: auto; display: flex; align-items: center; justify-content: center; flex-direction: column; padding: 20px; text-align: center; color: var(--muted); }
-.dock-empty h2 { font-size: 14px; font-weight: 550; margin: 14px 0 6px; color: var(--ink); }
-.dock-empty p { font-size: 12px; line-height: 1.7; margin: 0; }
-button:focus-visible, .dock-grip:focus-visible { outline: 2px solid var(--focus); outline-offset: -2px; }
-.sandbox-state { font-size: 10px; color: var(--muted); margin-left: 6px; }
-.sandbox-notice { margin: 0; padding: 8px 16px; font-size: 12px; color: var(--error-ink); background: var(--error-bg); }
-.sandbox-notice button { margin-left: 8px; text-decoration: underline; background: transparent; border: 0; cursor: pointer; }
-.sandbox-primary, .sandbox-secondary { display: inline-block; border-radius: 5px; padding: 9px 16px; font-size: 12px; text-decoration: none; border: 1px solid var(--line); cursor: pointer; }
-.sandbox-primary { background: var(--btn-primary-bg); color: var(--btn-primary-fg); border-color: transparent; box-shadow: var(--btn-primary-shadow); font-weight: 600; }
-.sandbox-secondary { background: transparent; color: var(--ink); }
-.sandbox-primary:disabled { opacity: .6; cursor: wait; }
-.terminal-tabs { display: flex; align-items: center; gap: 4px; min-height: 32px; padding: 0 12px; border-bottom: 1px solid var(--line); overflow-x: auto; flex-shrink: 0; }
-.terminal-tab { display: flex; align-items: center; gap: 3px; flex-shrink: 0; padding: 0 3px; border-bottom: 2px solid transparent; }
-.terminal-tab.selected { border-bottom-color: var(--green); }
-.terminal-tab button, .add-terminal { border: 0; background: transparent; color: var(--muted); cursor: pointer; display: flex; align-items: center; padding: 7px 4px; font-size: 11px; white-space: nowrap; }
-.terminal-tab.selected button { color: var(--ink); }
-.add-terminal:disabled { opacity: .5; cursor: not-allowed; }
-.desktop-area { flex: 1; min-width: 0; min-height: 0; overflow: hidden; }
-.cli-area { flex: 1; min-width: 0; min-height: 0; display: flex; flex-direction: column; }
-.terminal-workspace { flex: 1; min-width: 0; min-height: 0; }
+.practice-dock {
+  position: relative;
+  flex-shrink: 0;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  border-top: 1px solid var(--line);
+  background: var(--paper);
+  z-index: 5;
+}
+
+.practice-dock.dock-right {
+  align-self: stretch;
+  height: auto;
+  border-top: 0;
+  border-left: 1px solid var(--line);
+  padding-left: 9px;
+}
+
+.dock-grip {
+  height: 9px;
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
+  cursor: ns-resize;
+  touch-action: none;
+}
+
+.dock-grip > span {
+  width: 36px;
+  height: 3px;
+  background: var(--line);
+  border-radius: 3px;
+}
+
+.dock-grip:hover > span, .resizing .dock-grip > span {
+  background: var(--green);
+}
+
+.dock-right .dock-grip {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 9px;
+  height: auto;
+  cursor: ew-resize;
+}
+
+.dock-right .dock-grip > span {
+  width: 3px;
+  height: 36px;
+}
+
+.dock-header {
+  height: 38px;
+  padding: 0 14px 0 20px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid var(--line);
+  flex-shrink: 0;
+}
+
+.dock-title, .dock-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.dock-title {
+  font-size: 12px;
+  color: var(--ink);
+}
+
+.dock-actions {
+  gap: 3px;
+}
+
+.dock-actions button {
+  display: grid;
+  place-items: center;
+  width: 29px;
+  height: 28px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  border-radius: 5px;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.dock-actions button:hover {
+  background: var(--soft);
+  color: var(--ink);
+}
+
+.dock-empty {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  padding: 20px;
+  text-align: center;
+  color: var(--muted);
+}
+
+.dock-empty h2 {
+  font-size: 14px;
+  font-weight: 550;
+  margin: 14px 0 6px;
+  color: var(--ink);
+}
+
+.dock-empty p {
+  font-size: 12px;
+  line-height: 1.7;
+  margin: 0;
+}
+
+button:focus-visible, .dock-grip:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: -2px;
+}
+
+.sandbox-state {
+  font-size: 10px;
+  color: var(--muted);
+  margin-left: 6px;
+}
+
+.sandbox-notice {
+  margin: 0;
+  padding: 8px 16px;
+  font-size: 12px;
+  color: var(--error-ink);
+  background: var(--error-bg);
+}
+
+.sandbox-primary {
+  display: inline-block;
+  border-radius: 5px;
+  padding: 9px 16px;
+  font-size: 12px;
+  text-decoration: none;
+  border: 1px solid var(--line);
+  cursor: pointer;
+  background: var(--btn-primary-bg);
+  color: var(--btn-primary-fg);
+  border-color: transparent;
+  box-shadow: var(--btn-primary-shadow);
+  font-weight: 600;
+}
+
+.terminal-tabs {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 32px;
+  padding: 0 12px;
+  border-bottom: 1px solid var(--line);
+  overflow-x: auto;
+  flex-shrink: 0;
+}
+
+.terminal-tab {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  flex-shrink: 0;
+  padding: 0 3px;
+  border-bottom: 2px solid transparent;
+}
+
+.terminal-tab.selected {
+  border-bottom-color: var(--green);
+}
+
+.terminal-tab button, .add-terminal {
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  padding: 7px 4px;
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.terminal-tab.selected button {
+  color: var(--ink);
+}
+
+.add-terminal:disabled {
+  opacity: .5;
+  cursor: not-allowed;
+}
+
+.desktop-area {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.cli-area {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.terminal-workspace {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+}
 </style>

@@ -313,6 +313,14 @@ function getModuleTheme(index: number) {
 
 .art-index-pill {
   transition: transform 0.18s ease, border-color 0.18s ease, color 0.18s ease;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 11px;
+  color: var(--muted);
+  border: 1px solid var(--line);
+  background: var(--paper);
+  padding: 2px 7px;
+  border-radius: 5px;
+  z-index: 2;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -374,29 +382,94 @@ function getModuleTheme(index: number) {
   text-decoration: none;
   transition: transform 0.18s ease, border-color 0.18s ease;
 }
-.recent-learning:hover { transform: translateY(-2px); border-color: var(--brand); }
-.resume-action { padding: 7px 14px; border-radius: 6px; background: var(--btn-primary-bg); color: var(--btn-primary-fg); font-weight: 600; box-shadow: var(--btn-primary-shadow); }
-.recent-copy { flex: 1; min-width: 0; display:grid;grid-template-columns:minmax(0,1fr) 140px;column-gap:20px; }
-.recent-label { grid-column:1; font-size: 11px; color: var(--muted); }
-.recent-learning h2 { grid-column:1; font-size: 15px; margin: 3px 0; font-weight: 650; }
-.recent-learning p { grid-column:1; font-size: 12px; color: var(--muted); margin: 0 0 6px; }
-.recent-progress { grid-column:2;grid-row:2;align-self:center; height: 4px; width: min(100%, 320px); border-radius: 4px; background: var(--line); overflow: hidden; }
-.recent-progress span { display: block; height: 100%; background: var(--brand); border-radius: inherit; }
-.recent-count { grid-column:2;grid-row:3; display: block; margin-top: 0; font-size: 11px; color: var(--muted); }
+
+.recent-learning:hover {
+  transform: translateY(-2px);
+  border-color: var(--brand);
+}
+
+.resume-action {
+  padding: 7px 14px;
+  border-radius: 6px;
+  background: var(--btn-primary-bg);
+  color: var(--btn-primary-fg);
+  font-weight: 600;
+  box-shadow: var(--btn-primary-shadow);
+}
+
+.recent-copy {
+  flex: 1;
+  min-width: 0;
+  display: grid;
+  grid-template-columns: minmax(0,1fr) 140px;
+  column-gap: 20px;
+}
+
+.recent-label {
+  grid-column: 1;
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.recent-learning h2 {
+  grid-column: 1;
+  font-size: 15px;
+  margin: 3px 0;
+  font-weight: 650;
+}
+
+.recent-learning p {
+  grid-column: 1;
+  font-size: 12px;
+  color: var(--muted);
+  margin: 0 0 6px;
+}
+
+.recent-progress {
+  grid-column: 2;
+  grid-row: 2;
+  align-self: center;
+  height: 4px;
+  width: min(100%, 320px);
+  border-radius: 4px;
+  background: var(--line);
+  overflow: hidden;
+}
+
+.recent-progress span {
+  display: block;
+  height: 100%;
+  background: var(--brand);
+  border-radius: inherit;
+}
+
+.recent-count {
+  grid-column: 2;
+  grid-row: 3;
+  display: block;
+  margin-top: 0;
+  font-size: 11px;
+  color: var(--muted);
+}
 
 .learn-page {
-  flex:1;
-  display:flex;
-  flex-direction:column;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
   width: 100%;
   min-height: calc(100dvh - 68px);
   background: transparent;
   color: var(--ink);
 }
 
-.learn-container{flex:1;display:flex;flex-direction:column}
+.learn-container {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
 
 /* 二级 Tab 切换栏 */
+
 .page-tabs {
   display: flex;
   gap: 28px;
@@ -426,6 +499,7 @@ function getModuleTheme(index: number) {
 }
 
 /* 工具栏 */
+
 .toolbar {
   display: flex;
   align-items: center;
@@ -440,7 +514,6 @@ function getModuleTheme(index: number) {
   gap: 8px;
   flex-wrap: wrap;
 }
-
 
 .filter-btn {
   padding: 6px 14px;
@@ -483,6 +556,7 @@ function getModuleTheme(index: number) {
 }
 
 /* 状态容器 */
+
 .state-panel {
   padding: 40px;
   text-align: center;
@@ -501,6 +575,7 @@ function getModuleTheme(index: number) {
 }
 
 /* 卡片网格 (3 列，克制优雅) */
+
 .cards {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
@@ -530,6 +605,7 @@ function getModuleTheme(index: number) {
 }
 
 /* 专属艺术渐变区 */
+
 .card-art {
   height: 108px;
   position: relative;
@@ -552,18 +628,8 @@ function getModuleTheme(index: number) {
   color: var(--ink);
 }
 
-.art-index-pill {
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-  font-size: 11px;
-  color: var(--muted);
-  border: 1px solid var(--line);
-  background: var(--paper);
-  padding: 2px 7px;
-  border-radius: 5px;
-  z-index: 2;
-}
-
 /* 卡片主体 */
+
 .card-body {
   padding: 20px;
   display: flex;
@@ -632,6 +698,7 @@ function getModuleTheme(index: number) {
 }
 
 /* 卡片底栏 (保持克制，无冗余箭头) */
+
 .card-bottom {
   border-top: 1px solid var(--line);
   padding-top: 14px;
@@ -657,6 +724,7 @@ function getModuleTheme(index: number) {
 }
 
 /* Tab 2: 路线列表 */
+
 .published-routes {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
@@ -705,6 +773,7 @@ function getModuleTheme(index: number) {
 }
 
 /* 底部标语 */
+
 .footer-tagline {
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
   font-size: 10px;
@@ -717,6 +786,7 @@ function getModuleTheme(index: number) {
 }
 
 /* 响应式调整 */
+
 @media (max-width: 900px) {
   .cards {
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -724,7 +794,16 @@ function getModuleTheme(index: number) {
 }
 
 @media (max-width: 640px) {
-  .discovery-controls{flex-wrap:wrap;gap:10px}.recent-copy{display:block}.recent-progress{margin-top:8px}
+  .discovery-controls {
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+  .recent-copy {
+    display: block;
+  }
+  .recent-progress {
+    margin-top: 8px;
+  }
   .cards {
     grid-template-columns: 1fr;
   }

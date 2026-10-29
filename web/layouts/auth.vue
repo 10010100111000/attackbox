@@ -82,28 +82,23 @@
     padding: 0 25px;
     min-height: 100svh;
   }
-
   .header {
     height: 78px;
   }
-
   .brand {
     font-size: 17px;
     gap: 8px;
   }
-
   .brand-logo {
     width: 28px;
     height: 28px;
     font-size: 19px;
     border-radius: 7px;
   }
-
   .footer {
     height: 48px;
     font-size: 8px;
   }
-
 }
 
 @media (max-height: 700px) and (min-width: 761px) {
@@ -112,3 +107,5 @@
   }
 }
 </style>
+
+<style src="~/assets/css/auth-forms.css"></style>

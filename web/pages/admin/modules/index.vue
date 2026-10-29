@@ -62,13 +62,13 @@ async function deleteModule(id: string) {
 
 <template>
   <div class="admin-modules-page">
-    <p v-if="notice" class="notice" role="alert">{{ notice }}</p>
+    <UiNotice v-if="notice" variant="error" class="mb-4">{{ notice }}</UiNotice>
     <div class="page-head">
       <div>
         <h1 class="page-title">学习模块</h1>
         <p class="page-desc">预览 Git 教程，管理发布状态与运行配置。</p>
       </div>
-      <div class="module-source-actions"><a class="action-btn" href="/api/admin/content/template" download="教程模板.md">下载 MD 模板</a><NuxtLink class="btn-create" to="/admin/content">检查 Git 更新</NuxtLink></div>
+      <div class="module-source-actions"><UiButton variant="secondary" size="sm" href="/api/admin/content/template" download="教程模板.md">下载 MD 模板</UiButton><UiButton size="sm" to="/admin/content">检查 Git 更新</UiButton></div>
     </div>
     <!-- 筛选与搜索工具条 -->
     <div class="filter-bar">
@@ -100,7 +100,7 @@ async function deleteModule(id: string) {
     <!-- 错误状态 -->
     <div v-else-if="error" class="empty-box">
       <p>加载失败，请检查网络或确认管理员登录状态。</p>
-      <button type="button" class="retry-btn" @click="() => refresh()">重试</button>
+      <UiButton variant="secondary" size="sm" @click="refresh()">重试</UiButton>
     </div>
 
     <!-- 模块表格 -->
@@ -128,8 +128,7 @@ async function deleteModule(id: string) {
             </td>
             <td>
               <div class="status-cell">
-                <span v-if="m.status === 'published'" class="badge-status published">已发布</span>
-                <span v-else class="badge-status unpublished">未发布</span>
+                <UiBadge :variant="m.status === 'published' ? 'success' : 'neutral'">{{ m.status === 'published' ? '已发布' : '未发布' }}</UiBadge>
               </div>
             </td>
             <td>{{ m.chapterCount }} 章节</td>
@@ -138,19 +137,18 @@ async function deleteModule(id: string) {
             </td>
             <td class="text-right">
               <div class="action-cell">
-                <NuxtLink :to="`/admin/modules/${m.id}`" class="action-btn edit-btn">
+                <UiButton variant="secondary" size="xs" class="module-detail-link" :to="`/admin/modules/${m.id}`">
                   查看详情
-                </NuxtLink>
-                <button v-if="m.status !== 'published'" class="action-btn delete-btn" type="button" :disabled="!!deleting" @click="deleteModule(m.id)"><UiBusyLabel :busy="deleting === m.id">删除</UiBusyLabel></button>
-                <NuxtLink
+                </UiButton>
+                <UiButton v-if="m.status !== 'published'" variant="danger" size="xs" class="delete-btn" :disabled="!!deleting" :loading="deleting === m.id" @click="deleteModule(m.id)">删除</UiButton>
+                <UiButton variant="secondary" size="xs" class="module-preview-link"
                   v-if="m.status === 'published'"
                   :to="`/learn/modules/${m.slug}`"
                   target="_blank"
-                  class="action-btn view-btn"
                   rel="noopener noreferrer"
                 >
                   前台预览 <ExternalLink :size="12" aria-hidden="true" />
-                </NuxtLink>
+                </UiButton>
               </div>
             </td>
           </tr>
@@ -170,7 +168,11 @@ async function deleteModule(id: string) {
 </template>
 
 <style scoped>
-.module-source-actions{display:flex;align-items:center;gap:14px}.module-source-actions a{text-decoration:none}
+.module-source-actions {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
 
 .page-head {
   display: flex;
@@ -192,25 +194,8 @@ async function deleteModule(id: string) {
   margin: 0;
 }
 
-.btn-create {
-  display: inline-flex; align-items: center; gap: 6px;
-  padding: 8px 18px;
-  background: var(--btn-primary-bg);
-  color: var(--btn-primary-fg);
-  border: 1px solid transparent;
-  border-radius: 7px;
-  font-size: 13px;
-  font-weight: 600;
-  box-shadow: var(--btn-primary-shadow);
-  cursor: pointer;
-  transition: background 0.15s ease, opacity 0.15s ease;
-}
-
-.btn-create:hover {
-  background: var(--btn-primary-hover);
-}
-
 /* 筛选条 */
+
 .filter-bar {
   display: flex;
   justify-content: space-between;
@@ -258,6 +243,7 @@ async function deleteModule(id: string) {
 }
 
 /* 表格容器 */
+
 .table-wrap {
   background: var(--paper);
   border: 1px solid var(--line);
@@ -282,7 +268,9 @@ async function deleteModule(id: string) {
   font-size: 12px;
 }
 
-.module-table th:last-child { width: 230px; }
+.module-table th:last-child {
+  width: 292px;
+}
 
 .module-table td {
   vertical-align: middle;
@@ -318,23 +306,6 @@ async function deleteModule(id: string) {
   gap: 6px;
 }
 
-.badge-status {
-  font-size: 11px;
-  padding: 2px 7px;
-  border-radius: 4px;
-  font-weight: 500;
-}
-
-.badge-status.published {
-  background: var(--success-bg);
-  color: var(--success-ink);
-}
-
-.badge-status.unpublished {
-  background: var(--soft);
-  color: var(--muted);
-}
-
 .diff-tag {
   font-family: monospace;
   font-size: 11px;
@@ -342,36 +313,14 @@ async function deleteModule(id: string) {
 }
 
 /* Reserve the same slots in published and draft rows. */
+
 .action-cell {
   display: grid;
-  grid-template-columns: 48px 40px 92px;
+  grid-template-columns: 72px 56px 112px;
   justify-content: end;
   align-items: center;
   gap: 8px;
 }
-
-.action-btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 5px;
-  min-height: 32px;
-  padding: 0 5px;
-  border: 0;
-  border-radius: 5px;
-  background: transparent;
-  color: var(--muted);
-  font: inherit;
-  font-size: 12px;
-  font-weight: 600;
-  line-height: 1;
-  white-space: nowrap;
-  text-decoration: none;
-  cursor: pointer;
-}
-.action-btn:hover { background: var(--soft); color: var(--ink); }
-.edit-btn { color: var(--green); }
-.delete-btn:hover { background: var(--error-bg); color: var(--error-ink); }
 
 .text-right {
   text-align: right;
@@ -387,20 +336,21 @@ async function deleteModule(id: string) {
   font-size: 13px;
 }
 
-.retry-btn {
-  margin-top: 10px;
-  padding: 6px 14px;
-  background: var(--ink);
-  color: var(--paper);
-  border-radius: 6px;
-  border: none;
-  cursor: pointer;
-}
-
 .footnote {
   font-size: 12px;
   color: var(--muted);
   margin-top: 16px;
 }
 
+.module-detail-link {
+  grid-column: 1;
+}
+
+.delete-btn {
+  grid-column: 2;
+}
+
+.module-preview-link {
+  grid-column: 3;
+}
 </style>

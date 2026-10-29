@@ -6,12 +6,12 @@
   --tone-green-soft: #e9f2f0;
   --tone-blue: #3d5a78;
   --tone-blue-soft: #ebf0f5;
-  --tone-on-accent: #ffffff;
   --learning-edge: clamp(24px, 4vw, 80px);
   --learning-brand-width: 128px;
   --learning-nav-gap: 36px;
   --learning-content-start: calc(var(--learning-edge) + var(--learning-brand-width) + var(--learning-nav-gap));
 }
+
 .learning-shell {
   width: 100%;
   box-sizing: border-box;
@@ -19,21 +19,34 @@
   position: relative;
   z-index: 1;
 }
+
 .learning-shell--sidebar {
   padding-inline-start: var(--learning-edge);
   display: grid;
   grid-template-columns: var(--learning-brand-width) minmax(0, 1fr);
   gap: var(--learning-nav-gap);
 }
+
 @media (max-width: 760px) {
-  .learning-shell--sidebar { grid-template-columns: minmax(0, 1fr); gap: 28px; }
+  .learning-shell--sidebar {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 28px;
+  }
 }
+
 @media (max-width: 1000px) {
-  .learning-layout { --learning-content-start: var(--learning-edge); }
+  .learning-layout {
+    --learning-content-start: var(--learning-edge);
+  }
 }
+
 @media (max-width: 640px) {
-  .learning-layout { --learning-edge: 16px; }
-  .learning-shell { padding-block: 24px 48px; }
+  .learning-layout {
+    --learning-edge: 16px;
+  }
+  .learning-shell {
+    padding-block: 24px 48px;
+  }
 }
 
 :root[data-theme="midnight"] .learning-layout {
@@ -44,5 +57,4 @@
   --tone-green-soft: rgba(135, 184, 177, 0.12);
   --tone-blue: #9ab0c7;
   --tone-blue-soft: rgba(154, 176, 199, 0.12);
-  --tone-on-accent: #141210;
 }

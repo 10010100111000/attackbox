@@ -113,14 +113,14 @@ async function handleSubmit() {
 </script>
 
 <template>
-  <div class="auth-form-wrapper">
+  <div class="auth-form">
     <div>
       <div class="eyebrow">YOUR NEXT DISCOVERY</div>
-      <h1 id="form-title">欢迎回来。</h1>
+      <h1 class="auth-title" id="form-title">欢迎回来。</h1>
       <p class="intro">登录，继续你的学习与探索。</p>
 
       <form id="auth-form" method="post" action="/api/auth/login" novalidate @submit.prevent="handleSubmit">
-        <fieldset :disabled="!mounted || busy" class="login-fields">
+        <fieldset :disabled="!mounted || busy" class="auth-fields">
         <!-- 邮箱字段 -->
         <div class="field">
           <div class="field-head">
@@ -221,60 +221,6 @@ async function handleSubmit() {
 </template>
 
 <style scoped>
-.eyebrow {
-  font: 9px "SFMono-Regular", Consolas, monospace;
-  color: var(--brand-warm);
-  letter-spacing: 2px;
-  margin-bottom: 16px;
-}
-
-h1 {
-  font-size: 32px;
-  letter-spacing: -1px;
-  font-weight: 550;
-  line-height: 1.4;
-  margin: 0;
-}
-
-.intro {
-  font-size: 12px;
-  color: var(--text-muted);
-  margin-top: 10px;
-  margin-bottom: 31px;
-}
-
-.field {
-  margin-bottom: 20px;
-}
-
-.field-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 9px;
-}
-
-.field label {
-  font-size: 11px;
-  color: var(--text-main);
-}
-
-.field-link,
-.text-button {
-  background: none;
-  border: 0;
-  padding: 0;
-  color: var(--text-muted);
-  font-size: 10px;
-  cursor: pointer;
-  transition: color 0.2s;
-}
-
-.field-link:hover,
-.text-button:hover {
-  color: var(--text-main);
-}
-
 .remember {
   display: flex;
   align-items: center;
@@ -285,38 +231,5 @@ h1 {
   margin: 2px 0 24px;
   cursor: pointer;
   user-select: none;
-}
-
-.signup {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 7px;
-  margin-top: 28px;
-  font-size: 11px;
-  color: var(--text-muted);
-}
-
-.signup .text-button {
-  font-size: 11px;
-  color: var(--text-main);
-}
-
-.status {
-  font-size: 11px;
-  color: var(--brand-warm);
-  line-height: 1.8;
-  padding: 12px 14px;
-  border: 1px solid rgba(201, 160, 124, 0.13);
-  background: rgba(177, 132, 102, 0.06);
-  border-radius: 7px;
-  margin-top: 17px;
-}
-
-.login-fields {
-  border: 0;
-  margin: 0;
-  padding: 0;
-  min-width: 0;
 }
 </style>

@@ -53,6 +53,9 @@ export async function uiFixture() {
     import Routes from './pages/admin/routes/[id].vue';
     import Notifications from './pages/admin/notifications.vue';
     import RuntimePolicy from './pages/admin/runtime-policy.vue';
+    import LearnHome from './pages/admin/learn-home.vue';
+    import ModuleList from './pages/admin/modules/index.vue';
+    import HomeCarousel from './components/learning/HomeCarousel.vue';
     import TargetTemplateEditor from './pages/admin/target-templates/[id].vue';
     import GitModuleDetail from './components/admin/GitModuleDetail.vue';
     import RepositorySettings from './components/admin/RepositorySettings.vue';
@@ -84,6 +87,8 @@ export async function uiFixture() {
       {path:'/admin/routes/:id',component:Routes},
       {path:'/admin/notifications',component:Notifications},
       {path:'/admin/runtime-policy',component:RuntimePolicy},
+      {path:'/admin/learn-home',component:LearnHome},
+      {path:'/admin/modules',component:ModuleList},
       {path:'/admin/target-templates/:id',component:TargetTemplateEditor},
       {path:'/admin/references',component:References},
       {path:'/admin/modules/detail',component:{async setup(){
@@ -94,7 +99,7 @@ export async function uiFixture() {
     window.fixtureRouter=router;
     const app=createApp({render:()=>h('div',{class:'admin-shell'},[h(RouterView,null,{default:({Component})=>h(Suspense,null,{default:()=>h(Component)})})])});
     const NuxtLink={inheritAttrs:false,props:['to'],setup(props,{attrs,slots}){return ()=>props.to?h(RouterLink,{...attrs,to:props.to},slots):h('a',attrs,slots.default?.())}};
-    for(const [name,component] of Object.entries({AdminRepositorySettings:RepositorySettings,UiButton:Button,UiInput:Input,UiNotice:Notice,UiBadge:Badge,UiEmptyState:EmptyState,UiBusyLabel:BusyLabel,UiBusyIndicator:BusyIndicator,NuxtLink}))app.component(name,component);
+    for(const [name,component] of Object.entries({LearningHomeCarousel:HomeCarousel,AdminRepositorySettings:RepositorySettings,UiButton:Button,UiInput:Input,UiNotice:Notice,UiBadge:Badge,UiEmptyState:EmptyState,UiBusyLabel:BusyLabel,UiBusyIndicator:BusyIndicator,NuxtLink}))app.component(name,component);
     app.component('AdminDataLoading',{render:()=>null});
     app.use(router);await router.isReady();app.mount('#app');
   `
@@ -108,7 +113,7 @@ export async function uiFixture() {
       stdin: { contents: entry, resolveDir: web }, bundle: true, write: false,
       format: 'esm', alias: { '~': web },
       plugins: [{ name: 'vue-fixture', setup(builder) {
-        builder.onResolve({ filter: /(?:^audit-runtime$|\/useConfirm$)/ }, () => ({ path: 'runtime', namespace: 'fixture' }))
+        builder.onResolve({ filter: /(?:^audit-runtime$|^#imports$|\/useConfirm$)/ }, () => ({ path: 'runtime', namespace: 'fixture' }))
         builder.onLoad({ filter: /.*/, namespace: 'fixture' }, () => ({ contents: runtime, resolveDir: web }))
         builder.onLoad({ filter: /\.vue$/ }, async ({ path }) => {
           const { descriptor } = parse(await readFile(path, 'utf8'), { filename: path })
@@ -122,11 +127,14 @@ export async function uiFixture() {
             if (compiled.errors.length) throw compiled.errors[0]
             styles.push(compiled.code)
           }
-          let code = compileScript(descriptor, { id, inlineTemplate: true }).content
-          if (path.includes('/pages/admin/') || path.includes('/components/admin/RepositorySettings') || path.includes('/components/admin/GitModuleDetail')) {
-            code = `import {definePageMeta,useHead,useLazyFetch,useRequestFetch,useRoute,useConfirm,clearNuxtData,navigateTo,$fetch} from 'audit-runtime';\n` + code
-            if (!/from ['"]vue['"]/.test(descriptor.scriptSetup.content)) code = `import {ref,computed,watch} from 'vue';\n` + code
-          }
+          const compiledScript = compileScript(descriptor, { id, inlineTemplate: true })
+          let code = compiledScript.content
+          const source = descriptor.scriptSetup?.content || ''
+          const missing = names => names.filter(name => !compiledScript.bindings[name] && source.includes(name))
+          const services = missing(['definePageMeta','useHead','useLazyFetch','useRequestFetch','useRoute','useConfirm','clearNuxtData','navigateTo','$fetch'])
+          const vue = missing(['ref','computed','watch','nextTick','onMounted','onBeforeUnmount','onUnmounted','useId'])
+          if (services.length) code = `import {${services.join(',')}} from 'audit-runtime';\n` + code
+          if (vue.length) code = `import {${vue.join(',')}} from 'vue';\n` + code
           if (descriptor.styles.some(style => style.scoped)) {
             code = code.replace('export default', 'const component =') + `\ncomponent.__scopeId='${id}';export default component;`
           }
@@ -138,7 +146,13 @@ export async function uiFixture() {
     execFileSync(process.execPath, [resolve(web, 'node_modules/tailwindcss/lib/cli.js'), '-i', 'assets/css/main.css', '-c', 'tailwind.config.ts', '-o', cssFile], { cwd: web, stdio: 'pipe' })
     const css = await readFile(cssFile, 'utf8') + '\n' + styles.join('\n')
     const fixtures = {
-      '/api/admin/modules': { data: [{ id: 'module-one', title: 'Module one', status: 'published' }] },
+      '/api/admin/modules': { data: [
+        { id:'module-one',slug:'module-one',title:'Module one',status:'published',difficulty:'beginner',chapterCount:1,category:null },
+        { id:'module-two',slug:'module-two',title:'Module two',status:'unpublished',difficulty:'beginner',chapterCount:1,category:null },
+      ] },
+      '/api/modules': { data: [] },
+      '/api/routes': { data: [] },
+      '/api/admin/learn-home': { data: { enabled:true,autoplay:false,intervalSeconds:6,lockVersion:0,slides:[{id:'welcome',enabled:true,label:'Featured',title:'Welcome',description:'Description',cta:'Learn',href:'/learn',command:'$ explore',caption:'Practice'}] } },
       '/api/admin/routes/existing': { data: { title: 'Original route', summary: '', modules: [], lockVersion: 0, status: 'unpublished' } },
       '/api/admin/notifications': { data: { items: [], total: 0 } },
       '/api/admin/runtime-policy': { data: { sandboxTtlMinutes:60,sandboxIdleMinutes:10,targetTtlMinutes:60,lockVersion:0 } },

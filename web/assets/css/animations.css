@@ -1,14 +1,16 @@
 @keyframes blink {
-  50% { opacity: 0; }
+  50% {
+    opacity: 0;
+  }
 }
 
 @keyframes fadeIn {
-  from { opacity: 0; }
-  to { opacity: 1; }
-}
-
-@keyframes spin {
-  to { transform: rotate(360deg); }
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
 }
 
 @keyframes surface-rise {
@@ -65,16 +67,4 @@
     opacity: 0.85;
     transform: scale(1.25);
   }
-}
-
-.animate-blink {
-  animation: blink 0.8s steps(1) infinite;
-}
-
-.animate-spin-slow {
-  animation: spin 0.7s linear infinite;
-}
-
-.animate-surface-rise {
-  animation: surface-rise 0.28s cubic-bezier(0.22, 1, 0.36, 1) both;
 }

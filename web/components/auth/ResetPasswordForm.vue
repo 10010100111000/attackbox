@@ -49,9 +49,9 @@ async function submit() {
 </script>
 
 <template>
-  <div class="auth-form-wrapper">
+  <div class="auth-form">
     <div class="eyebrow">ATTACKBOX ACCOUNT</div>
-    <h1 id="form-title">重设密码。</h1>
+    <h1 class="auth-title" id="form-title">重设密码。</h1>
     <p class="intro">为你的账号设置新密码以恢复访问。</p>
 
     <template v-if="done">
@@ -125,97 +125,10 @@ async function submit() {
 </template>
 
 <style scoped>
-.auth-form-wrapper {
-  width: 100%;
-}
-
-.eyebrow {
-  font:
-    9px 'SFMono-Regular',
-    Consolas,
-    monospace;
-  color: var(--brand-warm);
-  letter-spacing: 2px;
-  margin-bottom: 16px;
-}
-
-h1 {
-  font-size: 32px;
-  letter-spacing: -1px;
-  font-weight: 550;
-  line-height: 1.4;
-  margin: 0;
-}
-
-.intro {
-  font-size: 12px;
-  color: var(--text-muted);
-  margin-top: 10px;
-  margin-bottom: 31px;
-}
-
-.auth-fields {
-  border: 0;
-  margin: 0;
-  padding: 0;
-  min-width: 0;
-}
-
-.field {
-  margin-bottom: 20px;
-}
-
-.field-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 9px;
-}
-
-.field label {
-  font-size: 11px;
-  color: var(--text-main);
-}
-
-.status {
-  font-size: 11px;
-  color: var(--brand-warm);
-  line-height: 1.8;
-  padding: 12px 14px;
-  border: 1px solid rgba(201, 160, 124, 0.13);
-  background: rgba(177, 132, 102, 0.06);
-  border-radius: 7px;
-  margin-top: 17px;
-}
-
 .status[role='alert'] {
   color: var(--error-ink);
   border-color: rgba(225, 130, 130, 0.2);
   background: var(--error-bg);
-}
-
-.signup {
-  margin-top: 28px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 7px;
-  font-size: 11px;
-  color: #7f7688;
-}
-
-.text-button {
-  background: none;
-  border: 0;
-  padding: 0;
-  color: var(--text-main);
-  font-size: 11px;
-  cursor: pointer;
-  transition: color 0.2s;
-}
-
-.text-button:hover {
-  color: var(--brand-warm);
 }
 
 .arrow {

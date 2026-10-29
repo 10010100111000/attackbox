@@ -297,6 +297,7 @@ const currentBreadcrumb = computed(() => sectionMeta[currentSection.value])
 }
 
 /* 侧边栏 */
+
 .admin-sidebar {
   background: var(--paper);
   border-right: 1px solid var(--line);
@@ -353,7 +354,7 @@ const currentBreadcrumb = computed(() => sectionMeta[currentSection.value])
   transition: all 0.15s ease;
 }
 
-.admin-nav-link:hover:not(.disabled) {
+.admin-nav-link:hover {
   background: var(--soft);
   color: var(--ink);
 }
@@ -362,24 +363,6 @@ const currentBreadcrumb = computed(() => sectionMeta[currentSection.value])
   background: var(--mint);
   color: var(--green);
   font-weight: 600;
-}
-
-.admin-nav-link.disabled {
-  opacity: 0.45;
-  cursor: not-allowed;
-  justify-content: space-between;
-}
-
-.admin-nav-link.disabled .nav-icon {
-  margin-right: -4px;
-}
-
-.badge-plan {
-  font-size: 9px;
-  padding: 1px 4px;
-  border-radius: 3px;
-  background: var(--soft);
-  color: var(--muted);
 }
 
 .nav-icon {
@@ -407,6 +390,7 @@ const currentBreadcrumb = computed(() => sectionMeta[currentSection.value])
 }
 
 /* 顶栏 */
+
 .admin-main-wrap {
   display: flex;
   flex-direction: column;
@@ -454,8 +438,6 @@ const currentBreadcrumb = computed(() => sectionMeta[currentSection.value])
   gap: 16px;
 }
 
-
-
 .admin-content {
   flex: 1;
   padding: var(--admin-page-gutter);
@@ -463,6 +445,7 @@ const currentBreadcrumb = computed(() => sectionMeta[currentSection.value])
 }
 
 /* Page geometry belongs to the layout, not individual admin routes. */
+
 .admin-page-container {
   width: 100%;
   max-width: var(--admin-page-width);

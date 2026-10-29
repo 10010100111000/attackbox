@@ -167,6 +167,8 @@ API 响应与服务端渲染的 HTML／Nuxt payload 默认使用 `private, no-st
 
 公共按钮、提示、徽标和空状态由 `web/components/ui` 管理外观与交互；后台页面样式使用 `scoped`，仅管理页面布局与专用元素。用户管理样式随用户页面加载，不再注入整个后台布局。
 
+认证表单共用 `web/assets/css/auth-forms.css`，由认证布局加载，以 `.auth-form` 限定范围；各表单只保留自己的差异样式。`npm --prefix web test` 检查同一作用域内的重复选择器。构建后可运行 `npm --prefix web run test:auth-styles`，使用生产预渲染页面检查两种主题下五种认证状态的排版，无需数据库。
+
 后台编辑页通过 `useEditorGuard` 统一保护路由切换、参数变化与关闭页面；保存或重新读取期间禁用编辑。模块操作等待最新详情读取完成后再恢复操作；若写入成功但读取失败，保留原页面并提供只读重试，避免重复提交已经完成的操作。
 
 `npm --prefix web run test:ui-components` 使用本机 Chromium 验证真实 Vue 组件在两种主题下的颜色、链接禁用行为、路线保存保护与通知提示，不依赖数据库或 Worker。完整服务联调仍使用下述独立测试数据库。

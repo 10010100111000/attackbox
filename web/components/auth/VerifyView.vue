@@ -49,12 +49,12 @@ function goToLogin() {
 </script>
 
 <template>
-  <div class="auth-form-wrapper">
+  <div class="auth-form">
     <!-- 校验中 -->
     <div v-if="status === 'pending'" class="verify-state">
       <UiBusyIndicator inline label="邮箱验证" class="verification-busy"/>
       <div class="eyebrow">ACCOUNT ACTIVATION</div>
-      <h1 id="form-title">邮箱验证</h1>
+      <h1 class="auth-title" id="form-title">邮箱验证</h1>
 
     </div>
 
@@ -62,7 +62,7 @@ function goToLogin() {
     <div v-else-if="status === 'success'" class="verify-state">
       <div class="success-icon" aria-hidden="true">✓</div>
       <div class="eyebrow">ACTIVATION SUCCESS</div>
-      <h1 id="form-title">邮箱验证成功！</h1>
+      <h1 class="auth-title" id="form-title">邮箱验证成功！</h1>
       <p class="intro">
         您的 AttackBox 账号已完成激活。
         <br />
@@ -82,7 +82,7 @@ function goToLogin() {
     <div v-else class="verify-state">
       <div class="error-icon" aria-hidden="true">!</div>
       <div class="eyebrow">ACTIVATION FAILED</div>
-      <h1 id="form-title">
+      <h1 class="auth-title" id="form-title">
         {{ status === 'missing' ? '查收验证邮件' : '激活未完成' }}
       </h1>
       <p class="intro error-text">{{ errorMessage }}</p>
@@ -115,28 +115,18 @@ function goToLogin() {
 }
 
 .eyebrow {
-  font:
-    9px 'SFMono-Regular',
-    Consolas,
-    monospace;
   color: var(--text-muted);
-  letter-spacing: 2px;
-  margin-bottom: 16px;
 }
 
 h1 {
   font-size: 29px;
   letter-spacing: -0.8px;
   font-weight: 600;
-  line-height: 1.4;
-  margin: 0;
   color: var(--text-main);
 }
 
 .intro {
   font-size: 13px;
-  color: var(--text-muted);
-  margin-top: 10px;
   margin-bottom: 28px;
   line-height: 1.6;
 }
@@ -146,15 +136,6 @@ h1 {
 }
 
 .success-icon {
-  width: 42px;
-  height: 42px;
-  border: 1px solid rgba(188, 163, 131, 0.25);
-  border-radius: 12px;
-  display: grid;
-  place-items: center;
-  color: var(--brand);
-  background: var(--brand-soft);
-  font-size: 20px;
   margin-bottom: 22px;
 }
 
@@ -172,7 +153,10 @@ h1 {
   margin-bottom: 22px;
 }
 
-.verification-busy{font-size:32px;margin-bottom:22px}
+.verification-busy {
+  font-size: 32px;
+  margin-bottom: 22px;
+}
 
 .actions-stack {
   display: flex;
@@ -181,20 +165,6 @@ h1 {
 }
 
 .back-button {
-  font-size: 11px;
-  color: var(--text-muted);
-  background: none;
-  border: 0;
-  padding: 0;
-  display: flex;
-  gap: 9px;
-  align-items: center;
   margin-top: 12px;
-  cursor: pointer;
-  transition: color 0.2s;
-}
-
-.back-button:hover {
-  color: var(--text-main);
 }
 </style>

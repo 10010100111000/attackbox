@@ -139,6 +139,7 @@ test('module writes wait for the latest version and failed reads cannot repeat a
   let readStarted = new Promise(resolve => { signalRead = resolve })
   try {
     await page.getByRole('button', { name: '运行配置', exact: true }).click()
+    assert.equal(await page.getByLabel('前置学习模块').evaluate(el => getComputedStyle(el).backgroundImage), 'none')
     await page.getByLabel('前置学习模块').selectOption('module-one')
     let writes = 0, publicationVersion, failRead = false
     const detail = { module: { id: 'detail', title: 'Module detail', slug: 'module', status: 'unpublished', lockVersion: 1, defaultTargetTemplateId: null, learningOutcomes: [] }, chapters: [], prerequisites: [{ id: 'module-one' }] }
@@ -253,5 +254,27 @@ test('Compose entry changes commit only after parsing and preserve the previous 
     await page.waitForFunction(() => document.querySelector('input[type=number]')?.value === '9090')
     assert.equal(await entry.inputValue(), 'alternate.yml')
     assert.equal(await page.getByRole('button', { name: '保存模板', exact: true }).isEnabled(), true)
+  } finally { await page.close() }
+})
+
+test('module actions reserve consistent columns and homepage controls use shared button styling', async () => {
+  const page = await visit('/admin/modules')
+  try {
+    const detailLinks = page.locator('.module-detail-link')
+    await detailLinks.first().waitFor()
+    const boxes = await detailLinks.evaluateAll(links => links.map(link => ({ x: link.getBoundingClientRect().x, width: link.getBoundingClientRect().width })))
+    assert.equal(boxes.length, 2)
+    assert.deepEqual(boxes[0], boxes[1])
+    assert.equal(await page.locator('.module-preview-link').evaluate(el => getComputedStyle(el).gridColumnStart), '3')
+    const primary = page.getByRole('link', { name: '检查 Git 更新', exact: true })
+    assert.equal(await primary.evaluate(el => getComputedStyle(el).color !== getComputedStyle(el).backgroundColor), true)
+    await page.goto(fixture.base + '/admin/learn-home')
+    const save = page.getByRole('button', { name: '保存首页', exact: true })
+    await save.waitFor()
+    await page.getByLabel('标题 *', { exact: true }).fill('Updated recommendation')
+    assert.equal(await save.isEnabled(), true)
+    assert.equal(await save.evaluate(el => getComputedStyle(el).color !== getComputedStyle(el).backgroundColor), true)
+    await page.getByRole('button', { name: '添加推荐', exact: true }).click()
+    assert.equal(await page.locator('.slide-row').count(), 2)
   } finally { await page.close() }
 })
