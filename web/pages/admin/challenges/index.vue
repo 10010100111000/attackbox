@@ -61,9 +61,9 @@ async function remove(c: ChallengeSummary) {
       <span class="count muted">{{ rows.length }} 个挑战</span>
     </div>
 
-    <p v-if="error || notice" class="notice" role="alert">
+    <UiNotice v-if="error || notice" variant="error" class="mb-4">
       {{ notice || '读取失败，请刷新重试' }}
-    </p>
+    </UiNotice>
 
     <div class="panel table-wrap">
       <table>
@@ -87,20 +87,31 @@ async function remove(c: ChallengeSummary) {
             <td>{{ c.category || '未分类' }}</td>
             <td>{{ c.totalStages }}</td>
             <td>
-              <span class="status" :class="{ active: c.status === 'published' }">
+              <UiBadge :variant="c.status === 'published' ? 'success' : 'neutral'" dot>
                 {{ c.status === 'published' ? '已发布' : '草稿' }}
-              </span>
+              </UiBadge>
             </td>
             <td class="actions">
               <NuxtLink :to="`/admin/challenges/${c.id}`">编辑</NuxtLink>
-              <button type="button" :disabled="!!deleting" @click="remove(c)"><UiBusyLabel :busy="deleting === c.id">删除</UiBusyLabel></button>
+              <UiButton
+                variant="danger"
+                size="xs"
+                :loading="deleting === c.id"
+                :disabled="!!deleting"
+                @click="remove(c)"
+              >
+                删除
+              </UiButton>
             </td>
           </tr>
         </tbody>
       </table>
-      <p v-if="!rows.length && !error && !pending" class="empty">暂无挑战</p>
+      <UiEmptyState
+        v-if="!rows.length && !error && !pending"
+        title="暂无挑战"
+        description="尚未创建任何挑战，点击右上角新建挑战。"
+      />
     </div>
   </div>
 </template>
 
-<style scoped src="~/assets/css/admin-users.css"></style>

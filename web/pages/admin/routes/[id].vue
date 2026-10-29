@@ -105,21 +105,35 @@ async function save(intent: 'draft' | 'publish') {
     <header class="editor-header">
       <div class="title-group">
         <h1>{{ isNew ? '新建路线' : '编辑路线' }}</h1>
-        <span class="status-badge" :class="{ published: state === 'published' }">
+        <UiBadge :variant="state === 'published' ? 'success' : 'neutral'" dot>
           {{ state === 'published' ? '已发布' : '草稿' }}
-        </span>
+        </UiBadge>
+        <UiBadge v-if="dirty" variant="warning">未保存修改</UiBadge>
       </div>
       <div class="save-actions">
-        <button type="button" :disabled="busy || !loaded" @click="save('draft')">
+        <UiButton
+          type="button"
+          variant="secondary"
+          size="sm"
+          :disabled="busy || !loaded"
+          @click="save('draft')"
+        >
           保存为草稿
-        </button>
-        <button type="button" class="primary" :disabled="busy || !loaded" @click="save('publish')">
+        </UiButton>
+        <UiButton
+          type="button"
+          variant="primary"
+          size="sm"
+          :loading="busy"
+          :disabled="busy || !loaded"
+          @click="save('publish')"
+        >
           保存并发布
-        </button>
+        </UiButton>
       </div>
     </header>
 
-    <p v-if="notice" role="status" class="notice">{{ notice }}</p>
+    <UiNotice v-if="notice" variant="info" class="mb-5">{{ notice }}</UiNotice>
 
     <div v-if="loaded" class="grid">
       <section class="panel">

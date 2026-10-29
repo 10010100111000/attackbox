@@ -71,10 +71,12 @@ async function save() {
       <Clock3 :size="24" aria-hidden="true" />
     </header>
     <UiBusyIndicator v-if="pending && !draft" label="运行策略加载"/>
-    <div v-else-if="error" role="alert">
-      读取失败。
-      <button @click="refresh()">重试</button>
-    </div>
+    <UiNotice v-else-if="error" variant="error" class="mb-4">
+      <div class="flex items-center justify-between gap-3 w-full">
+        <span>读取失败。</span>
+        <UiButton variant="secondary" size="xs" type="button" @click="refresh()">重试</UiButton>
+      </div>
+    </UiNotice>
     <form v-else-if="draft" @submit.prevent="save" @input="message = ''">
       <fieldset :disabled="busy">
         <div class="policy-cards">
@@ -139,30 +141,32 @@ async function save() {
           </span>
         </div>
         <footer>
-          <p
+          <UiNotice
             v-if="message"
-            :class="{ failure: failed }"
-            :role="failed ? 'alert' : 'status'"
+            :variant="failed ? 'error' : 'success'"
+            class="w-full mb-3"
           >
-            <Check v-if="!failed" :size="15" />
-            {{ message }}
-            <button
-              v-if="failed"
-              type="button"
-              class="text-button"
-              @click="reload"
-            >
-              重新载入
-            </button>
-          </p>
-          <span v-else>{{ dirty ? '有尚未保存的修改' : '设置已同步' }}</span>
-          <div>
-            <button type="button" :disabled="!dirty" @click="reset">
+            <div class="flex items-center justify-between gap-3 w-full">
+              <span>{{ message }}</span>
+              <UiButton
+                v-if="failed"
+                type="button"
+                variant="secondary"
+                size="xs"
+                @click="reload"
+              >
+                重新载入
+              </UiButton>
+            </div>
+          </UiNotice>
+          <UiBadge v-else :variant="dirty ? 'warning' : 'neutral'" dot>{{ dirty ? '有尚未保存的修改' : '设置已同步' }}</UiBadge>
+          <div class="flex items-center gap-3">
+            <UiButton type="button" variant="secondary" size="sm" :disabled="!dirty" @click="reset">
               取消修改
-            </button>
-            <button type="submit" class="primary" :disabled="!dirty">
-              <UiBusyLabel :busy="busy">保存设置</UiBusyLabel>
-            </button>
+            </UiButton>
+            <UiButton type="submit" variant="primary" size="sm" :loading="busy" :disabled="!dirty">
+              保存设置
+            </UiButton>
           </div>
         </footer>
       </fieldset>

@@ -61,15 +61,30 @@ const preparation=(node:string)=>preparations.value.find(p=>p.nodeId===node)
 <template>
  <div class="compose-editor">
   <NuxtLink class="back" to="/admin/target-templates"><ArrowLeft :size="14"/>靶场模板</NuxtLink>
-  <header><div><h1>{{isNew?'新建靶场':'Compose 靶场'}}</h1><p>导入部署文件，按整套环境准备和管理。</p></div><button class="primary" :disabled="busy||!preview||!!issues.length" @click="save"><UiBusyLabel :busy="busy"><Check :size="15"/>保存模板</UiBusyLabel></button></header>
-  <p v-if="message" class="notice" :class="{failure:failed}" role="status">{{message}}</p>
+  <header>
+    <div>
+      <h1>{{ isNew ? '新建靶场' : 'Compose 靶场' }}</h1>
+      <p>导入部署文件，按整套环境准备和管理。</p>
+    </div>
+    <UiButton
+      variant="primary"
+      size="sm"
+      :disabled="busy || !preview || !!issues.length"
+      :loading="busy"
+      @click="save"
+    >
+      <Check :size="15" />
+      <span>保存模板</span>
+    </UiButton>
+  </header>
+  <UiNotice v-if="message" :variant="failed ? 'error' : 'info'" class="mb-4" role="status">{{ message }}</UiNotice>
   <AdminDataLoading :pending="busy" :has-data="loaded"/>
   <form v-if="loaded" @submit.prevent="save"><fieldset :disabled="busy">
    <div class="editor-grid">
     <div class="main-column">
      <section class="panel"><h2>部署包</h2><div class="upload-row"><FileArchive :size="24"/><div><strong>{{preview?`${preview.services.length} 个服务 · ${preview.files} 个文件`:'选择 Compose 文件或 ZIP 部署包'}}</strong><p>ZIP 请保留 Compose 与配套文件的相对目录。</p></div><label class="file-button"><Upload :size="14"/>{{preview?'替换文件':'选择文件'}}<input type="file" accept=".zip,.yml,.yaml" :disabled="busy" @change="upload"/></label></div>
-      <div class="source-actions"><button type="button" @click="gitOpen=!gitOpen"><Github :size="14"/>从 GitHub 导入</button><span class="muted">公开仓库可留空 Token；私有仓库使用只读 Token。</span></div>
-      <div v-if="gitOpen" class="git-form"><label>GitHub 仓库<input v-model="gitForm.repository" placeholder="owner/repository 或 HTTPS 链接"/></label><div class="field-pair git-fields"><label>分支 / 标签<input v-model="gitForm.branch" placeholder="main"/></label><label>仓库内目录<input v-model="gitForm.directory" placeholder="留空读取仓库根目录"/></label></div><label>只读 Token<input v-model="gitForm.token" type="password" autocomplete="new-password" placeholder="公开仓库可留空"/></label><button type="button" :disabled="!gitForm.repository.trim()" @click="importGit"><Download :size="14"/>导入并预览</button><p class="muted">凭据加密保存在靶场来源中，不回显，也不使用教程仓库凭据。</p></div>
+      <div class="source-actions"><UiButton type="button" variant="secondary" size="xs" @click="gitOpen=!gitOpen"><Github :size="14"/>从 GitHub 导入</UiButton><span class="muted">公开仓库可留空 Token；私有仓库使用只读 Token。</span></div>
+      <div v-if="gitOpen" class="git-form"><label>GitHub 仓库<input v-model="gitForm.repository" placeholder="owner/repository 或 HTTPS 链接"/></label><div class="field-pair git-fields"><label>分支 / 标签<input v-model="gitForm.branch" placeholder="main"/></label><label>仓库内目录<input v-model="gitForm.directory" placeholder="留空读取仓库根目录"/></label></div><label>只读 Token<input v-model="gitForm.token" type="password" autocomplete="new-password" placeholder="公开仓库可留空"/></label><UiButton type="button" variant="primary" size="sm" :disabled="!gitForm.repository.trim()" @click="importGit"><Download :size="14"/>导入并预览</UiButton><p class="muted">凭据加密保存在靶场来源中，不回显，也不使用教程仓库凭据。</p></div>
       <div v-if="preview?.source" class="git-source"><div><strong>{{preview.source.repository}}</strong><p class="muted">{{preview.source.branch}} · {{preview.source.directory||'仓库根目录'}} · <code :title="preview.source.commit">{{preview.source.commit.slice(0,12)}}</code></p></div><button type="button" :disabled="Object.keys(variables).some(k=>variables[k])||clearVariables.length>0" @click="checkGit">检查更新</button><div v-if="checkedCommit" class="update-confirm"><span>新提交 <code>{{checkedCommit.slice(0,12)}}</code></span><button type="button" :disabled="Object.keys(variables).some(k=>variables[k])||clearVariables.length>0" @click="importUpdate">确认导入更新</button></div></div>
       <label v-if="preview&&preview.composeFiles.length>1" class="compact">部署入口<select v-model="settings.file" @change="selectFile"><option v-for="file in preview.composeFiles" :key="file">{{file}}</option></select></label>
       <p v-for="note in preview?.notes" :key="note" class="muted">{{note}}</p><ul v-if="issues.length" class="problems"><li v-for="issue in issues" :key="issue">{{issue}}</li></ul>
@@ -84,7 +99,7 @@ const preparation=(node:string)=>preparations.value.find(p=>p.nodeId===node)
     </aside>
    </div>
   </fieldset></form>
-  <section v-if="!isNew&&loaded" class="panel node-panel"><h2><Server :size="17"/>节点准备</h2><p v-if="dirty" class="muted">请先保存修改，再准备部署。</p><p v-if="!nodes.length" class="muted">尚未配置可用节点。</p><div v-for="node in nodes" :key="node.id" class="node-row"><div><strong>{{node.label}}</strong><small>{{node.id}}</small></div><span>{{node.available?(labels[preparation(node.id)?.state||'']||'未准备'):'Compose 能力不可用'}}</span><small v-if="node.available&&node.bootId===preparation(node.id)?.bootId&&preparation(node.id)?.deploymentId&&preparation(node.id)?.state!=='ready'" class="available-deployment">现有部署可用</small><p v-if="preparation(node.id)?.error" class="failure">{{preparation(node.id)?.error}}</p><div class="node-actions"><button :disabled="!!nodeBusy||!node.available" @click="prepare(node.id,'status')">查询状态</button><button v-if="preparationActive(node.id)" :disabled="!!nodeBusy||!node.available" @click="prepare(node.id,'cancel')">{{preparation(node.id)?.state==='cancelling'?'再次取消':'取消准备'}}</button><template v-else><button v-if="preparation(node.id)?.state!=='ready'" :disabled="dirty||!!nodeBusy||!node.available" @click="prepare(node.id,'prepare')">{{preparation(node.id)?'重试准备':'准备部署'}}</button><button v-if="preparation(node.id)" :disabled="dirty||!!nodeBusy||!node.available" @click="prepare(node.id,'rebuild')">强制重建</button></template></div><details v-if="preparation(node.id)?.logs?.length" class="node-log"><summary>准备记录</summary><ol><li v-for="(line,index) in preparation(node.id)?.logs" :key="index">{{line}}</li></ol></details></div></section>
+  <section v-if="!isNew&&loaded" class="panel node-panel"><h2><Server :size="17"/>节点准备</h2><p v-if="dirty" class="muted">请先保存修改，再准备部署。</p><p v-if="!nodes.length" class="muted">尚未配置可用节点。</p><div v-for="node in nodes" :key="node.id" class="node-row"><div><strong>{{node.label}}</strong><small>{{node.id}}</small></div><span>{{node.available?(labels[preparation(node.id)?.state||'']||'未准备'):'Compose 能力不可用'}}</span><small v-if="node.available&&node.bootId===preparation(node.id)?.bootId&&preparation(node.id)?.deploymentId&&preparation(node.id)?.state!=='ready'" class="available-deployment">现有部署可用</small><p v-if="preparation(node.id)?.error" class="failure">{{preparation(node.id)?.error}}</p><div class="node-actions"><UiButton variant="secondary" size="xs" :disabled="!!nodeBusy||!node.available" @click="prepare(node.id,'status')">查询状态</UiButton><UiButton v-if="preparationActive(node.id)" variant="secondary" size="xs" :disabled="!!nodeBusy||!node.available" @click="prepare(node.id,'cancel')">{{preparation(node.id)?.state==='cancelling'?'再次取消':'取消准备'}}</UiButton><template v-else><UiButton v-if="preparation(node.id)?.state!=='ready'" variant="secondary" size="xs" :disabled="dirty||!!nodeBusy||!node.available" @click="prepare(node.id,'prepare')">{{preparation(node.id)?'重试准备':'准备部署'}}</UiButton><UiButton v-if="preparation(node.id)" variant="secondary" size="xs" :disabled="dirty||!!nodeBusy||!node.available" @click="prepare(node.id,'rebuild')">强制重建</UiButton></template></div><details v-if="preparation(node.id)?.logs?.length" class="node-log"><summary>准备记录</summary><ol><li v-for="(line,index) in preparation(node.id)?.logs" :key="index">{{line}}</li></ol></details></div></section>
  </div>
 </template>
 <style scoped>

@@ -170,30 +170,40 @@ async function save(intent: 'draft' | 'publish') {
     <header class="editor-header">
       <div class="title-group">
         <h1>{{ isNew ? '新建挑战' : '编辑挑战' }}</h1>
-        <span class="status-badge" :class="{ published: status === 'published' }">
+        <UiBadge :variant="status === 'published' ? 'success' : 'neutral'" dot>
           {{ status === 'published' ? '已发布' : '草稿' }}
-        </span>
-        <span v-if="dirty" class="dirty-tag">未保存修改</span>
+        </UiBadge>
+        <UiBadge v-if="dirty" variant="warning">未保存修改</UiBadge>
       </div>
       <div class="actions">
-        <button type="button" :disabled="!ready || !loaded || busy || conflict" @click="save('draft')">
-          保存为草稿
-        </button>
-        <button
+        <UiButton
           type="button"
-          class="primary"
+          variant="secondary"
+          size="sm"
+          :disabled="!ready || !loaded || busy || conflict"
+          @click="save('draft')"
+        >
+          保存为草稿
+        </UiButton>
+        <UiButton
+          type="button"
+          variant="primary"
+          size="sm"
+          :loading="busy"
           :disabled="!ready || !loaded || busy || conflict"
           @click="save('publish')"
         >
           保存并发布
-        </button>
+        </UiButton>
       </div>
     </header>
 
-    <p v-if="notice" class="notice" role="status">
-      <span>{{ notice }}</span>
-      <button v-if="conflict || !loaded" type="button" @click="reload">重新读取</button>
-    </p>
+    <UiNotice v-if="notice" :variant="conflict ? 'error' : 'info'" class="mb-5">
+      <div class="flex items-center justify-between gap-3 w-full">
+        <span>{{ notice }}</span>
+        <UiButton v-if="conflict || !loaded" type="button" variant="secondary" size="xs" @click="reload">重新读取</UiButton>
+      </div>
+    </UiNotice>
 
     <fieldset v-if="loaded" :disabled="busy || !ready">
       <div class="editor-grid">
@@ -323,10 +333,10 @@ async function save(intent: 'draft' | 'publish') {
             </div>
           </div>
 
-          <button type="button" :disabled="form.stages.length >= 30" @click="add">
+          <UiButton type="button" variant="secondary" size="sm" :disabled="form.stages.length >= 30" @click="add">
             <Plus :size="14" aria-hidden="true" />
             <span>添加阶段</span>
-          </button>
+          </UiButton>
         </section>
       </div>
     </fieldset>

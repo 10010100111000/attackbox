@@ -56,23 +56,51 @@ async function changeStatus(status: FeedbackStatus) {
     <nav class="feedback-filters" aria-label="反馈筛选">
       <button v-for="item in filters" :key="item.value" :aria-pressed="query.status === item.value" :class="{ active: query.status === item.value }" :disabled="saving" @click="filter(item.value)">{{ item.label }}<span v-if="result">{{ item.count }}</span></button>
     </nav>
-    <div v-if="error" class="feedback-state" role="alert"><Inbox :size="30" /><p>反馈列表加载失败</p><button class="text-button" @click="refresh()">重新加载</button></div>
+    <UiNotice v-if="error" variant="error" class="mb-4">
+      <div class="flex items-center justify-between gap-3 w-full">
+        <span>反馈列表加载失败</span>
+        <UiButton variant="secondary" size="xs" type="button" @click="refresh()">重新加载</UiButton>
+      </div>
+    </UiNotice>
     <UiBusyIndicator v-else-if="pending && !result" label="反馈加载" />
     <template v-else>
-      <p v-if="message" class="feedback-notice" role="status">{{ message }}</p>
-      <p v-if="saveError" class="feedback-error" role="alert">{{ saveError }}</p>
-      <div v-if="!result?.items.length" class="feedback-state"><Inbox :size="32" /><h2>{{ query.status === 'all' ? '还没有反馈' : '这个状态下还没有反馈' }}</h2><p>用户可以从头像菜单提交问题、纠错或建议。</p></div>
+      <UiNotice v-if="message" variant="success" class="mb-4" role="status">{{ message }}</UiNotice>
+      <UiNotice v-if="saveError" variant="error" class="mb-4" role="alert">{{ saveError }}</UiNotice>
+      <UiEmptyState
+        v-if="!result?.items.length"
+        :title="query.status === 'all' ? '还没有反馈' : '这个状态下还没有反馈'"
+        description="用户可以从头像菜单提交问题、纠错或建议。"
+      >
+        <template #icon>
+          <Inbox :size="32" />
+        </template>
+      </UiEmptyState>
       <div v-else class="feedback-workspace" :aria-busy="pending">
         <section class="feedback-inbox" aria-label="反馈列表">
           <button v-for="item in result.items" :key="item.id" class="feedback-row" :class="{ selected: selected?.id === item.id }" :aria-pressed="selected?.id === item.id" :disabled="saving" @click="select(item.id)">
-            <div class="row-top"><span class="feedback-category">{{ categoryLabel(item.category) }}</span><span class="feedback-status" :data-status="item.status">{{ statusLabel(item.status) }}</span></div>
+            <div class="row-top">
+              <span class="feedback-category">{{ categoryLabel(item.category) }}</span>
+              <UiBadge :variant="item.status === 'resolved' ? 'success' : item.status === 'in_progress' ? 'brand' : 'warning'" dot>
+                {{ statusLabel(item.status) }}
+              </UiBadge>
+            </div>
             <p>{{ item.body }}</p>
             <div class="row-meta"><span>{{ item.author.name }}</span><time :datetime="item.createdAt">{{ dateLabel(item.createdAt) }}</time></div>
           </button>
-          <nav v-if="result.total > result.pageSize" class="feedback-pagination" aria-label="反馈分页"><button :disabled="query.page === 1 || saving || pending" @click="query = { ...query, page: query.page - 1 }">上一页</button><span>{{ query.page }} / {{ Math.ceil(result.total / result.pageSize) }}</span><button :disabled="query.page * result.pageSize >= result.total || saving || pending" @click="query = { ...query, page: query.page + 1 }">下一页</button></nav>
+          <nav v-if="result.total > result.pageSize" class="feedback-pagination" aria-label="反馈分页">
+            <UiButton variant="secondary" size="xs" :disabled="query.page === 1 || saving || pending" @click="query = { ...query, page: query.page - 1 }">上一页</UiButton>
+            <span class="text-xs text-muted">{{ query.page }} / {{ Math.ceil(result.total / result.pageSize) }}</span>
+            <UiButton variant="secondary" size="xs" :disabled="query.page * result.pageSize >= result.total || saving || pending" @click="query = { ...query, page: query.page + 1 }">下一页</UiButton>
+          </nav>
         </section>
         <article v-if="selected" class="feedback-detail" aria-label="反馈详情">
-          <header><div class="detail-icon" aria-hidden="true"><MessageSquarePlus :size="20" /></div><div><h2>{{ categoryLabel(selected.category) }}</h2><span>{{ dateLabel(selected.createdAt) }}</span></div><span class="feedback-status" :data-status="selected.status">{{ statusLabel(selected.status) }}</span></header>
+          <header>
+            <div class="detail-icon" aria-hidden="true"><MessageSquarePlus :size="20" /></div>
+            <div><h2>{{ categoryLabel(selected.category) }}</h2><span>{{ dateLabel(selected.createdAt) }}</span></div>
+            <UiBadge :variant="selected.status === 'resolved' ? 'success' : selected.status === 'in_progress' ? 'brand' : 'warning'" dot>
+              {{ statusLabel(selected.status) }}
+            </UiBadge>
+          </header>
           <div class="feedback-author"><strong>{{ selected.author.name }}</strong><span>{{ selected.author.email || '账户已注销' }}</span></div>
           <p class="feedback-body">{{ selected.body }}</p>
           <a v-if="selected.sourcePath" :href="selected.sourcePath" target="_blank" rel="noopener noreferrer" class="feedback-source"><span>相关页面</span><code>{{ selected.sourcePath }}</code><ExternalLink :size="14" /></a>
@@ -127,12 +155,7 @@ h1 { margin: 0; font-size: 24px; font-weight: 600; letter-spacing: -.5px; }
 .feedback-detail footer > div { display: flex; gap: 6px; }
 .feedback-detail footer button, .feedback-pagination button { padding: 8px 12px; border: 1px solid var(--line); border-radius: 7px; background: transparent; color: var(--body); font-size: 11px; cursor: pointer; }
 .feedback-detail footer button.active { background: var(--brand-soft); border-color: var(--brand); color: var(--brand); opacity: 1; }
-.feedback-state { display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 320px; gap: 14px; border: 1px dashed var(--line); border-radius: 14px; color: var(--muted); }
-.feedback-state h2 { font-size: 15px; font-weight: 550; margin: 0; color: var(--ink); }
-.feedback-state p { font-size: 12px; margin: 0; }
 .feedback-pagination { display: flex; gap: 14px; align-items: center; justify-content: space-between; margin-top: 8px; color: var(--muted); font-size: 11px; }
-.feedback-notice, .feedback-error { margin: 0 0 18px; font-size: 12px; color: var(--success-ink); }
-.feedback-error { color: var(--error-ink); }
 .text-button { background: transparent; border: 0; color: var(--brand); cursor: pointer; font-size: 12px; }
 button:disabled { cursor: default; opacity: .55; }
 button:focus-visible, a:focus-visible { outline: 2px solid var(--focus); outline-offset: 3px; }

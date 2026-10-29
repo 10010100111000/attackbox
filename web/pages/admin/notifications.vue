@@ -54,7 +54,7 @@ async function withdraw(id: string) {
       <h1>站内通知</h1>
       <p>发布课程更新与平台公告，向所有登录用户展示，也包括之后注册的用户。</p>
     </header>
-    <p v-if="message" class="notice" role="status">{{ message }}</p>
+    <UiNotice v-if="message" variant="success" class="mb-6">{{ message }}</UiNotice>
     <div class="announcement-editor">
       <form @submit.prevent="publish">
         <h2>发布通知</h2>
@@ -87,12 +87,14 @@ async function withdraw(id: string) {
             placeholder="/learn"
           />
         </label>
-        <button
-          class="primary"
+        <UiButton
+          type="submit"
+          variant="primary"
+          :loading="busy"
           :disabled="busy || !form.title.trim() || !form.body.trim()"
         >
-          <UiBusyLabel :busy="busy">发布通知</UiBusyLabel>
-        </button>
+          发布通知
+        </UiButton>
       </form>
       <aside>
         <span class="eyebrow">用户阅读预览</span>
@@ -103,31 +105,39 @@ async function withdraw(id: string) {
     </div>
     <section class="announcement-history">
       <h2>已发布通知</h2>
-      <p v-if="error" role="alert">列表读取失败</p>
+      <UiNotice v-if="error" variant="error" class="mb-4">列表读取失败</UiNotice>
       <UiBusyIndicator v-else-if="pending && !data" label="通知管理加载"/>
-      <p v-else-if="!data?.data.items.length">暂无通知</p>
+      <UiEmptyState
+        v-else-if="!data?.data.items.length"
+        title="暂无通知"
+        description="尚未发布任何站内公告通知。"
+      />
       <div v-for="item in data?.data.items" :key="item.id" class="history-row">
         <div>
           <strong>{{ item.title }}</strong>
-          <small>
-            {{item.sender.name}} · {{ item.publishedAt.slice(0, 10) }} ·
-            {{ item.withdrawnAt ? '已撤回' : '展示中' }}
+          <small class="flex items-center gap-2 mt-2">
+            <span>{{ item.sender.name }} · {{ item.publishedAt.slice(0, 10) }}</span>
+            <UiBadge :variant="item.withdrawnAt ? 'neutral' : 'success'" dot>
+              {{ item.withdrawnAt ? '已撤回' : '展示中' }}
+            </UiBadge>
           </small>
         </div>
-        <button
+        <UiButton
           v-if="!item.withdrawnAt"
+          variant="secondary"
+          size="xs"
           :disabled="busy"
           @click="withdraw(item.id)"
         >
           撤回
-        </button>
+        </UiButton>
       </div>
       <nav v-if="data && data.data.total > 20">
-        <button :disabled="page === 1" @click="page--">上一页</button>
-        <span>{{ page }}</span>
-        <button :disabled="page * 20 >= data.data.total" @click="page++">
+        <UiButton variant="secondary" size="xs" :disabled="page === 1" @click="page--">上一页</UiButton>
+        <span class="text-xs text-muted">{{ page }}</span>
+        <UiButton variant="secondary" size="xs" :disabled="page * 20 >= data.data.total" @click="page++">
           下一页
-        </button>
+        </UiButton>
       </nav>
     </section>
   </div>
@@ -141,12 +151,6 @@ header > p {
   font-size: 12px;
   color: var(--muted);
   margin: 12px 0 24px;
-}
-.notice {
-  padding: 14px;
-  background: var(--soft);
-  border-radius: 8px;
-  font-size: 13px;
 }
 .announcement-editor {
   display: grid;
@@ -204,16 +208,6 @@ button {
   padding: 9px 15px;
   cursor: pointer;
   font-size: 12px;
-}
-.primary {
-  background: var(--btn-primary-bg);
-  color: var(--btn-primary-fg);
-  border-color: transparent;
-  box-shadow: var(--btn-primary-shadow);
-  font-weight: 600;
-}
-.primary:hover:not(:disabled) {
-  background: var(--btn-primary-hover);
 }
 button:disabled {
   opacity: 0.5;

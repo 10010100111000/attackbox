@@ -54,7 +54,7 @@ test('TerminalBackdrop.vue consumes useTerminalPlayer and defines terminal-scree
   // Styles
   assert.ok(content.includes('radial-gradient(ellipse at 18% 50%, #a0674917, transparent 55%)'))
   assert.ok(content.includes('"SFMono-Regular", Consolas, monospace'))
-  assert.ok(content.includes('@keyframes blink'))
+  assert.ok(content.includes('animation: blink'))
 })
 
 test('landing uses public module data and direct browsing links', () => {

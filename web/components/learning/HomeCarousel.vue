@@ -162,10 +162,6 @@ onUnmounted(() => { mounted = false; clearInterval(timer); media?.removeEventLis
   animation: blink 1s step-start infinite;
 }
 
-@keyframes blink {
-  50% { opacity: 0; }
-}
-
 /* 轮播分页胶囊指示器 (仅保留纯粹的分页点) */
 .carousel-pagination {
   position: absolute;

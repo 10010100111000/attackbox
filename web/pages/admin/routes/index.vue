@@ -45,9 +45,9 @@ async function remove(route: RouteSummary) {
     </header>
     <AdminDataLoading :pending="pending" :has-data="!!data" />
 
-    <p v-if="notice || error" class="notice" role="alert">
+    <UiNotice v-if="notice || error" variant="error" class="mb-4">
       {{ notice || '无法读取路线' }}
-    </p>
+    </UiNotice>
 
     <div class="panel table-wrap">
       <table>
@@ -68,25 +68,37 @@ async function remove(route: RouteSummary) {
               <span class="secondary">{{ item.summary }}</span>
             </td>
             <td>
-              <span class="status" :class="{ active: item.status === 'published' }">
+              <UiBadge :variant="item.status === 'published' ? 'success' : 'neutral'" dot>
                 {{ item.status === 'published' ? '已发布' : '草稿' }}
-              </span>
+              </UiBadge>
             </td>
             <td>{{ item.moduleCount }}</td>
             <td class="actions">
               <NuxtLink :to="`/admin/routes/${item.id}`">编辑</NuxtLink>
-              <button type="button" :disabled="!!deleting" @click="remove(item)"><UiBusyLabel :busy="deleting === item.id">删除</UiBusyLabel></button>
+              <UiButton
+                variant="danger"
+                size="xs"
+                :loading="deleting === item.id"
+                :disabled="!!deleting"
+                @click="remove(item)"
+              >
+                删除
+              </UiButton>
             </td>
           </tr>
         </tbody>
       </table>
 
-      <div v-if="!data?.data.length && !error && !pending" class="empty">
-        <Route :size="26" aria-hidden="true" />
-        <p>还没有学习路线</p>
-      </div>
+      <UiEmptyState
+        v-if="!data?.data.length && !error && !pending"
+        title="还没有学习路线"
+        description="将学习模块组合为有顺序的学习计划。"
+      >
+        <template #icon>
+          <Route :size="26" aria-hidden="true" />
+        </template>
+      </UiEmptyState>
     </div>
   </div>
 </template>
 
-<style scoped src="~/assets/css/admin-users.css"></style>

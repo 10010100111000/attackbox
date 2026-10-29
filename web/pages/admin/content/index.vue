@@ -163,10 +163,13 @@ function syncAllChanged() {
       </a>
     </header>
 
-    <p v-if="message" class="notice" role="status">{{ message }}</p>
-    <p v-if="settingsError" class="notice" role="alert">
-      配置读取失败。<button @click="refresh()">重新读取</button>
-    </p>
+    <UiNotice v-if="message" variant="info" class="mb-4">{{ message }}</UiNotice>
+    <UiNotice v-if="settingsError" variant="error" class="mb-4">
+      <div class="flex items-center justify-between gap-3 w-full">
+        <span>配置读取失败。</span>
+        <UiButton variant="secondary" size="xs" type="button" @click="refresh()">重新读取</UiButton>
+      </div>
+    </UiNotice>
 
     <section class="panel">
       <h2><GitBranch :size="17" />仓库设置</h2>
@@ -196,27 +199,30 @@ function syncAllChanged() {
               />
             </label>
           </div>
-          <div class="actions">
-            <button class="button" type="submit">保存配置</button>
-            <button
-              class="button"
+          <div class="actions flex items-center gap-3">
+            <UiButton variant="secondary" size="sm" type="submit">保存配置</UiButton>
+            <UiButton
+              variant="secondary"
+              size="sm"
               type="button"
               :disabled="dirty || !settings?.data.hasToken"
               @click="testConnection"
             >
               测试连接
-            </button>
-            <button
-              class="button primary"
+            </UiButton>
+            <UiButton
+              variant="primary"
+              size="sm"
               type="button"
               :disabled="dirty || !settings?.data.hasToken"
               @click="scanRepo"
             >
-              <RefreshCw :size="14" />读取仓库差异
-            </button>
-            <button v-if="settings?.data.hasToken" class="text-button" type="button" @click="clearToken">
+              <RefreshCw :size="14" />
+              <span>读取仓库差异</span>
+            </UiButton>
+            <UiButton v-if="settings?.data.hasToken" variant="ghost" size="sm" type="button" @click="clearToken">
               清除凭据
-            </button>
+            </UiButton>
             <UiBusyIndicator v-if="busy" inline :label="busy" />
           </div>
         </fieldset>
@@ -234,35 +240,30 @@ function syncAllChanged() {
             个待导入或有更新）
           </p>
         </div>
-        <button
+        <UiButton
           v-if="changedModules.length > 0"
-          class="button primary"
+          variant="primary"
+          size="sm"
           type="button"
           :disabled="!!busy"
           @click="syncAllChanged"
         >
-          <CheckCircle2 :size="15" />一键同步全部变更 ({{ changedModules.length }})
-        </button>
+          <CheckCircle2 :size="15" />
+          <span>一键同步全部变更 ({{ changedModules.length }})</span>
+        </UiButton>
       </div>
 
       <div class="module-list">
         <div v-for="item in scan.modules" :key="item.sourcePath" class="module-row">
           <div class="module-meta">
-            <div class="module-title-line">
+            <div class="module-title-line flex items-center gap-2">
               <strong>{{ item.title }}</strong>
-              <span
-                class="status-badge"
-                :class="{
-                  'badge-new': item.status === 'new',
-                  'badge-modified': item.status === 'modified',
-                  'badge-ok': item.status === 'up_to_date',
-                }"
-              >
+              <UiBadge :variant="item.status === 'new' ? 'brand' : item.status === 'modified' ? 'warning' : 'success'" dot>
                 {{ item.status === 'new' ? '新增未导入' : item.status === 'modified' ? '有内容更新' : '已是最新' }}
-              </span>
-              <span v-if="item.moduleStatus" class="pub-badge">
+              </UiBadge>
+              <UiBadge v-if="item.moduleStatus" :variant="item.moduleStatus === 'published' ? 'success' : 'neutral'">
                 {{ item.moduleStatus === 'published' ? '线上已发布' : '未发布草稿' }}
-              </span>
+              </UiBadge>
             </div>
             <div class="module-sub-line">
               <code>{{ item.sourcePath }}</code>
@@ -275,7 +276,7 @@ function syncAllChanged() {
             </div>
           </div>
 
-          <div class="module-actions">
+          <div class="module-actions flex items-center gap-2">
             <NuxtLink
               v-if="item.moduleId"
               class="button"
@@ -283,33 +284,36 @@ function syncAllChanged() {
             >
               模块详情
             </NuxtLink>
-            <button
+            <UiButton
               v-if="item.status === 'new'"
-              class="button primary"
+              variant="primary"
+              size="xs"
               type="button"
               :disabled="!!busy"
               @click="syncSingle(item)"
             >
               直接导入
-            </button>
-            <button
+            </UiButton>
+            <UiButton
               v-else-if="item.status === 'modified'"
-              class="button primary"
+              variant="primary"
+              size="xs"
               type="button"
               :disabled="!!busy"
               @click="syncSingle(item)"
             >
               同步更新
-            </button>
-            <button
+            </UiButton>
+            <UiButton
               v-else
-              class="button"
+              variant="secondary"
+              size="xs"
               type="button"
               :disabled="!!busy"
               @click="syncSingle(item, true)"
             >
               重新同步
-            </button>
+            </UiButton>
           </div>
         </div>
       </div>

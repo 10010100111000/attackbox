@@ -43,17 +43,17 @@ function submit() {
         <Search :size="15" aria-hidden="true" />
         <input v-model="input" aria-label="搜索模板" placeholder="搜索模板名称" maxlength="100" />
       </label>
-      <button type="submit">搜索</button>
-      <button type="button" :disabled="pending" @click="refresh()">
-        <RefreshCw :size="14" aria-hidden="true" />
+      <UiButton type="submit" variant="secondary" size="sm">搜索</UiButton>
+      <UiButton type="button" variant="secondary" size="sm" :disabled="pending" @click="refresh()">
+        <RefreshCw :size="14" aria-hidden="true" :class="{ 'animate-spin': pending }" />
         <span>刷新</span>
-      </button>
+      </UiButton>
       <span class="count muted">{{ data?.data.total ?? '—' }} 个模板</span>
     </form>
 
-    <p v-if="error" class="notice" role="alert">
+    <UiNotice v-if="error" variant="error" class="mb-4">
       无法读取模板，请检查登录状态或重试。
-    </p>
+    </UiNotice>
 
     <div v-else class="panel table-wrap" :aria-busy="pending">
       <table>
@@ -81,9 +81,9 @@ function submit() {
               {{ item.settings.entryPort }}
             </td>
             <td>
-              <span class="status" :class="{ active: item.enabled }">
+              <UiBadge :variant="item.enabled ? 'success' : 'neutral'" dot>
                 {{ item.enabled ? '已启用' : '已停用' }}
-              </span>
+              </UiBadge>
             </td>
             <td class="actions">
               <NuxtLink :to="`/admin/target-templates/${item.id}`">编辑</NuxtLink>
@@ -92,26 +92,40 @@ function submit() {
         </tbody>
       </table>
 
-      <div v-if="!pending && !data?.data.items.length" class="empty">
-        <Box :size="26" aria-hidden="true" />
-        <p>{{ search ? '没有符合条件的模板' : '还没有靶场模板' }}</p>
-      </div>
+      <UiEmptyState
+        v-if="!pending && !data?.data.items.length"
+        :title="search ? '没有符合条件的模板' : '还没有靶场模板'"
+        :description="search ? '请尝试更换关键词搜索。' : '集中维护教学与挑战环境配置。'"
+      >
+        <template #icon>
+          <Box :size="26" aria-hidden="true" />
+        </template>
+      </UiEmptyState>
     </div>
 
     <footer v-if="data" class="pagination">
       <span class="muted">第 {{ page }} 页 · 每页 20 个</span>
       <div>
-        <button type="button" :disabled="pending || page === 1" @click="page--">上一页</button>
-        <button
+        <UiButton
           type="button"
+          variant="secondary"
+          size="xs"
+          :disabled="pending || page === 1"
+          @click="page--"
+        >
+          上一页
+        </UiButton>
+        <UiButton
+          type="button"
+          variant="secondary"
+          size="xs"
           :disabled="pending || page * 20 >= data.data.total"
           @click="page++"
         >
           下一页
-        </button>
+        </UiButton>
       </div>
     </footer>
   </div>
 </template>
 
-<style scoped src="~/assets/css/admin-users.css"></style>

@@ -96,12 +96,6 @@ const {
   animation: blink 0.8s steps(1) infinite;
 }
 
-@keyframes blink {
-  50% {
-    opacity: 0;
-  }
-}
-
 @media (max-width: 760px) {
   .terminal-backdrop {
     opacity: 0.57;

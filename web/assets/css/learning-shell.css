@@ -38,8 +38,8 @@
 
 :root[data-theme="midnight"] .learning-layout {
   --learning-spark: #d8a57b;
-  --tone-red: #d8a57b;
-  --tone-red-soft: rgba(216, 165, 123, 0.12);
+  --tone-red: #e06c75;
+  --tone-red-soft: rgba(224, 108, 117, 0.14);
   --tone-green: #87b8b1;
   --tone-green-soft: rgba(135, 184, 177, 0.12);
   --tone-blue: #9ab0c7;

@@ -144,3 +144,50 @@ test('Badge.vue defines semantic variants and optional status dot', () => {
   assert.ok(content.includes('success-ink'))
   assert.ok(content.includes('rounded-full'))
 })
+
+test('Admin pages adopt standard UI components instead of handcrafting duplicates', () => {
+  const challenges = readFileSync(resolve(rootDir, 'pages/admin/challenges/index.vue'), 'utf-8')
+  assert.ok(challenges.includes('<UiNotice'))
+  assert.ok(challenges.includes('<UiBadge'))
+  assert.ok(challenges.includes('<UiEmptyState'))
+  assert.ok(challenges.includes('<UiButton'))
+
+  const routes = readFileSync(resolve(rootDir, 'pages/admin/routes/index.vue'), 'utf-8')
+  assert.ok(routes.includes('<UiNotice'))
+  assert.ok(routes.includes('<UiBadge'))
+  assert.ok(routes.includes('<UiEmptyState'))
+
+  const templates = readFileSync(resolve(rootDir, 'pages/admin/target-templates/index.vue'), 'utf-8')
+  assert.ok(templates.includes('<UiNotice'))
+  assert.ok(templates.includes('<UiBadge'))
+  assert.ok(templates.includes('<UiEmptyState'))
+  assert.ok(templates.includes('<UiButton'))
+
+  const notifications = readFileSync(resolve(rootDir, 'pages/admin/notifications.vue'), 'utf-8')
+  assert.ok(notifications.includes('<UiNotice'))
+  assert.ok(notifications.includes('<UiBadge'))
+  assert.ok(notifications.includes('<UiEmptyState'))
+  assert.ok(notifications.includes('<UiButton'))
+
+  const nodes = readFileSync(resolve(rootDir, 'pages/admin/nodes/index.vue'), 'utf-8')
+  assert.ok(nodes.includes('<UiNotice'))
+  assert.ok(nodes.includes('<UiBadge'))
+  assert.ok(nodes.includes('<UiEmptyState'))
+  assert.ok(nodes.includes('<UiButton'))
+
+  const users = readFileSync(resolve(rootDir, 'pages/admin/users/index.vue'), 'utf-8')
+  assert.ok(users.includes('<UiNotice'))
+  assert.ok(users.includes('<UiBadge'))
+  assert.ok(users.includes('<UiEmptyState'))
+  assert.ok(users.includes('<UiButton'))
+
+  const feedback = readFileSync(resolve(rootDir, 'pages/admin/feedback.vue'), 'utf-8')
+  assert.ok(feedback.includes('<UiNotice'))
+  assert.ok(feedback.includes('<UiBadge'))
+  assert.ok(feedback.includes('<UiEmptyState'))
+
+  const content = readFileSync(resolve(rootDir, 'pages/admin/content/index.vue'), 'utf-8')
+  assert.ok(content.includes('<UiNotice'))
+  assert.ok(content.includes('<UiBadge'))
+  assert.ok(content.includes('<UiButton'))
+})
