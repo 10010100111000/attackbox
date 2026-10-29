@@ -9,7 +9,8 @@ defineOptions({
 
 interface Props {
   modelValue?: string | number
-  type?: 'text' | 'email' | 'password'
+  type?: 'text' | 'email' | 'password' | 'number' | 'search'
+  size?: 'sm' | 'md'
   id?: string
   name?: string
   placeholder?: string
@@ -25,6 +26,7 @@ interface Props {
 const props = withDefaults(defineProps<Props>(), {
   modelValue: '',
   type: 'text',
+  size: 'md',
   id: undefined,
   name: undefined,
   placeholder: undefined,
@@ -56,7 +58,7 @@ const actualType = computed(() => {
 })
 
 function handleKeyEvent(e: KeyboardEvent) {
-  if (typeof e.getModifierState === 'function') {
+  if (props.type === 'password' && typeof e.getModifierState === 'function') {
     capsLockActive.value = e.getModifierState('CapsLock')
   }
 }
@@ -69,6 +71,11 @@ function handleBlur(e: FocusEvent) {
 function handleInput(e: Event) {
   const target = e.target as HTMLInputElement
   emit('update:modelValue', target.value)
+}
+
+const sizeClasses: Record<'sm' | 'md', string> = {
+  sm: 'h-8 px-2.5 text-xs',
+  md: 'h-10 px-3 py-2 text-sm'
 }
 </script>
 
@@ -93,9 +100,10 @@ function handleInput(e: Event) {
         @keyup="handleKeyEvent"
         @blur="handleBlur"
         :class="cn(
-          'flex h-10 w-full rounded-md border border-line bg-input px-3 py-2 text-sm text-foreground placeholder:text-muted/60 transition-colors',
+          'flex w-full rounded-md border border-line bg-input text-foreground placeholder:text-muted/60 transition-colors',
           'focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-accent focus-visible:border-accent',
           'disabled:cursor-not-allowed disabled:opacity-50',
+          sizeClasses[props.size] || sizeClasses.md,
           type === 'password' && 'pr-10',
           error && 'border-error focus-visible:ring-error focus-visible:border-error',
           inputClass

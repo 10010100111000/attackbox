@@ -3,8 +3,8 @@ import { computed } from 'vue'
 import { cn } from '~/utils/cn'
 
 interface Props {
-  variant?: 'primary' | 'outline' | 'ghost'
-  size?: 'sm' | 'md' | 'lg'
+  variant?: 'primary' | 'secondary' | 'outline' | 'ghost' | 'danger'
+  size?: 'xs' | 'sm' | 'md' | 'lg'
   loading?: boolean
   disabled?: boolean
   as?: string | any
@@ -26,13 +26,21 @@ const props = withDefaults(defineProps<Props>(), {
 
 const isLink = computed(() => !!props.to || props.as === 'NuxtLink')
 
-const variantClasses: Record<'primary' | 'outline' | 'ghost', string> = {
-  primary: 'bg-[var(--btn-primary-bg)] text-[var(--btn-primary-fg)] font-semibold hover:bg-[var(--btn-primary-hover)] shadow-[var(--btn-primary-shadow)] active:opacity-90 transition-all duration-150',
-  outline: 'border border-line bg-transparent text-foreground hover:bg-card active:opacity-90',
-  ghost: 'bg-transparent text-muted hover:text-foreground hover:bg-card active:opacity-90'
+const variantClasses: Record<'primary' | 'secondary' | 'outline' | 'ghost' | 'danger', string> = {
+  primary:
+    'bg-[var(--btn-primary-bg)] text-[var(--btn-primary-fg)] font-semibold hover:bg-[var(--btn-primary-hover)] shadow-[var(--btn-primary-shadow)] active:opacity-90 transition-all duration-150',
+  secondary:
+    'border border-[var(--line)] bg-[var(--paper)] text-[var(--ink)] hover:bg-[var(--soft)] hover:text-[var(--ink)] active:opacity-90 font-medium',
+  outline:
+    'border border-line bg-transparent text-foreground hover:bg-card active:opacity-90',
+  ghost:
+    'bg-transparent text-muted hover:text-foreground hover:bg-card active:opacity-90',
+  danger:
+    'border border-transparent bg-transparent text-[var(--error-ink)] hover:bg-[var(--error-bg)] active:opacity-90 font-medium'
 }
 
-const sizeClasses: Record<'sm' | 'md' | 'lg', string> = {
+const sizeClasses: Record<'xs' | 'sm' | 'md' | 'lg', string> = {
+  xs: 'h-7 px-2.5 text-xs rounded-sm gap-1',
   sm: 'h-8 px-3 text-xs rounded-sm gap-1.5',
   md: 'h-10 px-4 text-sm rounded-md gap-2',
   lg: 'h-11 px-5 text-base rounded-lg gap-2.5'
@@ -40,7 +48,7 @@ const sizeClasses: Record<'sm' | 'md' | 'lg', string> = {
 
 const buttonClasses = computed(() =>
   cn(
-    'inline-flex items-center justify-center font-medium transition-colors select-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent disabled:opacity-50',
+    'inline-flex items-center justify-center font-medium transition-colors select-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent disabled:opacity-50 cursor-pointer',
     variantClasses[props.variant] || variantClasses.primary,
     sizeClasses[props.size] || sizeClasses.md,
     props.loading ? 'cursor-wait' : (props.disabled && 'pointer-events-none'),
