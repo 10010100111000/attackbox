@@ -11,6 +11,7 @@ test('landing component and layout files exist', () => {
   const requiredFiles = [
     'components/landing/TerminalBackdrop.vue',
     'components/landing/HeroSection.vue',
+    'components/landing/ModuleCard.vue',
     'components/landing/FeaturedModule.vue',
     'components/landing/ModuleRail.vue',
     'layouts/landing.vue',
@@ -68,10 +69,12 @@ test('landing uses public module data and direct browsing links', () => {
   assert.ok(page.includes('catalog-empty'))
   for (const file of ['FeaturedModule.vue', 'ModuleRail.vue']) {
     const source = readFileSync(resolve(rootDir, 'components/landing', file), 'utf-8')
-    assert.ok(source.includes('/learn/modules/${module.slug}'))
+    assert.ok(source.includes('ModuleCard'), 'cards must be rendered by the shared ModuleCard')
     assert.ok(!source.includes('/auth'))
     assert.ok(!source.includes('次实践'))
   }
+  const card = readFileSync(resolve(rootDir, 'components/landing/ModuleCard.vue'), 'utf-8')
+  assert.ok(card.includes('/learn/modules/${module.slug}'), 'cards must link to the module page')
   assert.ok(hero.includes('to="/learn"'))
   assert.ok(header.includes('to="/learn"'))
 })

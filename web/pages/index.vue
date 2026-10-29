@@ -46,3 +46,80 @@ useSeoMeta({
     </section>
   </div>
 </template>
+
+<style scoped>
+.modules {
+  padding: 55px 0 74px;
+  position: relative;
+}
+
+.modules:before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 20%;
+  right: 20%;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, #c19e7f33, transparent);
+}
+
+.section-head {
+  text-align: center;
+  margin-bottom: 38px;
+}
+
+.section-head h2 {
+  font-size: 34px;
+  font-weight: 550;
+  letter-spacing: -1.3px;
+}
+
+.catalog-empty {
+  display: grid;
+  justify-items: center;
+  gap: 18px;
+  padding: 60px 24px;
+  color: var(--text-muted);
+  border: 1px solid var(--border-line);
+  border-radius: 11px;
+  background: radial-gradient(ellipse at 50% 100%, var(--brand-warm-soft), transparent 70%);
+}
+
+.catalog-empty :deep(svg) {
+  color: var(--brand-warm);
+}
+
+.catalog-empty p {
+  font-size: 14px;
+}
+
+.catalog-link {
+  display: flex;
+  justify-content: center;
+  margin-top: 30px;
+}
+
+.catalog-link a {
+  color: var(--brand-warm);
+  font-size: 12px;
+  padding: 10px 16px;
+  border-radius: 7px;
+  border: 1px solid var(--border-line);
+}
+
+.catalog-link a:hover {
+  background: var(--brand-warm-soft);
+}
+
+@media (max-width: 760px) {
+  .modules {
+    padding: 35px 0 42px;
+  }
+  .section-head {
+    margin-bottom: 27px;
+  }
+  .section-head h2 {
+    font-size: 27px;
+  }
+}
+</style>
