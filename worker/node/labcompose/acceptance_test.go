@@ -316,3 +316,13 @@ func TestComposeRealBuildAndWritableAssets(t *testing.T) {
 		t.Fatal("release removed built image", err)
 	}
 }
+
+func (n *engineTestNetworks) ForgetNetwork(_ context.Context, id string) error {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	if net, ok := n.nets[id]; ok && !net.Cleaned {
+		return fmt.Errorf("cleanup pending")
+	}
+	delete(n.nets, id)
+	return nil
+}

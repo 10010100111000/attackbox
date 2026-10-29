@@ -111,21 +111,21 @@ func New(ctx context.Context, cfg Config) (*Manager, error) {
 		if r.Request.ID != dir.Name() || !idPattern.MatchString(r.Request.OwnerID) || !deploymentPattern.MatchString(r.Request.DeploymentID) || r.Request.ExpiresAt.IsZero() || r.NodeID != cfg.NodeID || r.Project != projectName(cfg.NodeID, r.Request.ID) || r.Networks == nil || r.Desired && r.Cleaned {
 			return fail(fmt.Errorf("invalid instance identity"))
 		}
+		for key, n := range r.Networks {
+			if n.ID != r.Request.ID+"/"+key || n.Spec.TargetID != r.Request.ID || n.Spec.OwnerID != r.Request.OwnerID {
+				return fail(fmt.Errorf("invalid instance network ownership"))
+			}
+		}
+		if r.Cleaned {
+			m.entries[r.Request.ID] = &entry{record: r}
+			continue
+		}
 		d, err := m.loadDeploymentMetadata(r.Request.DeploymentID)
 		if err != nil {
 			return fail(err)
 		}
 		if !sameStrings(r.VolumeNames, volumeNames(r.Project, d)) {
 			return fail(fmt.Errorf("invalid instance volumes"))
-		}
-		if r.Cleaned {
-			_ = os.RemoveAll(filepath.Join(cfg.StateDir, "instances", dir.Name()))
-			continue
-		}
-		for key, n := range r.Networks {
-			if n.ID != r.Request.ID+"/"+key || n.Spec.TargetID != r.Request.ID || n.Spec.OwnerID != r.Request.OwnerID {
-				return fail(fmt.Errorf("invalid instance network ownership"))
-			}
 		}
 		m.entries[r.Request.ID] = &entry{record: r, deployment: d}
 	}
@@ -194,18 +194,24 @@ func cloneNetworks(in map[string]labnetwork.Network) map[string]labnetwork.Netwo
 }
 func (e *entry) snapshot() Record { e.mu.Lock(); defer e.mu.Unlock(); return copyRecord(e.record) }
 func (m *Manager) persist(e *entry) error {
+	return m.commitRecord(e, e.record)
+}
+
+// Caller owns the record via e.mu (or initial allocation under m.mu).
+// Publish terminal state only after the atomic ledger write.
+func (m *Manager) commitRecord(e *entry, next Record) error {
 	if e.writeErr != nil {
 		return e.writeErr
 	}
-	if e.record.Cleaned {
-		return nil
-	}
-	err := writeJSON(filepath.Join(m.cfg.StateDir, "instances", e.record.Request.ID, "record.json"), e.record)
+	err := writeJSON(filepath.Join(m.cfg.StateDir, "instances", next.Request.ID, "record.json"), next)
 	if err != nil {
-		e.writeErr = fmt.Errorf("instance persistence failed; reopen runtime")
+		e.writeErr = fmt.Errorf("instance persistence failed; reopen runtime: %w", err)
+		return e.writeErr
 	}
-	return e.writeErr
+	e.record = next
+	return nil
 }
+
 func (m *Manager) get(id string) (*entry, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -398,9 +404,8 @@ func (m *Manager) stopEntry(ctx context.Context, e *entry, d Deployment) (Status
 		return Status{}, err
 	}
 	if e.record.Cleaned {
-		r := copyRecord(e.record)
 		e.mu.Unlock()
-		return m.status(ctx, r, d)
+		return m.finishStopped(ctx, e)
 	}
 	e.record.Desired = false
 	err := m.persist(e)
@@ -447,13 +452,18 @@ func (m *Manager) stopEntry(ctx context.Context, e *entry, d Deployment) (Status
 	if err := m.removeInstanceAssets(r); err != nil {
 		return pending(r), err
 	}
+	// Commit the terminal state before acknowledging network record deletion.
+	// A restart at any point can finish acknowledgement without running Down again.
 	e.mu.Lock()
-	e.record.Cleaned = true
-	r = copyRecord(e.record)
+	next := copyRecord(e.record)
+	next.Cleaned = true
+	next.Networks = cloneNetworks(r.Networks)
+	err = m.commitRecord(e, next)
 	e.mu.Unlock()
-	_ = os.RemoveAll(filepath.Join(m.cfg.StateDir, "instances", r.Request.ID))
-	_ = syncDir(filepath.Join(m.cfg.StateDir, "instances"))
-	return m.status(ctx, r, d)
+	if err != nil {
+		return pending(r), err
+	}
+	return m.finishStopped(ctx, e)
 }
 func pending(r Record) Status {
 	return Status{ID: r.Request.ID, State: "cleanup_pending", ExpiresAt: r.Request.ExpiresAt, Attachment: "disconnected"}
@@ -469,10 +479,12 @@ func (m *Manager) Stop(ctx context.Context, id string) (Status, error) {
 		return Status{}, err
 	}
 	e.mu.Lock()
-	e.record.Desired = false
-	err = m.persist(e)
-	if e.cancel != nil {
-		e.cancel()
+	if !e.record.Cleaned {
+		e.record.Desired = false
+		err = m.persist(e)
+		if e.cancel != nil {
+			e.cancel()
+		}
 	}
 	e.mu.Unlock()
 	if err != nil {
@@ -481,6 +493,9 @@ func (m *Manager) Stop(ctx context.Context, id string) (Status, error) {
 	e.op.Lock()
 	defer e.op.Unlock()
 	r := e.snapshot()
+	if r.Cleaned {
+		return m.finishStopped(ctx, e)
+	}
 	d, err := m.entryDeployment(e, r.Request.DeploymentID)
 	if err != nil {
 		return pending(r), err
@@ -498,6 +513,9 @@ func (m *Manager) Inspect(ctx context.Context, id string) (Status, error) {
 		return Status{}, err
 	}
 	r := e.snapshot()
+	if r.Cleaned {
+		return m.status(ctx, r, Deployment{})
+	}
 	d, err := m.entryDeployment(e, r.Request.DeploymentID)
 	if err != nil {
 		return Status{}, err
@@ -595,12 +613,26 @@ func (m *Manager) Reap(ctx context.Context) error {
 	defer m.leave()
 	m.mu.Lock()
 	var ids []string
+	var gcErrs []error
 	now := m.clock()
 	for id, e := range m.entries {
 		r := e.snapshot()
 		if r.Cleaned {
-			if !r.Request.ExpiresAt.After(now) {
-				delete(m.entries, id)
+			if len(r.Networks) > 0 {
+				ids = append(ids, id)
+				continue
+			}
+			if !r.Request.ExpiresAt.After(now) && e.op.TryLock() {
+				err := os.RemoveAll(filepath.Join(m.cfg.StateDir, "instances", id))
+				if err == nil {
+					err = syncDir(filepath.Join(m.cfg.StateDir, "instances"))
+				}
+				if err == nil {
+					delete(m.entries, id)
+				} else {
+					gcErrs = append(gcErrs, err)
+				}
+				e.op.Unlock()
 			}
 			continue
 		}
@@ -609,7 +641,7 @@ func (m *Manager) Reap(ctx context.Context) error {
 		}
 	}
 	m.mu.Unlock()
-	var errs []error
+	errs := gcErrs
 	var mu sync.Mutex
 	var wg sync.WaitGroup
 	workers := make(chan struct{}, m.cfg.Concurrency)

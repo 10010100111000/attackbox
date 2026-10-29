@@ -344,6 +344,35 @@ func (m *Manager) ReleaseNetwork(ctx context.Context, id string) error {
 	return m.cleanupNetwork(ctx, n)
 }
 
+// ForgetNetwork acknowledges that the parent instance has durably completed
+// cleanup. Until then, cleaned network records remain available after restart.
+func (m *Manager) ForgetNetwork(ctx context.Context, id string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if err := m.usable(ctx); err != nil {
+		return err
+	}
+	n, ok := m.state.Networks[id]
+	if !ok {
+		return nil
+	} // Idempotent acknowledgement after a crash.
+	if !n.Cleaned || n.Desired {
+		return fmt.Errorf("network cleanup has not completed")
+	}
+	for _, a := range m.state.Attachments {
+		if a.NetworkID == id && !a.Cleaned {
+			return fmt.Errorf("network attachment cleanup pending")
+		}
+	}
+	for key, a := range m.state.Attachments {
+		if a.NetworkID == id {
+			delete(m.state.Attachments, key)
+		}
+	}
+	delete(m.state.Networks, id)
+	return m.save()
+}
+
 // Reconcile is explicitly called at startup or by the future runtime's existing
 // reconciliation loop; this package creates no timers. Unknown resources are
 // reported, never swept. A stale namespace is disconnected, never reselected.

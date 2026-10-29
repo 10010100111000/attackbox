@@ -436,7 +436,7 @@ func TestReservationSurvivesPrepareFailureAndDetectsForeignAddressPool(t *testin
 	}
 }
 
-func TestCleanedTombstonesAreNotPersistedToDisk(t *testing.T) {
+func TestCleanedRecordsRetainedUntilParentAcknowledgement(t *testing.T) {
 	h := newHarness(t)
 	m := h.open(t)
 	ctx := context.Background()
@@ -448,10 +448,31 @@ func TestCleanedTombstonesAreNotPersistedToDisk(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	if err := m.ForgetNetwork(ctx, n.ID); err == nil {
+		t.Fatal("active network forgotten")
+	}
 	if err := m.Detach(ctx, a.ID); err != nil {
 		t.Fatal(err)
 	}
 	if err := m.ReleaseNetwork(ctx, n.ID); err != nil {
+		t.Fatal(err)
+	}
+	rawBefore, err := os.ReadFile(filepath.Join(h.cfg.StateDir, "state.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var retained state
+	if err := json.Unmarshal(rawBefore, &retained); err != nil {
+		t.Fatal(err)
+	}
+	if len(retained.Networks) != 1 || !retained.Networks[n.ID].Cleaned {
+		t.Fatal("network acknowledgement lost before parent commit")
+	}
+	if err := m.Close(); err != nil {
+		t.Fatal(err)
+	}
+	m = h.open(t)
+	if err := m.ForgetNetwork(ctx, n.ID); err != nil {
 		t.Fatal(err)
 	}
 	raw, err := os.ReadFile(filepath.Join(h.cfg.StateDir, "state.json"))

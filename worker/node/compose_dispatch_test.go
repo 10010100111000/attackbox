@@ -171,3 +171,5 @@ func TestFailedCreateBoxReleasesSandboxMailbox(t *testing.T) {
 	}
 	t.Fatal("sandboxMailbox leaked after failed CreateBox")
 }
+
+func (n *dispatchNetworks) ForgetNetwork(context.Context, string) error { return nil }

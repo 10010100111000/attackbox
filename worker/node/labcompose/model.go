@@ -92,6 +92,7 @@ type Engine interface {
 type Networks interface {
 	CreateNetwork(context.Context, labnetwork.NetworkSpec) (labnetwork.Network, error)
 	ReleaseNetwork(context.Context, string) error
+	ForgetNetwork(context.Context, string) error
 	Attach(context.Context, string, labnetwork.Sandbox) (labnetwork.Attachment, error)
 	Detach(context.Context, string) error
 	Snapshot() ([]labnetwork.Network, []labnetwork.Attachment)
