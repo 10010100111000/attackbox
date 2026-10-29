@@ -81,7 +81,7 @@ const { data: moduleResponse, refresh: refreshModule } = await useFetch<{
 )
 
 function renderPrompt(markdown: string, imageUrls = chapterResponse.value?.data.imageUrls): string {
-  return renderMarkdown(markdown || '', imageUrls, { copyCode: false }).html
+  return renderMarkdown(markdown || '', imageUrls, { copyCode: true }).html
 }
 
 const chapterData = computed<ChapterDetail | null>(() => {
@@ -294,7 +294,7 @@ useHead({
           <article ref="articleElement" class="article-body">
             <div class="chapter-meta"><span>第 {{ chapterIndex + 1 }} / {{ moduleData?.chapters.length || 1 }} 章</span><span v-if="chapterData.durationMinutes"><Clock3 :size="13" aria-hidden="true" />约 {{ chapterData.durationMinutes }} 分钟</span></div>
             <h1 class="chapter-main-title">{{ chapterData.title }}</h1>
-            <MarkdownView :content="chapterData.bodyMarkdown" @headings-loaded="headingsLoaded" :image-urls="chapterResponse?.data.imageUrls" />
+            <MarkdownView :content="chapterData.bodyMarkdown" :copyable="true" @headings-loaded="headingsLoaded" :image-urls="chapterResponse?.data.imageUrls" />
             <TargetEnvironment v-if="chapterResponse?.data.target" :key="chapterResponse.data.chapter.id" :target="chapterResponse.data.target" :context="{kind: 'chapter', moduleSlug: String(route.params.slug), chapterSlug: String(route.params.chapterSlug)}" />
 
             <section v-if="chapterData.questions.length" id="quiz" class="quiz-card" aria-labelledby="quiz-title">

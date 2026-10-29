@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { NuxtLink } from '#components'
 import { computed, ref, watch } from 'vue'
-import MarkdownIt from 'markdown-it'
 import { useRoute, useFetch, useHead } from '#imports'
 import { ArrowLeft, Check, LockKeyhole, Clock3, CheckCircle2 } from 'lucide-vue-next'
 import MarkdownView from '~/components/ui/MarkdownView.vue'
@@ -28,12 +27,24 @@ const moduleData = computed(() => {
 })
 const descriptionExpanded = ref(false)
 watch(slug, () => { descriptionExpanded.value = false })
-const descriptionParser = new MarkdownIt({ html: false })
-const descriptionTokens = computed(() => descriptionParser.parse(moduleData.value?.descriptionMarkdown || '', {}))
-const descriptionText = computed(() => descriptionTokens.value.filter(token => token.type === 'inline')
-  .map(token => (token.children || []).map(child => ['text', 'code_inline'].includes(child.type) ? child.content : ['softbreak', 'hardbreak'].includes(child.type) ? ' ' : '').join('')).join(' ').trim())
-const descriptionNeedsExpansion = computed(() => descriptionText.value.length > 120 || descriptionTokens.value.some(token => ['fence', 'code_block', 'table_open'].includes(token.type)))
-const descriptionPreview = computed(() => descriptionText.value.length > 160 ? `${descriptionText.value.slice(0, 160)}…` : descriptionText.value)
+function extractPlainText(md: string): string {
+  return md
+    .replace(/```[\s\S]*?```/g, '')
+    .replace(/`([^`]+)`/g, '$1')
+    .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
+    .replace(/[#*~_>]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
+const rawMarkdown = computed(() => moduleData.value?.descriptionMarkdown || '')
+const descriptionText = computed(() => extractPlainText(rawMarkdown.value))
+const descriptionNeedsExpansion = computed(() =>
+  descriptionText.value.length > 120 || /```|\|/.test(rawMarkdown.value)
+)
+const descriptionPreview = computed(() =>
+  descriptionText.value.length > 160 ? `${descriptionText.value.slice(0, 160)}…` : descriptionText.value
+)
 const hasSidebar = computed(() => !!moduleData.value && (Boolean(moduleData.value.descriptionMarkdown.trim()) || moduleData.value.learningOutcomes.length > 0 || moduleData.value.prerequisites.length > 0))
 const firstChapter = computed(() => moduleData.value?.chapters.find(c => c.slug === moduleData.value?.progress?.resumeChapterSlug) || moduleData.value?.chapters[0])
 const started = computed(() => moduleData.value?.chapters.some(c => c.lastVisitedAt || c.completedAt))

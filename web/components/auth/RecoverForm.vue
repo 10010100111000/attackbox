@@ -171,7 +171,7 @@ async function handleSubmit() {
     9px 'SFMono-Regular',
     Consolas,
     monospace;
-  color: var(--text-muted);
+  color: var(--brand-warm);
   letter-spacing: 2px;
   margin-bottom: 16px;
 }
@@ -209,7 +209,7 @@ h1 {
 
 .status {
   font-size: 11px;
-  color: #c5aa97;
+  color: var(--brand-warm);
   line-height: 1.8;
   padding: 12px 14px;
   border: 1px solid rgba(201, 160, 124, 0.13);

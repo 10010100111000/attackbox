@@ -35,8 +35,8 @@ async function resend() {
     @submit.prevent="resend"
   >
     <label :for="id">重新发送验证邮件</label>
-    <div>
-      <input
+    <div class="input-row">
+      <UiInput
         :id="id"
         v-model="address"
         name="email"
@@ -46,12 +46,15 @@ async function resend() {
         autocomplete="email"
         placeholder="注册邮箱"
         :disabled="busy"
+        class="flex-1"
       />
-      <button :disabled="busy">
-        <UiBusyLabel :busy="busy">发送验证邮件</UiBusyLabel>
-      </button>
+      <UiButton type="submit" variant="secondary" :loading="busy" :disabled="busy" class="shrink-0">
+        发送验证邮件
+      </UiButton>
     </div>
-    <p v-if="message" role="status">{{ message }}</p>
+    <UiNotice v-if="message" variant="info" class="mt-3">
+      {{ message }}
+    </UiNotice>
   </form>
 </template>
 <style scoped>
@@ -65,38 +68,9 @@ async function resend() {
   color: var(--text-muted);
   margin-bottom: 10px;
 }
-.resend-verification > div {
+.input-row {
   display: flex;
   gap: 8px;
-}
-.resend-verification input {
-  min-width: 0;
-  flex: 1;
-  background: var(--bg-input);
-  color: var(--text-main);
-  border: 1px solid var(--border-line);
-  border-radius: 7px;
-  padding: 10px;
-  font: inherit;
-  font-size: 12px;
-}
-.resend-verification button {
-  padding: 10px;
-  border: 1px solid var(--border-line);
-  border-radius: 7px;
-  color: var(--text-main);
-  background: var(--bg-card);
-  font-size: 12px;
-  white-space: nowrap;
-  cursor: pointer;
-}
-.resend-verification button:disabled {
-  opacity: 0.5;
-}
-.resend-verification p {
-  font-size: 12px;
-  line-height: 1.7;
-  color: var(--text-muted);
-  margin-top: 10px;
+  align-items: center;
 }
 </style>
