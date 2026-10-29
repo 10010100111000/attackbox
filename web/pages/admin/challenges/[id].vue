@@ -235,7 +235,7 @@ async function save(intent: 'draft' | 'publish') {
 
           <div class="text-field">
             <label for="challenge-summary">简介</label>
-            <textarea id="challenge-summary" v-model="form.summary" rows="2" maxlength="500" />
+            <UiTextarea id="challenge-summary" v-model="form.summary" rows="2" maxlength="500" />
           </div>
 
           <div class="compact">
@@ -263,7 +263,7 @@ async function save(intent: 'draft' | 'publish') {
           <MarkdownView v-if="preview" :content="form.bodyMarkdown" />
           <div v-else class="text-field">
             <label for="challenge-body" class="sr-only">挑战正文</label>
-            <textarea
+            <UiTextarea
               id="challenge-body"
               v-model="form.bodyMarkdown"
               rows="12"
@@ -341,7 +341,7 @@ async function save(intent: 'draft' | 'publish') {
 
             <div class="text-field">
               <label :for="`stage-prompt-${i}`">任务说明</label>
-              <textarea :id="`stage-prompt-${i}`" v-model="s.promptMarkdown" rows="3" />
+              <UiTextarea :id="`stage-prompt-${i}`" v-model="s.promptMarkdown" rows="3" />
             </div>
 
             <label>
@@ -351,7 +351,7 @@ async function save(intent: 'draft' | 'publish') {
 
             <div class="text-field">
               <label :for="`stage-hint-${i}`">提示</label>
-              <textarea :id="`stage-hint-${i}`" v-model="s.hint" rows="2" maxlength="4000" />
+              <UiTextarea :id="`stage-hint-${i}`" v-model="s.hint" rows="2" maxlength="4000" />
             </div>
           </div>
 

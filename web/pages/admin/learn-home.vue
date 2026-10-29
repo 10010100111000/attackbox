@@ -208,7 +208,7 @@ useEditorGuard({
               ><label class="toggle"
                 ><input v-model="item.enabled" type="checkbox" />在首页显示</label
               ><label class="wide"
-                >说明<textarea v-model="item.description" maxlength="300" rows="3" /></label
+                >说明<UiTextarea v-model="item.description" maxlength="300" rows="3" /></label
               ><label>按钮文字 *<input v-model="item.cta" maxlength="30" required /></label
               ><label
                 >跳转路径 *<input

@@ -165,7 +165,7 @@ async function save(intent: 'draft' | 'publish') {
         </label>
         <label>
           简介
-          <textarea
+          <UiTextarea
             v-model="summary"
             maxlength="500"
             rows="4"

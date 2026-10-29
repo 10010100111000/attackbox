@@ -168,7 +168,7 @@ onBeforeUnmount(() => {
             aria-label="桌面剪贴板"
           >
             <label
-              >剪贴板<textarea
+              >剪贴板<UiTextarea
                 v-model="clipboardText"
                 aria-label="剪贴板文本"
                 rows="5"

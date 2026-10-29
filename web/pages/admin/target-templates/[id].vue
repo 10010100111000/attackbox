@@ -548,9 +548,9 @@ const preparation = (node: string) => preparations.value.find(p => p.nodeId === 
               <h2>基本信息</h2>
               <label class="name-field"
                 >名称<input v-model="form.name" required maxlength="120" /></label
-              ><label>简介<textarea v-model="form.description" rows="2" maxlength="500" /></label
+              ><label>简介<UiTextarea v-model="form.description" rows="2" maxlength="500" /></label
               ><label
-                >访问说明<textarea
+                >访问说明<UiTextarea
                   v-model="form.accessInstructions"
                   rows="3"
                   maxlength="4000"

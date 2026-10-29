@@ -81,7 +81,7 @@ async function withdraw(id: string) {
         </label>
         <label>
           正文
-          <textarea :disabled="busy" v-model="form.body" required maxlength="8000" rows="7" />
+          <UiTextarea :disabled="busy" v-model="form.body" required maxlength="8000" rows="7" />
         </label>
         <label>
           相关页面
