@@ -69,13 +69,14 @@ test('pages/learn/modules/[slug]/index.vue renders real module content and confi
   assert.ok(content.includes('start-learning-btn'))
 })
 
-test('pages/learn/modules/[slug]/[chapterSlug].vue renders learn-shell, MarkdownView, and quiz', () => {
+test('pages/learn/modules/[slug]/[chapterSlug].vue renders shared reader components, MarkdownView, and quiz', () => {
   const content = fs.readFileSync(
     path.join(webDir, 'pages/learn/modules/[slug]/[chapterSlug].vue'),
     'utf-8'
   )
   assert.ok(content.includes("layout: 'learning'"))
-  assert.ok(content.includes('learn-shell'))
+  assert.ok(content.includes('ReaderLayout'))
+  assert.ok(content.includes('ReaderArticle'))
   assert.ok(content.includes('MarkdownView'))
   assert.ok(content.includes('quiz-card'))
   assert.ok(content.includes('answer-check-btn'))

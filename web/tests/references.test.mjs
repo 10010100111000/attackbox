@@ -271,7 +271,7 @@ test(
       })
       await page.goto(`${f.base}/learn/modules/${module.module.slug}/reference`)
       await page
-        .locator('.article-body .markdown-body')
+        .locator('.reader-article .markdown-body')
         .getByRole('link', { name: '指南', exact: true })
         .click()
       await page.waitForURL('**' + path + '#*')

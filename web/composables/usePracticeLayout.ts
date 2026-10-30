@@ -6,7 +6,7 @@ const minReaderWidth = 480,
   minPracticeWidth = 420
 const clamp = (value: number, min: number, max: number) => Math.max(min, Math.min(max, value))
 
-export function usePracticeLayout(workspace: Ref<HTMLElement | null>) {
+export function usePracticeLayout(workspace: Readonly<Ref<HTMLElement | null>>) {
   const preferred = ref<PracticePlacement>('right')
   const widthRatio = ref(0.5),
     savedHeight = ref(310)

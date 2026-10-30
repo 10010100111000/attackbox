@@ -92,22 +92,22 @@ test(
         await page.locator('.answer-feedback.success').nth(index).waitFor()
       }
       await page.goto(f.base + first)
-      await page.locator('.article-body > .markdown-body').waitFor()
+      await page.locator('.reader-article > .markdown-body').waitFor()
       if (process.env.LEARNING_SCREENSHOT_DIR) {
         mkdirSync(process.env.LEARNING_SCREENSHOT_DIR, { recursive: true })
         await page.screenshot({
           path: process.env.LEARNING_SCREENSHOT_DIR + '/reader-expanded.png'
         })
       }
-      const bodyBefore = await page.locator('.article-body > .markdown-body').boundingBox()
+      const bodyBefore = await page.locator('.reader-article > .markdown-body').boundingBox()
       assert.equal(
         await page
-          .locator('.article-body > .markdown-body')
+          .locator('.reader-article > .markdown-body')
           .evaluate(el => getComputedStyle(el).fontSize),
         '17px'
       )
       await page.getByRole('button', { name: '收起模块目录', exact: true }).click()
-      const bodyAfter = await page.locator('.article-body > .markdown-body').boundingBox()
+      const bodyAfter = await page.locator('.reader-article > .markdown-body').boundingBox()
       if (process.env.LEARNING_SCREENSHOT_DIR) {
         await page.screenshot({
           path: process.env.LEARNING_SCREENSHOT_DIR + '/reader-collapsed.png'

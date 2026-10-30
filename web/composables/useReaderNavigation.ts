@@ -7,8 +7,8 @@ interface Position {
   offset: number
 }
 export function useReaderNavigation(
-  container: Ref<HTMLElement | null>,
-  article: Ref<HTMLElement | null>,
+  container: Readonly<Ref<HTMLElement | null>>,
+  article: Readonly<Ref<HTMLElement | null>>,
   identity: Ref<string>,
   content: Ref<string>,
   sections: Ref<MarkdownHeading[]>
@@ -41,10 +41,18 @@ export function useReaderNavigation(
   function updateActive() {
     frame = 0
     if (!container.value || !ready) return
+    const { scrollTop, scrollHeight, clientHeight } = container.value
+    const atEnd = scrollTop > 0 && scrollHeight - clientHeight - scrollTop <= 2
     let id = ''
     for (const section of sections.value) {
       const element = find(section.id)
-      if (element && topOf(element) <= container.value.scrollTop + 8) id = section.id
+      // A short final section cannot reach the top: scrolling is clamped at the
+      // document end. Include visible trailing headings in that boundary case.
+      if (
+        element &&
+        (topOf(element) <= scrollTop + 8 || (atEnd && topOf(element) < scrollTop + clientHeight))
+      )
+        id = section.id
     }
     activeSection.value = id
   }
@@ -95,10 +103,9 @@ export function useReaderNavigation(
     }
     const markdown = article.value.querySelector(':scope > .markdown-body')
     anchors = new Map(
-      Array.from(markdown?.querySelectorAll<HTMLElement>('h2[id],h3[id],h4[id]') || []).map(el => [
-        el.id,
-        el
-      ])
+      Array.from(
+        markdown?.querySelectorAll<HTMLElement>('h1[id],h2[id],h3[id],h4[id],h5[id],h6[id]') || []
+      ).map(el => [el.id, el])
     )
     const quiz = article.value.querySelector<HTMLElement>('#quiz')
     if (quiz) anchors.set(quiz.id, quiz)

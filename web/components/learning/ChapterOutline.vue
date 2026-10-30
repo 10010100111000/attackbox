@@ -2,17 +2,10 @@
 import { NuxtLink } from '#components'
 import type { MarkdownHeading } from '~/utils/markdown'
 import type { LearningChapter } from '~/shared/learning'
-import {
-  LockKeyhole,
-  PanelLeftClose,
-  PanelLeftOpen,
-  CheckCircle2,
-  ChevronDown
-} from 'lucide-vue-next'
+import { LockKeyhole, CheckCircle2, ChevronDown } from 'lucide-vue-next'
 const props = withDefaults(
   defineProps<{
     moduleSlug: string
-    moduleTitle: string
     currentSlug: string
     collapsed?: boolean
     sections?: MarkdownHeading[]
@@ -32,7 +25,7 @@ watch(
     expanded.value = true
   }
 )
-const emit = defineEmits<{ toggle: []; navigate: []; section: [id: string] }>()
+const emit = defineEmits<{ navigate: []; section: [id: string] }>()
 function selectSection(id: string) {
   emit('section', id)
   emit('navigate')
@@ -40,159 +33,94 @@ function selectSection(id: string) {
 </script>
 
 <template>
-  <div class="outline-content" :class="{ collapsed }">
-    <div class="outline-controls">
-      <span v-if="!collapsed">模块目录</span>
-      <button
-        type="button"
-        class="outline-toggle"
-        :aria-label="collapsed ? '展开模块目录' : '收起模块目录'"
-        :aria-expanded="!collapsed"
-        @click="emit('toggle')"
-      >
-        <PanelLeftOpen v-if="collapsed" :size="17" aria-hidden="true" /><PanelLeftClose
-          v-else
-          :size="17"
-          aria-hidden="true"
-        />
-      </button>
-    </div>
-    <h2 v-if="!collapsed">{{ moduleTitle }}</h2>
-    <nav aria-label="章节导航">
-      <div v-for="(chapter, index) in chapters" :key="chapter.id" class="chapter-entry">
-        <div class="chapter-row">
-          <component
-            :is="chapter.lockReason === 'prerequisite' ? 'button' : NuxtLink"
-            :disabled="chapter.lockReason === 'prerequisite' || undefined"
-            :type="chapter.lockReason === 'prerequisite' ? 'button' : undefined"
-            :to="
-              chapter.lockReason === 'prerequisite'
-                ? undefined
-                : chapter.lockReason === 'login'
-                  ? `/auth?returnTo=${encodeURIComponent(`/learn/modules/${moduleSlug}/${chapter.slug}`)}`
-                  : `/learn/modules/${moduleSlug}/${chapter.slug}`
-            "
-            class="chapter-nav-btn"
-            :class="{ selected: chapter.slug === currentSlug }"
-            :aria-current="chapter.slug === currentSlug ? 'page' : undefined"
-            :aria-label="
-              collapsed
-                ? `${index + 1}. ${chapter.title}${chapter.lockReason === 'login' ? '，需登录' : chapter.lockReason === 'prerequisite' ? '，需先完成前面的章节' : ''}`
+  <nav class="chapter-outline" :class="{ collapsed }" aria-label="章节导航">
+    <div v-for="(chapter, index) in chapters" :key="chapter.id" class="chapter-entry">
+      <div class="chapter-row">
+        <component
+          :is="chapter.lockReason === 'prerequisite' ? 'button' : NuxtLink"
+          :disabled="chapter.lockReason === 'prerequisite' || undefined"
+          :type="chapter.lockReason === 'prerequisite' ? 'button' : undefined"
+          :to="
+            chapter.lockReason === 'prerequisite'
+              ? undefined
+              : chapter.lockReason === 'login'
+                ? `/auth?returnTo=${encodeURIComponent(`/learn/modules/${moduleSlug}/${chapter.slug}`)}`
+                : `/learn/modules/${moduleSlug}/${chapter.slug}`
+          "
+          class="chapter-nav-btn"
+          :class="{ selected: chapter.slug === currentSlug }"
+          :aria-current="chapter.slug === currentSlug ? 'page' : undefined"
+          :aria-label="
+            collapsed
+              ? `${index + 1}. ${chapter.title}${chapter.lockReason === 'login' ? '，需登录' : chapter.lockReason === 'prerequisite' ? '，需先完成前面的章节' : ''}`
+              : undefined
+          "
+          :aria-disabled="chapter.lockReason === 'prerequisite' || undefined"
+          :title="
+            chapter.lockReason === 'prerequisite'
+              ? '需先完成前面的章节'
+              : collapsed
+                ? chapter.title
                 : undefined
-            "
-            :aria-disabled="chapter.lockReason === 'prerequisite' || undefined"
-            :title="
-              chapter.lockReason === 'prerequisite'
-                ? '需先完成前面的章节'
-                : collapsed
-                  ? chapter.title
-                  : undefined
-            "
-            @click="
-              chapter.lockReason === 'prerequisite' ? $event.preventDefault() : emit('navigate')
-            "
-          >
-            <span class="chapter-nav-num">{{ String(index + 1).padStart(2, '0') }}</span>
-            <span v-if="!collapsed" class="chapter-nav-text"
-              >{{ chapter.title
-              }}<span>{{
-                chapter.completedAt
-                  ? '已完成'
-                  : chapter.slug === currentSlug
-                    ? '正在阅读'
-                    : chapter.lockReason === 'login'
-                      ? '需登录'
-                      : chapter.lockReason === 'prerequisite'
-                        ? '需先完成前章'
-                        : '可阅读'
-              }}</span></span
-            >
-            <CheckCircle2
-              v-if="chapter.completedAt && !collapsed"
-              :size="14"
-              class="chapter-done"
-              aria-label="已完成"
-            /><LockKeyhole
-              v-else-if="chapter.isLocked && !collapsed"
-              :size="13"
-              aria-hidden="true"
-            />
-          </component>
-          <button
-            v-if="chapter.slug === currentSlug && sections.length && !collapsed"
-            class="sections-toggle"
-            type="button"
-            :aria-label="expanded ? '收起本章小节' : '展开本章小节'"
-            :aria-expanded="expanded"
-            :aria-controls="sectionsId"
-            @click="expanded = !expanded"
-          >
-            <ChevronDown :size="14" :class="{ folded: !expanded }" aria-hidden="true" />
-          </button>
-        </div>
-        <ol
-          v-if="chapter.slug === currentSlug && !collapsed"
-          v-show="expanded && sections.length"
-          :id="sectionsId"
-          class="section-list"
-          aria-label="本章小节"
+          "
+          @click="
+            chapter.lockReason === 'prerequisite' ? $event.preventDefault() : emit('navigate')
+          "
         >
-          <li v-for="section in sections" :key="section.id">
-            <a
-              :href="`#${encodeURIComponent(section.id)}`"
-              :aria-current="activeSection === section.id ? 'location' : undefined"
-              @click.prevent="selectSection(section.id)"
-              >{{ section.text }}</a
-            >
-          </li>
-        </ol>
+          <span class="chapter-nav-num">{{ String(index + 1).padStart(2, '0') }}</span>
+          <span v-if="!collapsed" class="chapter-nav-text"
+            >{{ chapter.title
+            }}<span>{{
+              chapter.completedAt
+                ? '已完成'
+                : chapter.slug === currentSlug
+                  ? '正在阅读'
+                  : chapter.lockReason === 'login'
+                    ? '需登录'
+                    : chapter.lockReason === 'prerequisite'
+                      ? '需先完成前章'
+                      : '可阅读'
+            }}</span></span
+          >
+          <CheckCircle2
+            v-if="chapter.completedAt && !collapsed"
+            :size="14"
+            class="chapter-done"
+            aria-label="已完成"
+          /><LockKeyhole v-else-if="chapter.isLocked && !collapsed" :size="13" aria-hidden="true" />
+        </component>
+        <button
+          v-if="chapter.slug === currentSlug && sections.length && !collapsed"
+          class="sections-toggle"
+          type="button"
+          :aria-label="expanded ? '收起本章小节' : '展开本章小节'"
+          :aria-expanded="expanded"
+          :aria-controls="sectionsId"
+          @click="expanded = !expanded"
+        >
+          <ChevronDown :size="14" :class="{ folded: !expanded }" aria-hidden="true" />
+        </button>
       </div>
-    </nav>
-  </div>
+      <div
+        v-if="chapter.slug === currentSlug"
+        v-show="!collapsed && expanded && sections.length"
+        :id="sectionsId"
+        class="section-list"
+      >
+        <ReaderHeadingTree
+          :key="currentSlug"
+          :headings="sections"
+          :active-id="activeSection"
+          label="本章小节"
+          @select="selectSection"
+        />
+      </div>
+    </div>
+  </nav>
 </template>
 
 <style scoped>
-.outline-content {
-  height: 100%;
-  overflow-y: auto;
-  padding: 16px 16px 28px;
-}
-.outline-controls {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  color: var(--muted);
-  font-size: 11px;
-  height: 45px;
-  margin: -16px -16px 24px;
-  padding: 0 16px;
-  border-bottom: 1px solid var(--line);
-}
-.outline-toggle {
-  display: grid;
-  place-items: center;
-  width: 30px;
-  height: 30px;
-  padding: 0;
-  border: 1px solid var(--line);
-  border-radius: 6px;
-  background: var(--paper);
-  color: var(--muted);
-  cursor: pointer;
-}
-.outline-toggle:hover {
-  color: var(--ink);
-  background: var(--soft);
-}
-h2 {
-  font-size: 15px;
-  line-height: 1.6;
-  font-weight: 650;
-  margin: 0 10px 22px;
-  overflow-wrap: anywhere;
-}
-nav {
+.chapter-outline {
   display: grid;
   gap: 5px;
 }
@@ -271,27 +199,8 @@ svg {
 .section-list {
   list-style: none;
   margin: 4px 0 12px 20px;
-  padding: 0 0 0 16px;
+  padding: 0 0 0 8px;
   border-left: 1px solid var(--line);
-}
-.section-list a {
-  display: block;
-  padding: 7px 8px;
-  border-radius: 5px;
-  color: var(--muted);
-  text-decoration: none;
-  font-size: 11px;
-  line-height: 1.6;
-  overflow-wrap: anywhere;
-}
-.section-list a:hover {
-  color: var(--ink);
-  background: var(--soft);
-}
-.section-list a[aria-current='location'] {
-  color: var(--green);
-  background: var(--mint);
-  font-weight: 600;
 }
 .chapter-done {
   color: var(--success-ink);
@@ -299,14 +208,6 @@ svg {
 .chapter-nav-btn[aria-disabled='true'] {
   opacity: 0.6;
   cursor: not-allowed;
-}
-.collapsed {
-  padding: 16px 8px;
-}
-.collapsed .outline-controls {
-  justify-content: center;
-  margin: -16px -8px 24px;
-  padding: 0;
 }
 .collapsed .chapter-nav-btn {
   justify-content: center;

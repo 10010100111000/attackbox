@@ -97,3 +97,4 @@ jobs:
           JS
           npm run test:module-covers
           npm run test:learn-home
+          npm run test:reader-layout

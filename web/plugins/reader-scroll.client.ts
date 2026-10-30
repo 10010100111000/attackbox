@@ -1,4 +1,4 @@
-// The chapter reader owns a nested scroll container. Delegate every other route
+// Chapter and reference readers own nested scroll containers. Delegate other routes
 // to Nuxt's normal scroll behavior, including its page-loading synchronization.
 export default defineNuxtPlugin(() => {
   const router = useRouter()

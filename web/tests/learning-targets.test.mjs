@@ -185,7 +185,7 @@ test(
       await p.getByText('查看 /home/box/materials', { exact: true }).waitFor()
       assert.equal(await box.locator('.target-details').getByRole('button').count(), 0)
       const rect = await box.boundingBox(),
-        body = await p.locator('.article-body > .markdown-body').boundingBox(),
+        body = await p.locator('.reader-article > .markdown-body').boundingBox(),
         quiz = await p.locator('.quiz-card').boundingBox()
       assert.ok(rect.y >= body.y + body.height, 'target follows chapter prose')
       if (quiz) assert.ok(rect.y + rect.height <= quiz.y, 'target precedes chapter questions')

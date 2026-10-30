@@ -13,7 +13,7 @@ const launches = () =>
     args: ['--no-sandbox']
   })
 test(
-  'reader section tree, hash navigation, local position isolation and tutorial-only copy restrictions',
+  'reader section tree, hash navigation, local position isolation and tutorial copy behavior',
   { skip: !enabled, timeout: 90000 },
   async () => {
     const f = await learningFixture()
@@ -62,12 +62,12 @@ test(
       })
       const path = `/learn/modules/${mod.module.slug}/outline`
       await page.goto(f.base + path)
-      const list = page.locator('.reading-sidebar .section-list'),
+      const list = page.locator('.reader-sidebar .section-list'),
         scroll = page.getByLabel('章节正文', { exact: true })
       await list.getByRole('link', { name: '认识 终端', exact: true }).waitFor()
-      assert.equal(await list.getByRole('link').count(), 3)
+      assert.equal(await list.getByRole('link').count(), 4)
       assert.equal(await page.getByText('不可泄露的小节').count(), 0)
-      assert.equal(await page.locator('.article-body .copy-code-btn').count(), 0)
+      assert.equal(await page.locator('.reader-article .copy-code-btn').count(), 1)
       await page.getByRole('button', { name: '收起本章小节' }).click()
       assert.equal(await list.isVisible(), false)
       await page.getByRole('button', { name: '展开本章小节' }).click()
@@ -76,7 +76,7 @@ test(
       await page.waitForFunction(() => decodeURIComponent(location.hash) === '#实践步骤-1')
       await page.waitForFunction(
         () =>
-          document.querySelector('.reading-sidebar a[aria-current="location"]')?.textContent ===
+          document.querySelector('.reader-sidebar a[aria-current="location"]')?.textContent ===
           '实践步骤'
       )
       assert.equal(contentRequests, before, 'hash jumps do not refetch chapter data')
@@ -96,30 +96,30 @@ test(
       )
       const saved = await scroll.evaluate(el => el.scrollTop)
       await page
-        .locator('.reading-sidebar')
+        .locator('.reader-sidebar')
         .getByRole('link', { name: /简短章节/ })
         .click()
       await page.waitForURL('**/short')
       await page.getByRole('heading', { name: '简短章节', exact: true }).waitFor()
       assert.equal(await page.getByRole('button', { name: '收起本章小节' }).count(), 0)
       await page
-        .locator('.reading-sidebar')
+        .locator('.reader-sidebar')
         .getByRole('link', { name: /目录验收/ })
         .click()
       await page.waitForURL('**/outline')
       await page.getByRole('heading', { name: '目录验收', exact: true }).waitFor()
       await page.waitForFunction(
-        value => Math.abs(document.querySelector('.reading-scroll').scrollTop - value) < 3,
+        value => Math.abs(document.querySelector('.reader-scroll').scrollTop - value) < 3,
         saved
       )
       await page.reload()
       await page.waitForFunction(
-        value => Math.abs(document.querySelector('.reading-scroll').scrollTop - value) < 3,
+        value => Math.abs(document.querySelector('.reader-scroll').scrollTop - value) < 3,
         saved
       )
       await page.evaluate(() => navigator.clipboard.writeText('unchanged'))
       await scroll.focus()
-      await page.locator('.article-body pre code').evaluate(el => {
+      await page.locator('.reader-article pre code').evaluate(el => {
         const range = document.createRange()
         range.selectNodeContents(el)
         const selection = window.getSelection()
@@ -127,7 +127,7 @@ test(
         selection.addRange(range)
       })
       await page.keyboard.press('Control+c')
-      assert.equal(await page.evaluate(() => navigator.clipboard.readText()), 'unchanged')
+      assert.match(await page.evaluate(() => navigator.clipboard.readText()), /whoami/)
       const input = page.locator('.answer-input')
       await input.fill('typed-answer')
       await input.evaluate(el => el.select())
@@ -144,7 +144,7 @@ test(
       await page.waitForFunction(
         () =>
           document
-            .querySelector('.reading-sidebar a[aria-current="location"]')
+            .querySelector('.reader-sidebar a[aria-current="location"]')
             ?.getAttribute('href') ===
           '#' + encodeURIComponent('实践步骤')
       )

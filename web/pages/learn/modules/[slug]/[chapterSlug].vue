@@ -1,11 +1,9 @@
 <script setup lang="ts">
-import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue'
+import { ref, computed, watch, onMounted } from 'vue'
 import { useRoute, useFetch, useHead } from '#imports'
 import {
-  ArrowLeft,
   ArrowRight,
   LockKeyhole,
-  PanelLeft,
   Clock3,
   Terminal,
   Monitor,
@@ -14,15 +12,8 @@ import {
   CircleAlert,
   BookOpen
 } from 'lucide-vue-next'
-import {
-  DialogRoot,
-  DialogTrigger,
-  DialogPortal,
-  DialogOverlay,
-  DialogContent,
-  DialogTitle,
-  DialogDescription
-} from 'reka-ui'
+import ReaderLayout from '~/components/reader/Layout.vue'
+import ReaderArticle from '~/components/reader/Article.vue'
 import ChapterOutline from '~/components/learning/ChapterOutline.vue'
 import PracticeDock from '~/components/learning/PracticeDock.vue'
 import MarkdownView from '~/components/ui/MarkdownView.vue'
@@ -131,10 +122,10 @@ const moduleData = computed<ModuleOutline | null>(() => {
   return { ...data.module, chapters: data.chapters }
 })
 
-const sidebarCollapsed = ref(false)
-const mobileOutlineOpen = ref(false)
-const scrollElement = ref<HTMLElement | null>(null)
-const articleElement = ref<HTMLElement | null>(null)
+const readerLayout = ref<InstanceType<typeof ReaderLayout> | null>(null)
+const readerArticle = ref<InstanceType<typeof ReaderArticle> | null>(null)
+const scrollElement = computed(() => readerLayout.value?.scrollElement ?? null)
+const articleElement = computed(() => readerArticle.value?.element ?? null)
 const sections = ref<MarkdownHeading[]>([])
 const readerIdentity = computed(() =>
   chapterResponse.value?.data.chapter.id
@@ -150,7 +141,7 @@ const { activeSection, goToSection } = useReaderNavigation(
   sections
 )
 function headingsLoaded(headings: MarkdownHeading[]) {
-  sections.value = headings.filter(heading => heading.level === 2)
+  sections.value = headings.filter(heading => heading.level >= 2)
 }
 const { sandbox: readerSandbox } = useSandboxSession()
 const environmentReady = computed(
@@ -160,7 +151,7 @@ const practiceMode = ref<'cli' | 'gui'>('cli')
 const practiceOpened = ref(false)
 const practiceVisible = ref(false),
   practiceMinimized = ref(false)
-const workspace = ref<HTMLElement | null>(null)
+const workspace = computed(() => readerLayout.value?.workspaceElement ?? null)
 const dock = usePracticeLayout(workspace)
 watch(environmentReady, ready => {
   if (!ready) {
@@ -169,17 +160,6 @@ watch(environmentReady, ready => {
     practiceMinimized.value = false
   }
 })
-function updateViewport() {
-  if (window.innerWidth > 900) mobileOutlineOpen.value = false
-}
-function toggleSidebar() {
-  sidebarCollapsed.value = !sidebarCollapsed.value
-  try {
-    localStorage.setItem('attackbox-reader-outline-collapsed', String(sidebarCollapsed.value))
-  } catch {
-    /* 进度上报失败不阻塞阅读 */
-  }
-}
 function openPractice(mode: 'cli' | 'gui') {
   if (!environmentReady.value) return
   practiceOpened.value = true
@@ -193,15 +173,7 @@ function minimizePractice() {
 onMounted(() => {
   readerMounted.value = true
   recordVisit()
-  try {
-    sidebarCollapsed.value = localStorage.getItem('attackbox-reader-outline-collapsed') === 'true'
-  } catch {
-    /* 进度上报失败不阻塞阅读 */
-  }
-  updateViewport()
-  window.addEventListener('resize', updateViewport)
 })
-onBeforeUnmount(() => window.removeEventListener('resize', updateViewport))
 
 const userAnswers = ref<Record<string, string>>({})
 const answerFeedbacks = ref<
@@ -258,7 +230,7 @@ watch([moduleSlug, chapterSlug, learnerId], () => {
   completing.value = false
   userAnswers.value = {}
   answerFeedbacks.value = {}
-  mobileOutlineOpen.value = false
+  readerLayout.value?.closeOutline()
   savedProgress.value = { completedAt: null, passedQuestionIds: [], isSaved: false }
   progressNotice.value = ''
   completionError.value = ''
@@ -419,301 +391,257 @@ useHead({
         >
       </section>
     </div>
-    <div
+    <ReaderLayout
       v-else-if="chapterData"
-      class="learn-shell"
-      :class="{ 'outline-collapsed': sidebarCollapsed }"
+      ref="readerLayout"
+      outline-label="模块目录"
+      :outline-title="moduleData?.title || '学习模块'"
+      scroll-label="章节正文"
+      :back-to="`/learn/modules/${moduleSlug}`"
+      back-label="返回模块"
+      :side-practice="practiceVisible && !practiceMinimized && dock.placement.value === 'right'"
     >
-      <aside class="reading-sidebar" aria-label="模块目录">
+      <template #outline="{ collapsed, close }">
         <ChapterOutline
           :module-slug="moduleSlug"
-          :module-title="moduleData?.title || '学习模块'"
           :current-slug="chapterSlug"
           :chapters="moduleData?.chapters || []"
           :sections="sections"
           :active-section="activeSection"
-          :collapsed="sidebarCollapsed"
+          :collapsed="collapsed"
           @section="goToSection"
-          @toggle="toggleSidebar"
+          @navigate="close"
         />
-      </aside>
-      <div class="reading-main">
-        <div class="reading-top-bar">
-          <div class="toolbar-left">
-            <DialogRoot v-model:open="mobileOutlineOpen">
-              <DialogTrigger class="mobile-menu-btn" aria-label="打开模块目录"
-                ><PanelLeft :size="16" aria-hidden="true"
-              /></DialogTrigger>
-              <DialogPortal>
-                <DialogOverlay class="outline-overlay" />
-                <DialogContent class="mobile-outline">
-                  <DialogTitle class="sr-only">模块目录</DialogTitle
-                  ><DialogDescription class="sr-only"
-                    >选择章节，或关闭目录以继续阅读。</DialogDescription
-                  >
-                  <ChapterOutline
-                    :module-slug="moduleSlug"
-                    :module-title="moduleData?.title || '学习模块'"
-                    :current-slug="chapterSlug"
-                    :chapters="moduleData?.chapters || []"
-                    :sections="sections"
-                    :active-section="activeSection"
-                    @section="goToSection"
-                    @toggle="mobileOutlineOpen = false"
-                    @navigate="mobileOutlineOpen = false"
-                  />
-                </DialogContent>
-              </DialogPortal>
-            </DialogRoot>
-            <NuxtLink :to="`/learn/modules/${moduleSlug}`" class="module-return"
-              ><ArrowLeft :size="14" aria-hidden="true" />返回模块</NuxtLink
-            >
-          </div>
-          <div class="toolbar-tools" role="group" aria-label="练习环境">
-            <LearningEnvironmentStatus />
-            <button
-              v-if="environmentReady"
-              class="tool-launch"
-              type="button"
-              :disabled="!readerMounted"
-              :aria-pressed="practiceVisible && !practiceMinimized && practiceMode === 'cli'"
-              @click="openPractice('cli')"
-            >
-              <Terminal :size="15" aria-hidden="true" /><span>CLI</span
-              ><span class="tool-word">终端</span>
-            </button>
-            <button
-              v-if="environmentReady"
-              class="tool-launch"
-              type="button"
-              :disabled="!readerMounted"
-              :aria-pressed="practiceVisible && !practiceMinimized && practiceMode === 'gui'"
-              @click="openPractice('gui')"
-            >
-              <Monitor :size="15" aria-hidden="true" /><span>GUI</span
-              ><span class="tool-word">桌面</span>
-            </button>
-          </div>
-        </div>
-        <div
-          ref="workspace"
-          class="reading-workspace"
-          :class="{
-            'dock-is-right':
-              practiceVisible && !practiceMinimized && dock.placement.value === 'right'
-          }"
+      </template>
+      <template #tools>
+        <LearningEnvironmentStatus />
+        <button
+          v-if="environmentReady"
+          class="tool-launch"
+          type="button"
+          :disabled="!readerMounted"
+          :aria-pressed="practiceVisible && !practiceMinimized && practiceMode === 'cli'"
+          @click="openPractice('cli')"
         >
-          <div ref="scrollElement" class="reading-scroll" tabindex="0" aria-label="章节正文">
-            <article ref="articleElement" class="article-body">
-              <div class="chapter-meta">
-                <span>第 {{ chapterIndex + 1 }} / {{ moduleData?.chapters.length || 1 }} 章</span
-                ><span v-if="chapterData.durationMinutes"
-                  ><Clock3 :size="13" aria-hidden="true" />约
-                  {{ chapterData.durationMinutes }} 分钟</span
-                >
-              </div>
-              <h1 class="chapter-main-title">{{ chapterData.title }}</h1>
-              <MarkdownView
-                :content="chapterData.bodyMarkdown"
-                :copyable="true"
-                :image-urls="chapterResponse?.data.imageUrls"
-                @headings-loaded="headingsLoaded"
-              />
-              <TargetEnvironment
-                v-if="chapterResponse?.data.target"
-                :key="chapterResponse.data.chapter.id"
-                :target="chapterResponse.data.target"
-                :context="{
-                  kind: 'chapter',
-                  moduleSlug: String(route.params.slug),
-                  chapterSlug: String(route.params.chapterSlug)
-                }"
-              />
-
-              <section
-                v-if="chapterData.questions.length"
-                id="quiz"
-                class="quiz-card"
-                aria-labelledby="quiz-title"
-              >
-                <div class="quiz-head">
-                  <h2 id="quiz-title">章节练习</h2>
-                  <span
-                    class="quiz-badge"
-                    :class="{ passed: allAnswersCorrect || savedProgress.completedAt }"
-                    ><CheckCircle2
-                      v-if="allAnswersCorrect || savedProgress.completedAt"
-                      :size="14"
-                      aria-hidden="true"
-                    />{{
-                      savedProgress.completedAt
-                        ? '已完成'
-                        : allAnswersCorrect
-                          ? '全部通过'
-                          : `${chapterData.questions.length} 道题`
-                    }}</span
-                  >
-                </div>
-                <form
-                  v-for="(q, qIndex) in chapterData.questions"
-                  :key="q.id"
-                  class="question-item"
-                  @submit.prevent="handleCheckAnswer(q)"
-                >
-                  <div :id="`question-${q.id}`" class="question-label">
-                    <span class="q-num">{{ qIndex + 1 }}.</span>
-                    <div class="q-prompt" v-html="q.promptHtml" />
-                  </div>
-                  <div v-if="!savedProgress.completedAt" class="answer-line">
-                    <UiInput
-                      :id="`answer-${q.id}`"
-                      v-model="userAnswers[q.id]"
-                      bare
-                      type="text"
-                      class="answer-input"
-                      placeholder="输入你的答案"
-                      maxlength="2000"
-                      autocomplete="off"
-                      autocapitalize="off"
-                      spellcheck="false"
-                      :aria-labelledby="`question-${q.id}`"
-                      :aria-describedby="`feedback-${q.id}`"
-                      :aria-invalid="answerFeedbacks[q.id]?.status === 'error'"
-                      :disabled="answerFeedbacks[q.id]?.status === 'checking'"
-                      @input="delete answerFeedbacks[q.id]"
-                    />
-                    <UiButton
-                      type="submit"
-                      variant="secondary"
-                      class="answer-check-btn"
-                      :loading="answerFeedbacks[q.id]?.status === 'checking'"
-                      >校验答案</UiButton
-                    >
-                  </div>
-                  <div
-                    :id="`feedback-${q.id}`"
-                    class="answer-feedback"
-                    :class="
-                      savedProgress.completedAt
-                        ? 'success'
-                        : answerFeedbacks[q.id]?.status ||
-                          (savedProgress.passedQuestionIds.includes(q.id) ? 'success' : undefined)
-                    "
-                    role="status"
-                    aria-live="polite"
-                  >
-                    <template v-if="savedProgress.completedAt"
-                      ><CheckCircle2 :size="14" aria-hidden="true" />已完成</template
-                    ><template v-else-if="answerFeedbacks[q.id]"
-                      ><CheckCircle2
-                        v-if="answerFeedbacks[q.id].status === 'success'"
-                        :size="14"
-                        aria-hidden="true"
-                      /><CircleAlert
-                        v-else-if="answerFeedbacks[q.id].status === 'error'"
-                        :size="14"
-                        aria-hidden="true"
-                      />{{ answerFeedbacks[q.id].message }}</template
-                    ><template v-else-if="savedProgress.passedQuestionIds.includes(q.id)"
-                      ><CheckCircle2 :size="14" aria-hidden="true" />已通过</template
-                    >
-                  </div>
-                </form>
-              </section>
-
-              <p v-if="completionError" class="progress-notice" role="alert">
-                {{ completionError }}
-              </p>
-              <p v-if="progressNotice" class="progress-notice" role="alert">
-                {{ progressNotice }} <button type="button" @click="recordVisit">重试记录</button>
-              </p>
-              <footer class="chapter-action-row" aria-label="章节进度">
-                <template v-if="!savedProgress.completedAt">
-                  <NuxtLink
-                    v-if="!learnerId"
-                    :to="'/auth?returnTo=' + encodeURIComponent(route.fullPath)"
-                    class="chapter-primary"
-                    >{{
-                      allAnswersCorrect ? '练习已通过 · 登录后保存进度' : '登录后保存进度'
-                    }}</NuxtLink
-                  >
-                  <template v-else>
-                    <span
-                      v-if="chapterData.questions.length && !allAnswersCorrect"
-                      class="completion-hint"
-                      >通过全部练习后完成本章</span
-                    >
-                    <button
-                      type="button"
-                      class="chapter-primary"
-                      :disabled="
-                        completing || (!!chapterData.questions.length && !allAnswersCorrect)
-                      "
-                      @click="completeChapter"
-                    >
-                      <UiBusyLabel :busy="completing"
-                        ><CheckCircle2 :size="16" aria-hidden="true" />完成本章</UiBusyLabel
-                      >
-                    </button>
-                  </template>
-                </template>
-                <template v-else>
-                  <span class="completion-saved"
-                    ><CheckCircle2 :size="16" aria-hidden="true" />已完成</span
-                  >
-                  <NuxtLink
-                    v-if="nextChapter && !nextChapter.isLocked"
-                    :to="`/learn/modules/${moduleSlug}/${nextChapter.slug}`"
-                    class="chapter-primary"
-                    >{{ nextChapter.title }}<ArrowRight :size="16" aria-hidden="true"
-                  /></NuxtLink>
-                  <NuxtLink
-                    v-else-if="!nextChapter"
-                    :to="`/learn/modules/${moduleSlug}`"
-                    class="chapter-primary"
-                    >返回模块<ArrowRight :size="16" aria-hidden="true"
-                  /></NuxtLink>
-                </template>
-              </footer>
-            </article>
-          </div>
-          <PracticeDock
-            v-if="practiceOpened"
-            v-show="practiceVisible && !practiceMinimized"
-            :key="learnerId"
-            :active="practiceVisible && !practiceMinimized"
-            :height="dock.height.value"
-            :width="dock.width.value"
-            :placement="dock.placement.value"
-            :side-available="dock.sideAvailable.value"
-            :min-width="dock.minWidth"
-            :max-width="dock.maxWidth.value"
-            :min-height="dock.minHeight.value"
-            :max-height="dock.maxHeight.value"
-            :mode="practiceMode"
-            @update:height="dock.setHeight"
-            @update:width="dock.setWidth"
-            @update:placement="dock.setPlacement"
-            @resize-end="dock.persist"
-            @minimize="minimizePractice"
-          />
-          <button
-            v-if="practiceVisible && practiceMinimized"
-            type="button"
-            class="dock-restore"
-            aria-label="恢复练习面板"
-            @click="practiceMinimized = false"
+          <Terminal :size="15" aria-hidden="true" /><span>CLI</span
+          ><span class="tool-word">终端</span>
+        </button>
+        <button
+          v-if="environmentReady"
+          class="tool-launch"
+          type="button"
+          :disabled="!readerMounted"
+          :aria-pressed="practiceVisible && !practiceMinimized && practiceMode === 'gui'"
+          @click="openPractice('gui')"
+        >
+          <Monitor :size="15" aria-hidden="true" /><span>GUI</span
+          ><span class="tool-word">桌面</span>
+        </button>
+      </template>
+      <ReaderArticle ref="readerArticle">
+        <div class="chapter-meta">
+          <span>第 {{ chapterIndex + 1 }} / {{ moduleData?.chapters.length || 1 }} 章</span
+          ><span v-if="chapterData.durationMinutes"
+            ><Clock3 :size="13" aria-hidden="true" />约 {{ chapterData.durationMinutes }} 分钟</span
           >
-            <Terminal v-if="practiceMode === 'cli'" :size="14" aria-hidden="true" /><Monitor
-              v-else
-              :size="14"
-              aria-hidden="true"
-            />{{ practiceMode === 'cli' ? '终端' : '桌面'
-            }}<ChevronUp :size="15" aria-hidden="true" />
-          </button>
         </div>
-      </div>
-    </div>
+        <h1 class="chapter-main-title">{{ chapterData.title }}</h1>
+        <MarkdownView
+          :content="chapterData.bodyMarkdown"
+          :copyable="true"
+          :image-urls="chapterResponse?.data.imageUrls"
+          @headings-loaded="headingsLoaded"
+        />
+        <TargetEnvironment
+          v-if="chapterResponse?.data.target"
+          :key="chapterResponse.data.chapter.id"
+          :target="chapterResponse.data.target"
+          :context="{
+            kind: 'chapter',
+            moduleSlug: String(route.params.slug),
+            chapterSlug: String(route.params.chapterSlug)
+          }"
+        />
+
+        <section
+          v-if="chapterData.questions.length"
+          id="quiz"
+          class="quiz-card"
+          aria-labelledby="quiz-title"
+        >
+          <div class="quiz-head">
+            <h2 id="quiz-title">章节练习</h2>
+            <span
+              class="quiz-badge"
+              :class="{ passed: allAnswersCorrect || savedProgress.completedAt }"
+              ><CheckCircle2
+                v-if="allAnswersCorrect || savedProgress.completedAt"
+                :size="14"
+                aria-hidden="true"
+              />{{
+                savedProgress.completedAt
+                  ? '已完成'
+                  : allAnswersCorrect
+                    ? '全部通过'
+                    : `${chapterData.questions.length} 道题`
+              }}</span
+            >
+          </div>
+          <form
+            v-for="(q, qIndex) in chapterData.questions"
+            :key="q.id"
+            class="question-item"
+            @submit.prevent="handleCheckAnswer(q)"
+          >
+            <div :id="`question-${q.id}`" class="question-label">
+              <span class="q-num">{{ qIndex + 1 }}.</span>
+              <div class="q-prompt" v-html="q.promptHtml" />
+            </div>
+            <div v-if="!savedProgress.completedAt" class="answer-line">
+              <UiInput
+                :id="`answer-${q.id}`"
+                v-model="userAnswers[q.id]"
+                bare
+                type="text"
+                class="answer-input"
+                placeholder="输入你的答案"
+                maxlength="2000"
+                autocomplete="off"
+                autocapitalize="off"
+                spellcheck="false"
+                :aria-labelledby="`question-${q.id}`"
+                :aria-describedby="`feedback-${q.id}`"
+                :aria-invalid="answerFeedbacks[q.id]?.status === 'error'"
+                :disabled="answerFeedbacks[q.id]?.status === 'checking'"
+                @input="delete answerFeedbacks[q.id]"
+              />
+              <UiButton
+                type="submit"
+                variant="secondary"
+                class="answer-check-btn"
+                :loading="answerFeedbacks[q.id]?.status === 'checking'"
+                >校验答案</UiButton
+              >
+            </div>
+            <div
+              :id="`feedback-${q.id}`"
+              class="answer-feedback"
+              :class="
+                savedProgress.completedAt
+                  ? 'success'
+                  : answerFeedbacks[q.id]?.status ||
+                    (savedProgress.passedQuestionIds.includes(q.id) ? 'success' : undefined)
+              "
+              role="status"
+              aria-live="polite"
+            >
+              <template v-if="savedProgress.completedAt"
+                ><CheckCircle2 :size="14" aria-hidden="true" />已完成</template
+              ><template v-else-if="answerFeedbacks[q.id]"
+                ><CheckCircle2
+                  v-if="answerFeedbacks[q.id].status === 'success'"
+                  :size="14"
+                  aria-hidden="true"
+                /><CircleAlert
+                  v-else-if="answerFeedbacks[q.id].status === 'error'"
+                  :size="14"
+                  aria-hidden="true"
+                />{{ answerFeedbacks[q.id].message }}</template
+              ><template v-else-if="savedProgress.passedQuestionIds.includes(q.id)"
+                ><CheckCircle2 :size="14" aria-hidden="true" />已通过</template
+              >
+            </div>
+          </form>
+        </section>
+
+        <p v-if="completionError" class="progress-notice" role="alert">
+          {{ completionError }}
+        </p>
+        <p v-if="progressNotice" class="progress-notice" role="alert">
+          {{ progressNotice }} <button type="button" @click="recordVisit">重试记录</button>
+        </p>
+        <footer class="chapter-action-row" aria-label="章节进度">
+          <template v-if="!savedProgress.completedAt">
+            <NuxtLink
+              v-if="!learnerId"
+              :to="'/auth?returnTo=' + encodeURIComponent(route.fullPath)"
+              class="chapter-primary"
+              >{{ allAnswersCorrect ? '练习已通过 · 登录后保存进度' : '登录后保存进度' }}</NuxtLink
+            >
+            <template v-else>
+              <span
+                v-if="chapterData.questions.length && !allAnswersCorrect"
+                class="completion-hint"
+                >通过全部练习后完成本章</span
+              >
+              <button
+                type="button"
+                class="chapter-primary"
+                :disabled="completing || (!!chapterData.questions.length && !allAnswersCorrect)"
+                @click="completeChapter"
+              >
+                <UiBusyLabel :busy="completing"
+                  ><CheckCircle2 :size="16" aria-hidden="true" />完成本章</UiBusyLabel
+                >
+              </button>
+            </template>
+          </template>
+          <template v-else>
+            <span class="completion-saved"
+              ><CheckCircle2 :size="16" aria-hidden="true" />已完成</span
+            >
+            <NuxtLink
+              v-if="nextChapter && !nextChapter.isLocked"
+              :to="`/learn/modules/${moduleSlug}/${nextChapter.slug}`"
+              class="chapter-primary"
+              >{{ nextChapter.title }}<ArrowRight :size="16" aria-hidden="true"
+            /></NuxtLink>
+            <NuxtLink
+              v-else-if="!nextChapter"
+              :to="`/learn/modules/${moduleSlug}`"
+              class="chapter-primary"
+              >返回模块<ArrowRight :size="16" aria-hidden="true"
+            /></NuxtLink>
+          </template>
+        </footer>
+      </ReaderArticle>
+      <template #practice>
+        <PracticeDock
+          v-if="practiceOpened"
+          v-show="practiceVisible && !practiceMinimized"
+          :key="learnerId"
+          :active="practiceVisible && !practiceMinimized"
+          :height="dock.height.value"
+          :width="dock.width.value"
+          :placement="dock.placement.value"
+          :side-available="dock.sideAvailable.value"
+          :min-width="dock.minWidth"
+          :max-width="dock.maxWidth.value"
+          :min-height="dock.minHeight.value"
+          :max-height="dock.maxHeight.value"
+          :mode="practiceMode"
+          @update:height="dock.setHeight"
+          @update:width="dock.setWidth"
+          @update:placement="dock.setPlacement"
+          @resize-end="dock.persist"
+          @minimize="minimizePractice"
+        />
+        <button
+          v-if="practiceVisible && practiceMinimized"
+          type="button"
+          class="dock-restore"
+          aria-label="恢复练习面板"
+          @click="practiceMinimized = false"
+        >
+          <Terminal v-if="practiceMode === 'cli'" :size="14" aria-hidden="true" /><Monitor
+            v-else
+            :size="14"
+            aria-hidden="true"
+          />{{ practiceMode === 'cli' ? '终端' : '桌面'
+          }}<ChevronUp :size="15" aria-hidden="true" />
+        </button>
+      </template>
+    </ReaderLayout>
     <UiBusyIndicator v-else class="reading-loading" label="章节加载" />
     <LearningModuleCompletion
       v-model:open="celebrationOpen"
@@ -791,76 +719,7 @@ useHead({
   background: var(--reader-bg);
   color: var(--ink);
 }
-.learn-shell {
-  display: grid;
-  grid-template-columns: 248px minmax(0, 1fr);
-  height: calc(100dvh - 68px);
-  min-height: 320px;
-}
-.learn-shell.outline-collapsed {
-  grid-template-columns: 56px minmax(0, 1fr);
-}
-.reading-sidebar {
-  min-height: 0;
-  background: var(--paper);
-  border-right: 1px solid var(--line);
-}
-.reading-main {
-  min-width: 0;
-  min-height: 0;
-  display: flex;
-  flex-direction: column;
-  position: relative;
-}
-.reading-workspace {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
-  min-height: 0;
-  overflow: hidden;
-}
-.reading-workspace.dock-is-right {
-  flex-direction: row;
-}
-.reading-workspace.dock-is-right .reading-scroll {
-  flex: 1 1 0;
-}
-.reading-workspace.dock-is-right .article-body {
-  padding-inline: clamp(24px, 3vw, 48px);
-}
-.reading-top-bar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  height: 45px;
-  flex-shrink: 0;
-  padding: 0 24px;
-  border-bottom: 1px solid var(--line);
-  background: var(--reader-bg);
-}
-.toolbar-left,
-.toolbar-tools {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-.module-return {
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
-  font-size: 11px;
-  text-decoration: none;
-  color: var(--muted);
-}
-.module-return:hover {
-  color: var(--ink);
-}
-.toolbar-tools {
-  gap: 8px;
-  min-height: 32px;
-}
+
 .tool-launch {
   height: 32px;
   box-sizing: border-box;
@@ -886,20 +745,6 @@ useHead({
   background: var(--paper);
   color: var(--ink);
 }
-.reading-scroll {
-  flex: 1;
-  min-width: 0;
-  overflow: auto;
-  min-height: 0;
-  overscroll-behavior: contain;
-  scroll-padding-top: 24px;
-}
-.article-body {
-  width: 100%;
-  min-width: 0;
-  padding: 36px clamp(32px, 4vw, 72px) 64px;
-  overflow-wrap: anywhere;
-}
 .chapter-meta {
   display: flex;
   flex-wrap: wrap;
@@ -920,32 +765,6 @@ useHead({
   letter-spacing: -0.6px;
   margin: 0 0 20px;
   overflow-wrap: anywhere;
-}
-.article-body :deep(.markdown-body) {
-  color: var(--reader-ink);
-  font-size: 17px;
-  line-height: 1.9;
-}
-.article-body :deep(.markdown-body p) {
-  color: var(--reader-ink);
-  opacity: 1;
-}
-.article-body :deep(.markdown-body h2) {
-  font-size: 22px;
-  margin-top: 1.6em;
-  border: 0;
-  padding-bottom: 0;
-  color: var(--ink);
-}
-.article-body :deep(.markdown-body h3) {
-  color: var(--ink);
-  font-size: 19px;
-}
-.article-body :deep(.markdown-body pre) {
-  font-size: 14px;
-}
-.article-body :deep(.markdown-body .callout p) {
-  font-size: inherit;
 }
 .quiz-card {
   width: 100%;
@@ -1062,9 +881,6 @@ useHead({
   cursor: pointer;
   font-size: 11px;
 }
-.mobile-menu-btn {
-  display: none;
-}
 .auth-gate-container,
 .reading-loading {
   display: grid;
@@ -1124,68 +940,12 @@ button:focus-visible {
   outline: 2px solid var(--focus);
   outline-offset: 3px;
 }
-.reading-scroll:focus-visible {
-  outline: 2px solid var(--focus);
-  outline-offset: -2px;
-}
-@media (max-width: 900px) {
-  .learn-shell,
-  .learn-shell.outline-collapsed {
-    grid-template-columns: minmax(0, 1fr);
-  }
-  .reading-sidebar {
-    display: none;
-  }
-  .mobile-menu-btn {
-    display: grid;
-    place-items: center;
-    padding: 5px;
-    border: 0;
-    border-radius: 5px;
-    background: transparent;
-    color: var(--muted);
-    cursor: pointer;
-  }
-  .article-body {
-    padding: 30px 32px 48px;
-  }
-}
 @media (max-width: 600px) {
-  .reading-top-bar {
-    padding: 0 14px;
-    gap: 10px;
-  }
-  .toolbar-left {
-    gap: 8px;
-  }
   .tool-word {
     display: none;
-  }
-  .article-body {
-    padding: 26px 20px 40px;
   }
   .answer-check-btn {
     padding: 10px 12px;
   }
-}
-
-/* Global portalled mobile outline styles via :global */
-:global(.outline-overlay) {
-  position: fixed;
-  inset: 0;
-  background: #0006;
-  z-index: 80;
-}
-
-:global(.mobile-outline) {
-  position: fixed;
-  top: 0;
-  left: 0;
-  bottom: 0;
-  width: min(300px, 85vw);
-  background: var(--paper);
-  color: var(--ink);
-  border-right: 1px solid var(--line);
-  z-index: 81;
 }
 </style>
