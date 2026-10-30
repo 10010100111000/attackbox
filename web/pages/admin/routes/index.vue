@@ -44,17 +44,12 @@ async function remove(route: RouteSummary) {
 </script>
 
 <template>
-  <div class="users-page">
-    <header class="page-heading">
-      <div>
-        <h1>学习路线</h1>
-        <p>将学习模块组合为有顺序的学习计划。</p>
-      </div>
-      <NuxtLink to="/admin/routes/new">
-        <Plus :size="16" aria-hidden="true" />
-        <span>新建路线</span>
-      </NuxtLink>
-    </header>
+  <AdminListPage title="学习路线" description="将学习模块组合为有顺序的学习计划。">
+    <template #actions
+      ><UiButton to="/admin/routes/new" size="sm"
+        ><Plus :size="16" aria-hidden="true" />新建路线</UiButton
+      ></template
+    >
     <AdminDataLoading :pending="pending" :has-data="!!data" />
 
     <UiNotice v-if="notice || error" variant="error" class="mb-4">
@@ -74,10 +69,10 @@ async function remove(route: RouteSummary) {
         <tbody>
           <tr v-for="item in data?.data" :key="item.id">
             <td>
-              <NuxtLink :to="`/admin/routes/${item.id}`" class="user-name">
+              <NuxtLink :to="`/admin/routes/${item.id}`" class="record-title">
                 {{ item.title }}
               </NuxtLink>
-              <span class="secondary">{{ item.summary }}</span>
+              <span class="record-summary">{{ item.summary }}</span>
             </td>
             <td>
               <UiBadge :variant="item.status === 'published' ? 'success' : 'neutral'" dot>
@@ -86,16 +81,20 @@ async function remove(route: RouteSummary) {
             </td>
             <td>{{ item.moduleCount }}</td>
             <td class="actions">
-              <NuxtLink :to="`/admin/routes/${item.id}`">编辑</NuxtLink>
-              <UiButton
-                variant="danger"
-                size="xs"
-                :loading="deleting === item.id"
-                :disabled="!!deleting"
-                @click="remove(item)"
-              >
-                删除
-              </UiButton>
+              <div class="row-actions">
+                <UiButton variant="secondary" size="xs" :to="`/admin/routes/${item.id}`"
+                  >编辑</UiButton
+                >
+                <UiButton
+                  variant="danger"
+                  size="xs"
+                  :loading="deleting === item.id"
+                  :disabled="!!deleting"
+                  @click="remove(item)"
+                >
+                  删除
+                </UiButton>
+              </div>
             </td>
           </tr>
         </tbody>
@@ -111,5 +110,5 @@ async function remove(route: RouteSummary) {
         </template>
       </UiEmptyState>
     </div>
-  </div>
+  </AdminListPage>
 </template>

@@ -4,10 +4,9 @@ export interface HomeSlide {
   label: string
   title: string
   description: string
+  imageUrl: string
   cta: string
   href: string
-  command: string
-  caption: string
 }
 export interface LearnHome {
   enabled: boolean
@@ -27,14 +26,36 @@ export const defaultLearnHome: LearnHome = {
       label: '开始探索',
       title: '从理解原理，到独立解决问题。',
       description: '选择一个模块，开始学习。',
+      imageUrl: '',
       cta: '浏览学习模块',
-      href: '/learn#module-list',
-      command: '$ explore',
-      caption: 'AttackBox Learning'
+      href: '/learn#module-list'
     }
   ],
   lockVersion: 0
 }
+
+function contentUrl(value: string, field: string) {
+  if (!value) return ''
+  // Reject ambiguous browser URL spellings; external content uses HTTPS.
+  // eslint-disable-next-line no-control-regex
+  if (/[\\\s\u0000-\u001f\u007f]/.test(value)) throw Error(`${field}不能含空白、控制字符或反斜线`)
+  if (/^\/(?!\/)/.test(value)) return value
+  try {
+    const url = new URL(value)
+    if (
+      /^https:\/\//i.test(value) &&
+      url.protocol === 'https:' &&
+      url.hostname &&
+      !url.username &&
+      !url.password
+    )
+      return value
+  } catch {
+    // Malformed URLs use the same validation message below.
+  }
+  throw Error(`${field}须为本站路径或完整 HTTPS 地址`)
+}
+
 export function parseLearnHome(raw: unknown): LearnHome {
   const v = raw as LearnHome
   if (
@@ -51,36 +72,28 @@ export function parseLearnHome(raw: unknown): LearnHome {
     v.slides.length > 10
   )
     throw Error('轮播配置无效；间隔应为 5–30 秒，最多 10 项')
+
   const ids = new Set<string>()
   const slides = v.slides.map(s => {
-    if (!s || typeof s.enabled !== 'boolean') throw Error('推荐项格式无效')
-    const out = {} as HomeSlide
-    for (const [key, max] of Object.entries({
-      id: 64,
-      label: 30,
-      title: 100,
-      description: 300,
-      cta: 30,
-      href: 300,
-      command: 100,
-      caption: 100
-    })) {
-      const value = s[key as keyof HomeSlide]
-      if (typeof value !== 'string' || value.length > max) throw Error('推荐项字段缺失或过长')
-      ;(out as any)[key] = value.trim()
+    if (!s || typeof s !== 'object' || typeof s.enabled !== 'boolean') throw Error('推荐项格式无效')
+    const text = (key: keyof HomeSlide, max: number) => {
+      const value = s[key] ?? ''
+      if (typeof value !== 'string' || value.length > max) throw Error('推荐项字段格式无效或过长')
+      return value.trim()
     }
-    if (
-      !/^[a-zA-Z0-9_-]+$/.test(out.id) ||
-      ids.has(out.id) ||
-      !out.title ||
-      !out.cta ||
-      !/^\/(?!\/)/.test(out.href) ||
-      // eslint-disable-next-line no-control-regex -- 显式拒绝控制字符,防止不可见字符注入
-      /[\\\s\u0000-\u001f?]/.test(out.href)
-    )
-      throw Error('标题、按钮必填，链接须为本站路径（不含查询参数），推荐项不可重复')
+    const out: HomeSlide = {
+      id: text('id', 64),
+      enabled: s.enabled,
+      label: text('label', 30),
+      title: text('title', 100),
+      description: text('description', 300),
+      imageUrl: contentUrl(text('imageUrl', 1024), '图片地址'),
+      cta: text('cta', 30),
+      href: contentUrl(text('href', 1024), '跳转链接')
+    }
+    if (!/^[a-zA-Z0-9_-]+$/.test(out.id) || ids.has(out.id) || !out.title)
+      throw Error('标题必填，推荐项标识须有效且不可重复')
     ids.add(out.id)
-    out.enabled = s.enabled
     return out
   })
   return {

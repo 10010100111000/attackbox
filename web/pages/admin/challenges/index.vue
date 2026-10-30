@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
-import { Plus, Search } from 'lucide-vue-next'
+import { Plus } from 'lucide-vue-next'
 import type { ChallengeSummary } from '~/shared/challenges'
 import { apiErrorMessage, apiFetch } from '~/utils/api'
 const confirmAction = useConfirm()
@@ -53,30 +53,16 @@ async function remove(c: ChallengeSummary) {
 </script>
 
 <template>
-  <div class="users-page">
-    <header class="page-heading">
-      <div>
-        <h1>挑战管理</h1>
-        <p>维护挑战说明、阶段 Flag 和关联靶机模板。</p>
-      </div>
-      <NuxtLink to="/admin/challenges/new">
-        <Plus :size="15" aria-hidden="true" />
-        <span>新建挑战</span>
-      </NuxtLink>
-    </header>
+  <AdminListPage title="挑战管理" description="维护挑战说明、阶段 Flag 和关联靶机模板。">
+    <template #actions
+      ><UiButton to="/admin/challenges/new" size="sm"
+        ><Plus :size="16" aria-hidden="true" />新建挑战</UiButton
+      ></template
+    >
     <AdminDataLoading :pending="pending" :has-data="!!data" />
 
     <div class="filters">
-      <label class="search">
-        <Search :size="15" aria-hidden="true" />
-        <UiInput
-          v-model="query"
-          bare
-          size="sm"
-          aria-label="搜索挑战"
-          placeholder="搜索名称或分类"
-        />
-      </label>
+      <AdminSearch v-model="query" label="搜索挑战" placeholder="搜索名称或分类" />
       <span class="count muted">{{ rows.length }} 个挑战</span>
     </div>
 
@@ -98,10 +84,10 @@ async function remove(c: ChallengeSummary) {
         <tbody>
           <tr v-for="c in rows" :key="c.id">
             <td>
-              <NuxtLink :to="`/admin/challenges/${c.id}`" class="user-name">
+              <NuxtLink :to="`/admin/challenges/${c.id}`" class="record-title">
                 {{ c.title }}
               </NuxtLink>
-              <span class="secondary">{{ c.summary }}</span>
+              <span class="record-summary">{{ c.summary }}</span>
             </td>
             <td>{{ c.category || '未分类' }}</td>
             <td>{{ c.totalStages }}</td>
@@ -111,16 +97,20 @@ async function remove(c: ChallengeSummary) {
               </UiBadge>
             </td>
             <td class="actions">
-              <NuxtLink :to="`/admin/challenges/${c.id}`">编辑</NuxtLink>
-              <UiButton
-                variant="danger"
-                size="xs"
-                :loading="deleting === c.id"
-                :disabled="!!deleting"
-                @click="remove(c)"
-              >
-                删除
-              </UiButton>
+              <div class="row-actions">
+                <UiButton variant="secondary" size="xs" :to="`/admin/challenges/${c.id}`"
+                  >编辑</UiButton
+                >
+                <UiButton
+                  variant="danger"
+                  size="xs"
+                  :loading="deleting === c.id"
+                  :disabled="!!deleting"
+                  @click="remove(c)"
+                >
+                  删除
+                </UiButton>
+              </div>
             </td>
           </tr>
         </tbody>
@@ -131,5 +121,5 @@ async function remove(c: ChallengeSummary) {
         description="尚未创建任何挑战，点击右上角新建挑战。"
       />
     </div>
-  </div>
+  </AdminListPage>
 </template>

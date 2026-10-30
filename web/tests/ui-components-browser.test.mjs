@@ -579,3 +579,153 @@ test('migrated homepage settings submit booleans and numeric values without chan
     await page.close()
   }
 })
+
+test('admin list pages own their headers, search fields, tables and actions without loading user-page CSS', async () => {
+  const page = await visit('/admin/challenges')
+  try {
+    for (const theme of ['graphite', 'midnight']) {
+      const headings = []
+      for (const [path, title, create, href] of [
+        ['/admin/challenges', '挑战管理', '新建挑战', '/admin/challenges/new'],
+        ['/admin/routes', '学习路线', '新建路线', '/admin/routes/new'],
+        ['/admin/target-templates', '靶场模板', '新建模板', '/admin/target-templates/new'],
+        ['/admin/users', '用户管理', null, null]
+      ]) {
+        await page.goto(fixture.base + path)
+        await page.evaluate(theme => (document.documentElement.dataset.theme = theme), theme)
+        await page.getByRole('heading', { name: title, exact: true }).waitFor()
+        await page.locator('tbody tr').waitFor()
+        const metrics = await page.locator('.admin-list-page').evaluate(el => {
+          const heading = el.querySelector('.page-heading'),
+            h1 = heading.querySelector('h1')
+          const table = el.querySelector('table'),
+            panel = table.parentElement
+          const titleStyle = getComputedStyle(h1),
+            headerStyle = getComputedStyle(heading)
+          const thStyle = getComputedStyle(table.querySelector('th'))
+          return {
+            font: titleStyle.fontSize,
+            weight: titleStyle.fontWeight,
+            line: titleStyle.lineHeight,
+            headerDisplay: headerStyle.display,
+            tableFont: getComputedStyle(table).fontSize,
+            cellPadding: thStyle.padding,
+            border: getComputedStyle(panel).borderTopWidth,
+            headerWidth: heading.getBoundingClientRect().width,
+            panelWidth: panel.getBoundingClientRect().width
+          }
+        })
+        headings.push([metrics.font, metrics.weight, metrics.line])
+        assert.equal(metrics.font, '24px')
+        assert.equal(metrics.headerDisplay, 'flex')
+        assert.equal(metrics.tableFont, '12px')
+        assert.equal(metrics.cellPadding, '16px 20px')
+        assert.equal(metrics.border, '1px')
+        assert.equal(metrics.headerWidth, metrics.panelWidth)
+        if (create) {
+          const action = page.getByRole('link', { name: create, exact: true })
+          assert.equal(await action.getAttribute('href'), href)
+          assert.equal(await action.evaluate(el => getComputedStyle(el).height), '32px')
+          assert.equal(
+            await action.evaluate(
+              el => getComputedStyle(el).color !== getComputedStyle(el).backgroundColor
+            ),
+            true
+          )
+          assert.equal(await page.getByRole('link', { name: '编辑', exact: true }).count(), 1)
+        }
+      }
+      assert.deepEqual(headings, Array(4).fill(headings[0]))
+    }
+    await page.goto(fixture.base + '/admin/challenges')
+    await page.getByRole('textbox', { name: '搜索挑战' }).fill('no matching challenge')
+    await page.getByText('暂无挑战', { exact: true }).waitFor()
+    assert.equal(await page.locator('tbody tr').count(), 0)
+    await page.getByRole('textbox', { name: '搜索挑战' }).fill('Web')
+    await page.locator('tbody tr').waitFor()
+  } finally {
+    await page.close()
+  }
+})
+
+test('homepage editing previews and saves generic image campaigns, without terminal decoration fields', async () => {
+  const page = await visit('/admin/learn-home')
+  try {
+    let submitted
+    await page.route('**/api/admin/learn-home', route => {
+      if (route.request().method() !== 'PUT') return route.continue()
+      submitted = route.request().postDataJSON()
+      return route.fulfill({ json: { data: { ...submitted, lockVersion: 1 } } })
+    })
+    await page.getByLabel('标题 *', { exact: true }).fill('Workshop campaign')
+    await page.getByLabel('图片地址', { exact: false }).fill('/banner-fixture.svg')
+    await page.getByLabel('宣传文案', { exact: true }).fill('Meet and learn together')
+    assert.equal(
+      await page
+        .getByLabel('宣传文案', { exact: true })
+        .evaluate(el => getComputedStyle(el).padding),
+      '8px 12px'
+    )
+    await page
+      .getByLabel('跳转链接', { exact: true })
+      .fill('https://sponsor.example/campaign?from=learn')
+    await page.getByLabel('按钮文字', { exact: true }).fill('')
+    await page.locator('.preview .banner-image').waitFor()
+    assert.equal(await page.locator('.banner-art, .terminal-art').count(), 0)
+    assert.equal(await page.locator('.preview h1').textContent(), 'Workshop campaign')
+    assert.equal(await page.locator('.preview .banner-link').textContent(), '了解更多')
+    await page.getByRole('button', { name: '保存首页', exact: true }).click()
+    await page.getByRole('status').filter({ hasText: '首页已更新' }).waitFor()
+    assert.equal(submitted.slides[0].imageUrl, '/banner-fixture.svg')
+    assert.equal(submitted.slides[0].href, 'https://sponsor.example/campaign?from=learn')
+    assert.equal('command' in submitted.slides[0], false)
+    assert.equal('caption' in submitted.slides[0], false)
+    await page.getByLabel('图片地址', { exact: false }).fill('')
+    await page.getByLabel('跳转链接', { exact: true }).fill('')
+    await page.locator('.preview .banner-image').waitFor({ state: 'detached' })
+    assert.equal(await page.locator('.preview .banner-link').count(), 0)
+  } finally {
+    await page.close()
+  }
+})
+
+test('image carousel supports external links, plain announcements, image failure and pausing autoplay', async () => {
+  const page = await visit('/carousel')
+  try {
+    await page.locator('.banner-image').waitFor()
+    assert.equal(
+      await page.getByRole('link', { name: '了解活动' }).getAttribute('href'),
+      'https://sponsor.example/campaign?from=learn'
+    )
+    for (const theme of ['graphite', 'midnight']) {
+      await page.evaluate(theme => (document.documentElement.dataset.theme = theme), theme)
+      assert.equal(
+        await page.locator('.feature-banner h1').evaluate(el => getComputedStyle(el).color),
+        'rgb(255, 255, 255)'
+      )
+    }
+    await page.clock.install()
+    await page.mouse.move(1200, 700)
+    await page.evaluate(() => window.setCarouselAutoplay(true))
+    await page.clock.fastForward(5100)
+    await page.getByRole('heading', { name: 'Text announcement' }).waitFor()
+    assert.equal(await page.locator('.banner-image, .banner-link').count(), 0)
+    await page.locator('.feature-banner').hover()
+    await page.clock.fastForward(10000)
+    assert.equal(await page.locator('.feature-banner h1').textContent(), 'Text announcement')
+    await page.mouse.move(1200, 700)
+    await page.clock.fastForward(5100)
+    await page.getByRole('heading', { name: 'Image fallback' }).waitFor()
+    await page.locator('.banner-image').waitFor({ state: 'detached' })
+    assert.equal(
+      await page.locator('.feature-banner').evaluate(el => el.classList.contains('has-image')),
+      false
+    )
+    assert.equal(await page.getByRole('link', { name: '了解更多' }).getAttribute('href'), '/learn')
+    await page.getByRole('button', { name: '暂停轮播' }).click()
+    await page.clock.fastForward(10000)
+    assert.equal(await page.locator('.feature-banner h1').textContent(), 'Image fallback')
+  } finally {
+    await page.close()
+  }
+})

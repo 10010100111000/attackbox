@@ -55,6 +55,12 @@ export async function uiFixture() {
     import FormControls from './tests/helpers/FormControls.vue';
     import Separator from './components/ui/Separator.vue';
     import Users from './pages/admin/users/index.vue';
+    import ListPage from './components/admin/ListPage.vue';
+    import AdminSearch from './components/admin/Search.vue';
+    import HomeSlideFields from './components/admin/HomeSlideFields.vue';
+    import ChallengeList from './pages/admin/challenges/index.vue';
+    import RouteList from './pages/admin/routes/index.vue';
+    import TargetList from './pages/admin/target-templates/index.vue';
     import References from './pages/admin/references/index.vue';
     import Routes from './pages/admin/routes/[id].vue';
     import Notifications from './pages/admin/notifications.vue';
@@ -72,7 +78,7 @@ export async function uiFixture() {
       return ()=>h('div',[
         button('outside'),
         h('div',{class:'admin-shell'},[
-          h('div',{class:'users-page',[Users.__scopeId]:''},[button('users-primary'),button('users-danger',{variant:'danger'})]),
+          h(ListPage,{title:'Fixture list'},()=>[button('users-primary'),button('users-danger',{variant:'danger'})]),
           h('div',{class:'reference-admin',[References.__scopeId]:''},[
             h('table',[h('tbody',[h('tr',[h('td',{[References.__scopeId]:''},[button('reference-primary',{to:'/destination',[References.__scopeId]:''})])])])])
           ])
@@ -87,10 +93,24 @@ export async function uiFixture() {
         h(Input,{id:'password',type:'password',disabled:busy.value}),
       ]);
     }};
+    const CarouselPreview={setup(){
+      const slides=ref([
+        {id:'campaign',enabled:true,label:'活动',title:'Open workshop',description:'Join the workshop',imageUrl:'/banner-fixture.svg',href:'https://sponsor.example/campaign?from=learn',cta:'了解活动'},
+        {id:'text',enabled:true,label:'',title:'Text announcement',description:'A simple announcement',imageUrl:'',href:'',cta:''},
+        {id:'broken',enabled:true,label:'',title:'Image fallback',description:'Readable without the image',imageUrl:'/broken-image.svg',href:'/learn',cta:''}
+      ]);
+      const autoplay=ref(false);window.setCarouselAutoplay=value=>autoplay.value=value;
+      return ()=>h(HomeCarousel,{slides:slides.value,autoplay:autoplay.value,intervalSeconds:5});
+    }};
     const router=createRouter({history:createWebHistory(),routes:[
       {path:'/',component:TestComponents},
       {path:'/controls',component:FormControls},
       {path:'/destination',component:{render:()=>h('p','destination')}},
+      {path:'/admin/users',component:Users},
+      {path:'/admin/routes',component:RouteList},
+      {path:'/admin/challenges',component:ChallengeList},
+      {path:'/admin/target-templates',component:TargetList},
+      {path:'/carousel',component:CarouselPreview},
       {path:'/admin/routes/:id',component:Routes},
       {path:'/admin/notifications',component:Notifications},
       {path:'/admin/runtime-policy',component:RuntimePolicy},
@@ -105,8 +125,8 @@ export async function uiFixture() {
     ]});
     window.fixtureRouter=router;
     const app=createApp({render:()=>h('div',{class:'admin-shell'},[h(RouterView,null,{default:({Component})=>h(Suspense,null,{default:()=>h(Component)})})])});
-    const NuxtLink={inheritAttrs:false,props:['to'],setup(props,{attrs,slots}){return ()=>props.to?h(RouterLink,{...attrs,to:props.to},slots):h('a',attrs,slots.default?.())}};
-    for(const [name,component] of Object.entries({LearningHomeCarousel:HomeCarousel,AdminRepositorySettings:RepositorySettings,UiButton:Button,UiInput:Input,UiNotice:Notice,UiBadge:Badge,UiEmptyState:EmptyState,UiBusyLabel:BusyLabel,UiBusyIndicator:BusyIndicator,UiSelect:Select,UiTextarea:Textarea,UiCheckbox:Checkbox,UiSeparator:Separator,NuxtLink}))app.component(name,component);
+    const NuxtLink={inheritAttrs:false,props:['to'],setup(props,{attrs,slots}){return ()=>props.to && !(typeof props.to==='string' && props.to.startsWith('https://'))?h(RouterLink,{...attrs,to:props.to},slots):h('a',{...attrs,href:props.to||attrs.href},slots.default?.())}};
+    for(const [name,component] of Object.entries({AdminListPage:ListPage,AdminSearch,AdminHomeSlideFields:HomeSlideFields,LearningHomeCarousel:HomeCarousel,AdminRepositorySettings:RepositorySettings,UiButton:Button,UiInput:Input,UiNotice:Notice,UiBadge:Badge,UiEmptyState:EmptyState,UiBusyLabel:BusyLabel,UiBusyIndicator:BusyIndicator,UiSelect:Select,UiTextarea:Textarea,UiCheckbox:Checkbox,UiSeparator:Separator,NuxtLink}))app.component(name,component);
     app.component('AdminDataLoading',{render:()=>null});
     app.use(router);await router.isReady();app.mount('#app');
   `
@@ -231,6 +251,64 @@ export async function uiFixture() {
           }
         ]
       },
+      '/api/admin/users': {
+        data: {
+          items: [
+            {
+              id: 'user-one',
+              displayName: 'Learner',
+              email: 'learner@example.com',
+              role: 'user',
+              status: 'active',
+              lastLoginAt: null,
+              instance: null
+            }
+          ],
+          total: 1,
+          pageSize: 20
+        }
+      },
+      '/api/admin/routes': {
+        data: [
+          {
+            id: 'route-one',
+            title: 'Web security',
+            summary: 'Follow the modules',
+            status: 'published',
+            moduleCount: 3,
+            lockVersion: 1
+          }
+        ]
+      },
+      '/api/admin/challenges': {
+        data: [
+          {
+            id: 'challenge-one',
+            title: 'Web lab',
+            summary: 'Find the flag',
+            category: 'Web',
+            status: 'published',
+            totalStages: 2,
+            lockVersion: 1
+          }
+        ]
+      },
+      '/api/admin/target-templates': {
+        data: {
+          items: [
+            {
+              id: 'template-one',
+              name: 'Teaching lab',
+              description: 'Private Compose lab',
+              settings: { file: 'compose.yml', entryPort: 80 },
+              enabled: true
+            }
+          ],
+          total: 1,
+          page: 1,
+          pageSize: 20
+        }
+      },
       '/api/modules': { data: [] },
       '/api/routes': { data: [] },
       '/api/admin/learn-home': {
@@ -248,8 +326,7 @@ export async function uiFixture() {
               description: 'Description',
               cta: 'Learn',
               href: '/learn',
-              command: '$ explore',
-              caption: 'Practice'
+              imageUrl: ''
             }
           ]
         }
@@ -340,7 +417,15 @@ export async function uiFixture() {
     }
     server = createServer((req, res) => {
       const url = new URL(req.url, 'http://localhost')
-      if (url.pathname === '/bundle.js') {
+      if (url.pathname === '/banner-fixture.svg') {
+        res.setHeader('Content-Type', 'image/svg+xml')
+        res.end(
+          '<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="300"><rect width="1200" height="300" fill="#153750"/><circle cx="1000" cy="150" r="150" fill="#a2704b"/></svg>'
+        )
+      } else if (url.pathname === '/broken-image.svg') {
+        res.statusCode = 404
+        res.end()
+      } else if (url.pathname === '/bundle.js') {
         res.setHeader('Content-Type', 'text/javascript')
         res.end(result.outputFiles[0].text)
       } else if (url.pathname === '/style.css') {

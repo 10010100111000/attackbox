@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { Plus, ArrowUp, ArrowDown, Trash2 } from 'lucide-vue-next'
 import { useEditorGuard } from '~/composables/useEditorGuard'
-import { parseLearnHome, type LearnHome } from '~/shared/learn-home'
+import { parseLearnHome, type LearnHome, type HomeSlide } from '~/shared/learn-home'
 import { apiErrorMessage, apiFetch } from '~/utils/api'
 
 const confirmAction = useConfirm()
@@ -20,6 +20,7 @@ const clone = (v: LearnHome) => JSON.parse(JSON.stringify(v)) as LearnHome
 const dirty = computed(() => !!draft.value && JSON.stringify(draft.value) !== saved.value)
 function applyHome(value: LearnHome) {
   draft.value = clone(value)
+  selected.value = Math.min(selected.value, Math.max(0, value.slides.length - 1))
   saved.value = JSON.stringify(draft.value)
 }
 watch(
@@ -42,10 +43,12 @@ function add() {
     description: '',
     cta: '查看模块',
     href: '/learn',
-    command: '$ explore',
-    caption: 'AttackBox Learning'
+    imageUrl: ''
   })
   selected.value = draft.value.slides.length - 1
+}
+function replaceItem(value: HomeSlide) {
+  if (draft.value && !busy.value) draft.value.slides[selected.value] = value
 }
 function remove() {
   if (!draft.value) return
@@ -116,16 +119,16 @@ useEditorGuard({
 })
 </script>
 <template>
-  <div class="home-manager">
-    <header>
-      <div>
-        <h1>首页管理</h1>
-        <p>管理学习首页的推荐内容，保存后直接生效。</p>
-      </div>
-      <NuxtLink class="home-preview-link" to="/learn" target="_blank" rel="noopener"
-        >查看学习首页</NuxtLink
-      >
-    </header>
+  <AdminListPage
+    class="home-manager"
+    title="首页管理"
+    description="设置轮播图、活动宣传和跳转链接。"
+  >
+    <template #actions
+      ><UiButton variant="secondary" size="sm" to="/learn" target="_blank" rel="noopener"
+        >查看学习首页</UiButton
+      ></template
+    >
     <UiBusyIndicator v-if="pending && !draft" label="首页设置加载" />
     <p v-else-if="error" role="alert">
       读取失败。<UiButton variant="secondary" size="xs" @click="reload">重试</UiButton>
@@ -144,6 +147,7 @@ useEditorGuard({
               min="5"
               max="30"
               required
+              :disabled="!draft.autoplay"
             />
             秒</label
           >
@@ -182,6 +186,9 @@ useEditorGuard({
             <div class="list-heading">
               <h2>编辑推荐</h2>
               <div class="tools">
+                <label class="visibility-toggle"
+                  ><UiCheckbox v-model="item.enabled" />在首页显示</label
+                >
                 <UiButton
                   variant="secondary"
                   size="sm"
@@ -208,25 +215,7 @@ useEditorGuard({
                 /></UiButton>
               </div>
             </div>
-            <div class="fields">
-              <label class="wide"
-                >标题 *<UiInput v-model="item.title" bare maxlength="100" required /></label
-              ><label>标签<UiInput v-model="item.label" bare maxlength="30" /></label
-              ><label class="toggle"><UiCheckbox v-model="item.enabled" />在首页显示</label
-              ><label class="wide"
-                >说明<UiTextarea v-model="item.description" maxlength="300" rows="3" /></label
-              ><label>按钮文字 *<UiInput v-model="item.cta" bare maxlength="30" required /></label
-              ><label
-                >跳转路径 *<UiInput
-                  v-model="item.href"
-                  bare
-                  list="home-destinations"
-                  maxlength="300"
-                  required
-                /><small>选择已发布模块或路线，也可填写本站路径。</small></label
-              ><label>终端装饰文字<UiInput v-model="item.command" bare maxlength="100" /></label
-              ><label>终端说明<UiInput v-model="item.caption" bare maxlength="100" /></label>
-            </div>
+            <AdminHomeSlideFields :model-value="item" @update:model-value="replaceItem" />
             <datalist id="home-destinations">
               <option v-for="m in modules?.data" :key="m.slug" :value="`/learn/modules/${m.slug}`">
                 {{ m.title }}
@@ -239,11 +228,9 @@ useEditorGuard({
         </div>
         <section v-if="item" class="preview">
           <h2>当前项预览 <small>未保存的修改仅在此处展示</small></h2>
-          <LearningHomeCarousel
-            :slides="[item]"
-            :autoplay="false"
-            :interval-seconds="draft.intervalSeconds"
-          />
+          <div inert>
+            <LearningHomeCarousel :slides="[item]" />
+          </div>
         </section>
       </fieldset>
       <footer>
@@ -260,7 +247,7 @@ useEditorGuard({
         ><UiButton type="submit" :loading="busy" :disabled="busy || !dirty">保存首页</UiButton>
       </footer>
     </form>
-  </div>
+  </AdminListPage>
 </template>
 <style scoped>
 .home-manager {
@@ -268,7 +255,6 @@ useEditorGuard({
   width: 100%;
 }
 
-header,
 .list-heading,
 footer,
 .tools,
@@ -276,16 +262,6 @@ footer,
   display: flex;
   align-items: center;
   gap: 16px;
-}
-
-header {
-  justify-content: space-between;
-  margin-bottom: 28px;
-}
-
-h1 {
-  font-size: 26px;
-  margin: 0 0 8px;
 }
 
 h2 {
@@ -301,10 +277,6 @@ small {
 small {
   font-size: 12px;
   font-weight: 400;
-}
-
-header p {
-  margin: 0;
 }
 
 fieldset {
@@ -398,26 +370,13 @@ aside {
   gap: 6px;
 }
 
-.fields {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 18px;
-}
-
-.fields label {
+.visibility-toggle {
   display: flex;
-  flex-direction: column;
-  gap: 7px;
-  font-size: 13px;
-}
-
-.fields .toggle {
-  flex-direction: row;
   align-items: center;
-}
-
-.wide {
-  grid-column: 1 / -1;
+  gap: 7px;
+  margin-right: 10px;
+  font-size: 12px;
+  color: var(--muted);
 }
 
 .preview {
@@ -434,10 +393,5 @@ footer {
 
 footer p {
   flex: 1;
-}
-
-.home-preview-link {
-  color: var(--muted);
-  text-decoration: none;
 }
 </style>

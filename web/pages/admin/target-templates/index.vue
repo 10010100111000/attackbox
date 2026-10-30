@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
-import { Plus, Search, RefreshCw, Box } from 'lucide-vue-next'
+import { Plus, RefreshCw, Box } from 'lucide-vue-next'
 import type { TargetTemplateList } from '~/shared/target-templates'
 
 definePageMeta({ layout: 'admin' })
@@ -25,31 +25,19 @@ function submit() {
 </script>
 
 <template>
-  <div class="users-page">
-    <header class="page-heading">
-      <div>
-        <h1>靶场模板</h1>
-        <p>集中维护教学与挑战环境配置。启用表示允许关联，不代表容器正在运行。</p>
-      </div>
-      <NuxtLink to="/admin/target-templates/new">
-        <Plus :size="16" aria-hidden="true" />
-        <span>新建模板</span>
-      </NuxtLink>
-    </header>
+  <AdminListPage
+    title="靶场模板"
+    description="集中维护教学与挑战环境配置。启用表示允许关联，不代表容器正在运行。"
+  >
+    <template #actions
+      ><UiButton to="/admin/target-templates/new" size="sm"
+        ><Plus :size="16" aria-hidden="true" />新建模板</UiButton
+      ></template
+    >
     <AdminDataLoading :pending="pending" :has-data="!!data" />
 
     <form class="filters" @submit.prevent="submit">
-      <label class="search">
-        <Search :size="15" aria-hidden="true" />
-        <UiInput
-          v-model="input"
-          bare
-          size="sm"
-          aria-label="搜索模板"
-          placeholder="搜索模板名称"
-          maxlength="100"
-        />
-      </label>
+      <AdminSearch v-model="input" label="搜索模板" placeholder="搜索模板名称" />
       <UiButton type="submit" variant="secondary" size="sm">搜索</UiButton>
       <UiButton type="button" variant="secondary" size="sm" :disabled="pending" @click="refresh()">
         <RefreshCw :size="14" aria-hidden="true" :class="{ 'animate-spin': pending }" />
@@ -76,10 +64,10 @@ function submit() {
         <tbody>
           <tr v-for="item in data?.data.items" :key="item.id">
             <td class="template-cell">
-              <NuxtLink :to="`/admin/target-templates/${item.id}`" class="user-name">
+              <NuxtLink :to="`/admin/target-templates/${item.id}`" class="record-title">
                 {{ item.name }}
               </NuxtLink>
-              <span class="secondary">{{ item.description }}</span>
+              <span class="record-summary">{{ item.description }}</span>
             </td>
             <td>
               <code class="image-code">{{ item.settings.file }}</code>
@@ -93,7 +81,11 @@ function submit() {
               </UiBadge>
             </td>
             <td class="actions">
-              <NuxtLink :to="`/admin/target-templates/${item.id}`">编辑</NuxtLink>
+              <div class="row-actions">
+                <UiButton variant="secondary" size="xs" :to="`/admin/target-templates/${item.id}`"
+                  >编辑</UiButton
+                >
+              </div>
             </td>
           </tr>
         </tbody>
@@ -133,5 +125,5 @@ function submit() {
         </UiButton>
       </div>
     </footer>
-  </div>
+  </AdminListPage>
 </template>

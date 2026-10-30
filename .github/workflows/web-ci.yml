@@ -70,7 +70,7 @@ jobs:
       - name: Production auth form snapshots
         run: npm run test:auth-styles
 
-      - name: Git cover sync and discovery browser regression
+      - name: Content discovery and homepage browser regressions
         env:
           DATABASE_URL: postgres://postgres:browser-test-only@127.0.0.1:5432/attackbox_browser_test
           CONTENT_TEST_DATABASE_URL: postgres://postgres:browser-test-only@127.0.0.1:5432/attackbox_browser_test
@@ -96,3 +96,4 @@ jobs:
           if (!ready) throw new Error('Local test server did not become ready')
           JS
           npm run test:module-covers
+          npm run test:learn-home

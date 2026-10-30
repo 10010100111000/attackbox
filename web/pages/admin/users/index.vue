@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
-import { Search, RefreshCw, Users } from 'lucide-vue-next'
+import { RefreshCw, Users } from 'lucide-vue-next'
 import { userStatusLabels, instanceStateLabels, type AdminUserList } from '~/shared/admin-users'
 definePageMeta({ layout: 'admin' })
 useHead({ title: '用户管理 — AttackBox' })
@@ -40,28 +40,16 @@ function date(value: string | null) {
 }
 </script>
 <template>
-  <div class="users-page">
-    <header class="page-heading">
-      <div>
-        <h1>用户管理</h1>
-        <p>查看账号、学习记录与当前练习环境。</p>
-      </div>
-      <UiButton variant="secondary" size="sm" :disabled="pending" @click="refresh()">
+  <AdminListPage title="用户管理" description="查看账号、学习记录与当前练习环境。">
+    <template #actions
+      ><UiButton variant="secondary" size="sm" :disabled="pending" @click="refresh()">
         <RefreshCw :size="14" aria-hidden="true" :class="{ 'animate-spin': pending }" />
         <span>刷新</span>
-      </UiButton>
-    </header>
+      </UiButton></template
+    >
     <AdminDataLoading :pending="pending" :has-data="!!data" />
     <form class="filters" @submit.prevent="filter">
-      <label class="search"
-        ><Search :size="16" aria-hidden="true" /><UiInput
-          v-model="searchInput"
-          bare
-          size="sm"
-          aria-label="搜索用户"
-          placeholder="搜索邮箱或昵称"
-          maxlength="100"
-      /></label>
+      <AdminSearch v-model="searchInput" label="搜索用户" placeholder="搜索邮箱或昵称" />
       <UiSelect
         v-model="status"
         aria-label="账号状态"
@@ -95,10 +83,10 @@ function date(value: string | null) {
         <tbody>
           <tr v-for="user in result?.items" :key="user.id">
             <td>
-              <NuxtLink :to="`/admin/users/${user.id}`" class="user-name">{{
+              <NuxtLink :to="`/admin/users/${user.id}`" class="record-title">{{
                 user.displayName
               }}</NuxtLink
-              ><span class="secondary">{{ user.email }}</span>
+              ><span class="record-summary">{{ user.email }}</span>
             </td>
             <td>{{ user.role === 'admin' ? '管理员' : '用户' }}</td>
             <td>
@@ -150,6 +138,5 @@ function date(value: string | null) {
         >
       </div>
     </footer>
-  </div>
+  </AdminListPage>
 </template>
-<style scoped src="~/assets/css/admin-users.css"></style>

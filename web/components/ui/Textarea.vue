@@ -59,7 +59,7 @@ function onInput(event: Event) {
     :required="required"
     :class="
       cn(
-        'w-full rounded-md border border-line bg-input text-foreground placeholder:text-muted/60 transition-colors',
+        'block w-full min-w-0 rounded-md border border-line bg-input px-3 py-2 text-sm text-foreground placeholder:text-muted/60 transition-colors',
         'focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-accent focus-visible:border-accent',
         'disabled:cursor-not-allowed disabled:opacity-50',
         props.class

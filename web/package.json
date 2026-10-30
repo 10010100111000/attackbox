@@ -59,7 +59,8 @@
     "test:landing": "node --test tests/landing-browser.test.mjs",
     "test:answers": "node --test --test-concurrency=1 tests/plain-answers.test.mjs tests/challenges.test.mjs",
     "test:ui-components": "node --test tests/ui-components-browser.test.mjs",
-    "test:auth-styles": "node --test tests/auth-styles-browser.test.mjs"
+    "test:auth-styles": "node --test tests/auth-styles-browser.test.mjs",
+    "test:learn-home": "node --test tests/learn-home-browser.test.mjs"
   },
   "dependencies": {
     "@node-rs/argon2": "^2.2.2",

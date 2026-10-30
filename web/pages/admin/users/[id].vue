@@ -97,7 +97,7 @@ onMounted(() => {
 onBeforeUnmount(() => clearInterval(timer))
 </script>
 <template>
-  <div class="users-page">
+  <div class="user-detail-page">
     <NuxtLink to="/admin/users" class="back"
       ><ArrowLeft :size="14" aria-hidden="true" />用户列表</NuxtLink
     >
@@ -256,4 +256,4 @@ onBeforeUnmount(() => clearInterval(timer))
     ><UiBusyIndicator v-else label="用户资料加载" />
   </div>
 </template>
-<style scoped src="~/assets/css/admin-users.css"></style>
+<style scoped src="~/assets/css/admin-user-detail.css"></style>

@@ -1,10 +1,14 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { chromium } from 'playwright'
+import { chromiumOptions } from './helpers/browser.mjs'
 import { learningFixture } from './helpers/learning-fixture.mjs'
 test(
   'learn homepage admin persistence, authorization, visibility, conflicts and carousel interaction',
-  { skip: !process.env.CONTENT_TEST_DATABASE_URL, timeout: 90000 },
+  {
+    skip: !process.env.CONTENT_TEST_DATABASE_URL || !process.env.CONTENT_TEST_BASE_URL,
+    timeout: 90000
+  },
   async () => {
     const f = await learningFixture()
     let browser
@@ -16,8 +20,14 @@ test(
       await f.request(path, { actor: user, status: 403 })
       await f.request(path, { actor: user, method: 'PUT', body: original, status: 403 })
       const slides = [
-        { ...original.slides[0], id: 'first', title: '第一项测试', href: '/learn' },
-        { ...original.slides[0], id: 'second', title: '第二项测试', href: '/learn' },
+        {
+          ...original.slides[0],
+          id: 'first',
+          title: '第一项测试',
+          imageUrl: 'https://cdn.example.com/banner.svg',
+          href: 'https://example.com/campaign?from=learn'
+        },
+        { ...original.slides[0], id: 'second', title: '第二项测试', imageUrl: '', href: '' },
         { ...original.slides[0], id: 'hidden', title: '隐藏项', enabled: false }
       ]
       const config = { ...original, slides, autoplay: true, intervalSeconds: 5 }
@@ -29,15 +39,20 @@ test(
       })
       const saved = (await f.request(path, { actor: f.admin, method: 'PUT', body: config })).data
       assert.equal(saved.lockVersion, 1)
+      assert.equal(saved.slides[0].imageUrl, 'https://cdn.example.com/banner.svg')
+      assert.equal(saved.slides[0].href, 'https://example.com/campaign?from=learn')
       await f.request(path, { actor: f.admin, method: 'PUT', body: config, status: 409 })
       assert.equal((await f.request('/api/learn-home')).data.slides.length, 2)
-      browser = await chromium.launch({
-        executablePath: process.env.CHROMIUM_PATH || '/usr/bin/chromium',
-        args: ['--no-sandbox']
-      })
+      browser = await chromium.launch(chromiumOptions())
       const ctx = await browser.newContext({ viewport: { width: 1440, height: 1000 } })
       await ctx.addCookies([{ name: 'attackbox_session', value: f.admin.token, url: f.base }])
       const page = await ctx.newPage()
+      await page.route('https://cdn.example.com/banner.svg', route =>
+        route.fulfill({
+          contentType: 'image/svg+xml',
+          body: '<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="300"><rect width="1200" height="300" fill="#16435c"/></svg>'
+        })
+      )
       await page.goto(f.base + '/admin/learn-home')
       const title = page.locator('label').filter({ hasText: '标题 *' }).locator('input')
       await title.fill('首页推荐已更新')
@@ -47,14 +62,19 @@ test(
       await title.waitFor()
       assert.equal(await title.inputValue(), '首页推荐已更新')
       await page.screenshot({ path: '/tmp/attackbox-learn-home-admin.png', fullPage: true })
+      await page.clock.install()
       await page.goto(f.base + '/learn')
       const heading = page.locator('.feature-banner h1')
       await heading.waitFor()
       assert.equal(await heading.textContent(), '首页推荐已更新')
-      await page.waitForTimeout(5300)
+      await page.waitForFunction(() => !!document.getElementById('__nuxt')?.__vue_app__)
+      await page.mouse.move(1400, 980)
+      await page.clock.fastForward(5300)
+      await page.getByRole('heading', { name: '第二项测试', exact: true }).waitFor()
       assert.equal(await heading.textContent(), '第二项测试')
+      assert.equal(await page.locator('.feature-banner .banner-link').count(), 0)
       await page.locator('.feature-banner').hover()
-      await page.waitForTimeout(5300)
+      await page.clock.fastForward(5300)
       assert.equal(await heading.textContent(), '第二项测试')
       await page.getByRole('button', { name: '第 1 项：首页推荐已更新' }).click()
       assert.equal(await heading.textContent(), '首页推荐已更新')
