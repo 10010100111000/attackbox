@@ -19,7 +19,7 @@ if (import.meta.server && error.value) {
 const result = computed(() => data.value?.data)
 </script>
 <template>
-  <div class="learning-shell references-index">
+  <div class="learning-frame learning-shell references-index">
     <header>
       <div class="reference-mark">
         <BookOpen :size="22" :stroke-width="1.5" aria-hidden="true" />
@@ -65,9 +65,6 @@ const result = computed(() => data.value?.data)
   </div>
 </template>
 <style scoped>
-.references-index {
-  max-width: 1600px;
-}
 header {
   padding: 16px 0 34px;
   border-bottom: 1px solid var(--line);

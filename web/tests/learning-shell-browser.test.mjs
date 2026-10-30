@@ -1,6 +1,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { chromium } from 'playwright'
+import { chromiumOptions } from './helpers/browser.mjs'
 import { learningFixture } from './helpers/learning-fixture.mjs'
 test(
   'shared content alignment, empty-category filtering, lazy navigation, cached return and discussion placeholder',
@@ -14,10 +15,7 @@ test(
       const [category] =
         await f.sql`insert into content_categories (slug,name) values ('web-security','Web 安全') returning id`
       await f.createModule('publish', { title: '对齐与导航验收', categoryId: category.id })
-      browser = await chromium.launch({
-        executablePath: process.env.CHROMIUM_PATH || '/usr/bin/chromium',
-        args: ['--no-sandbox']
-      })
+      browser = await chromium.launch(chromiumOptions())
       const context = await browser.newContext({ viewport: { width: 1920, height: 1080 } })
       await context.addCookies([{ name: 'attackbox_session', value: learner.token, url: f.base }])
       const page = await context.newPage()
@@ -29,9 +27,26 @@ test(
       })
       const nav = () => page.getByRole('navigation', { name: '主导航' })
       const aligned = async selector => {
-        const left = (await nav().getByRole('link', { name: '学习', exact: true }).boundingBox()).x
+        const frame = await page.locator('.learning-shell').boundingBox()
+        const header = await page.locator('.header-inner').boundingBox()
         const box = await page.locator(selector).boundingBox()
-        assert.ok(Math.abs(box.x - left) < 1.5, `${selector}: ${box.x} vs nav ${left}`)
+        const width = await page.evaluate(() => document.documentElement.clientWidth)
+        assert.ok(Math.abs(frame.x - (width - frame.width) / 2) < 1, 'frame is centered')
+        assert.ok(frame.width <= 1360 && frame.width <= width - 64, 'bounded desktop width')
+        assert.ok(
+          Math.abs(header.x - frame.x) < 1 && Math.abs(header.width - frame.width) < 1,
+          'header shares frame edges'
+        )
+        assert.ok(
+          Math.abs(box.x - frame.x) < 1 && Math.abs(box.width - frame.width) < 1,
+          `${selector} fills the content frame`
+        )
+        const brand = await page.locator('.learning-header .brand').boundingBox()
+        assert.ok(Math.abs(brand.x - frame.x) < 1, 'content aligns with brand boundary')
+        assert.ok(
+          await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth),
+          'no horizontal overflow'
+        )
       }
       await page.goto(f.base + '/discuss')
       await page.getByRole('heading', { name: '好问题，值得聊聊。' }).waitFor()
@@ -78,11 +93,27 @@ test(
       await page.getByRole('button', { name: /用户菜单/ }).click()
       await page.getByRole('link', { name: '个人中心', exact: true }).click()
       await page.locator('.personal-sidebar').waitFor()
-      await aligned('.personal-content')
+      await aligned('.personal-center')
       await page.screenshot({ path: '/tmp/attackbox-personal-alignment.png', fullPage: true })
       await nav().getByRole('link', { name: '讨论', exact: true }).click()
       await page.getByRole('heading', { name: '好问题，值得聊聊。' }).waitFor()
       await page.screenshot({ path: '/tmp/attackbox-discuss-placeholder.png', fullPage: true })
+      // Catalog pages use identical edges at common desktop sizes, including ultrawide.
+      for (const width of [1280, 1440, 1920, 2560]) {
+        await page.setViewportSize({ width, height: 1080 })
+        for (const [path, selector] of [
+          ['/learn', '.page-tabs'],
+          ['/challenges', '.page-head'],
+          ['/references', '.references-index > header'],
+          ['/discuss', '.discuss-card']
+        ]) {
+          await page.goto(f.base + path)
+          await page.locator(selector).waitFor()
+          await aligned(selector)
+          if (width === 1920 || width === 2560)
+            await page.screenshot({ path: `/tmp/attackbox-centered-${path.slice(1)}-${width}.png` })
+        }
+      }
       await page.setViewportSize({ width: 390, height: 844 })
       await page.waitForTimeout(100)
       assert.ok(

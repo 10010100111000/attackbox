@@ -55,7 +55,7 @@ function stagePercent(c: ChallengeSummary): number {
 </script>
 
 <template>
-  <div class="learning-shell challenge-list">
+  <div class="learning-frame learning-shell challenge-list">
     <header class="page-head">
       <span class="head-badge" aria-hidden="true">
         <Flag :size="20" />

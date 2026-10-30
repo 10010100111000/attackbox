@@ -192,7 +192,7 @@ function getModuleTheme(index: number) {
 
 <template>
   <div class="learn-page">
-    <div class="learning-shell learn-container">
+    <div class="learning-frame learning-shell learn-container">
       <div v-if="homePending && !homeResponse" class="home-placeholder" aria-hidden="true" />
       <LearningHomeCarousel
         v-if="homeResponse?.data.enabled"

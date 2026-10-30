@@ -16,7 +16,7 @@ const sections = [
 </script>
 
 <template>
-  <div class="learning-shell learning-shell--sidebar personal-center" :data-section="props.section">
+  <div class="learning-frame learning-shell personal-center" :data-section="props.section">
     <template v-if="currentUser">
       <aside class="personal-sidebar">
         <div class="personal-identity">

@@ -6,45 +6,27 @@
   --tone-green-soft: #e9f2f0;
   --tone-blue: #3d5a78;
   --tone-blue-soft: #ebf0f5;
-  --learning-edge: clamp(24px, 4vw, 80px);
-  --learning-brand-width: 128px;
-  --learning-nav-gap: 36px;
-  --learning-content-start: calc(
-    var(--learning-edge) + var(--learning-brand-width) + var(--learning-nav-gap)
-  );
+  --learning-gutter: 32px;
+  --learning-content-width: 1360px;
+}
+
+/* Header and catalog pages share one centered frame, independent of navigation labels. */
+.learning-frame {
+  width: calc(100% - 2 * var(--learning-gutter));
+  max-width: var(--learning-content-width);
+  margin-inline: auto;
+  box-sizing: border-box;
 }
 
 .learning-shell {
-  width: 100%;
-  box-sizing: border-box;
-  padding: 28px var(--learning-edge) 64px var(--learning-content-start);
+  padding-block: 28px 64px;
   position: relative;
   z-index: 1;
 }
 
-.learning-shell--sidebar {
-  padding-inline-start: var(--learning-edge);
-  display: grid;
-  grid-template-columns: var(--learning-brand-width) minmax(0, 1fr);
-  gap: var(--learning-nav-gap);
-}
-
-@media (max-width: 760px) {
-  .learning-shell--sidebar {
-    grid-template-columns: minmax(0, 1fr);
-    gap: 28px;
-  }
-}
-
-@media (max-width: 1000px) {
-  .learning-layout {
-    --learning-content-start: var(--learning-edge);
-  }
-}
-
 @media (max-width: 640px) {
   .learning-layout {
-    --learning-edge: 16px;
+    --learning-gutter: 16px;
   }
   .learning-shell {
     padding-block: 24px 48px;

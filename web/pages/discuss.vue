@@ -9,7 +9,7 @@ useHead({
 </script>
 
 <template>
-  <div class="learning-shell discuss-page">
+  <div class="learning-frame learning-shell discuss-page">
     <section class="discuss-card">
       <div class="conversation-sketch" aria-hidden="true">
         <MessageCircle :size="76" :stroke-width="1.3" />

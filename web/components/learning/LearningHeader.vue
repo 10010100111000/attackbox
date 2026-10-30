@@ -8,20 +8,22 @@ const isDiscussActive = computed(() => route.path.startsWith('/discuss'))
 
 <template>
   <header class="learning-header">
-    <div class="header-left">
-      <NuxtLink to="/learn" class="brand">
-        <img src="/logo.png" alt="AttackBox Logo" class="brand-logo" width="31" height="31" />
-        <span>AttackBox</span>
-      </NuxtLink>
-      <nav class="main-nav" aria-label="主导航">
-        <NuxtLink to="/learn" :class="{ active: isLearnActive }">学习</NuxtLink>
-        <NuxtLink to="/challenges" :class="{ active: isChallengesActive }">挑战</NuxtLink>
-        <NuxtLink to="/references" :class="{ active: isReferencesActive }">参考资料</NuxtLink>
-        <NuxtLink to="/discuss" :class="{ active: isDiscussActive }">讨论</NuxtLink>
-      </nav>
-    </div>
+    <div class="learning-frame header-inner">
+      <div class="header-left">
+        <NuxtLink to="/learn" class="brand">
+          <img src="/logo.png" alt="AttackBox Logo" class="brand-logo" width="31" height="31" />
+          <span>AttackBox</span>
+        </NuxtLink>
+        <nav class="main-nav" aria-label="主导航">
+          <NuxtLink to="/learn" :class="{ active: isLearnActive }">学习</NuxtLink>
+          <NuxtLink to="/challenges" :class="{ active: isChallengesActive }">挑战</NuxtLink>
+          <NuxtLink to="/references" :class="{ active: isReferencesActive }">参考资料</NuxtLink>
+          <NuxtLink to="/discuss" :class="{ active: isDiscussActive }">讨论</NuxtLink>
+        </nav>
+      </div>
 
-    <UserMenu />
+      <UserMenu />
+    </div>
   </header>
 </template>
 
@@ -32,25 +34,27 @@ const isDiscussActive = computed(() => route.path.startsWith('/discuss'))
   background: color-mix(in srgb, var(--paper) 88%, transparent);
   backdrop-filter: blur(14px);
   -webkit-backdrop-filter: blur(14px);
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 0 var(--learning-edge);
   position: sticky;
   top: 0;
   z-index: 50;
   color: var(--ink);
 }
 
+.header-inner {
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
 .header-left {
   display: flex;
   align-items: center;
-  gap: var(--learning-nav-gap);
+  gap: 36px;
   height: 100%;
 }
 
 .brand {
-  width: var(--learning-brand-width);
   flex-shrink: 0;
   display: flex;
   align-items: center;
@@ -109,19 +113,12 @@ const isDiscussActive = computed(() => route.path.startsWith('/discuss'))
   }
 }
 @media (max-width: 640px) {
-  .learning-header {
-    padding: 0 16px;
-  }
   .header-left {
     gap: 14px;
     min-width: 0;
   }
   .brand > span {
     display: none;
-  }
-  .brand {
-    width: auto;
-    flex-shrink: 0;
   }
   .main-nav {
     gap: 12px;
