@@ -18,7 +18,7 @@ export interface LearnHome {
 }
 export const defaultLearnHome: LearnHome = {
   enabled: true,
-  autoplay: false,
+  autoplay: true,
   intervalSeconds: 6,
   slides: [
     {

@@ -3,7 +3,7 @@ import type { HomeSlide } from '~/shared/learn-home'
 import { Pause, Play } from 'lucide-vue-next'
 const props = withDefaults(
   defineProps<{ slides: HomeSlide[]; autoplay?: boolean; intervalSeconds?: number }>(),
-  { autoplay: false, intervalSeconds: 6 }
+  { autoplay: true, intervalSeconds: 6 }
 )
 const failedImages = ref(new Set<string>())
 const index = ref(0),
@@ -39,6 +39,14 @@ function syncTimer() {
 function select(i: number) {
   index.value = i
   syncTimer()
+}
+function focusIn(e: FocusEvent) {
+  // Pointer clicks leave DOM focus behind; only keyboard focus pauses playback.
+  focused.value = e.target instanceof Element && e.target.matches(':focus-visible')
+}
+function togglePlayback() {
+  paused.value = !paused.value
+  if (!paused.value) focused.value = false
 }
 function focusOut(e: FocusEvent) {
   if (!(e.currentTarget as HTMLElement).contains(e.relatedTarget as Node | null))
@@ -87,11 +95,13 @@ onUnmounted(() => {
     aria-label="推荐内容"
     @mouseenter="hovered = true"
     @mouseleave="hovered = false"
-    @focusin="focused = true"
+    @pointerdown="focused = false"
+    @focusin="focusIn"
     @focusout="focusOut"
     @keydown.left.prevent="select((index - 1 + slides.length) % slides.length)"
     @keydown.right.prevent="select((index + 1) % slides.length)"
   >
+    <LearningBannerBackdrop v-if="!hasImage" :seed="slide.id" />
     <img
       v-if="hasImage"
       :key="slide.imageUrl"
@@ -132,7 +142,7 @@ onUnmounted(() => {
         class="carousel-dot"
         :aria-label="paused ? '播放轮播' : '暂停轮播'"
         :aria-pressed="paused"
-        @click="paused = !paused"
+        @click="togglePlayback"
       >
         <Play v-if="paused" :size="12" /><Pause v-else :size="12" />
       </button>

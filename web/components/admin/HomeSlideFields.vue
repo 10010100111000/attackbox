@@ -16,7 +16,7 @@ const slide = defineModel<HomeSlide>({ required: true })
         inputmode="url"
         placeholder="https://cdn.example.com/banner.webp"
       />
-      <small>HTTPS 图片地址或本站路径，建议使用横向图片。</small>
+      <small>建议 1920 × 480 px，支持 HTTPS 或本站路径；留空时自动生成背景。</small>
     </label>
     <label class="wide"
       >宣传文案<UiTextarea v-model="slide.description" maxlength="300" rows="2"
