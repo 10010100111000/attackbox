@@ -29,6 +29,7 @@ const readerArticle = ref<InstanceType<typeof ReaderArticle> | null>(null)
 const scroll = computed(() => readerLayout.value?.scrollElement ?? null)
 const article = computed(() => readerArticle.value?.element ?? null)
 const sections = ref<MarkdownHeading[]>([])
+useReadingAnalytics(scroll)
 const identity = computed(() => `reference:${currentUser.value?.id || 'guest'}:${item.value.id}`)
 const content = computed(() => item.value.bodyMarkdown)
 const { activeSection, goToSection } = useReaderNavigation(
@@ -75,6 +76,7 @@ function jump(id: string) {
         :image-urls="item.imageUrls"
         @headings-loaded="headingsLoaded"
       />
+      <AdvertisingSlot :key="item.id" placement="reference_footer" />
     </ReaderArticle>
   </ReaderLayout>
 </template>

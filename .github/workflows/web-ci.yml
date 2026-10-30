@@ -95,6 +95,7 @@ jobs:
           }
           if (!ready) throw new Error('Local test server did not become ready')
           JS
+          npm run test:operations
           npm run test:module-covers
           npm run test:learn-home
           npm run test:reader-layout

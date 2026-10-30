@@ -127,6 +127,7 @@ const readerArticle = ref<InstanceType<typeof ReaderArticle> | null>(null)
 const scrollElement = computed(() => readerLayout.value?.scrollElement ?? null)
 const articleElement = computed(() => readerArticle.value?.element ?? null)
 const sections = ref<MarkdownHeading[]>([])
+useReadingAnalytics(scrollElement)
 const readerIdentity = computed(() =>
   chapterResponse.value?.data.chapter.id
     ? `${learnerId.value || 'guest'}:${chapterResponse.value.data.chapter.id}`

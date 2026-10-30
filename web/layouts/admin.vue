@@ -12,7 +12,9 @@ import {
   ExternalLink,
   LockKeyhole,
   Bell,
-  MessageSquarePlus
+  MessageSquarePlus,
+  ChartNoAxesCombined,
+  Megaphone
 } from 'lucide-vue-next'
 import { useAuth } from '~/composables/useAuth'
 
@@ -36,6 +38,8 @@ const isAdmin = computed(() => {
 })
 
 type AdminSectionKey =
+  | 'analytics'
+  | 'advertisements'
   | 'runtime-policy'
   | 'learn-home'
   | 'notifications'
@@ -50,6 +54,8 @@ type AdminSectionKey =
   | 'users'
 
 const currentSection = computed<AdminSectionKey>(() => {
+  if (route.path.startsWith('/admin/analytics')) return 'analytics'
+  if (route.path.startsWith('/admin/advertisements')) return 'advertisements'
   if (route.path.startsWith('/admin/runtime-policy')) return 'runtime-policy'
   if (route.path.startsWith('/admin/learn-home')) return 'learn-home'
   if (route.path.startsWith('/admin/notifications')) return 'notifications'
@@ -69,6 +75,8 @@ const sectionMeta: Record<
   AdminSectionKey,
   { groupLabel: string; groupHref: string; title: string }
 > = {
+  analytics: { groupLabel: '运营管理', groupHref: '/admin/analytics', title: '数据分析' },
+  advertisements: { groupLabel: '运营管理', groupHref: '/admin/advertisements', title: '广告管理' },
   'runtime-policy': {
     groupLabel: '系统管理',
     groupHref: '/admin/runtime-policy',
@@ -167,6 +175,24 @@ const currentBreadcrumb = computed(() => sectionMeta[currentSection.value])
             class="admin-nav-link"
             :class="{ active: currentSection === 'learn-home' }"
             ><LayoutTemplate :size="16" class="nav-icon" /><span>首页管理</span></NuxtLink
+          >
+
+          <div class="nav-group-label">运营管理</div>
+          <NuxtLink
+            to="/admin/analytics"
+            class="admin-nav-link"
+            :class="{ active: currentSection === 'analytics' }"
+            ><ChartNoAxesCombined
+              :size="16"
+              class="nav-icon"
+              aria-hidden="true"
+            />数据分析</NuxtLink
+          >
+          <NuxtLink
+            to="/admin/advertisements"
+            class="admin-nav-link"
+            :class="{ active: currentSection === 'advertisements' }"
+            ><Megaphone :size="16" class="nav-icon" aria-hidden="true" />广告管理</NuxtLink
           >
 
           <div class="nav-group-label">账户管理</div>

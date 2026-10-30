@@ -1,3 +1,4 @@
+import { contentUrl } from './content-url.ts'
 export interface HomeSlide {
   id: string
   enabled: boolean
@@ -32,28 +33,6 @@ export const defaultLearnHome: LearnHome = {
     }
   ],
   lockVersion: 0
-}
-
-function contentUrl(value: string, field: string) {
-  if (!value) return ''
-  // Reject ambiguous browser URL spellings; external content uses HTTPS.
-  // eslint-disable-next-line no-control-regex
-  if (/[\\\s\u0000-\u001f\u007f]/.test(value)) throw Error(`${field}不能含空白、控制字符或反斜线`)
-  if (/^\/(?!\/)/.test(value)) return value
-  try {
-    const url = new URL(value)
-    if (
-      /^https:\/\//i.test(value) &&
-      url.protocol === 'https:' &&
-      url.hostname &&
-      !url.username &&
-      !url.password
-    )
-      return value
-  } catch {
-    // Malformed URLs use the same validation message below.
-  }
-  throw Error(`${field}须为本站路径或完整 HTTPS 地址`)
 }
 
 export function parseLearnHome(raw: unknown): LearnHome {

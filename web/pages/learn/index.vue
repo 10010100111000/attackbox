@@ -282,6 +282,7 @@ function getModuleTheme(index: number) {
             >排序<UiSelect v-model="sortBy" aria-label="模块排序" :options="sortOptions"
           /></label>
         </div>
+        <AdvertisingSlot placement="learn_catalog" />
         <!-- 加载状态 -->
         <LearningCatalogSkeleton v-if="pending && !response" label="正在读取学习模块" />
 
