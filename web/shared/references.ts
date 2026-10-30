@@ -6,16 +6,12 @@ export interface ReferenceSummary {
   updatedAt: string
   publishedAt: string | null
 }
-export interface ReferenceDetail extends ReferenceSummary {
-  bodyMarkdown: string
-  imageUrls: Record<string, string>
-}
 export interface AdminReferenceSummary extends ReferenceSummary {
   status: 'unpublished' | 'published'
   lockVersion: number
   sourcePath: string
 }
-export interface AdminReference extends ReferenceDetail, AdminReferenceSummary {
+export interface AdminReference extends AdminReferenceSummary {
   status: 'unpublished' | 'published'
   lockVersion: number
   sourcePath: string
@@ -51,4 +47,11 @@ export interface ReferenceMetadata {
 export interface ReferenceReading {
   meta: ReferenceMetadata
   html: string
+}
+
+export interface ReferenceImportResult {
+  id: string
+  unchanged: boolean
+  lockVersion: number
+  status: 'unpublished' | 'published'
 }

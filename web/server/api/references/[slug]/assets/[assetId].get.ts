@@ -7,7 +7,9 @@ export default defineEventHandler(async event => {
   const asset = await referenceAsset(
     getRouterParam(event, 'slug') || '',
     getRouterParam(event, 'assetId') || '',
-    false
+    event.context.user?.role === 'admin' && event.context.user.status === 'active'
+      ? 'preview'
+      : 'public'
   )
   if (!/^[a-f0-9]{64}$/.test(asset.storageKey))
     throw createError({ statusCode: 404, message: '图片不存在' })

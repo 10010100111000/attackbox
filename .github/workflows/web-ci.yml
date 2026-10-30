@@ -104,3 +104,4 @@ jobs:
           npm run test:reader-layout
           npm run test:reference-reading
           npm run test:references
+          npm run test:reference-admin

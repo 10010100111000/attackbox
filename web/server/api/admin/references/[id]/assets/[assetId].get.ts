@@ -9,7 +9,7 @@ export default defineEventHandler(async event => {
   const asset = await referenceAsset(
     getRouterParam(event, 'id') || '',
     getRouterParam(event, 'assetId') || '',
-    true
+    'admin'
   )
   if (!/^[a-f0-9]{64}$/.test(asset.storageKey))
     throw createError({ statusCode: 404, message: '图片不存在' })

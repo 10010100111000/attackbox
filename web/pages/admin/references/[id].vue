@@ -3,7 +3,7 @@ import { ArrowLeft, ExternalLink, Eye, EyeOff, Trash2 } from 'lucide-vue-next'
 import type { AdminReference } from '~/shared/references'
 import { apiErrorMessage, apiFetch } from '~/utils/api'
 definePageMeta({ layout: 'admin' })
-useHead({ title: '资料预览 — AttackBox' })
+useHead({ title: '资料管理 — AttackBox' })
 const id = String(useRoute().params.id),
   confirmAction = useConfirm()
 const { data, pending, error, refresh } = await useLazyFetch<{ data: AdminReference }>(
@@ -62,6 +62,13 @@ async function perform(intent: 'publish' | 'unpublish' | 'delete') {
           </p>
         </div>
         <div class="actions">
+          <UiButton
+            :to="`/admin/reference-preview/${id}`"
+            target="_blank"
+            variant="secondary"
+            size="sm"
+            ><ExternalLink :size="14" aria-hidden="true" />阅读预览</UiButton
+          >
           <UiButton variant="danger" size="sm" :disabled="busy" @click="perform('delete')"
             ><Trash2 :size="14" aria-hidden="true" />删除</UiButton
           >
@@ -90,10 +97,10 @@ async function perform(intent: 'publish' | 'unpublish' | 'delete') {
       <p class="muted public-path">
         公开链接：<code>/references/{{ item.slug }}</code>
       </p>
-      <article class="panel reference-preview">
-        <p v-if="item.summary" class="reference-summary">{{ item.summary }}</p>
-        <UiMarkdownView :content="item.bodyMarkdown" :image-urls="item.imageUrls" />
-      </article>
+      <section v-if="item.summary" class="panel">
+        <h2>简介</h2>
+        <p class="reference-summary">{{ item.summary }}</p>
+      </section>
     </template>
   </div>
 </template>
@@ -109,23 +116,10 @@ async function perform(intent: 'publish' | 'unpublish' | 'delete') {
   font-size: 11px;
 }
 
-.reference-preview {
-  padding: 40px 48px;
-}
-
 .reference-summary {
   font-size: 14px;
   line-height: 1.9;
   color: var(--muted);
-  padding-bottom: 24px;
-  border-bottom: 1px solid var(--line);
-  margin: 0 0 24px;
-}
-
-.reference-preview :deep(.markdown-body) {
-  max-width: 960px;
-  margin: 0 auto;
-  font-size: 16px;
-  line-height: 1.9;
+  margin: 0;
 }
 </style>

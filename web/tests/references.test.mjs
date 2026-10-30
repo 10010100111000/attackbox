@@ -159,8 +159,11 @@ test(
         await route.fulfill({ json: { data: result } })
       })
       await editor.goto(f.base + '/admin/references')
-      await editor.getByRole('button', { name: 'Git 导入', exact: true }).click()
-      await editor.getByRole('button', { name: '导入预览', exact: true }).click()
+      await editor.getByRole('button', { name: '扫描仓库', exact: true }).click()
+      await editor.getByRole('button', { name: '导入', exact: true }).click()
+      await editor.getByRole('link', { name: '管理', exact: true }).waitFor()
+      assert.equal(new URL(editor.url()).pathname, '/admin/references')
+      await editor.getByRole('link', { name: '管理', exact: true }).click()
       await editor.waitForURL('**/admin/references/*')
       await editor.getByRole('button', { name: '发布资料', exact: true }).waitFor()
       let detail = (await f.request('/api/admin/references/' + id, { actor: f.admin })).data
@@ -172,8 +175,10 @@ test(
       await f.request(publicApi, { status: 404 })
       await f.request('/api/admin/references/' + id, { status: 401 })
       await f.request('/api/admin/references/' + id, { actor: learner, status: 403 })
-      const adminImage = Object.values(detail.imageUrls)[0],
-        assetId = adminImage.split('/').at(-1)
+      assert.equal('bodyMarkdown' in detail, false)
+      const [{ asset_id: assetId }] =
+        await f.sql`select asset_id from reference_images where reference_id=${id}`
+      const adminImage = `/api/admin/references/${id}/assets/${assetId}`
       await f.request(adminImage, { status: 401 })
       await f.request(adminImage, { actor: learner, status: 403 })
       assert.equal(
@@ -239,10 +244,7 @@ test(
       assert.ok(html.includes('<h2 id="开始">'))
       assert.ok(!html.includes('owner/private-references'))
       assert.ok(!html.includes(token))
-      const imageUrl = Object.values(detail.imageUrls)[0].replace(
-          '/api/admin/references/' + id,
-          '/api/references/' + publicDoc.meta.slug
-        ),
+      const imageUrl = `/api/references/${publicDoc.meta.slug}/assets/${assetId}`,
         asset = await fetch(f.base + imageUrl)
       assert.equal(asset.status, 200)
       assert.equal(asset.headers.get('x-content-type-options'), 'nosniff')

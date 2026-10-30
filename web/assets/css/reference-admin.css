@@ -40,7 +40,7 @@
 .reference-admin h2 {
   font-size: 16px;
   font-weight: 600;
-  margin: 0 0 18px;
+  margin: 0;
 }
 
 .reference-admin table {
@@ -69,7 +69,7 @@
   text-align: right;
 }
 
-.reference-admin td:first-child {
+.reference-admin td.reference-name {
   width: 52%;
 }
 
@@ -114,4 +114,50 @@
 
 .reference-admin .pages a {
   color: var(--ink);
+}
+
+.reference-admin .selection {
+  width: 36px;
+  padding-inline: 10px;
+}
+.reference-admin .row-actions {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 8px;
+}
+.reference-admin .operation-error {
+  color: var(--tone-red, #a64435);
+  max-width: 420px;
+  margin-left: auto;
+}
+.reference-admin .batch-progress {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+}
+.reference-admin .batch-progress > div {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  font-size: 12px;
+}
+.reference-admin .batch-progress span {
+  color: var(--muted);
+}
+
+.reference-admin .panel > h2 {
+  margin-bottom: 18px;
+}
+
+.reference-admin .repository-results {
+  max-height: min(50vh, 560px);
+  overflow: auto;
+}
+.reference-admin .repository-results th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--paper);
 }

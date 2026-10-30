@@ -4,7 +4,8 @@ import {
   referencePublication,
   pruneReferenceBuilds,
   referenceBuildAvailable,
-  publicReferenceSlugs
+  publicReferenceSlugs,
+  readCompiledChunk
 } from '../content/reference-files'
 import path from 'node:path'
 import { randomUUID } from 'node:crypto'
@@ -191,7 +192,7 @@ export async function importReference(actor: string, body: Record<string, unknow
         !changed(old.manifest, file!.sha, tree) &&
         (await referenceBuildAvailable(old.id, old.manifest.reading))
       )
-        return { id: old.id, unchanged: true }
+        return { id: old.id, unchanged: true, lockVersion: old.lockVersion, status: old.status }
       const id = old?.id || randomUUID()
       const values = {
         title: parsed.title,
@@ -253,11 +254,22 @@ export async function importReference(actor: string, body: Record<string, unknow
         .set({ manifest: { ...manifest, reading: built.revision } })
         .where(eq(documents.id, id))
       if (old) await files.withdraw(old.slug)
-      return { id, unchanged: false, revision: built.revision }
+      return {
+        id,
+        unchanged: false,
+        revision: built.revision,
+        lockVersion: old ? old.lockVersion + 1 : 1,
+        status: 'unpublished' as const
+      }
     })
   )
   await cleanupReferenceBuilds(imported.id)
-  return { id: imported.id, unchanged: imported.unchanged }
+  return {
+    id: imported.id,
+    unchanged: imported.unchanged,
+    lockVersion: imported.lockVersion,
+    status: imported.status
+  }
 }
 const summaryFields = {
   id: documents.id,
@@ -300,34 +312,44 @@ export async function listReferences(rawPage: unknown, admin = false) {
 }
 export async function adminReferenceDetail(key: string) {
   referenceId(key)
-  return db.transaction(
-    async tx => {
-      const [doc] = await tx
-        .select({
-          ...summaryFields,
-          bodyMarkdown: documents.bodyMarkdown,
-          status: documents.status,
-          lockVersion: documents.lockVersion,
-          sourcePath: documents.sourcePath,
-          sourceCommit: documents.sourceCommit
-        })
-        .from(documents)
-        .where(eq(documents.id, key))
-      if (!doc) fail(404, '资料不存在或尚未发布')
-      const images = await tx
-        .select()
-        .from(referenceImages)
-        .where(eq(referenceImages.referenceId, doc!.id))
-      const prefix = `/api/admin/references/${doc!.id}`
-      return {
-        ...doc!,
-        imageUrls: Object.fromEntries(
-          images.map(image => [image.href, `${prefix}/assets/${image.assetId}`])
-        )
-      }
-    },
-    { isolationLevel: 'repeatable read', accessMode: 'read only' }
-  )
+  const [doc] = await db
+    .select({
+      ...summaryFields,
+      status: documents.status,
+      lockVersion: documents.lockVersion,
+      sourcePath: documents.sourcePath,
+      sourceCommit: documents.sourceCommit
+    })
+    .from(documents)
+    .where(eq(documents.id, key))
+  if (!doc) fail(404, '资料不存在')
+  return doc!
+}
+export async function adminReferencePreview(id: string, requestedRevision?: string, index = 0) {
+  referenceId(id)
+  const [doc] = await db
+    .select({ manifest: documents.manifest, status: documents.status })
+    .from(documents)
+    .where(eq(documents.id, id))
+  if (!doc) fail(404, '资料不存在')
+  const revision = doc!.manifest.reading
+  if (!revision || !(await referenceBuildAvailable(id, revision)))
+    fail(409, '请重新导入资料，生成预览文件')
+  if (requestedRevision && requestedRevision !== revision) fail(404, '预览内容已更新，请重新打开')
+  const compiled = await compiledReference(id, revision!)
+  if (!Number.isSafeInteger(index) || index < 0 || index >= compiled.chunks.length)
+    fail(404, '预览内容不存在')
+  const html = await readCompiledChunk(id, revision!, index)
+  if (requestedRevision) return { html }
+  const meta = {
+    ...compiled,
+    chunks: compiled.chunks.map(chunk => ({
+      index: chunk.index,
+      title: chunk.title,
+      url: `/api/admin/references/${id}/preview/${revision}/chunk-${chunk.index}`
+    }))
+  }
+  return { meta, html, status: doc!.status }
 }
 async function cleanupReferenceBuilds(id: string) {
   // Re-read under the same per-document lock: a newer import may have committed
@@ -373,9 +395,13 @@ export async function changeReference(id: string, body: Record<string, unknown>,
   if (remove) await cleanupReferenceBuilds(id)
   return result
 }
-export async function referenceAsset(key: string, assetId: string, admin = false) {
+export async function referenceAsset(
+  key: string,
+  assetId: string,
+  scope: 'public' | 'admin' | 'preview' = 'public'
+) {
   referenceId(assetId)
-  if (admin) referenceId(key)
+  if (scope === 'admin') referenceId(key)
   const [row] = await db
     .select({ asset: assets })
     .from(referenceImages)
@@ -384,9 +410,8 @@ export async function referenceAsset(key: string, assetId: string, admin = false
     .where(
       and(
         eq(referenceImages.assetId, assetId),
-        admin
-          ? eq(documents.id, key)
-          : and(eq(documents.slug, key), eq(documents.status, 'published'))
+        scope === 'admin' ? eq(documents.id, key) : eq(documents.slug, key),
+        scope === 'public' ? eq(documents.status, 'published') : undefined
       )
     )
   if (!row || !/^image\/(png|jpeg|webp|gif|avif)$/.test(row.asset.mediaType))

@@ -210,3 +210,15 @@ export async function publicReferenceSlugs() {
     return []
   }
 }
+
+/** Private compiled chunks are served only behind the administrator API. */
+export async function readCompiledChunk(id: string, revision: string, index: number) {
+  if (!/^[a-f0-9]{64}$/.test(revision) || !Number.isSafeInteger(index) || index < 0)
+    throw createError({ statusCode: 404, message: '预览内容不存在' })
+  try {
+    return await readFile(path.join(privateDirectory(id), revision, `chunk-${index}.html`), 'utf8')
+  } catch (error) {
+    await missing(error)
+    throw createError({ statusCode: 404, message: '预览内容不存在，请重新导入资料' })
+  }
+}
