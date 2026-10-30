@@ -24,6 +24,8 @@ server {
         proxy_send_timeout 3600s;
     }
 
+@@REFERENCE_LOCATIONS@@
+
     location / {
         proxy_pass http://attackbox_control;
         proxy_http_version 1.1;

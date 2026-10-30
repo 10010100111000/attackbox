@@ -38,3 +38,17 @@ export interface ReferenceScan {
     state: 'new' | 'changed' | 'unchanged' | 'missing'
   }[]
 }
+
+export interface ReferenceMetadata {
+  id: string
+  slug: string
+  title: string
+  summary: string
+  revision: string
+  outline: { id: string; text: string; level: number; chunk: number }[]
+  chunks: { index: number; title: string; url: string }[]
+}
+export interface ReferenceReading {
+  meta: ReferenceMetadata
+  html: string
+}

@@ -149,7 +149,18 @@ def match_worker(values, config):
         raise ConfigError('两端节点 ID、集群密钥或 public_data_url 不一致；先配置 Control 节点名单')
 
 
+def reference_public_directory(values):
+    value = values.get('REFERENCE_PUBLIC_DIR', '/var/lib/attackbox-public/references')
+    directory = Path(value)
+    if (not re.fullmatch(r'/(?:var/lib|srv)/[a-zA-Z0-9_./-]+', value) or '..' in directory.parts
+            or directory.resolve() != directory or directory == Path('/var/lib/attackbox-web')
+            or directory.is_relative_to(Path('/var/lib/attackbox-web'))):
+        raise ConfigError('REFERENCE_PUBLIC_DIR 必须是 /var/lib 或 /srv 下独立的公开目录')
+    return directory
+
+
 def render_nginx(values, upstream):
+    static = (ROOT/'deploy/control/nginx-reference-locations.conf.template').read_text().replace('@@REFERENCE_PUBLIC_DIR@@', str(reference_public_directory(values)))
     enabled = values.get('CLOUDFLARE_ENABLED', 'false')
     if enabled not in ('true', 'false'):
         raise ConfigError('CLOUDFLARE_ENABLED 必须为 true 或 false')
@@ -159,7 +170,7 @@ def render_nginx(values, upstream):
         template = (ROOT/'deploy/control/nginx.conf.template').read_text()
         if template.count('@@WEB_UPSTREAM@@') != 1:
             raise ConfigError('nginx 模板占位符无效')
-        return template.replace('@@WEB_UPSTREAM@@', upstream)
+        return template.replace('@@WEB_UPSTREAM@@', upstream).replace('@@REFERENCE_LOCATIONS@@', static)
 
     origin = urlsplit(values.get('APP_BASE_URL', ''))
     domain = origin.hostname or ''
@@ -191,7 +202,7 @@ def render_nginx(values, upstream):
             raise ConfigError('Worker 必须在匹配的 loopback 地址监听明文，由 nginx 终止 TLS')
         if config['node']['control_url'] != f'ws://{upstream}/cluster/connect':
             raise ConfigError('Cloudflare 同机模板的 Worker control_url 必须直连本机 Nuxt /cluster/connect')
-    replacements = {'WEB_UPSTREAM': upstream, 'WORKER_UPSTREAM': worker_upstream, 'DOMAIN': domain}
+    replacements = {'REFERENCE_LOCATIONS': static, 'WEB_UPSTREAM': upstream, 'WORKER_UPSTREAM': worker_upstream, 'DOMAIN': domain}
     for field, placeholder in [('ORIGIN_TLS_CERT', 'TLS_CERT'), ('ORIGIN_TLS_KEY', 'TLS_KEY')]:
         value = values.get(field, '')
         if not re.fullmatch(r'/[a-zA-Z0-9_./-]+', value) or not Path(value).is_file():
@@ -360,6 +371,28 @@ def prepare_account(values):
     if account.pw_uid == 0:
         raise ConfigError('attackbox 不能是 root')
     gid = grp.getgrnam('attackbox').gr_gid
+    public = reference_public_directory(values)
+    private_paths = [Path('/var/lib/attackbox-web'), Path(values.get('CONTENT_DATA_DIR','/var/lib/attackbox-web/content')), Path(values.get('LAB_DATA_DIR','/var/lib/attackbox-web/labs'))]
+    if any(public.is_relative_to(p) or p.is_relative_to(public) for p in private_paths):
+        raise ConfigError('公开资料目录不能包含私有数据目录或位于私有数据目录内')
+    missing_parents = []
+    parent = public.parent
+    while not parent.exists():
+        missing_parents.append(parent)
+        parent = parent.parent
+    for parent in reversed(missing_parents):
+        parent.mkdir(mode=0o755)
+        os.chown(parent, account.pw_uid, gid)
+        os.chmod(parent, 0o755)
+    if public.parent == Path('/var/lib/attackbox-public'):
+        if public.parent.is_symlink(): raise ConfigError('公开资料父目录不能使用符号链接')
+        os.chown(public.parent, account.pw_uid, gid)
+        os.chmod(public.parent, 0o755)
+    elif not public.parent.stat().st_mode & 0o001:
+        raise ConfigError('自定义公开资料的父目录必须允许 nginx 遍历')
+    public.mkdir(exist_ok=True)
+    os.chown(public, account.pw_uid, gid)
+    os.chmod(public, 0o755)
     for path in ['/var/lib/attackbox-web', values.get('CONTENT_DATA_DIR','/var/lib/attackbox-web/content'), values.get('LAB_DATA_DIR','/var/lib/attackbox-web/labs')]:
         p = Path(path)
         if not p.is_absolute() or p.is_symlink() or not (str(p).startswith('/var/lib/') or str(p).startswith('/srv/')):

@@ -3,6 +3,7 @@ import { join } from 'node:path'
 import assert from 'node:assert/strict'
 import crypto from 'node:crypto'
 import postgres from 'postgres'
+import { createJiti } from 'jiti'
 import { hash } from '@node-rs/argon2'
 
 function matchKey(value) {
@@ -49,6 +50,33 @@ export async function learningFixture() {
     return { data: json.data, response }
   }
   const admin = await account('admin')
+  const seededReferences = []
+  let referenceFiles
+  async function files() {
+    return (referenceFiles ||= await createJiti(import.meta.url).import(
+      '../../server/content/reference-files.ts'
+    ))
+  }
+  async function publishReference(id) {
+    const [row] = await sql`select * from reference_documents where id=${id}`
+    const { buildReference } = await files()
+    const meta = await buildReference({
+      id: row.id,
+      slug: row.slug,
+      title: row.title,
+      summary: row.summary,
+      bodyMarkdown: row.body_markdown,
+      imageUrls: {}
+    })
+    await sql`update reference_documents set manifest=manifest || jsonb_build_object('reading',${meta.revision}::text) where id=${id}`
+    await request(`/api/admin/references/${id}`, {
+      actor: admin,
+      method: 'PUT',
+      body: { intent: 'publish', lockVersion: row.lock_version }
+    })
+    seededReferences.push({ id, slug: row.slug })
+    return meta
+  }
 
   async function writeChapters(tx, moduleId, chapterInputs) {
     const existing = await tx`SELECT * FROM chapters WHERE module_id = ${moduleId}`
@@ -212,6 +240,16 @@ export async function learningFixture() {
     return { ...t, enabled: input.enabled !== false, settings: t.settings, variables: {} }
   }
   async function cleanup() {
+    const references =
+      await sql`select id,slug from reference_documents where created_by=${admin.id}`
+    for (const { id, slug } of new Map(
+      [...references, ...seededReferences].map(row => [row.id, row])
+    ).values()) {
+      const { referencePublication, pruneReferenceBuilds } = await files()
+      await referencePublication(async files => files.withdraw(slug))
+      await pruneReferenceBuilds(id)
+    }
+    await sql`delete from reference_documents where created_by=${admin.id}`
     for (const id of moduleIds) await sql`DELETE FROM modules WHERE id=${id}`
     for (const id of seededTargets) await sql`DELETE FROM target_templates WHERE id=${id}`
     const bundles = await sql`select id from lab_bundles where actor_id=${admin.id}`
@@ -225,5 +263,16 @@ export async function learningFixture() {
     }
     await sql.end()
   }
-  return { sql, base, admin, account, request, createModule, syncModule, seedTarget, cleanup }
+  return {
+    sql,
+    base,
+    admin,
+    account,
+    request,
+    createModule,
+    syncModule,
+    seedTarget,
+    publishReference,
+    cleanup
+  }
 }

@@ -88,6 +88,8 @@ server {
         add_header Cache-Control "no-store" always;
         proxy_pass http://attackbox_control;
     }
+@@REFERENCE_LOCATIONS@@
+
     location / {
         proxy_pass http://attackbox_control;
     }

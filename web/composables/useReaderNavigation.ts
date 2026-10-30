@@ -11,7 +11,8 @@ export function useReaderNavigation(
   article: Readonly<Ref<HTMLElement | null>>,
   identity: Ref<string>,
   content: Ref<string>,
-  sections: Ref<MarkdownHeading[]>
+  sections: Ref<MarkdownHeading[]>,
+  prepareSection?: (id: string) => Promise<void>
 ) {
   const activeSection = ref('')
   const route = useRoute(),
@@ -19,8 +20,7 @@ export function useReaderNavigation(
   let mounted = false,
     ready = false,
     key = '',
-    restoredKey = '',
-    restoredContent = ''
+    restoredKey = ''
   let frame = 0,
     timer: ReturnType<typeof setTimeout> | undefined
   let listening: HTMLElement | null = null,
@@ -94,6 +94,18 @@ export function useReaderNavigation(
   async function restore() {
     if (!mounted || !container.value || !article.value || !identity.value) return
     const ownGeneration = ++generation
+    const restoring = restoredKey !== identity.value
+    let position: Position | null = null
+    if (restoring) {
+      key = identity.value
+      try {
+        position = JSON.parse(localStorage.getItem(storageKey()) || 'null')
+      } catch {
+        /* Optional reading history. */
+      }
+      const target = hashId() || position?.section
+      if (target) await prepareSection?.(target)
+    }
     await nextTick()
     if (ownGeneration !== generation || !container.value || !article.value) return
     if (listening !== container.value) {
@@ -109,14 +121,9 @@ export function useReaderNavigation(
     )
     const quiz = article.value.querySelector<HTMLElement>('#quiz')
     if (quiz) anchors.set(quiz.id, quiz)
-    if (restoredKey === identity.value && restoredContent === content.value) return
-    key = identity.value
-    ready = false
-    let position: Position | null = null
-    try {
-      position = JSON.parse(localStorage.getItem(storageKey()) || 'null')
-    } catch {
-      /* 定位失败时保持当前位置,不打断阅读 */
+    if (!restoring) {
+      updateActive()
+      return
     }
     ready = true
     if (!hashId() || !jump(hashId())) {
@@ -131,7 +138,6 @@ export function useReaderNavigation(
       })
     }
     restoredKey = identity.value
-    restoredContent = content.value
     updateActive()
   }
   watch(
@@ -145,17 +151,22 @@ export function useReaderNavigation(
     { flush: 'pre' }
   )
   watch([container, article, identity, content, sections], restore, { flush: 'post' })
+  async function reveal(id: string) {
+    await prepareSection?.(id)
+    await restore()
+    return jump(id)
+  }
   watch(
     () => route.hash,
-    () => {
-      if (!ready) return
+    async () => {
+      if (!mounted) return
       if (!route.hash) container.value?.scrollTo({ top: 0, behavior: 'instant' })
-      else jump(hashId())
+      else await reveal(hashId())
       updateActive()
     }
   )
   async function goToSection(id: string) {
-    if (!find(id)) return
+    if (!(await reveal(id))) return
     await router.replace({ path: route.path, query: route.query, hash: `#${id}` })
     jump(id)
     save()

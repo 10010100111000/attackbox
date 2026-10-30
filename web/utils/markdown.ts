@@ -1,3 +1,4 @@
+import { markdownHeadings } from './markdown-headings.ts'
 import MarkdownIt from 'markdown-it'
 import { callouts } from './markdown-callouts.ts'
 import hljs from 'highlight.js/lib/core'
@@ -46,17 +47,6 @@ export interface MarkdownRenderResult {
   headings: MarkdownHeading[]
 }
 
-function slugify(text: string): string {
-  return (
-    text
-      .toLowerCase()
-      .trim()
-      .replace(/[^\p{L}\p{N}\s_-]/gu, '')
-      .replace(/[\s_-]+/g, '-')
-      .replace(/^-+|-+$/g, '') || 'section'
-  )
-}
-
 export interface MarkdownOptions {
   copyCode?: boolean
 }
@@ -65,7 +55,6 @@ interface MarkdownRenderEnv extends Record<PropertyKey, unknown> {
   imageUrls?: Record<string, string>
   copyCode?: boolean
   headings?: MarkdownHeading[]
-  usedSlugs?: Set<string>
 }
 
 export function createMarkdownRenderer(options: MarkdownOptions = {}) {
@@ -154,52 +143,11 @@ export function createMarkdownRenderer(options: MarkdownOptions = {}) {
     return defaultRenderImage(tokens, index, renderOptions, env, self)
   }
 
-  // 提取 headings 并附加 id
-  const defaultHeadingOpen =
-    md.renderer.rules.heading_open ||
-    function (tokens, idx, renderOptions, _env, self) {
-      return self.renderToken(tokens, idx, renderOptions)
-    }
-
-  md.renderer.rules.heading_open = function (
-    tokens,
-    idx,
-    renderOptions,
-    env: MarkdownRenderEnv | undefined,
-    self
-  ) {
-    const token = tokens[idx]!
-    const level = parseInt(token.tag.slice(1), 10) || 2
-    const nextToken = tokens[idx + 1]
-    const titleText =
-      nextToken?.type === 'inline'
-        ? (nextToken.children || [])
-            .map(child =>
-              ['text', 'code_inline', 'image'].includes(child.type)
-                ? child.content
-                : ['softbreak', 'hardbreak'].includes(child.type)
-                  ? ' '
-                  : ''
-            )
-            .join('')
-        : ''
-
-    const baseSlug = slugify(titleText)
-    let id = baseSlug
-    let suffix = 1
-    const usedSlugs = env?.usedSlugs
-    if (usedSlugs) {
-      while (usedSlugs.has(id)) id = `${baseSlug}-${suffix++}`
-      usedSlugs.add(id)
-    }
-
-    if (env?.headings) {
-      env.headings.push({ id, text: titleText, level })
-    }
-    token.attrSet('id', id)
-
-    return defaultHeadingOpen(tokens, idx, renderOptions, env, self)
-  }
+  md.core.ruler.push('heading_ids', state => {
+    const headings = markdownHeadings(state.tokens)
+    const env = state.env as MarkdownRenderEnv
+    env.headings?.push(...headings)
+  })
 
   return md
 }
@@ -216,12 +164,10 @@ export function renderMarkdown(
   }
 
   const headings: MarkdownHeading[] = []
-  const usedSlugs = new Set<string>()
   const env: MarkdownRenderEnv = {
     imageUrls,
     copyCode: options.copyCode,
-    headings,
-    usedSlugs
+    headings
   }
 
   const html = defaultMarkdownRenderer.render(content, env)

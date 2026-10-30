@@ -76,6 +76,8 @@ jobs:
           CONTENT_TEST_DATABASE_URL: postgres://postgres:browser-test-only@127.0.0.1:5432/attackbox_browser_test
           CONTENT_TEST_BASE_URL: http://127.0.0.1:3158
           CONTENT_DATA_DIR: ${{ runner.temp }}/attackbox-content
+          REFERENCE_PUBLIC_DIR: ${{ runner.temp }}/attackbox-reference-public
+          CONTENT_CREDENTIALS_KEY: "1111111111111111111111111111111111111111111111111111111111111111"
           NITRO_HOST: 127.0.0.1
           NITRO_PORT: 3158
         run: |
@@ -100,3 +102,5 @@ jobs:
           npm run test:module-covers
           npm run test:learn-home
           npm run test:reader-layout
+          npm run test:reference-reading
+          npm run test:references

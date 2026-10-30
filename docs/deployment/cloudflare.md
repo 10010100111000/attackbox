@@ -105,3 +105,11 @@ sudo ./scripts/control.sh migrate
 ## 隐藏源站 IP 的边界
 
 橙云隐藏 Web DNS 入口，入口限制阻止绕过 Cloudflare，但当前攻击沙箱与 Control 共用 VPS。只要允许沙箱访问外网，学员仍可能通过外部服务看到该 VPS 的公网出口 IP。完整隐藏 Control 源站需要分离 Worker 或配置独立出口；本轮不修改沙箱网络，也不承诺同机部署可完全隐藏公网 IP。
+
+## 公开参考资料的静态分块
+
+重新执行 Control deploy，普通入口与 Cloudflare 入口会共用参考资料静态配置。公开文件默认位于 `/var/lib/attackbox-public/references`，可通过 `REFERENCE_PUBLIC_DIR` 配置独立目录。部署脚本为公开目录设置 nginx 可读权限，私有的 `CONTENT_DATA_DIR` 继续保持限制权限，不要将其整体开放。首次升级已有资料，需要在后台重新扫描、导入并发布；扫描会识别缺失的编译产物，不需要清库。
+
+Cloudflare 缓存规则只匹配 `/static-refs/`：`meta.json` 绕过边缘缓存，带内容指纹的 HTML 块允许缓存并遵循源站的 1 小时 TTL，错误响应的边缘 TTL 设为 0。不要把 `/references/` 页面、API 或整站 HTML 一并设为 Cache Everything。HTML 与 `.gz` 预压缩文件由 nginx 直接提供；首屏 Nuxt 读取本地元数据与第一块，学习章节保持现有加载方式。
+
+发布、下架和删除会同步切换或撤下源站的公开入口，服务启动时校准一次中断的发布。已经缓存的正文无法通过删除源站文件即时撤回；需要立即撤回时，手动清除该资料在 Cloudflare 的缓存，已下载到浏览器的内容仍无法收回。迁移与备份同时保留 `CONTENT_DATA_DIR` 下的私有构建产物和 `REFERENCE_PUBLIC_DIR`。

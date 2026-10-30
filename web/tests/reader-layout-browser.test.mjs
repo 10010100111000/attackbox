@@ -16,6 +16,7 @@ async function seedReference(f) {
     slug = `reader-${id.slice(0, 8)}`,
     title = '公开阅读资料'
   await f.sql`insert into reference_documents (id,slug,title,body_markdown,status,source_origin,source_path,source_commit,manifest,created_by,published_at) values(${id},${slug},${title},${body},'published',${id},'reader.md','fixture','{}',${f.admin.id},now())`
+  await f.publishReference(id)
   return { id, path: `/references/${slug}`, title }
 }
 
@@ -97,7 +98,8 @@ test(
       }
       await nav.getByRole('link', { name: '第二部分', exact: true }).click()
       await page.waitForFunction(() => decodeURIComponent(location.hash) === '#第二部分')
-      assert.equal(gets, afterReload, 'anchor clicks do not refetch the document')
+      await page.locator('h1[id="第二部分"]').waitFor()
+      assert.equal(gets, afterReload, 'outline navigation never refetches the database detail API')
       assert.equal(await page.evaluate(() => window.scrollY), 0)
       await nav.getByRole('link', { name: '附记', exact: true }).click()
       await page.waitForFunction(

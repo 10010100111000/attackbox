@@ -131,6 +131,18 @@ class DeploymentTests(unittest.TestCase):
         self.assertIn('ssl_reject_handshake on;', config)
         self.assertIn('location = /cluster/connect { return 404; }', config)
 
+    def test_reference_locations_are_shared_by_both_ingress_modes(self):
+        for values in [d.read_env(), self.cloudflare_values()]:
+            config = d.render_nginx(values, '127.0.0.1:3000')
+            self.assertIn('/static-refs/', config)
+            self.assertIn('alias /var/lib/attackbox-public/references/', config)
+            self.assertIn('gzip_static on;', config)
+            self.assertIn('Cache-Control "no-cache"', config)
+            self.assertNotIn('@@', config)
+        for directory in ['/var/lib/attackbox-web/content', '/srv/public;bad', '/var/lib/../etc', '/etc/refs']:
+            with self.subTest(directory=directory), self.assertRaises(d.ConfigError):
+                d.render_nginx({**d.read_env(), 'REFERENCE_PUBLIC_DIR':directory}, '127.0.0.1:3000')
+
     def test_cloudflare_rejects_exposed_ports_wrong_origins_and_config_injection(self):
         values = self.cloudflare_values()
         for key, value in [('HOST','0.0.0.0'), ('WORKER_PROXY_UPSTREAM','0.0.0.0:8443'),

@@ -14,6 +14,7 @@ import { sql } from 'drizzle-orm'
 import { users } from './auth'
 import { assets } from './assets'
 export interface ReferenceManifest {
+  reading?: string
   md: string
   images: Record<string, { path: string; sha: string }>
 }

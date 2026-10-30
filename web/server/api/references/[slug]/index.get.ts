@@ -1,5 +1,5 @@
 import { defineEventHandler, getRouterParam } from 'h3'
-import { referenceDetail } from '../../../services/references'
+import { readReference } from '../../../content/reference-files'
 export default defineEventHandler(async event => ({
-  data: await referenceDetail(getRouterParam(event, 'slug') || '')
+  data: await readReference(getRouterParam(event, 'slug') || '')
 }))

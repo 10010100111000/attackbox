@@ -1,6 +1,8 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import crypto from 'node:crypto'
+import { unlink } from 'node:fs/promises'
+import pathModule from 'node:path'
 import { createJiti } from 'jiti'
 import { chromium } from 'playwright'
 import { learningFixture } from './helpers/learning-fixture.mjs'
@@ -207,6 +209,17 @@ test(
         body: { intent: 'unpublish', lockVersion: version - 1 },
         status: 409
       })
+      // Recover a lost public pointer without re-parsing Markdown, then reconcile
+      // an interrupted withdrawal from the authoritative database state.
+      const beforeRecovery = (await f.request(publicApi)).data
+      await unlink(pathModule.join(process.env.REFERENCE_PUBLIC_DIR, beforeRecovery.meta.slug))
+      await service.reconcileReferencePublications()
+      assert.equal((await f.request(publicApi)).data.meta.id, id)
+      await f.sql`update reference_documents set status='unpublished' where id=${id}`
+      await service.reconcileReferencePublications()
+      await f.request(publicApi, { status: 404 })
+      await f.sql`update reference_documents set status='published' where id=${id}`
+      await service.reconcileReferencePublications()
       const publicDoc = (await f.request(publicApi)).data
       for (const value of [
         token,
@@ -226,7 +239,10 @@ test(
       assert.ok(html.includes('<h2 id="开始">'))
       assert.ok(!html.includes('owner/private-references'))
       assert.ok(!html.includes(token))
-      const imageUrl = Object.values(publicDoc.imageUrls)[0],
+      const imageUrl = Object.values(detail.imageUrls)[0].replace(
+          '/api/admin/references/' + id,
+          '/api/references/' + publicDoc.meta.slug
+        ),
         asset = await fetch(f.base + imageUrl)
       assert.equal(asset.status, 200)
       assert.equal(asset.headers.get('x-content-type-options'), 'nosniff')
@@ -280,14 +296,14 @@ test(
       assert.equal(scan.items[0].state, 'unchanged')
       const unchanged = await service.importReference(f.admin.id, importBody())
       assert.equal(unchanged.unchanged, true)
-      assert.equal((await f.request(publicApi)).data.id, id)
+      assert.equal((await f.request(publicApi)).data.meta.id, id)
       image = Buffer.concat([image, Buffer.from([0])])
       commit = 'd'.repeat(40)
       scan = await service.scanReferences()
       assert.equal(scan.items[0].state, 'changed')
       await service.importReference(f.admin.id, importBody())
       detail = (await f.request('/api/admin/references/' + id, { actor: f.admin })).data
-      assert.equal(detail.slug, publicDoc.slug)
+      assert.equal(detail.slug, publicDoc.meta.slug)
       assert.equal(detail.status, 'unpublished')
       assert.equal(detail.lockVersion, version + 1)
       await f.request(publicApi, { status: 404 })

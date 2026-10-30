@@ -251,6 +251,7 @@ test(
     try {
       const baseline = (await f.request('/api/admin/analytics', { actor: f.admin })).data.totals
       await f.sql`insert into reference_documents(id,slug,title,body_markdown,status,source_origin,source_path,source_commit,manifest,created_by,published_at) values(${reference},${reference},'运营阅读测试',${'## 阅读\n\n' + '阅读与理解。'.repeat(2400)},'published',${reference},'operations.md','fixture','{}',${f.admin.id},now())`
+      await f.publishReference(reference)
       browser = await chromium.launch(chromiumOptions())
       const admin = await browser.newContext({ viewport: { width: 1600, height: 1100 } })
       await admin.addCookies([{ name: 'attackbox_session', value: f.admin.token, url: f.base }])

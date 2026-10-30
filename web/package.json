@@ -15,7 +15,7 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "typecheck": "nuxt typecheck",
-    "test": "node --experimental-strip-types --test tests/auth-crypto.test.js tests/composables.test.js tests/ui.test.js tests/landing.test.js tests/auth.test.js tests/markdown.test.js tests/learning-ui.test.js tests/admin-ui.test.js tests/quiz.test.js tests/learning-access.test.js tests/api-client.test.js tests/sandbox-nodes.test.js tests/sandbox-lifecycle.test.js tests/sandbox-settings.test.js tests/content-parser.test.mjs tests/content-repository.test.mjs tests/compose-packages.test.mjs tests/lab-git.test.mjs tests/mailer.test.mjs tests/runtime-policy.test.mjs tests/learn-home.test.mjs tests/confirmation.test.mjs tests/reference-parser.test.mjs tests/registration-policy.test.mjs tests/turnstile.test.mjs tests/feedback-input.test.mjs tests/request-policy.test.mjs tests/login-destination.test.mjs tests/database-config.test.mjs tests/styles.test.js tests/reader-outline.test.mjs tests/operations-input.test.mjs",
+    "test": "node --experimental-strip-types --test tests/auth-crypto.test.js tests/composables.test.js tests/ui.test.js tests/landing.test.js tests/auth.test.js tests/markdown.test.js tests/learning-ui.test.js tests/admin-ui.test.js tests/quiz.test.js tests/learning-access.test.js tests/api-client.test.js tests/sandbox-nodes.test.js tests/sandbox-lifecycle.test.js tests/sandbox-settings.test.js tests/content-parser.test.mjs tests/content-repository.test.mjs tests/compose-packages.test.mjs tests/lab-git.test.mjs tests/mailer.test.mjs tests/runtime-policy.test.mjs tests/learn-home.test.mjs tests/confirmation.test.mjs tests/reference-parser.test.mjs tests/registration-policy.test.mjs tests/turnstile.test.mjs tests/feedback-input.test.mjs tests/request-policy.test.mjs tests/login-destination.test.mjs tests/database-config.test.mjs tests/styles.test.js tests/reader-outline.test.mjs tests/operations-input.test.mjs tests/reference-compiler.test.mjs tests/reference-files.test.mjs",
     "test:all": "node --test tests/",
     "db:generate": "drizzle-kit generate",
     "admin:init": "bash ../scripts/control.sh admin",
@@ -62,7 +62,8 @@
     "test:auth-styles": "node --test tests/auth-styles-browser.test.mjs",
     "test:learn-home": "node --test tests/learn-home-browser.test.mjs",
     "test:reader-layout": "node --test tests/reader-layout-browser.test.mjs",
-    "test:operations": "node --test --test-concurrency=1 tests/operations.test.mjs"
+    "test:operations": "node --test --test-concurrency=1 tests/operations.test.mjs",
+    "test:reference-reading": "node --test tests/reference-reading.test.mjs"
   },
   "dependencies": {
     "@node-rs/argon2": "^2.2.2",
