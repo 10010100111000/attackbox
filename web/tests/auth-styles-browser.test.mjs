@@ -90,7 +90,7 @@ test(
                   register: '注册',
                   recover: '找回密码',
                   reset: '重设密码',
-                  verify: '验证并激活'
+                  verify: '完成注册'
                 }[mode]
               ),
             mode
@@ -119,8 +119,8 @@ test(
             }
           })
           snapshots[theme + ':' + mode] = snapshot
-          assert.equal(snapshot.title.fontSize, mode === 'verify' ? '29px' : '32px')
-          assert.equal(snapshot.intro.fontSize, mode === 'verify' ? '13px' : '12px')
+          assert.equal(snapshot.title.fontSize, '32px')
+          assert.equal(snapshot.intro.fontSize, '12px')
           if (snapshot.field) {
             assert.equal(snapshot.field.marginBottom, '20px')
             assert.equal(snapshot.label.fontSize, '11px')
@@ -140,13 +140,6 @@ test(
             await page.waitForURL('**/auth?mode=login')
             assert.equal(await page.evaluate(() => window.authNavigationProbe), true)
           }
-          if (mode === 'verify')
-            assert.equal(
-              await page
-                .locator('.verify-state')
-                .evaluate(el => getComputedStyle(el).animationName),
-              'none'
-            )
           await page.evaluate(() => {
             const probe = document.createElement('h1')
             probe.id = 'style-scope-probe'

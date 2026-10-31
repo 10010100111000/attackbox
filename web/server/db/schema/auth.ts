@@ -63,9 +63,7 @@ export const emailTokens = pgTable(
   'email_tokens',
   {
     id: uuid('id').primaryKey().defaultRandom(),
-    userId: uuid('user_id')
-      .notNull()
-      .references(() => users.id, { onDelete: 'cascade' }),
+    userId: uuid('user_id').references(() => users.id, { onDelete: 'cascade' }),
     targetEmail: varchar('target_email', { length: 254 }).notNull(),
     purpose: varchar('purpose', { length: 32 }).notNull(),
     tokenHash: bytea('token_hash').notNull(),
@@ -75,6 +73,15 @@ export const emailTokens = pgTable(
   },
   table => [
     uniqueIndex('email_tokens_token_hash_unique_idx').on(table.tokenHash),
+    index('email_tokens_email_purpose_created_idx').on(
+      table.targetEmail,
+      table.purpose,
+      table.createdAt
+    ),
+    check(
+      'email_tokens_reset_user_check',
+      sql`${table.purpose} = 'verify_email' or ${table.userId} is not null`
+    ),
     check(
       'email_tokens_purpose_check',
       sql`${table.purpose} in ('verify_email', 'reset_password')`

@@ -105,3 +105,6 @@ jobs:
           npm run test:reference-reading
           npm run test:references
           npm run test:reference-admin
+          npm run test:auth-mail
+          npm run test:registration-policy
+          npm run test:account-deletion

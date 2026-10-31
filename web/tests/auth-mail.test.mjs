@@ -103,19 +103,45 @@ test(
       assert.ok(ready, 'local app started')
       const registeredResponse = await req('/api/auth/register', {
         email,
-        password
+        password: 'UntrustedBeforeVerification123!'
       })
       assert.equal(registeredResponse.status, 200)
       assert.deepEqual(Object.keys(registeredResponse.json), ['message'])
       assert.equal(emails.length, 1)
       const verify = token(emails[0])
       assert.ok(verify)
-      assert.equal((await req('/api/auth/login', { email, password })).status, 403)
-      await Promise.all([1, 2, 3].map(() => req('/api/auth/resend-verification', { email })))
+      assert.equal(
+        (await sql`select id from users where email=${email}`).length,
+        0,
+        'mail requests do not reserve accounts'
+      )
+      assert.equal((await req('/api/auth/login', { email, password })).status, 401)
+      assert.deepEqual((await req('/api/auth/registration-token', { token: verify })).json, {
+        email
+      })
+      await Promise.all(
+        [1, 2, 3].map(() =>
+          req('/api/auth/register', { email, password: 'IgnoredRetryPassword123!' })
+        )
+      )
       assert.equal(emails.length, 1, 'cooldown survives concurrent requests')
-      assert.equal((await req('/api/auth/verify-email', { token: verify })).status, 200)
+      assert.equal((await req('/api/auth/verify-email', { token: verify, password })).status, 200)
       assert.ok(
-        [400, 403].includes((await req('/api/auth/verify-email', { token: verify })).status)
+        [400, 403].includes(
+          (await req('/api/auth/verify-email', { token: verify, password })).status
+        )
+      )
+      assert.equal(
+        (await req('/api/auth/login', { email, password: 'UntrustedBeforeVerification123!' }))
+          .status,
+        401
+      )
+      const beforeRepeat = emails.length
+      assert.deepEqual((await req('/api/auth/register', { email })).json, registeredResponse.json)
+      assert.equal(
+        emails.length,
+        beforeRepeat,
+        'existing active accounts are neither modified nor emailed by registration'
       )
       const login = await req('/api/auth/login', { email, password })
       assert.equal(login.status, 200)
@@ -167,43 +193,91 @@ test(
         0,
         'failed send rolls back credentials'
       )
+      assert.equal(
+        (await sql`select id from users where email=${pending}`).length,
+        0,
+        'failed delivery must not create an account'
+      )
       reject = false
       browser = await chromium.launch({
         executablePath: process.env.CHROMIUM_PATH || '/usr/bin/chromium',
         args: ['--no-sandbox']
       })
       const page = await browser.newPage()
-      await page.goto(base + '/auth?mode=verify&email=' + encodeURIComponent(pending))
-      await page.getByRole('button', { name: '发送验证邮件', exact: true }).click()
-      await page
-        .getByRole('status')
-        .getByText(/如果该邮箱符合条件/)
-        .waitFor()
-      assert.equal(emails.at(-1).to[0], pending)
+      await page.goto(base + '/auth?mode=register&email=' + encodeURIComponent(pending))
+      await page.getByRole('heading', { name: '从这里，开始。', exact: true }).waitFor()
       assert.equal(
-        (await req('/api/auth/verify-email', { token: token(emails.at(-1)) })).status,
-        200
+        await page.locator('#email:enabled').inputValue(),
+        pending,
+        'registration preserves the requested mailbox'
+      )
+      await page.getByRole('button', { name: '发送验证邮件', exact: true }).click()
+      await page.getByRole('heading', { name: '查收验证邮件。', exact: true }).waitFor()
+      assert.equal(emails.at(-1).to[0], pending)
+      assert.equal((await sql`select id from users where email=${pending}`).length, 0)
+      const pendingToken = token(emails.at(-1))
+      const claimed = await Promise.all(
+        [1, 2].map(() => req('/api/auth/verify-email', { token: pendingToken, password }))
+      )
+      assert.deepEqual(
+        claimed.map(r => r.status).sort(),
+        [200, 400],
+        'proof is consumed once under concurrent completion'
       )
       const browserEmail = `browser-${crypto.randomUUID()}@example.test`
       registered.push(browserEmail)
       await page.goto(base + '/auth?mode=register')
       await page.locator('#email:enabled').fill('blocked@mailinator.com')
-      await page.locator('#password').fill(password)
-      await page.getByRole('button', { name: '继续创建账号', exact: true }).click()
+      assert.equal(await page.locator('#password').count(), 0)
+      await page.getByRole('button', { name: '发送验证邮件', exact: true }).click()
       await page.getByText('该邮箱域名暂不支持注册。', { exact: true }).waitFor()
       assert.equal(
-        (await req('/api/auth/register', { email: 'blocked@mailinator.com', password })).status,
+        (await req('/api/auth/register', { email: 'blocked@mailinator.com' })).status,
         403
       )
       await page.locator('#email:enabled').fill(browserEmail)
-      await page.locator('#password').fill(password)
-      await page.getByRole('button', { name: '继续创建账号', exact: true }).click()
-      await page.getByRole('heading', { name: '账号创建成功', exact: true }).waitFor()
-      assert.equal(await page.getByText('一键激活并登录', { exact: true }).count(), 0)
+      await page.getByRole('button', { name: '发送验证邮件', exact: true }).click()
+      await page.getByRole('heading', { name: '查收验证邮件。', exact: true }).waitFor()
       assert.equal(emails.at(-1).to[0], browserEmail)
+      assert.equal((await sql`select id from users where email=${browserEmail}`).length, 0)
+      const browserToken = token(emails.at(-1))
+      await page.goto(base + '/auth?mode=verify&token=' + browserToken)
+      await page.locator('#password:enabled').fill(password)
+      assert.equal(
+        (await sql`select id from users where email=${browserEmail}`).length,
+        0,
+        'opening a link never consumes proof or creates an account'
+      )
+      await page.getByRole('button', { name: '完成注册', exact: true }).click()
+      await page.getByRole('heading', { name: '账号创建成功。', exact: true }).waitFor()
       assert.equal(
         (await sql`select status from users where email=${browserEmail}`)[0].status,
-        'pending'
+        'active'
+      )
+      await page.getByRole('button', { name: '前往登录', exact: true }).click()
+      assert.equal(await page.locator('#email').inputValue(), browserEmail)
+      const oldPending = `unverified-${crypto.randomUUID()}@example.test`
+      registered.push(oldPending)
+      await sql`insert into users(email,display_name,password_hash,status) select ${oldPending},'Unverified',password_hash,'pending' from users where email=${email}`
+      await req('/api/auth/register', { email: oldPending, password: 'IgnoredApplicantPassword!' })
+      const ownerPassword = 'MailboxOwnerPassword123!'
+      assert.equal(
+        (
+          await req('/api/auth/verify-email', {
+            token: token(emails.at(-1)),
+            password: ownerPassword
+          })
+        ).status,
+        200
+      )
+      assert.equal(
+        (await req('/api/auth/login', { email: oldPending, password: newPassword })).status,
+        401,
+        'claiming a pending account replaces previously proposed credentials'
+      )
+      assert.equal(
+        (await req('/api/auth/login', { email: oldPending, password: ownerPassword })).status,
+        200
       )
       const outside = `existing-${crypto.randomUUID()}@outside.test`
       registered.push(outside)
@@ -229,7 +303,10 @@ test(
         await done
       }
       await new Promise(r => capture.close(r))
-      for (const email of registered) await sql`delete from users where email=${email}`
+      for (const email of registered) {
+        await sql`delete from email_tokens where target_email=${email}`
+        await sql`delete from users where email=${email}`
+      }
       await sql.end()
     }
   }

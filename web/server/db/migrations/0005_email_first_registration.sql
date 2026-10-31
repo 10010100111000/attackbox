@@ -1,0 +1,3 @@
+ALTER TABLE "email_tokens" ALTER COLUMN "user_id" DROP NOT NULL;--> statement-breakpoint
+CREATE INDEX "email_tokens_email_purpose_created_idx" ON "email_tokens" USING btree ("target_email","purpose","created_at");--> statement-breakpoint
+ALTER TABLE "email_tokens" ADD CONSTRAINT "email_tokens_reset_user_check" CHECK ("email_tokens"."purpose" = 'verify_email' or "email_tokens"."user_id" is not null);

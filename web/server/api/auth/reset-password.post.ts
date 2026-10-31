@@ -39,22 +39,19 @@ export default defineEventHandler(async event => {
     )
     .limit(1)
 
-  if (!tokenRecord) {
+  if (!tokenRecord?.userId) {
     throw createError({
       statusCode: 400,
       statusMessage: '无效或已过期的重置凭证'
     })
   }
+  const userId = tokenRecord.userId
 
   const passwordHash = await hashPassword(newPassword)
 
   // 单事务更新密码、消费凭证并撤销该用户所有现存会话
   await db.transaction(async tx => {
-    const [user] = await tx
-      .select()
-      .from(users)
-      .where(eq(users.id, tokenRecord.userId))
-      .for('update')
+    const [user] = await tx.select().from(users).where(eq(users.id, userId)).for('update')
     if (!user || user.status !== 'active' || user.email !== tokenRecord.targetEmail)
       throw createError({
         statusCode: 400,
@@ -82,7 +79,7 @@ export default defineEventHandler(async event => {
         passwordHash,
         updatedAt: now
       })
-      .where(eq(users.id, tokenRecord.userId))
+      .where(eq(users.id, userId))
 
     await tx
       .update(emailTokens)
@@ -99,7 +96,7 @@ export default defineEventHandler(async event => {
     await tx
       .update(authSessions)
       .set({ revokedAt: now })
-      .where(and(eq(authSessions.userId, tokenRecord.userId), isNull(authSessions.revokedAt)))
+      .where(and(eq(authSessions.userId, userId), isNull(authSessions.revokedAt)))
   })
 
   return {

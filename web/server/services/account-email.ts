@@ -3,6 +3,7 @@ import { canSendActivationEmail } from '../utils/registration-policy'
 import { client } from '../db'
 import { createResendMailer, mailConfig, MailDeliveryError } from '../utils/mailer'
 import { generateSecureToken, hashToken } from '../utils/auth'
+import { registrationLockSeed } from './registration'
 
 export const emailResult = {
   message: '如果该邮箱符合条件，我们会发送邮件。请检查收件箱或垃圾邮件；再次申请请间隔至少 60 秒。'
@@ -23,11 +24,16 @@ export async function sendAccountEmail(email: string, purpose: 'verify_email' | 
   const mailer = configuredMailer()
   try {
     await client.begin(async tx => {
+      if (purpose === 'verify_email')
+        await tx`select pg_advisory_xact_lock(hashtextextended(${email}, ${registrationLockSeed}))`
       // Serializes issuance for this recipient, including concurrent requests.
-      const [user] = await tx`select id,status from users where email=${email} for update`
-      if (!user || user.status !== (purpose === 'verify_email' ? 'pending' : 'active')) return
+      const [user] = await tx`select id,status,role from users where email=${email} for update`
+      if (purpose === 'reset_password' && (!user || user.status !== 'active')) return
+      if (purpose === 'verify_email' && user && (user.status !== 'pending' || user.role !== 'user'))
+        return
+      await tx`delete from email_tokens where id in (select id from email_tokens where expires_at < now() - interval '1 day' limit 20)`
       const [limits] =
-        await tx`select count(*)::int as count, max(created_at) as latest from email_tokens where user_id=${user.id} and purpose=${purpose} and created_at>now()-interval '1 hour'`
+        await tx`select count(*)::int as count, max(created_at) as latest from email_tokens where target_email=${email} and purpose=${purpose} and created_at>now()-interval '1 hour'`
       if (
         limits.count >= 5 ||
         (limits.latest && Date.now() - new Date(limits.latest).getTime() < 60000)
@@ -36,10 +42,10 @@ export async function sendAccountEmail(email: string, purpose: 'verify_email' | 
       const token = generateSecureToken(),
         lifetime = purpose === 'verify_email' ? 86400 : 1800
       const [issued] =
-        await tx`insert into email_tokens(user_id,target_email,purpose,token_hash,expires_at) values(${user.id},${email},${purpose},${hashToken(token)},now()+${lifetime}*interval '1 second') returning id`
+        await tx`insert into email_tokens(user_id,target_email,purpose,token_hash,expires_at) values(${user?.id || null},${email},${purpose},${hashToken(token)},now()+${lifetime}*interval '1 second') returning id`
       if (purpose === 'verify_email') await mailer.sendVerificationEmail(email, token)
       else await mailer.sendPasswordResetEmail(email, token)
-      await tx`update email_tokens set consumed_at=now() where user_id=${user.id} and purpose=${purpose} and consumed_at is null and id<>${issued.id}`
+      await tx`update email_tokens set consumed_at=now() where target_email=${email} and purpose=${purpose} and consumed_at is null and id<>${issued.id}`
     })
   } catch (error) {
     // Log only internal classifications / numeric provider status. Provider

@@ -38,7 +38,11 @@ test(
         token = crypto.randomBytes(32).toString('hex')
       await f.sql`update users set status='pending',email_verified_at=null where id=${pending.id}`
       await f.sql`insert into email_tokens(user_id,target_email,purpose,token_hash,expires_at) values(${pending.id},${pending.email},'verify_email',${crypto.createHash('sha256').update(token).digest()},now()+interval '1 hour')`
-      await f.request('/api/auth/verify-email', { method: 'POST', body: { token }, status: 403 })
+      await f.request('/api/auth/verify-email', {
+        method: 'POST',
+        body: { token, password: 'new-password-for-test' },
+        status: 403
+      })
       assert.equal(
         (await f.sql`select status from users where id=${pending.id}`)[0].status,
         'pending'
@@ -48,9 +52,10 @@ test(
           .consumed_at,
         null
       )
-      await f.request('/api/auth/resend-verification', {
+      await f.request('/api/auth/register', {
         method: 'POST',
-        body: { email: pending.email }
+        body: { email: pending.email },
+        status: 403
       })
       assert.equal(
         (await f.sql`select count(*)::int as n from email_tokens where user_id=${pending.id}`)[0].n,
@@ -63,8 +68,8 @@ test(
       const page = await browser.newPage()
       await page.goto(f.base + '/auth?mode=register')
       await page.locator('#email:enabled').fill('blocked@mailinator.com')
-      await page.locator('#password').fill('local-test-password')
-      await page.getByRole('button', { name: '继续创建账号', exact: true }).click()
+      assert.equal(await page.locator('#password').count(), 0)
+      await page.getByRole('button', { name: '发送验证邮件', exact: true }).click()
       await page.getByText('该邮箱域名暂不支持注册。', { exact: true }).waitFor()
       await page.screenshot({
         path: '/tmp/attackbox-registration-domains.png',

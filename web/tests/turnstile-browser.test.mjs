@@ -157,7 +157,7 @@ test(
             turnstileToken: 'valid-register-existing-user'
           })
         ).response.status,
-        409
+        200
       )
       const onceToken = token()
       const success = await request('/api/auth/login', {

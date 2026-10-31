@@ -1,7 +1,7 @@
 import { and, eq, gt, isNull, sql } from 'drizzle-orm'
 import { createError } from 'h3'
 import { db } from '../db'
-import { users, authSessions, auditLogs } from '../db/schema'
+import { users, authSessions, auditLogs, targetInstances, emailTokens } from '../db/schema'
 import { sandboxController } from '../sandbox'
 import { learningHistory } from './learning'
 import { stopUserTargets } from './target-runtime'
@@ -88,8 +88,56 @@ export async function userDetail(id: string) {
     activeSessions: sessions!.count,
     progress,
     history: await learningHistory(id),
+    deletion: await deletionEligibility(db, user),
     instance: sandboxController().status(id).instance
   }
+}
+
+async function deletionEligibility(
+  query: Pick<typeof db, 'execute'>,
+  user: { id: string; status: string }
+) {
+  const blocked = (reason: string) => ({ allowed: false, reason })
+  if (user.status === 'active') return blocked('请先停用账号并释放环境，再删除账号。')
+  if (sandboxController().status(user.id).instance)
+    return blocked('仍有沙箱等待释放，请先完成环境清理。')
+  const [linked] = await query.execute<{ targets: boolean; content: boolean }>(sql`
+    select
+      exists(select 1 from target_instances where user_id=${user.id} and state<>'stopped') as targets,
+      (exists(select 1 from modules where created_by=${user.id})
+        or exists(select 1 from reference_documents where created_by=${user.id})
+        or exists(select 1 from assets where uploaded_by=${user.id})
+        or exists(select 1 from lab_bundles where actor_id=${user.id})) as content`)
+  if (linked!.targets) return blocked('仍有靶场等待释放，请先完成环境清理。')
+  if (linked!.content) return blocked('该账号仍拥有内容或资源，请先处理内容归属。')
+  return { allowed: true, reason: '' }
+}
+
+export async function deleteUser(actorId: string, id: string) {
+  await db.transaction(async tx => {
+    await tx.execute(sql`select pg_advisory_xact_lock(61290347)`)
+    const [actor] = await tx.select(fields).from(users).where(eq(users.id, actorId)).for('update')
+    if (actor?.role !== 'admin' || actor.status !== 'active')
+      throw createError({ statusCode: 403, message: '管理员账号已不可用' })
+    if (id === actorId) throw createError({ statusCode: 409, message: '不能删除当前管理员账号' })
+    const [target] = await tx.select(fields).from(users).where(eq(users.id, id)).for('update')
+    if (!target) throw createError({ statusCode: 404, message: '用户不存在' })
+    const eligibility = await deletionEligibility(tx, target)
+    if (!eligibility.allowed) throw createError({ statusCode: 409, message: eligibility.reason })
+    await tx.delete(targetInstances).where(eq(targetInstances.userId, id))
+    await tx.delete(emailTokens).where(eq(emailTokens.targetEmail, target.email))
+    // Preserve audit events while detaching the deleted actor. User-owned
+    // sessions, tokens and learning progress follow their database cascades.
+    await tx.update(auditLogs).set({ actorUserId: null }).where(eq(auditLogs.actorUserId, id))
+    await tx.delete(users).where(eq(users.id, id))
+    await tx.insert(auditLogs).values({
+      actorUserId: actorId,
+      action: 'user.delete',
+      targetType: 'user',
+      targetId: id,
+      metadata: { previousStatus: target.status }
+    })
+  })
 }
 // Order the DB commit and the local scheduler fence together. Worker cleanup
 // completion is outside this queue. The DB lock additionally protects actor

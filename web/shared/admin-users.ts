@@ -21,6 +21,7 @@ export interface AdminUserDetail {
   activeSessions: number
   progress: { modules: number; visited: number; completed: number }
   history: LearningHistoryItem[]
+  deletion: { allowed: boolean; reason: string }
   instance: SandboxInstance | null
 }
 export const userStatusLabels: Record<string, string> = {

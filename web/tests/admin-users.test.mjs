@@ -175,6 +175,11 @@ test(
       const waiting = (await f.request(`/api/admin/users/${bob.id}`, { actor: f.admin })).data
       assert.equal(waiting.user.status, 'suspended')
       assert.equal(waiting.instance.state, 'cleanup_failed')
+      await f.request(`/api/admin/users/${bob.id}`, {
+        actor: f.admin,
+        method: 'DELETE',
+        status: 409
+      })
       await f.request('/api/auth/me', { actor: bob, status: 401 })
       failDestroy = false
       await f.request(`/api/admin/instances/${bobInstance.id}/stop`, {
@@ -195,7 +200,7 @@ test(
       })
       await f.request('/api/auth/verify-email', {
         method: 'POST',
-        body: { token: verifyToken },
+        body: { token: verifyToken, password: pending.password },
         status: 403
       })
       const restored = (
@@ -206,10 +211,13 @@ test(
         })
       ).data
       assert.equal(restored.status, 'pending')
-      await f.request('/api/auth/verify-email', { method: 'POST', body: { token: verifyToken } })
       await f.request('/api/auth/verify-email', {
         method: 'POST',
-        body: { token: verifyToken },
+        body: { token: verifyToken, password: pending.password }
+      })
+      await f.request('/api/auth/verify-email', {
+        method: 'POST',
+        body: { token: verifyToken, password: pending.password },
         status: 400
       })
       // Hold the account row until password verification has reached session issuance.

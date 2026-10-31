@@ -1,160 +1,125 @@
 <script setup lang="ts">
-import { ref, onMounted, computed } from 'vue'
+import { ref, onMounted } from 'vue'
 import { useRoute } from 'vue-router'
-import Button from '~/components/ui/Button.vue'
 import { useAuth } from '~/composables/useAuth'
-import { apiErrorMessage } from '~/utils/api'
+import { apiFetch, apiErrorMessage } from '~/utils/api'
 
 const emit = defineEmits<{
   (e: 'switch-mode', mode: 'login' | 'register'): void
+  (e: 'update:modelValueEmail', email: string): void
 }>()
-
-const route = useRoute()
-const { verifyEmail } = useAuth()
-
-type VerifyState = 'pending' | 'success' | 'error' | 'missing'
-
-const status = ref<VerifyState>('pending')
-const errorMessage = ref('')
-const emailParam = computed(() => {
-  return typeof route.query.email === 'string' ? route.query.email : ''
-})
-
+const route = useRoute(),
+  { verifyEmail } = useAuth()
+const token = typeof route.query.token === 'string' ? route.query.token : ''
+const status = ref<'loading' | 'form' | 'success' | 'error'>('loading')
+const email = ref(''),
+  password = ref(''),
+  error = ref(''),
+  busy = ref(false)
 onMounted(async () => {
-  const token = typeof route.query.token === 'string' ? route.query.token.trim() : ''
   if (!token) {
-    status.value = 'missing'
-    errorMessage.value = '请打开验证邮件中的链接，或重新申请验证邮件。'
+    status.value = 'error'
+    error.value = '请打开验证邮件中的链接，或重新申请验证邮件。'
     return
   }
-
-  status.value = 'pending'
   try {
-    await verifyEmail(token)
-    status.value = 'success'
-  } catch (err) {
+    const result = await apiFetch<{ email: string }>('/api/auth/registration-token', {
+      method: 'POST',
+      body: { token }
+    })
+    email.value = result.email
+    emit('update:modelValueEmail', result.email)
+    status.value = 'form'
+  } catch (cause) {
+    error.value = apiErrorMessage(cause, '验证链接无效或已过期，请重新申请注册。')
     status.value = 'error'
-    errorMessage.value = apiErrorMessage(err, '激活凭证无效或已过期，请重新申请注册或登录。')
   }
 })
-
-function goToLogin() {
-  emit('switch-mode', 'login')
+async function complete() {
+  if (busy.value || status.value !== 'form') return
+  if (password.value.length < 6 || password.value.length > 1024) {
+    error.value = '密码长度需为 6–1024 位。'
+    return
+  }
+  busy.value = true
+  error.value = ''
+  try {
+    await verifyEmail(token, password.value)
+    password.value = ''
+    status.value = 'success'
+  } catch (cause) {
+    error.value = apiErrorMessage(cause, '暂时无法完成注册，请重试。')
+  } finally {
+    busy.value = false
+  }
 }
 </script>
-
 <template>
   <div class="auth-form">
-    <!-- 校验中 -->
-    <div v-if="status === 'pending'" class="verify-state">
-      <UiBusyIndicator inline label="邮箱验证" class="verification-busy" />
-      <div class="eyebrow">ACCOUNT ACTIVATION</div>
+    <template v-if="status === 'loading'">
+      <UiBusyIndicator inline label="邮箱验证" />
       <h1 class="auth-title" id="form-title">邮箱验证</h1>
-    </div>
-
-    <!-- 激活成功 -->
-    <div v-else-if="status === 'success'" class="verify-state">
+    </template>
+    <template v-else-if="status === 'form'">
+      <div class="eyebrow">ONE LAST STEP</div>
+      <h1 class="auth-title" id="form-title">设置你的密码。</h1>
+      <p class="intro">{{ email }}</p>
+      <form
+        id="auth-form"
+        method="post"
+        action="/api/auth/verify-email"
+        novalidate
+        @submit.prevent="complete"
+      >
+        <fieldset :disabled="busy" class="auth-fields">
+          <div class="field">
+            <div class="field-head"><label for="password">密码</label></div>
+            <UiInput
+              id="password"
+              v-model="password"
+              name="password"
+              type="password"
+              autocomplete="new-password"
+              placeholder="设置密码，至少 6 位"
+              minlength="6"
+              maxlength="1024"
+              required
+            />
+          </div>
+          <UiButton
+            type="submit"
+            variant="primary"
+            :loading="busy"
+            class="submit w-full h-[46px] text-xs font-semibold rounded-md gap-4"
+            >完成注册</UiButton
+          >
+          <p v-if="error" class="status" role="status" aria-live="polite">{{ error }}</p>
+        </fieldset>
+      </form>
+    </template>
+    <template v-else-if="status === 'success'">
       <div class="success-icon" aria-hidden="true">✓</div>
-      <div class="eyebrow">ACTIVATION SUCCESS</div>
-      <h1 class="auth-title" id="form-title">邮箱验证成功！</h1>
-      <p class="intro">
-        您的 AttackBox 账号已完成激活。
-        <br />
-        现在可以登录账号，开始探索学习与实操。
-      </p>
-
-      <Button
+      <h1 class="auth-title" id="form-title">账号创建成功。</h1>
+      <p class="intro">邮箱已验证，使用刚设置的密码开始学习。</p>
+      <UiButton
         variant="primary"
         class="submit w-full h-[46px] text-xs font-semibold rounded-md gap-4"
-        @click="goToLogin"
+        @click="$emit('switch-mode', 'login')"
+        >前往登录</UiButton
       >
-        <span>立即前往登录</span>
-      </Button>
-    </div>
-
-    <!-- 激活失败或凭证无效 -->
-    <div v-else class="verify-state">
-      <div class="error-icon" aria-hidden="true">!</div>
-      <div class="eyebrow">ACTIVATION FAILED</div>
-      <h1 class="auth-title" id="form-title">
-        {{ status === 'missing' ? '查收验证邮件' : '激活未完成' }}
-      </h1>
-      <p class="intro error-text">{{ errorMessage }}</p>
-
-      <AuthResendVerification :email="emailParam" />
-      <div class="actions-stack">
-        <Button
-          variant="primary"
-          class="submit w-full h-[46px] text-xs font-semibold rounded-md gap-4"
-          @click="goToLogin"
-        >
-          <span>尝试直接登录</span>
-        </Button>
-
-        <button type="button" class="back-button" @click="$emit('switch-mode', 'register')">
-          <span>返回重新注册</span>
-        </button>
-      </div>
-    </div>
+    </template>
+    <template v-else>
+      <h1 class="auth-title" id="form-title">重新验证邮箱。</h1>
+      <p class="intro">{{ error }}</p>
+      <UiButton
+        variant="primary"
+        class="submit w-full h-[46px] text-xs font-semibold rounded-md gap-4"
+        @click="$emit('switch-mode', 'register')"
+        >重新申请验证邮件</UiButton
+      >
+      <button class="back-button" type="button" @click="$emit('switch-mode', 'login')">
+        返回登录
+      </button>
+    </template>
   </div>
 </template>
-
-<style scoped>
-.verify-state {
-  animation: fadeIn 0.3s ease;
-}
-
-.eyebrow {
-  color: var(--text-muted);
-}
-
-h1 {
-  font-size: 29px;
-  letter-spacing: -0.8px;
-  font-weight: 600;
-  color: var(--text-main);
-}
-
-.intro {
-  font-size: 13px;
-  margin-bottom: 28px;
-  line-height: 1.6;
-}
-
-.intro.error-text {
-  color: var(--color-error);
-}
-
-.success-icon {
-  margin-bottom: 22px;
-}
-
-.error-icon {
-  width: 42px;
-  height: 42px;
-  border: 1px solid rgba(229, 115, 115, 0.3);
-  border-radius: 12px;
-  display: grid;
-  place-items: center;
-  color: var(--color-error);
-  background: rgba(229, 115, 115, 0.1);
-  font-size: 20px;
-  font-weight: bold;
-  margin-bottom: 22px;
-}
-
-.verification-busy {
-  font-size: 32px;
-  margin-bottom: 22px;
-}
-
-.actions-stack {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
-.back-button {
-  margin-top: 12px;
-}
-</style>

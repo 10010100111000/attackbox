@@ -98,26 +98,14 @@ test('LoginForm.vue defines credentials validation, ui components, and direct po
   assert.ok(content.includes('密码至少需要 6 位。'))
 })
 
-test('RegisterForm.vue renders registration fields and email verification instructions', () => {
+test('RegisterForm.vue requests mailbox proof before collecting credentials', () => {
   const content = readFileSync(resolve(rootDir, 'components/auth/RegisterForm.vue'), 'utf-8')
-
-  // Props and emits
-  assert.ok(content.includes('modelValueEmail'))
-  assert.ok(content.includes('update:modelValueEmail'))
-  assert.ok(content.includes('switch-mode'))
-
-  // Copywriting
-  assert.ok(content.includes('ATTACKBOX ACCOUNT'))
-  assert.ok(content.includes('从这里，开始。'))
-  assert.ok(content.includes('创建账号，开始你的下一次探索。'))
-  assert.ok(content.includes('继续创建账号'))
-  assert.ok(content.includes('下一步验证邮箱，完成账号创建。'))
-  assert.ok(content.includes('验证邮件已发送'))
-  assert.ok(!content.includes('verifyToken'))
-  assert.ok(content.includes('AuthResendVerification'))
-
-  // Password placeholder
-  assert.ok(content.includes('设置密码，至少 6 位'))
+  assert.ok(content.includes('modelValueEmail') && content.includes('update:modelValueEmail'))
+  assert.ok(content.includes('先验证邮箱，再设置密码'))
+  assert.ok(content.includes('发送验证邮件') && content.includes('重新发送验证邮件'))
+  assert.ok(content.includes('AuthChallenge'))
+  assert.ok(!content.includes('name="password"'))
+  assert.ok(!existsSync(resolve(rootDir, 'components/auth/ResendVerification.vue')))
 })
 
 test('RecoverForm.vue renders recovery form and prototype notification', () => {
@@ -180,18 +168,16 @@ test('pages/auth.vue binds auth layout, handles mode query and title, and syncs 
   assert.ok(content.includes('VerifyView'))
 })
 
-test('VerifyView.vue defines pending, success, and error states for email activation', () => {
+test('VerifyView.vue inspects mailbox proof before password setup and explicit completion', () => {
   const content = readFileSync(resolve(rootDir, 'components/auth/VerifyView.vue'), 'utf-8')
-
-  assert.ok(content.includes('verifyEmail'))
-  assert.ok(content.includes('ACCOUNT ACTIVATION'))
-  assert.ok(content.includes('ACTIVATION SUCCESS'))
-  assert.ok(content.includes('邮箱验证成功！'))
-  assert.ok(content.includes('立即前往登录'))
-  assert.ok(content.includes('ACTIVATION FAILED'))
+  assert.ok(content.includes('/api/auth/registration-token'))
+  assert.ok(content.includes('设置你的密码。'))
+  assert.ok(content.includes('name="password"'))
+  assert.ok(content.includes('verifyEmail(token, password.value)'))
+  assert.ok(content.includes('重新申请验证邮件'))
 })
 
-test('ResetPasswordForm.vue and ResendVerification.vue adopt consistent auth form structure and UI components', () => {
+test('ResetPasswordForm.vue retains the shared auth form structure and UI components', () => {
   const resetContent = readFileSync(
     resolve(rootDir, 'components/auth/ResetPasswordForm.vue'),
     'utf-8'
@@ -200,11 +186,4 @@ test('ResetPasswordForm.vue and ResendVerification.vue adopt consistent auth for
   assert.ok(resetContent.includes('ATTACKBOX ACCOUNT'))
   assert.ok(resetContent.includes('重设密码。'))
   assert.ok(resetContent.includes('submit w-full'))
-
-  const resendContent = readFileSync(
-    resolve(rootDir, 'components/auth/ResendVerification.vue'),
-    'utf-8'
-  )
-  assert.ok(resendContent.includes('<UiInput'))
-  assert.ok(resendContent.includes('<UiButton'))
 })

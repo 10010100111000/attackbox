@@ -24,13 +24,20 @@ const currentMode = computed<'login' | 'register' | 'recover' | 'verify' | 'rese
   return 'login'
 })
 
-const sharedEmail = ref(typeof route.query.email === 'string' ? route.query.email : '')
+const sharedEmail = ref('')
+watch(
+  () => route.query.email,
+  email => {
+    if (typeof email === 'string') sharedEmail.value = email
+  },
+  { immediate: true }
+)
 
 const titles: Record<'login' | 'register' | 'recover' | 'verify' | 'reset', string> = {
   login: '登录 — AttackBox',
   register: '注册 — AttackBox',
   recover: '找回密码 — AttackBox',
-  verify: '验证并激活账号 — AttackBox',
+  verify: '完成注册 — AttackBox',
   reset: '重设密码 — AttackBox'
 }
 
@@ -38,7 +45,7 @@ const descriptions: Record<'login' | 'register' | 'recover' | 'verify' | 'reset'
   login: '登录 AttackBox，继续你的安全学习与实践。',
   register: '创建 AttackBox 账号，开启你的安全学习之旅。',
   recover: '找回你的 AttackBox 账号密码。',
-  verify: '验证你的邮箱地址以激活 AttackBox 账号。',
+  verify: '验证邮箱，设置密码并完成 AttackBox 注册。',
   reset: '设置你的 AttackBox 新密码。'
 }
 
@@ -107,7 +114,11 @@ watch(currentMode, () => {
         @switch-mode="handleSwitchMode"
       />
 
-      <VerifyView v-else-if="currentMode === 'verify'" @switch-mode="handleSwitchMode" />
+      <VerifyView
+        v-else-if="currentMode === 'verify'"
+        @update:model-value-email="sharedEmail = $event"
+        @switch-mode="handleSwitchMode"
+      />
 
       <ResetPasswordForm v-else-if="currentMode === 'reset'" @switch-mode="handleSwitchMode" />
     </section>

@@ -62,22 +62,20 @@ export function useAuth() {
     return data.user
   }
 
-  async function register(
-    email: string,
-    password: string,
-    displayName?: string,
-    turnstileToken = ''
-  ): Promise<{ message: string }> {
+  async function register(email: string, turnstileToken = ''): Promise<{ message: string }> {
     return await apiFetch<{ message: string }>('/api/auth/register', {
       method: 'POST',
-      body: { email, password, displayName, turnstileToken }
+      body: { email, turnstileToken }
     })
   }
 
-  async function verifyEmail(token: string): Promise<{ message: string }> {
-    return await apiFetch<{ message: string }>('/api/auth/verify-email', {
+  async function verifyEmail(
+    token: string,
+    password: string
+  ): Promise<{ message: string; email: string }> {
+    return await apiFetch<{ message: string; email: string }>('/api/auth/verify-email', {
       method: 'POST',
-      body: { token }
+      body: { token, password }
     })
   }
 

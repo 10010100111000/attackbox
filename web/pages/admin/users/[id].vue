@@ -87,11 +87,34 @@ async function revoke() {
     await refresh()
   }
 }
+async function removeAccount() {
+  if (!detail.value?.deletion.allowed || busy.value || self.value) return
+  if (
+    !(await confirmAction({
+      title: '删除账号？',
+      description: `永久删除 ${detail.value.user.email} 的账号、登录凭证及学习进度。此操作无法撤销。`,
+      confirmLabel: '删除账号',
+      tone: 'danger'
+    }))
+  )
+    return
+  busy.value = true
+  notice.value = ''
+  try {
+    await apiFetch(`/api/admin/users/${id}`, { method: 'DELETE' })
+    clearNuxtData('admin:users')
+    await navigateTo('/admin/users', { replace: true })
+  } catch (error) {
+    notice.value = apiErrorMessage(error, '删除失败，请重试。')
+    await refresh()
+  } finally {
+    busy.value = false
+  }
+}
 let timer: ReturnType<typeof setInterval> | undefined
 onMounted(() => {
   timer = setInterval(() => {
     clock.value = Date.now()
-    if (!document.hidden && !busy.value) refresh()
   }, 15000)
 })
 onBeforeUnmount(() => clearInterval(timer))
@@ -168,7 +191,16 @@ onBeforeUnmount(() => clearInterval(timer))
             >
               撤销登录
             </UiButton>
+            <UiButton
+              variant="danger"
+              size="xs"
+              :disabled="busy || self || !detail.deletion.allowed"
+              :title="detail.deletion.reason || undefined"
+              @click="removeAccount"
+              >删除账号</UiButton
+            >
           </div>
+          <p v-if="detail.deletion.reason" class="footnote">{{ detail.deletion.reason }}</p>
         </section>
         <section class="panel environment">
           <h2>
