@@ -41,7 +41,7 @@ export default defineNuxtConfig({
       ],
       link: [
         { rel: 'icon', type: 'image/x-icon', href: '/favicon.ico' },
-        { rel: 'apple-touch-icon', href: '/logo.png' }
+        { rel: 'apple-touch-icon', sizes: '180x180', href: '/apple-touch-icon.png' }
       ],
       // 首屏前置读取本地主题,避免 SSR 默认「深海」在 hydration 后跳变成「石墨」造成闪烁
       script: [

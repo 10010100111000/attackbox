@@ -27,12 +27,15 @@ test('learning components, layouts, and page templates exist', () => {
   }
 })
 
-test('LearningHeader.vue uses /logo.png, AttackBox brand, and navigation links', () => {
+test('LearningHeader.vue uses the optimized logo, AttackBox brand, and navigation links', () => {
   const content = fs.readFileSync(
     path.join(webDir, 'components/learning/LearningHeader.vue'),
     'utf-8'
   )
-  assert.ok(content.includes('src="/logo.png"'), 'Must use /logo.png as requested')
+  assert.ok(
+    content.includes('src="~/assets/images/logo.webp"'),
+    'Must use the optimized brand asset'
+  )
   assert.ok(content.includes('AttackBox'), 'Must display AttackBox brand name')
   assert.ok(content.includes('to="/learn"'), 'Must link to /learn')
   assert.ok(content.includes('to="/challenges"'), 'Must link to /challenges')

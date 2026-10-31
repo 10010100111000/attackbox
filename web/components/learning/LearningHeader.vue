@@ -11,7 +11,13 @@ const isDiscussActive = computed(() => route.path.startsWith('/discuss'))
     <div class="learning-frame header-inner">
       <div class="header-left">
         <NuxtLink to="/learn" class="brand">
-          <img src="/logo.png" alt="AttackBox Logo" class="brand-logo" width="31" height="31" />
+          <img
+            src="~/assets/images/logo.webp"
+            alt="AttackBox Logo"
+            class="brand-logo"
+            width="31"
+            height="31"
+          />
           <span>AttackBox</span>
         </NuxtLink>
         <nav class="main-nav" aria-label="主导航">

@@ -6,7 +6,13 @@ const { currentUser } = useAuth()
     <div class="wrap">
       <header class="header">
         <NuxtLink to="/" class="brand">
-          <img src="/logo.png" alt="AttackBox Logo" class="brand-logo" width="31" height="31" />
+          <img
+            src="~/assets/images/logo.webp"
+            alt="AttackBox Logo"
+            class="brand-logo"
+            width="31"
+            height="31"
+          />
           <span>AttackBox</span>
         </NuxtLink>
         <UserMenu v-if="currentUser" /><NuxtLink v-else to="/learn" class="platform-link">

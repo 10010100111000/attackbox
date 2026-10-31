@@ -132,7 +132,13 @@ const currentBreadcrumb = computed(() => sectionMeta[currentSection.value])
       <!-- 左侧边栏 -->
       <aside class="admin-sidebar">
         <NuxtLink to="/admin/modules" class="admin-brand">
-          <img src="/logo.png" alt="AttackBox Logo" class="brand-logo" width="28" height="28" />
+          <img
+            src="~/assets/images/logo.webp"
+            alt="AttackBox Logo"
+            class="brand-logo"
+            width="28"
+            height="28"
+          />
           <span>AttackBox Admin</span>
         </NuxtLink>
 

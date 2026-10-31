@@ -30,7 +30,7 @@ test('admin layout and page templates exist and legacy editor is removed', () =>
 test('layouts/admin.vue defines admin shell, navigation groups, and permission check', () => {
   const content = fs.readFileSync(path.join(webDir, 'layouts/admin.vue'), 'utf-8')
   assert.ok(content.includes('admin-shell'))
-  assert.ok(content.includes('src="/logo.png"'))
+  assert.ok(content.includes('src="~/assets/images/logo.webp"'))
   assert.ok(content.includes('AttackBox Admin'))
   assert.ok(content.includes('内容管理'))
   assert.ok(content.includes('账户管理'))
