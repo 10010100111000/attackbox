@@ -17,7 +17,9 @@ test(
     const sql = postgres(database, { max: 2 }),
       emails = [],
       registered = []
+    const deliveryChecks = []
     let reject = false,
+      invalidResponse = false,
       app,
       browser,
       logs = ''
@@ -30,9 +32,28 @@ test(
         res.end(JSON.stringify({ message: 'PRIVATE provider failure' }))
         return
       }
-      emails.push(JSON.parse(text))
+      const mail = JSON.parse(text)
+      const link = new URL(mail.text.match(/http:\/\/\S+/)[0])
+      try {
+        await sql.begin(async tx => {
+          await tx`set local lock_timeout='1500ms'`
+          // Delivery must observe a committed proof and must not wait for the
+          // issuer's advisory/user locks, even while its HTTP request is open.
+          await tx`select pg_advisory_xact_lock(hashtextextended(${mail.to[0]}, 49027821))`
+          await tx`select id from users where email=${mail.to[0]} for update`
+          const [proof] =
+            await tx`select id from email_tokens where token_hash=${crypto.createHash('sha256').update(link.searchParams.get('token')).digest()} and consumed_at is null`
+          assert.ok(proof, 'proof committed before calling the provider')
+        })
+        deliveryChecks.push(true)
+      } catch {
+        res.writeHead(500)
+        res.end('{}')
+        return
+      }
+      emails.push(mail)
       res.setHeader('content-type', 'application/json')
-      res.end(JSON.stringify({ id: crypto.randomUUID() }))
+      res.end(JSON.stringify(invalidResponse ? {} : { id: crypto.randomUUID() }))
     })
     capture.listen(0, '127.0.0.1')
     await once(capture, 'listening')
@@ -191,13 +212,32 @@ test(
       assert.equal(
         (await sql`select count(*)::int as n from email_tokens where target_email=${pending}`)[0].n,
         0,
-        'failed send rolls back credentials'
+        'definitive provider rejection removes only the attempted proof'
       )
       assert.equal(
         (await sql`select id from users where email=${pending}`).length,
         0,
         'failed delivery must not create an account'
       )
+      const uncertainEmail = `uncertain-${crypto.randomUUID()}@example.test`
+      registered.push(uncertainEmail)
+      reject = false
+      invalidResponse = true
+      assert.equal((await req('/api/auth/register', { email: uncertainEmail })).status, 503)
+      invalidResponse = false
+      const uncertainToken = token(emails.at(-1))
+      assert.deepEqual(
+        (await req('/api/auth/registration-token', { token: uncertainToken })).json,
+        {
+          email: uncertainEmail
+        },
+        'an accepted email with an invalid provider response keeps a usable proof'
+      )
+      assert.ok(
+        deliveryChecks.length >= 3,
+        'provider calls verified committed tokens and unlocked users'
+      )
+      reject = true
       browser = await chromium.launch({
         executablePath: process.env.CHROMIUM_PATH || '/usr/bin/chromium',
         args: ['--no-sandbox']

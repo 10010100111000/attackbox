@@ -6,6 +6,8 @@ import path from 'node:path'
 import { gunzipSync } from 'node:zlib'
 import {
   buildReference,
+  prepareReferenceBuild,
+  retireReferenceBuilds,
   referencePublication,
   readReference,
   readReferenceFile,
@@ -30,7 +32,7 @@ test('private compilation, atomic publication, rollback, gzip, replacement and w
     }
     const meta = await buildReference(input)
     await assert.rejects(readReference('fixture'), e => e.statusCode === 404)
-    await referencePublication(async files => files.publish(meta))
+    await referencePublication(async files => files.publish(), meta)
     assert.equal((await readReference('fixture')).meta.revision, meta.revision)
     const file = path.join(
       process.env.REFERENCE_PUBLIC_DIR,
@@ -51,13 +53,24 @@ test('private compilation, atomic publication, rollback, gzip, replacement and w
     const changed = await buildReference({ ...input, bodyMarkdown: '# Updated\n\nnew text' })
     await assert.rejects(
       referencePublication(async files => {
-        await files.publish(changed)
+        await files.publish()
         throw Error('database rollback')
-      })
+      }, changed)
     )
     assert.equal((await readReference('fixture')).meta.revision, meta.revision)
-    await referencePublication(async files => files.publish(changed))
+    await referencePublication(async files => files.publish(), changed)
     assert.ok((await readReference('fixture')).html.includes('new text'))
+    const newest = await buildReference({ ...input, bodyMarkdown: '# Latest\n\nlatest text' })
+    await assert.rejects(
+      referencePublication(async files => {
+        await files.publish()
+        // A newer writer committed after the first writer released its DB lock,
+        // before its failed commit reached the filesystem rollback handler.
+        await referencePublication(async next => next.publish(), newest)
+        throw Error('late database rollback')
+      }, changed)
+    )
+    assert.ok((await readReference('fixture')).html.includes('latest text'))
     await assert.rejects(
       readReferenceFile(`fixture/${meta.revision}/chunk-1.html`),
       e => e.statusCode === 404
@@ -65,6 +78,20 @@ test('private compilation, atomic publication, rollback, gzip, replacement and w
     await assert.rejects(readReferenceFile('../private/a'), e => e.statusCode === 404)
     await referencePublication(async files => files.withdraw('fixture'))
     await assert.rejects(readReference('fixture'), e => e.statusCode === 404)
+    const staged = await prepareReferenceBuild({ ...input, bodyMarkdown: '# Staged\n\nprivate' })
+    const cleanup = await retireReferenceBuilds(input.id)
+    // Retirement does not touch in-progress builds; deferred deletion cannot
+    // remove a new build installed after the cleanup transaction releases locks.
+    await staged.install()
+    await cleanup()
+    await staged.discard()
+    await referencePublication(async files => {
+      // Copies completed before the transaction callback starts.
+      await pruneReferenceBuilds(input.id)
+      await files.publish()
+    }, staged.meta)
+    assert.ok((await readReference('fixture')).html.includes('private'))
+    await referencePublication(async files => files.withdraw('fixture'))
     await pruneReferenceBuilds(input.id)
   } finally {
     process.umask(mask)

@@ -10,15 +10,18 @@ import {
   readlink,
   unlink,
   rm,
-  readdir
+  readdir,
+  mkdtemp
 } from 'node:fs/promises'
-import { gzipSync } from 'node:zlib'
+import { gzip as compress } from 'node:zlib'
+import { promisify } from 'node:util'
 import { randomUUID } from 'node:crypto'
 import { createError } from 'h3'
 import { contentDataDirectory, hash } from './storage.ts'
 import { compileReference } from './reference-compiler.ts'
 import type { ReferenceMetadata, ReferenceReading } from '../../shared/references'
 
+const gzip = promisify(compress)
 export const referencePublicDirectory = () =>
   path.resolve(process.env.REFERENCE_PUBLIC_DIR || '/var/lib/attackbox-public/references')
 const privateDirectory = (id: string) => path.join(contentDataDirectory(), 'reference-builds', id)
@@ -30,7 +33,7 @@ function validSlug(slug: string) {
 async function missing(error: unknown) {
   if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error
 }
-export async function buildReference(input: {
+export async function prepareReferenceBuild(input: {
   id: string
   slug: string
   title: string
@@ -44,7 +47,9 @@ export async function buildReference(input: {
   const revision = hash(
     JSON.stringify({ title: input.title, summary: input.summary, outline: compiled.outline, html })
   )
-  const directory = path.join(privateDirectory(input.id), revision)
+  const staging = path.join(contentDataDirectory(), '.reference-staging')
+  await mkdir(staging, { recursive: true, mode: 0o700 })
+  const directory = await mkdtemp(path.join(staging, 'build-'))
   const meta: ReferenceMetadata = {
     id: input.id,
     slug: input.slug,
@@ -58,15 +63,46 @@ export async function buildReference(input: {
       url: `/static-refs/${input.slug}/${revision}/chunk-${index}.html`
     }))
   }
-  await mkdir(directory, { recursive: true, mode: 0o700 })
-  for (const [index, body] of html.entries()) {
-    await writeFile(path.join(directory, `chunk-${index}.html`), body, { mode: 0o600 })
-    await writeFile(path.join(directory, `chunk-${index}.html.gz`), gzipSync(body), { mode: 0o600 })
+  try {
+    for (const [index, body] of html.entries()) {
+      await writeFile(path.join(directory, `chunk-${index}.html`), body, { mode: 0o600 })
+      await writeFile(path.join(directory, `chunk-${index}.html.gz`), await gzip(body), {
+        mode: 0o600
+      })
+    }
+    await writeFile(path.join(directory, 'meta.json'), JSON.stringify(meta), { mode: 0o600 })
+  } catch (error) {
+    await rm(directory, { recursive: true, force: true })
+    throw error
   }
-  // Metadata is written last; incomplete builds are never publishable.
-  await writeFile(path.join(directory, 'meta.json'), JSON.stringify(meta), { mode: 0o600 })
-  return meta
+  return {
+    meta,
+    async install() {
+      await mkdir(privateDirectory(input.id), { recursive: true, mode: 0o700 })
+      try {
+        // In-progress builds live outside the installed tree. Cleanup can never
+        // remove a concurrent import's compilation directory.
+        await rename(directory, path.join(privateDirectory(input.id), revision))
+      } catch (error) {
+        if (!['EEXIST', 'ENOTEMPTY'].includes((error as NodeJS.ErrnoException).code || ''))
+          throw error
+        // An identical immutable build was installed by another request.
+      }
+    },
+    discard: () => rm(directory, { recursive: true, force: true })
+  }
 }
+/** Convenience for fixtures/offline builders; request handlers prepare before locking. */
+export async function buildReference(input: Parameters<typeof prepareReferenceBuild>[0]) {
+  const prepared = await prepareReferenceBuild(input)
+  try {
+    await prepared.install()
+    return prepared.meta
+  } finally {
+    await prepared.discard()
+  }
+}
+
 export async function compiledReference(id: string, revision: string) {
   return JSON.parse(
     await readFile(path.join(privateDirectory(id), revision, 'meta.json'), 'utf8')
@@ -98,78 +134,117 @@ interface FileChange {
   rollback: () => Promise<void>
   finish: () => Promise<void>
 }
-/** DB row locks serialize publication. Pointer swaps are atomic; rollback restores
- * the prior public release if the database transaction fails. */
+/** Copy a complete hidden release before acquiring any database lock. */
+async function prepareRelease(meta: ReferenceMetadata) {
+  const root = referencePublicDirectory()
+  await mkdir(path.join(root, '.releases'), { recursive: true, mode: 0o755 })
+  await chmod(root, 0o755)
+  await chmod(path.join(root, '.releases'), 0o755)
+  const target = `.releases/${meta.slug}-${meta.revision}-${randomUUID()}`
+  const directory = path.join(root, target)
+  try {
+    await mkdir(path.join(directory, meta.revision), { recursive: true, mode: 0o755 })
+    await chmod(directory, 0o755)
+    await chmod(path.join(directory, meta.revision), 0o755)
+    const source = path.join(privateDirectory(meta.id), meta.revision)
+    for (const file of await readdir(source)) {
+      const destination = path.join(
+        directory,
+        file === 'meta.json' ? file : `${meta.revision}/${file}`
+      )
+      await cp(path.join(source, file), destination)
+      await chmod(destination, 0o644)
+    }
+    return target
+  } catch (error) {
+    await rm(directory, { recursive: true, force: true })
+    throw error
+  }
+}
+/** Prepare before work() opens its transaction. Only the pointer swap occurs
+ * under row locks. Rollback and obsolete release cleanup occur after work(). */
 export async function referencePublication<T>(
   work: (files: {
-    publish: (meta: ReferenceMetadata) => Promise<void>
+    publish: () => Promise<void>
     withdraw: (slug: string) => Promise<void>
-  }) => Promise<T>
+  }) => Promise<T>,
+  publication?: ReferenceMetadata
 ): Promise<T> {
+  const target = publication ? await prepareRelease(publication) : undefined
   const changes: FileChange[] = []
-  const replace = async (slug: string, target: string | null) => {
+  const garbage = new Map<string, string>()
+  if (target) garbage.set(target, publication!.slug)
+  const replace = async (slug: string, next: string | null) => {
     const previous = await currentPointer(slug)
-    if (previous === target) return
-    await point(slug, target)
+    if (previous === next) return
+    await point(slug, next)
     changes.push({
       rollback: async () => {
-        await point(slug, previous)
-        if (target)
-          await rm(path.join(referencePublicDirectory(), target), { recursive: true, force: true })
+        // Do not overwrite a newer successful publication after DB rollback
+        // has released the row lock.
+        if ((await currentPointer(slug)) === next) await point(slug, previous)
       },
       finish: async () => {
-        if (previous)
-          await rm(path.join(referencePublicDirectory(), previous), {
-            recursive: true,
-            force: true
-          })
+        if (previous) garbage.set(previous, slug)
       }
     })
   }
-  let result: T
   try {
-    result = await work({
-      async publish(meta) {
-        const root = referencePublicDirectory()
-        await mkdir(path.join(root, '.releases'), { recursive: true, mode: 0o755 })
-        await chmod(root, 0o755)
-        await chmod(path.join(root, '.releases'), 0o755)
-        const target = `.releases/${meta.slug}-${meta.revision}`
-        if ((await currentPointer(meta.slug)) === target) return
-        // Stage a complete release outside every public URL, then switch one symlink.
-        const directory = path.join(root, target)
-        await mkdir(path.join(directory, meta.revision), { recursive: true, mode: 0o755 })
-        await chmod(directory, 0o755)
-        await chmod(path.join(directory, meta.revision), 0o755)
-        const source = path.join(privateDirectory(meta.id), meta.revision)
-        for (const file of await readdir(source)) {
-          const destination = path.join(
-            directory,
-            file === 'meta.json' ? file : `${meta.revision}/${file}`
-          )
-          await cp(path.join(source, file), destination)
-          await chmod(destination, 0o644)
-        }
-        await replace(meta.slug, target)
-      },
-      withdraw: slug => replace(slug, null)
-    })
-  } catch (error) {
-    for (const change of changes.reverse()) await change.rollback()
-    throw error
+    let result: T
+    try {
+      result = await work({
+        async publish() {
+          if (!publication || !target) throw new Error('Reference release was not prepared')
+          await replace(publication.slug, target)
+        },
+        withdraw: slug => replace(slug, null)
+      })
+    } catch (error) {
+      for (const change of changes.reverse()) await change.rollback()
+      throw error
+    }
+    for (const change of changes) await change.finish()
+    if (target && (await currentPointer(publication!.slug)) === target) garbage.delete(target)
+    return result
+  } finally {
+    for (const [obsolete, slug] of garbage) {
+      // A failed rollback must not delete the release still serving readers.
+      if ((await currentPointer(slug)) === obsolete) continue
+      await rm(path.join(referencePublicDirectory(), obsolete), {
+        recursive: true,
+        force: true
+      }).catch(error => console.warn('Reference release cleanup failed', error))
+    }
   }
-  for (const change of changes)
-    await change.finish().catch(error => console.warn('Reference release cleanup failed', error))
-  return result
+}
+/** Retire obsolete builds with renames while the row is locked; remove their
+ * contents after committing, so large trees never hold a database connection. */
+export async function retireReferenceBuilds(id: string, keep?: string) {
+  const directory = privateDirectory(id)
+  let names: string[]
+  try {
+    names = await readdir(directory)
+  } catch (error) {
+    await missing(error)
+    return async () => {}
+  }
+  const trash = path.join(contentDataDirectory(), '.reference-trash')
+  await mkdir(trash, { recursive: true, mode: 0o700 })
+  const retired: string[] = []
+  for (const name of names) {
+    if (name === keep) continue
+    const target = path.join(trash, randomUUID())
+    await rename(path.join(directory, name), target)
+    retired.push(target)
+  }
+  return async () => {
+    for (const target of retired) await rm(target, { recursive: true, force: true })
+  }
 }
 export async function pruneReferenceBuilds(id: string, keep?: string) {
-  const directory = privateDirectory(id)
-  if (!keep) {
-    await rm(directory, { recursive: true, force: true })
-    return
-  }
-  for (const name of await readdir(directory))
-    if (name !== keep) await rm(path.join(directory, name), { recursive: true, force: true })
+  await (
+    await retireReferenceBuilds(id, keep)
+  )()
 }
 export async function readReferenceFile(relative: string) {
   if (!/^[a-zA-Z0-9_-]{1,100}\/(?:meta\.json|[a-f0-9]{64}\/chunk-\d+\.html)$/.test(relative))

@@ -1,8 +1,8 @@
 import {
-  buildReference,
+  prepareReferenceBuild,
   compiledReference,
   referencePublication,
-  pruneReferenceBuilds,
+  retireReferenceBuilds,
   referenceBuildAvailable,
   publicReferenceSlugs,
   readCompiledChunk
@@ -169,100 +169,133 @@ export async function importReference(actor: string, body: Record<string, unknow
       name: path.posix.basename(image.path).slice(0, 255)
     })
   }
-  const imported = await referencePublication(files =>
-    db.transaction(async tx => {
-      const [settings] = await tx
-        .select()
-        .from(contentRepository)
-        .where(eq(contentRepository.id, 2))
-        .for('share')
-      if (settings?.version !== config.version) fail(409, '仓库配置已变化，请重新扫描')
-      await tx.execute(
-        sql`select pg_advisory_xact_lock(hashtextextended(${JSON.stringify([sourceOrigin, file!.path])},0))`
-      )
-      const [old] = await tx
-        .select()
-        .from(documents)
-        .where(and(eq(documents.sourceOrigin, sourceOrigin), eq(documents.sourcePath, file!.path)))
-        .for('update')
-      if ((old?.lockVersion || 0) !== expectedVersion)
-        fail(409, '资料已被其他管理员修改，请重新扫描')
-      if (
-        old &&
-        !changed(old.manifest, file!.sha, tree) &&
-        (await referenceBuildAvailable(old.id, old.manifest.reading))
-      )
-        return { id: old.id, unchanged: true, lockVersion: old.lockVersion, status: old.status }
-      const id = old?.id || randomUUID()
-      const values = {
-        title: parsed.title,
-        summary: parsed.summary,
-        bodyMarkdown: parsed.bodyMarkdown,
-        status: 'unpublished' as const,
-        sourceCommit: commit,
-        manifest,
-        updatedAt: new Date()
-      }
-      if (old)
+  const [snapshot] = await db
+    .select()
+    .from(documents)
+    .where(and(eq(documents.sourceOrigin, sourceOrigin), eq(documents.sourcePath, file!.path)))
+  if ((snapshot?.lockVersion || 0) !== expectedVersion)
+    fail(409, '资料已被其他管理员修改，请重新扫描')
+  const id = snapshot?.id || randomUUID()
+  const slug = snapshot?.slug || `reference-${id}`
+  const imageUrls: Record<string, string> = {}
+  const imageAssets = new Map<string, string>()
+  const assetIds = new Map<string, string>()
+  for (const [href, image] of images) {
+    const blob = blobs.get(image.sha)!
+    if (!assetIds.has(blob.digest)) {
+      const [asset] = await db
+        .select({ id: assets.id })
+        .from(assets)
+        .where(eq(assets.storageKey, blob.digest))
+      assetIds.set(blob.digest, asset?.id || randomUUID())
+    }
+    const assetId = assetIds.get(blob.digest)!
+    imageAssets.set(href, assetId)
+    imageUrls[href] = `/api/references/${slug}/assets/${assetId}`
+  }
+  const prepared = await prepareReferenceBuild({
+    id,
+    slug,
+    title: parsed.title,
+    summary: parsed.summary,
+    bodyMarkdown: parsed.bodyMarkdown,
+    imageUrls
+  })
+  let imported
+  try {
+    imported = await referencePublication(files =>
+      db.transaction(async tx => {
+        const [settings] = await tx
+          .select()
+          .from(contentRepository)
+          .where(eq(contentRepository.id, 2))
+          .for('share')
+        if (settings?.version !== config.version) fail(409, '仓库配置已变化，请重新扫描')
+        await tx.execute(
+          sql`select pg_advisory_xact_lock(hashtextextended(${JSON.stringify([sourceOrigin, file!.path])},0))`
+        )
+        const [old] = await tx
+          .select()
+          .from(documents)
+          .where(
+            and(eq(documents.sourceOrigin, sourceOrigin), eq(documents.sourcePath, file!.path))
+          )
+          .for('update')
+        if ((old?.id || id) !== id || (old?.lockVersion || 0) !== expectedVersion)
+          fail(409, '资料已被其他管理员修改，请重新扫描')
+        if (
+          old &&
+          !changed(old.manifest, file!.sha, tree) &&
+          (await referenceBuildAvailable(old.id, old.manifest.reading))
+        )
+          return { id: old.id, unchanged: true, lockVersion: old.lockVersion, status: old.status }
+        const values = {
+          title: parsed.title,
+          summary: parsed.summary,
+          bodyMarkdown: parsed.bodyMarkdown,
+          status: 'unpublished' as const,
+          sourceCommit: commit,
+          manifest,
+          updatedAt: new Date()
+        }
+        if (old)
+          await tx
+            .update(documents)
+            .set({ ...values, lockVersion: old.lockVersion + 1 })
+            .where(eq(documents.id, id))
+        else
+          await tx.insert(documents).values({
+            ...values,
+            id,
+            slug: `reference-${id}`,
+            sourceOrigin,
+            sourcePath: file!.path,
+            createdBy: actor
+          })
+        // Asset IDs are planned before compilation, but rows are written only
+        // here. Failed/stale imports cannot leave orphan database asset records.
+        for (const blob of blobs.values()) {
+          const assetId = assetIds.get(blob.digest)!
+          await tx
+            .insert(assets)
+            .values({
+              id: assetId,
+              storageKey: blob.digest,
+              originalName: blob.name,
+              mediaType: blob.mediaType,
+              byteSize: blob.bytes,
+              sha256: Buffer.from(blob.digest, 'hex'),
+              visibility: 'private',
+              uploadedBy: actor
+            })
+            .onConflictDoNothing({ target: assets.storageKey })
+          const [canonical] = await tx
+            .select({ id: assets.id })
+            .from(assets)
+            .where(eq(assets.storageKey, blob.digest))
+          if (canonical!.id !== assetId) fail(409, '图片资源已被其他导入更新，请重新导入')
+        }
+        await tx.delete(referenceImages).where(eq(referenceImages.referenceId, id))
+        for (const [href, assetId] of imageAssets)
+          await tx.insert(referenceImages).values({ referenceId: id, href, assetId })
+        await prepared.install()
         await tx
           .update(documents)
-          .set({ ...values, lockVersion: old.lockVersion + 1 })
+          .set({ manifest: { ...manifest, reading: prepared.meta.revision } })
           .where(eq(documents.id, id))
-      else
-        await tx.insert(documents).values({
-          ...values,
+        if (old) await files.withdraw(old.slug)
+        return {
           id,
-          slug: `reference-${id}`,
-          sourceOrigin,
-          sourcePath: file!.path,
-          createdBy: actor
-        })
-      const imageUrls: Record<string, string> = {}
-      const slug = old?.slug || `reference-${id}`
-      await tx.delete(referenceImages).where(eq(referenceImages.referenceId, id))
-      for (const [href, image] of images) {
-        const blob = blobs.get(image.sha)!
-        await tx
-          .insert(assets)
-          .values({
-            storageKey: blob.digest,
-            originalName: blob.name,
-            mediaType: blob.mediaType,
-            byteSize: blob.bytes,
-            sha256: Buffer.from(blob.digest, 'hex'),
-            visibility: 'private',
-            uploadedBy: actor
-          })
-          .onConflictDoNothing({ target: assets.storageKey })
-        const [asset] = await tx
-          .select({ id: assets.id })
-          .from(assets)
-          .where(eq(assets.storageKey, blob.digest))
-        await tx.insert(referenceImages).values({ referenceId: id, href, assetId: asset!.id })
-        imageUrls[href] = `/api/references/${slug}/assets/${asset!.id}`
-      }
-      const built = await buildReference({
-        id,
-        slug,
-        title: parsed.title,
-        summary: parsed.summary,
-        bodyMarkdown: parsed.bodyMarkdown,
-        imageUrls
+          unchanged: false,
+          revision: prepared.meta.revision,
+          lockVersion: old ? old.lockVersion + 1 : 1,
+          status: 'unpublished' as const
+        }
       })
-      await tx
-        .update(documents)
-        .set({ manifest: { ...manifest, reading: built.revision } })
-        .where(eq(documents.id, id))
-      if (old) await files.withdraw(old.slug)
-      return {
-        id,
-        unchanged: false,
-        revision: built.revision,
-        lockVersion: old ? old.lockVersion + 1 : 1,
-        status: 'unpublished' as const
-      }
-    })
-  )
+    )
+  } finally {
+    await prepared.discard()
+  }
   await cleanupReferenceBuilds(imported.id)
   return {
     id: imported.id,
@@ -354,43 +387,55 @@ export async function adminReferencePreview(id: string, requestedRevision?: stri
 async function cleanupReferenceBuilds(id: string) {
   // Re-read under the same per-document lock: a newer import may have committed
   // before this cleanup runs, or may currently be writing its own build.
-  await db
-    .transaction(async tx => {
+  try {
+    const cleanup = await db.transaction(async tx => {
       const [current] = await tx
         .select({ manifest: documents.manifest })
         .from(documents)
         .where(eq(documents.id, id))
         .for('update')
-      await pruneReferenceBuilds(id, current?.manifest.reading)
+      return retireReferenceBuilds(id, current?.manifest.reading)
     })
-    .catch(error => console.warn('Reference build cleanup failed', error))
+    await cleanup()
+  } catch (error) {
+    console.warn('Reference build cleanup failed', error)
+  }
 }
 export async function changeReference(id: string, body: Record<string, unknown>, remove = false) {
   referenceId(id)
   const expected = version(body.lockVersion)
   if (!remove && body.intent !== 'publish' && body.intent !== 'unpublish') fail(400, '发布操作无效')
-  const result = await referencePublication(files =>
-    db.transaction(async tx => {
-      const [doc] = await tx.select().from(documents).where(eq(documents.id, id)).for('update')
-      if (!doc) fail(404, '资料不存在')
-      if (doc!.lockVersion !== expected) fail(409, '资料已变化，请重新读取后操作')
-      if (!remove && body.intent === 'publish') {
-        if (!doc!.manifest.reading) fail(409, '请先重新导入资料，生成静态正文')
-        await files.publish(await compiledReference(doc!.id, doc!.manifest.reading!))
-      } else await files.withdraw(doc!.slug)
-      if (remove) await tx.delete(documents).where(eq(documents.id, id))
-      else
-        await tx
-          .update(documents)
-          .set({
-            status: body.intent === 'publish' ? 'published' : 'unpublished',
-            publishedAt: body.intent === 'publish' ? new Date() : doc!.publishedAt,
-            lockVersion: expected + 1,
-            updatedAt: new Date()
-          })
-          .where(eq(documents.id, id))
-      return { saved: true }
-    })
+  const [snapshot] = await db.select().from(documents).where(eq(documents.id, id))
+  if (!snapshot) fail(404, '资料不存在')
+  if (snapshot!.lockVersion !== expected) fail(409, '资料已变化，请重新读取后操作')
+  let publication
+  if (!remove && body.intent === 'publish') {
+    if (!snapshot!.manifest.reading) fail(409, '请先重新导入资料，生成静态正文')
+    publication = await compiledReference(id, snapshot!.manifest.reading!)
+  }
+  const result = await referencePublication(
+    files =>
+      db.transaction(async tx => {
+        const [doc] = await tx.select().from(documents).where(eq(documents.id, id)).for('update')
+        if (!doc) fail(404, '资料不存在')
+        if (doc!.lockVersion !== expected) fail(409, '资料已变化，请重新读取后操作')
+        if (!remove && body.intent === 'publish') {
+          await files.publish()
+        } else await files.withdraw(doc!.slug)
+        if (remove) await tx.delete(documents).where(eq(documents.id, id))
+        else
+          await tx
+            .update(documents)
+            .set({
+              status: body.intent === 'publish' ? 'published' : 'unpublished',
+              publishedAt: body.intent === 'publish' ? new Date() : doc!.publishedAt,
+              lockVersion: expected + 1,
+              updatedAt: new Date()
+            })
+            .where(eq(documents.id, id))
+        return { saved: true }
+      }),
+    publication
   )
   if (remove) await cleanupReferenceBuilds(id)
   return result
@@ -432,14 +477,14 @@ export async function reconcileReferencePublications() {
     .from(documents)
   const slugs = new Set(rows.map(row => row.slug))
   for (const row of rows) {
+    const publication =
+      row.status === 'published' && (await referenceBuildAvailable(row.id, row.manifest.reading))
+        ? await compiledReference(row.id, row.manifest.reading!)
+        : undefined
     await referencePublication(async files => {
-      if (
-        row.status === 'published' &&
-        (await referenceBuildAvailable(row.id, row.manifest.reading))
-      )
-        await files.publish(await compiledReference(row.id, row.manifest.reading!))
+      if (publication) await files.publish()
       else await files.withdraw(row.slug)
-    })
+    }, publication)
   }
   for (const slug of await publicReferenceSlugs())
     if (!slugs.has(slug)) await referencePublication(async files => files.withdraw(slug))

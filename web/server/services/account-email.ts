@@ -23,8 +23,9 @@ export function configuredMailer() {
 export async function sendAccountEmail(email: string, purpose: 'verify_email' | 'reset_password') {
   if (purpose === 'verify_email' && !canSendActivationEmail(email)) return emailResult
   const mailer = configuredMailer()
+  let issued: { id: string; token: string } | undefined
   try {
-    await client.begin(async tx => {
+    issued = await client.begin(async tx => {
       if (purpose === 'verify_email')
         await tx`select pg_advisory_xact_lock(hashtextextended(${email}, ${registrationLockSeed}))`
       // Serializes issuance for this recipient, including concurrent requests.
@@ -43,13 +44,31 @@ export async function sendAccountEmail(email: string, purpose: 'verify_email' | 
         return
       const token = generateSecureToken(),
         lifetime = purpose === 'verify_email' ? 86400 : 1800
-      const [issued] =
+      const [record] =
         await tx`insert into email_tokens(user_id,target_email,purpose,token_hash,expires_at) values(${user?.id || null},${email},${purpose},${hashToken(token)},now()+${lifetime}*interval '1 second') returning id`
-      if (purpose === 'verify_email') await mailer.sendVerificationEmail(email, token)
-      else await mailer.sendPasswordResetEmail(email, token)
-      await tx`update email_tokens set consumed_at=now() where target_email=${email} and purpose=${purpose} and consumed_at is null and id<>${issued.id}`
+      return { id: String(record!.id), token }
     })
+    if (!issued) return emailResult
+    // The proof is committed before delivery. No DB connection or user lock is
+    // held while waiting for Resend. Existing proofs remain usable until one is
+    // consumed; completing verification/reset invalidates all remaining proofs.
+    if (purpose === 'verify_email') await mailer.sendVerificationEmail(email, issued.token)
+    else await mailer.sendPasswordResetEmail(email, issued.token)
   } catch (error) {
+    // Timeout/network/response errors cannot prove that delivery failed. Keep
+    // that committed proof valid in case the message was already accepted.
+    if (
+      issued &&
+      error instanceof MailDeliveryError &&
+      error.reason === 'provider_rejected' &&
+      error.providerStatus !== undefined &&
+      error.providerStatus >= 400 &&
+      error.providerStatus < 500
+    ) {
+      await client`delete from email_tokens where id=${issued.id} and consumed_at is null`.catch(
+        () => console.error('[mail] rejected token cleanup failed', { purpose })
+      )
+    }
     // Log only internal classifications / numeric provider status. Provider
     // bodies and thrown messages can contain addresses, credentials or links.
     console.error('[mail] account email failed', {
