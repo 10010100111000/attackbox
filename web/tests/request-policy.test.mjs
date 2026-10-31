@@ -11,8 +11,15 @@ import {
   toNodeListener
 } from 'h3'
 import { createJiti } from 'jiti'
+import { mkdtemp, mkdir, writeFile, rm } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import path from 'node:path'
+const jiti = createJiti(import.meta.url)
 const { guardApiRequest, applyResponseCachePolicy, markRenderedResponse, cookieVary, isApiPath } =
-  await createJiti(import.meta.url).import('../server/utils/request-policy.ts')
+  await jiti.import('../server/utils/request-policy.ts')
+const { default: staticReference } = await jiti.import(
+  '../server/routes/static-refs/[...file].get.ts'
+)
 
 async function fixture(run) {
   const mutations = []
@@ -20,6 +27,10 @@ async function fixture(run) {
   app.use(defineEventHandler(guardApiRequest))
   app.use(
     defineEventHandler(event => {
+      if (event.path.startsWith('/static-refs/')) {
+        event.context.params = { file: event.path.split('?', 1)[0].slice('/static-refs/'.length) }
+        return staticReference(event)
+      }
       if (!['GET', 'HEAD', 'OPTIONS'].includes(event.method)) mutations.push(event.path)
       if (event.path === '/api/denied')
         throw createError({ statusCode: 401, message: 'No session' })
@@ -149,6 +160,46 @@ test('API protection covers every write namespace, decoded paths and future endp
       200
     )
   })
+})
+
+test('real static reference route retains public chunk caching through the global policy, including cookie requests', async () => {
+  const root = await mkdtemp(path.join(tmpdir(), 'reference-cache-'))
+  const previous = process.env.REFERENCE_PUBLIC_DIR
+  process.env.REFERENCE_PUBLIC_DIR = root
+  const revision = 'a'.repeat(64)
+  try {
+    await mkdir(path.join(root, 'fixture', revision), { recursive: true })
+    await writeFile(path.join(root, 'fixture', 'meta.json'), '{"title":"Public"}')
+    await writeFile(path.join(root, 'fixture', revision, 'chunk-0.html'), '<h2>Public chapter</h2>')
+    await fixture(async ({ base }) => {
+      for (const headers of [{}, { cookie: 'attackbox_session=untrusted-test-cookie' }]) {
+        for (const [file, expected, type] of [
+          ['meta.json', 'no-cache', 'application/json'],
+          [revision + '/chunk-0.html', 'public, max-age=3600', 'text/html']
+        ]) {
+          const response = await fetch(base + '/static-refs/fixture/' + file, { headers })
+          assert.equal(response.status, 200)
+          assert.equal(response.headers.get('cache-control'), expected)
+          assert.ok(response.headers.get('content-type').startsWith(type))
+          assert.ok(!/cookie/i.test(response.headers.get('vary') || ''))
+          assert.equal(response.headers.get('x-content-type-options'), 'nosniff')
+        }
+      }
+      for (const file of [
+        'fixture/missing.html',
+        'fixture/' + revision + '/chunk-99.html',
+        'private/meta.json'
+      ]) {
+        const response = await fetch(base + '/static-refs/' + file)
+        assert.equal(response.status, 404)
+        assert.match(response.headers.get('cache-control'), /no-store/)
+      }
+    })
+  } finally {
+    if (previous === undefined) delete process.env.REFERENCE_PUBLIC_DIR
+    else process.env.REFERENCE_PUBLIC_DIR = previous
+    await rm(root, { recursive: true, force: true })
+  }
 })
 
 test('API and rendered documents are private; static asset caching stays intact', async () => {

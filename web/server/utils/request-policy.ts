@@ -10,6 +10,7 @@ import {
 
 const safeMethods = new Set(['GET', 'HEAD', 'OPTIONS'])
 const renderedResponses = new WeakSet<H3Event>()
+const publicStaticResponses = new WeakSet<H3Event>()
 export const privateCacheControl = 'private, no-store'
 
 // H3 has already decoded event.path for routing. Use the same path and match a
@@ -61,6 +62,11 @@ export function markRenderedResponse(event: H3Event) {
   renderedResponses.add(event)
 }
 
+/** Only call after successfully reading a public asset. Its route owns caching. */
+export function markPublicStaticResponse(event: H3Event) {
+  publicStaticResponses.add(event)
+}
+
 export function applyResponseCachePolicy(event: H3Event, response?: { body?: unknown }) {
   const body = response?.body
   const webResponse = body instanceof Response ? body : undefined
@@ -68,6 +74,14 @@ export function applyResponseCachePolicy(event: H3Event, response?: { body?: unk
     webResponse?.headers.get('content-type') || getResponseHeader(event, 'Content-Type') || ''
   )
   const status = webResponse?.status || getResponseStatus(event)
+  if (
+    publicStaticResponses.has(event) &&
+    !isApiPath(event.path) &&
+    !renderedResponses.has(event) &&
+    status >= 200 &&
+    status < 400
+  )
+    return
   const html =
     contentType.split(';', 1)[0]?.trim().toLowerCase() === 'text/html' ||
     (!contentType && typeof body === 'string' && status !== 204 && status !== 304)
