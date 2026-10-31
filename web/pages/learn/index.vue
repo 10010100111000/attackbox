@@ -4,7 +4,7 @@ import { useAuth } from '~/composables/useAuth'
 import type { LearningHistoryItem } from '~/shared/learning'
 import { ref, computed, watch } from 'vue'
 import { useLazyFetch, useHead } from '#imports'
-import type { ContentCategory } from '~/shared/content'
+import type { PublicModule } from '~/shared/module-catalog'
 
 definePageMeta({
   layout: 'learning'
@@ -14,21 +14,6 @@ useHead({
   title: '学习 — AttackBox',
   meta: [{ name: 'description', content: '选择一个模块开始，或沿着学习路线循序渐进。' }]
 })
-
-interface ModuleItem {
-  id: string
-  slug: string
-  title: string
-  summary: string
-  difficulty: 'beginner' | 'intermediate' | 'advanced'
-  categoryId: string | null
-  category: ContentCategory | null
-  coverAssetId: string | null
-  updatedAt: string
-  durationMinutes: number
-  publishedAt: string
-  chapterCount: number
-}
 
 const {
   data: routeResponse,
@@ -55,9 +40,12 @@ const {
   pending,
   error,
   refresh
-} = useCatalogData<{ ok: boolean; data: ModuleItem[] }>('learning:catalog:modules', '/api/modules')
+} = useCatalogData<{ ok: boolean; data: PublicModule[] }>(
+  'learning:catalog:modules',
+  '/api/modules'
+)
 
-const modules = computed<ModuleItem[]>(() => {
+const modules = computed<PublicModule[]>(() => {
   return response.value?.data || []
 })
 
@@ -134,7 +122,7 @@ const filteredModules = computed(() => {
     (a, b) =>
       (sortBy.value === 'updated'
         ? b.updatedAt.localeCompare(a.updatedAt)
-        : b.publishedAt.localeCompare(a.publishedAt)) || a.id.localeCompare(b.id)
+        : (b.publishedAt ?? '').localeCompare(a.publishedAt ?? '')) || a.id.localeCompare(b.id)
   )
   const query = searchQuery.value.trim().toLowerCase()
   if (query) {
