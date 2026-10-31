@@ -9,7 +9,7 @@ useSeoMeta({
 const route = useRoute()
 const page = computed(() => Number(route.query.page || 1))
 const { data, pending, error } = await useFetch<{ data: ReferencePage }>('/api/references', {
-  key: 'references:catalog',
+  key: () => `references:catalog:${page.value}`,
   query: { page }
 })
 if (import.meta.server && error.value) {
