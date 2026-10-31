@@ -10,6 +10,13 @@ export default defineNuxtConfig({
     strict: true
   },
   css: ['~/assets/css/animations.css', '~/assets/css/brand-experience.css'],
+  hooks: {
+    'build:manifest': manifest => {
+      // Cloudflare can reject Sec-Purpose: prefetch with 503. Keep required
+      // preloads and client route imports, without speculative build hints.
+      for (const resource of Object.values(manifest)) resource.prefetch = false
+    }
+  },
   routeRules: {
     '/': { prerender: false },
     '/auth': { prerender: true }

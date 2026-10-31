@@ -106,6 +106,12 @@ sudo ./scripts/control.sh migrate
 
 橙云隐藏 Web DNS 入口，入口限制阻止绕过 Cloudflare，但当前攻击沙箱与 Control 共用 VPS。只要允许沙箱访问外网，学员仍可能通过外部服务看到该 VPS 的公网出口 IP。完整隐藏 Control 源站需要分离 Worker 或配置独立出口；本轮不修改沙箱网络，也不承诺同机部署可完全隐藏公网 IP。
 
+## 脚本预取与 503
+
+若 JS 请求返回 `503`，响应头包含 `CF-Speculation-Refused: prefetch refused: not eligible`，且同一地址直接访问返回 `200`，表示 Cloudflare 拒绝了预取，不代表构建文件缺失。检查 Network 中该请求的 `Sec-Purpose`／`Purpose`，并区分普通脚本请求；普通请求也失败时，需要另查源站、缓存和部署产物。
+
+Nuxt 构建通过 `build:manifest` 关闭额外的 `rel="prefetch"` 资源提示，保留当前页面的 `modulepreload`、正常模块导入及客户端路由预加载。重新构建并部署 Control 后生效，不需要修改 API 缓存或给后台开启全站缓存。Cloudflare Speed Brain 是独立的页面预取功能；若仍有它发出的文档预取被拒绝，可在 Cloudflare 后台关闭后复测。
+
 ## 公开参考资料的静态分块
 
 重新执行 Control deploy，普通入口与 Cloudflare 入口会共用参考资料静态配置。公开文件默认位于 `/var/lib/attackbox-public/references`，可通过 `REFERENCE_PUBLIC_DIR` 配置独立目录。部署脚本为公开目录设置 nginx 可读权限，私有的 `CONTENT_DATA_DIR` 继续保持限制权限，不要将其整体开放。首次升级已有资料，需要在后台重新扫描、导入并发布；扫描会识别缺失的编译产物，不需要清库。

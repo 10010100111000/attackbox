@@ -7,7 +7,8 @@ import { chromium } from 'playwright'
 import { chromiumOptions } from './helpers/browser.mjs'
 
 // Serve the production prerender and its actual Nuxt chunks; no application
-// server or database is needed. Auth APIs are isolated fixtures.
+// server or database is needed. Auth APIs are isolated fixtures; speculative
+// requests receive the same refusal as Cloudflare.
 test(
   'production auth forms retain typography, alignment and theme isolation across all modes',
   { timeout: 60000 },
@@ -22,9 +23,17 @@ test(
       '.png': 'image/png',
       '.webp': 'image/webp'
     }
+    const refusedPrefetches = []
     const server = createServer(async (req, res) => {
       try {
         const url = new URL(req.url, 'http://localhost')
+        if (/prefetch/i.test(String(req.headers['sec-purpose'] || req.headers.purpose || ''))) {
+          refusedPrefetches.push(url.pathname)
+          res.statusCode = 503
+          res.setHeader('CF-Speculation-Refused', 'prefetch refused: not eligible')
+          res.setHeader('Cache-Control', 'no-store')
+          return res.end()
+        }
         if (url.pathname.startsWith('/api/')) {
           res.setHeader('Content-Type', 'application/json')
           if (url.pathname === '/api/auth/challenge')
@@ -55,6 +64,8 @@ test(
     let browser
     const snapshots = {}
     try {
+      const html = await readFile(resolve(root, 'auth/index.html'), 'utf8')
+      assert.ok(html.includes('rel="modulepreload"'), 'retain required module loading hints')
       browser = await chromium.launch(chromiumOptions())
       for (const theme of ['graphite', 'midnight']) {
         const context = await browser.newContext({
@@ -122,6 +133,12 @@ test(
             const status = page.getByRole('status').filter({ hasText: '登录验证未通过' })
             await status.waitFor()
             assert.equal(await status.evaluate(el => getComputedStyle(el).padding), '12px 14px')
+            await page.evaluate(() => (window.authNavigationProbe = true))
+            await page.getByRole('button', { name: '创建账号', exact: true }).click()
+            await page.waitForURL('**/auth?mode=register')
+            await page.getByRole('button', { name: '返回登录', exact: true }).click()
+            await page.waitForURL('**/auth?mode=login')
+            assert.equal(await page.evaluate(() => window.authNavigationProbe), true)
           }
           if (mode === 'verify')
             assert.equal(
@@ -143,6 +160,12 @@ test(
         assert.deepEqual(errors, [])
         await context.close()
       }
+      assert.deepEqual(
+        refusedPrefetches,
+        [],
+        'auth loading must not issue speculative requests rejected by the CDN'
+      )
+      assert.ok(!html.includes('rel="prefetch"'), 'do not emit speculative build resource hints')
       if (process.env.AUTH_STYLE_CAPTURE)
         await writeFile(process.env.AUTH_STYLE_CAPTURE, JSON.stringify(snapshots, null, 2) + '\n')
     } finally {
