@@ -478,6 +478,10 @@ h3 {
   color: var(--muted);
   font-size: 13px;
 }
+.module-description {
+  --markdown-font-size: 13px;
+  --markdown-ink: var(--muted);
+}
 .description-excerpt {
   color: var(--muted);
   font-size: 13px;
@@ -506,44 +510,6 @@ h3 {
 .description-toggle:focus-visible {
   outline: 2px solid var(--green);
   outline-offset: 4px;
-}
-.module-description :deep(.markdown-body) {
-  font-size: 13px;
-  line-height: 1.85;
-  color: var(--muted);
-}
-.module-description :deep(.markdown-body > :first-child) {
-  margin-top: 0;
-}
-.module-description :deep(.markdown-body > :last-child) {
-  margin-bottom: 0;
-}
-.module-description :deep(.markdown-body p) {
-  color: var(--muted);
-  opacity: 1;
-}
-.module-description :deep(.markdown-body h1),
-.module-description :deep(.markdown-body h2),
-.module-description :deep(.markdown-body h3) {
-  font-size: 14px;
-  margin: 18px 0 8px;
-  padding: 0;
-  border: 0;
-}
-.module-description :deep(.markdown-body pre) {
-  font-size: 12px;
-  padding: 12px;
-}
-.module-description :deep(.markdown-body .code-block) {
-  margin: 14px 0;
-}
-.module-description :deep(.markdown-body .code-top) {
-  padding: 7px 10px;
-}
-.module-description :deep(.markdown-body table) {
-  display: block;
-  overflow-x: auto;
-  max-width: 100%;
 }
 .outcomes {
   padding: 18px 20px;

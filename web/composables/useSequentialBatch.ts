@@ -31,7 +31,10 @@ export function useSequentialBatch() {
     processed.value = 0
     total.value = items.length
     keys.value = items.map(key)
-    for (const key of keys.value) delete results.value[key]
+    const current = new Set(keys.value)
+    results.value = Object.fromEntries(
+      Object.entries(results.value).filter(([key]) => !current.has(key))
+    )
     try {
       for (const item of items) {
         if (stopped.value) break

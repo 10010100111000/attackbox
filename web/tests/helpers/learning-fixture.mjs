@@ -258,6 +258,7 @@ export async function learningFixture() {
       for (const { id } of bundles)
         await rm(join(process.env.LAB_DATA_DIR, id), { recursive: true, force: true })
     for (const account of accounts) {
+      await sql`DELETE FROM assets WHERE uploaded_by=${account.id}`
       await sql`DELETE FROM audit_logs WHERE actor_user_id=${account.id}`
       await sql`DELETE FROM users WHERE id=${account.id}`
     }

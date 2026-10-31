@@ -45,4 +45,17 @@ test('batch continues after item failure and stopping waits for the active mutat
   assert.equal(batch.succeeded.value, 1)
   assert.ok(!visited.includes('five'))
   assert.equal(batch.running.value, false)
+  await batch.run(
+    ['two'],
+    item => item,
+    async () => {
+      assert.equal(
+        batch.results.value.two,
+        undefined,
+        'retry clears the previous result before dispatch'
+      )
+      assert.equal(batch.results.value.one.ok, true, 'retry retains results for other items')
+    }
+  )
+  assert.equal(batch.results.value.two.ok, true)
 })

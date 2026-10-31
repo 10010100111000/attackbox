@@ -11,14 +11,123 @@ const body =
   `# 第一部分\n\n${paragraph}\n\n## 起点\n\n${paragraph}\n\n### 安装\n\n${paragraph}\n\n#### 高级设置\n\n${paragraph}\n\n## 验证\n\n${paragraph}\n\n# 第二部分\n\n## 验证\n\n${paragraph}\n\n\`\`\`bash\n${'command-with-a-long-argument-'.repeat(30)}\n\`\`\`\n\n` +
   Array(8).fill(paragraph).join('\n\n') +
   '\n\n## 附记\n\nEnd of document.'
-async function seedReference(f) {
+async function seedReference(f, source = body) {
   const id = randomUUID(),
     slug = `reader-${id.slice(0, 8)}`,
     title = '公开阅读资料'
-  await f.sql`insert into reference_documents (id,slug,title,body_markdown,status,source_origin,source_path,source_commit,manifest,created_by,published_at) values(${id},${slug},${title},${body},'published',${id},'reader.md','fixture','{}',${f.admin.id},now())`
+  await f.sql`insert into reference_documents (id,slug,title,body_markdown,status,source_origin,source_path,source_commit,manifest,created_by,published_at) values(${id},${slug},${title},${source},'published',${id},'reader.md','fixture','{}',${f.admin.id},now())`
   await f.publishReference(id)
   return { id, path: `/references/${slug}`, title }
 }
+
+test(
+  'GitHub typography applies to runtime and precompiled readers independently of the OS theme',
+  { skip: !enabled, timeout: 60000 },
+  async () => {
+    const f = await learningFixture()
+    const source =
+      '## DNSSEC\n\n正文包含 **重点**、[参考链接](https://example.org) 和 `DNSKEY`。\n\n' +
+      '| 记录类型 | 描述 |\n| :--- | ---: |\n| RRSIG | 存储单个资源记录的数字签名 |\n| DNSKEY | 发布公钥 |\n| DS | 标识签名密钥 |\n| NSEC3 | 提供经过身份验证的否定响应 |\n\n' +
+      '- 先理解\n  - 再验证\n\n1. 阅读\n2. 实践\n\n' +
+      '> 普通引用\n\n> [!NOTE]\n> 这里的 **强调** 应当保持行内显示。\n\n' +
+      '### 命令示例\n\n```javascript\nconst record = "DNSKEY"\nconsole.log(record)\n```\n\n' +
+      `| 命令 |\n| --- |\n| \`${'long-command-argument-'.repeat(40)}\` |`
+    let reference, browser
+    try {
+      reference = await seedReference(f, source)
+      const mod = await f.createModule('publish', {
+        chapters: [
+          {
+            title: '排版验收',
+            slug: 'typography',
+            access: 'public',
+            bodyMarkdown: source,
+            questions: []
+          }
+        ]
+      })
+      browser = await chromium.launch(chromiumOptions())
+      for (const theme of ['graphite', 'midnight']) {
+        const context = await browser.newContext({
+          viewport: { width: 1440, height: 1000 },
+          colorScheme: theme === 'graphite' ? 'dark' : 'light',
+          permissions: ['clipboard-read', 'clipboard-write']
+        })
+        await context.addInitScript(
+          theme => localStorage.setItem('attackbox-appearance', theme),
+          theme
+        )
+        const page = await context.newPage(),
+          errors = []
+        page.on('pageerror', error => errors.push(error.message))
+        page.setDefaultTimeout(8000)
+        for (const path of [reference.path, `/learn/modules/${mod.module.slug}/typography`]) {
+          await page.goto(f.base + path)
+          await page.waitForFunction(() => !!document.getElementById('__nuxt')?.__vue_app__)
+          const markdown = page.locator('.reader-article > .markdown-body')
+          await markdown.locator('table').last().scrollIntoViewIfNeeded()
+          const styles = await markdown.evaluate(el => {
+            const style = selector => getComputedStyle(el.querySelector(selector))
+            const tables = el.querySelectorAll('table')
+            const table = tables[tables.length - 1]
+            return {
+              color: getComputedStyle(el).color,
+              background: getComputedStyle(el).backgroundColor,
+              scheme: getComputedStyle(el).colorScheme,
+              fontSize: getComputedStyle(el).fontSize,
+              cellBorder: style('td').borderTopWidth,
+              cellPadding: style('td').paddingLeft,
+              right: style('tbody td:nth-child(2)').textAlign,
+              bullet: style('ul').listStyleType,
+              number: style('ol').listStyleType,
+              inlineBold: style('.callout p strong').display,
+              label: style('.callout > strong').display,
+              keyword: style('.hljs-keyword').color,
+              code: style('pre code').color,
+              tableScroll: table.scrollWidth > table.clientWidth,
+              fits: table.getBoundingClientRect().right <= el.getBoundingClientRect().right + 1,
+              pageFits: document.documentElement.scrollWidth <= innerWidth
+            }
+          })
+          assert.equal(
+            styles.color,
+            theme === 'graphite' ? 'rgb(39, 38, 43)' : 'rgb(220, 224, 232)'
+          )
+          assert.equal(styles.background, 'rgba(0, 0, 0, 0)')
+          assert.equal(styles.scheme, theme === 'graphite' ? 'light' : 'dark')
+          assert.equal(styles.fontSize, '17px')
+          assert.equal(styles.cellBorder, '1px')
+          assert.equal(styles.cellPadding, '13px', 'table spacing comes from the GitHub stylesheet')
+          assert.equal(styles.right, 'right')
+          assert.equal(styles.bullet, 'disc')
+          assert.equal(styles.number, 'decimal')
+          assert.equal(styles.inlineBold, 'inline')
+          assert.equal(styles.label, 'block')
+          assert.notEqual(styles.keyword, styles.code, 'highlight.js tokens have a visible theme')
+          assert.ok(styles.tableScroll && styles.fits && styles.pageFits)
+          await markdown.locator('.copy-code-btn').click()
+          assert.match(await page.evaluate(() => navigator.clipboard.readText()), /const record/)
+          await page.setViewportSize({ width: 390, height: 844 })
+          await markdown.locator('table').last().scrollIntoViewIfNeeded()
+          assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth))
+          await page.setViewportSize({ width: 1440, height: 1000 })
+          if (path === reference.path) {
+            await page.getByLabel('资料正文', { exact: true }).evaluate(el => {
+              el.scrollTop = 0
+            })
+            await page.screenshot({ path: `/tmp/attackbox-markdown-${theme}.png` })
+          }
+        }
+        assert.deepEqual(errors, [])
+        await context.close()
+      }
+    } finally {
+      await browser?.close()
+      if (reference) await f.sql`delete from reference_documents where id=${reference.id}`
+      await f.cleanup()
+    }
+  }
+)
 
 test(
   'reference reader uses the available width and supports persistent sidebar collapse, nested headings, anchors and mobile navigation',
