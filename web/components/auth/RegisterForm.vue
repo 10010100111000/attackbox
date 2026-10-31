@@ -17,12 +17,17 @@ const email = ref(props.modelValueEmail),
   busy = ref(false),
   mounted = ref(false),
   requested = ref(false)
+const { remaining, start: startCooldown } = useEmailCooldown(email)
 const turnstileToken = ref(''),
   challengeReady = ref(false),
   challengeReset = ref(0)
 const emailError = ref(''),
   message = ref(''),
   error = ref('')
+watch(remaining, (value, previous) => {
+  if (value > 0) requested.value = true
+  if (value === 0 && previous > 0) challengeReset.value++
+})
 onMounted(() => {
   mounted.value = true
 })
@@ -41,7 +46,7 @@ function updateEmail(value: string) {
   requested.value = false
 }
 async function submit() {
-  if (!mounted.value || busy.value || !challengeReady.value) return
+  if (!mounted.value || busy.value || !challengeReady.value || remaining.value > 0) return
   const address = email.value.trim().toLowerCase()
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(address)) emailError.value = '请输入有效的邮箱地址。'
   else if (
@@ -60,11 +65,12 @@ async function submit() {
     const result = await register(address, turnstileToken.value)
     requested.value = true
     message.value = result.message
+    startCooldown(address)
   } catch (cause) {
     error.value = apiErrorMessage(cause, '验证邮件发送失败，请稍后重试')
+    challengeReset.value++
   } finally {
     busy.value = false
-    challengeReset.value++
   }
 }
 </script>
@@ -72,11 +78,11 @@ async function submit() {
   <div class="auth-form">
     <div class="eyebrow">ATTACKBOX ACCOUNT</div>
     <h1 class="auth-title" id="form-title">
-      {{ requested ? '查收验证邮件。' : '从这里，开始。' }}
+      {{ requested || remaining > 0 ? '查收验证邮件。' : '从这里，开始。' }}
     </h1>
     <p class="intro">
       {{
-        requested
+        requested || remaining > 0
           ? '打开邮件中的链接，设置密码并完成注册。'
           : '先验证邮箱，再设置密码，开始你的探索。'
       }}
@@ -113,16 +119,22 @@ async function submit() {
           v-model:ready="challengeReady"
           action="register"
           :reset-key="challengeReset"
-          :disabled="busy"
+          :disabled="busy || remaining > 0"
         />
         <UiButton
           variant="primary"
           type="submit"
           :loading="busy"
-          :disabled="!challengeReady"
+          :disabled="!challengeReady || remaining > 0"
           class="submit w-full h-[46px] text-xs font-semibold rounded-md gap-4"
         >
-          {{ requested ? '重新发送验证邮件' : '发送验证邮件' }}
+          {{
+            remaining > 0
+              ? `${remaining} 秒后重新发送`
+              : requested
+                ? '重新发送验证邮件'
+                : '发送验证邮件'
+          }}
         </UiButton>
         <p v-if="error || message" id="status" class="status" role="status" aria-live="polite">
           {{ error || message }}

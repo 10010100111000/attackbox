@@ -198,12 +198,16 @@ test(
         0,
         'failed delivery must not create an account'
       )
-      reject = false
       browser = await chromium.launch({
         executablePath: process.env.CHROMIUM_PATH || '/usr/bin/chromium',
         args: ['--no-sandbox']
       })
       const page = await browser.newPage()
+      await page.clock.install()
+      let registrationRequests = 0
+      page.on('request', request => {
+        if (new URL(request.url()).pathname === '/api/auth/register') registrationRequests++
+      })
       await page.goto(base + '/auth?mode=register&email=' + encodeURIComponent(pending))
       await page.getByRole('heading', { name: '从这里，开始。', exact: true }).waitFor()
       assert.equal(
@@ -212,7 +216,59 @@ test(
         'registration preserves the requested mailbox'
       )
       await page.getByRole('button', { name: '发送验证邮件', exact: true }).click()
+      await page.getByRole('status').filter({ hasText: '邮件发送暂未完成' }).waitFor()
+      assert.equal(
+        await page.getByRole('button', { name: '发送验证邮件', exact: true }).isEnabled(),
+        true
+      )
+      assert.equal(
+        await page.getByRole('button', { name: /秒后重新发送/ }).count(),
+        0,
+        'failed delivery does not start a cooldown'
+      )
+      reject = false
+      await page.getByRole('button', { name: '发送验证邮件', exact: true }).click()
       await page.getByRole('heading', { name: '查收验证邮件。', exact: true }).waitFor()
+      const countdown = page.getByRole('button', { name: /秒后重新发送/ })
+      assert.equal(await countdown.isDisabled(), true)
+      const requestsBefore = registrationRequests
+      await page.locator('#auth-form').evaluate(form => form.requestSubmit())
+      assert.equal(
+        registrationRequests,
+        requestsBefore,
+        'programmatic submission also respects cooldown'
+      )
+      await page.clock.fastForward(20000)
+      const beforeReload = Number((await countdown.textContent()).match(/\d+/)[0])
+      assert.ok(beforeReload > 0 && beforeReload <= 40)
+      await page.reload()
+      await page.getByRole('heading', { name: '查收验证邮件。', exact: true }).waitFor()
+      const restored = Number((await countdown.textContent()).match(/\d+/)[0])
+      assert.ok(restored > 0 && restored <= beforeReload, 'reload restores the existing deadline')
+      await page.getByRole('button', { name: '返回登录', exact: true }).click()
+      await page.getByRole('button', { name: '创建账号', exact: true }).click()
+      await countdown.waitFor()
+      assert.equal(await countdown.isDisabled(), true, 'switching auth views retains the deadline')
+      await page.locator('#email').fill('another@example.test')
+      await page.locator('button[type=submit]:enabled').waitFor()
+      assert.equal(
+        await page.getByRole('button', { name: '发送验证邮件', exact: true }).isEnabled(),
+        true
+      )
+      await page.locator('#email').fill(pending)
+      await countdown.waitFor()
+      await page.clock.fastForward(61000)
+      await page.getByRole('button', { name: '重新发送验证邮件', exact: true }).waitFor()
+      await page.locator('button[type=submit]:enabled').waitFor()
+      assert.equal(
+        await page.getByRole('button', { name: '重新发送验证邮件', exact: true }).isEnabled(),
+        true
+      )
+      assert.equal(
+        registrationRequests,
+        requestsBefore,
+        'countdown completion does not send mail automatically'
+      )
       assert.equal(emails.at(-1).to[0], pending)
       assert.equal((await sql`select id from users where email=${pending}`).length, 0)
       const pendingToken = token(emails.at(-1))

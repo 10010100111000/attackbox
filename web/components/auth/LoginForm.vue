@@ -109,9 +109,9 @@ async function handleSubmit() {
     await navigateTo(loginDestination(route.query.returnTo), { replace: true })
   } catch (err) {
     statusMessage.value = apiErrorMessage(err, '登录失败，请检查邮箱与密码')
+    challengeReset.value++
   } finally {
     busy.value = false
-    challengeReset.value++
   }
 }
 </script>

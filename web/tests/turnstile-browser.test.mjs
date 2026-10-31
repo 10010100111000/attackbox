@@ -262,7 +262,7 @@ test(
         route.fulfill({
           contentType: 'application/javascript',
           body: `
-      window.turnstile={render(el,opts){window.challenge=opts;window.resets=0;return 'test-widget'},reset(){window.resets++},remove(){}};
+      window.turnstile={render(el,opts){window.challenge=opts;window.resets=0;window.removals=0;return 'test-widget'},reset(){window.resets++},remove(){window.removals++}};
     `
         })
       )
@@ -286,6 +286,12 @@ test(
       await page.evaluate(() => window.challenge.callback('valid-browser-login'))
       await submit.click()
       await page.waitForURL('**/learn')
+      await page.waitForFunction(() => window.removals === 1)
+      assert.equal(
+        await page.evaluate(() => window.resets),
+        1,
+        'successful navigation removes the widget without resetting it again'
+      )
       assert.deepEqual(errors, [])
 
       const retryPage = await browser.newPage()

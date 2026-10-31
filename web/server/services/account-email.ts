@@ -4,9 +4,10 @@ import { client } from '../db'
 import { createResendMailer, mailConfig, MailDeliveryError } from '../utils/mailer'
 import { generateSecureToken, hashToken } from '../utils/auth'
 import { registrationLockSeed } from './registration'
+import { accountEmailCooldownSeconds } from '#shared/account-email'
 
 export const emailResult = {
-  message: '如果该邮箱符合条件，我们会发送邮件。请检查收件箱或垃圾邮件；再次申请请间隔至少 60 秒。'
+  message: `如果该邮箱符合条件，我们会发送邮件。请检查收件箱或垃圾邮件；再次申请请间隔至少 ${accountEmailCooldownSeconds} 秒。`
 }
 export function configuredMailer() {
   try {
@@ -36,7 +37,8 @@ export async function sendAccountEmail(email: string, purpose: 'verify_email' | 
         await tx`select count(*)::int as count, max(created_at) as latest from email_tokens where target_email=${email} and purpose=${purpose} and created_at>now()-interval '1 hour'`
       if (
         limits.count >= 5 ||
-        (limits.latest && Date.now() - new Date(limits.latest).getTime() < 60000)
+        (limits.latest &&
+          Date.now() - new Date(limits.latest).getTime() < accountEmailCooldownSeconds * 1000)
       )
         return
       const token = generateSecureToken(),
