@@ -131,6 +131,49 @@ test('forwarded client addresses are trusted only from configured proxy peers', 
     clientIp(event('::ffff:127.0.0.1', { 'x-forwarded-for': '2001:db8::1' })),
     '2001:db8::1'
   )
-  assert.equal(clientIp(event('127.0.0.1', { 'x-forwarded-for': '1.2.3.4, 5.6.7.8' })), '127.0.0.1')
+  assert.equal(clientIp(event('127.0.0.1', { 'x-forwarded-for': '1.2.3.4, 5.6.7.8' })), '5.6.7.8')
   assert.equal(clientIp(event('127.0.0.1', { 'cf-connecting-ip': '1.2.3.4' })), '127.0.0.1')
+})
+
+test('multi-hop forwarding stops at the trust boundary and rejects malformed chains', () => {
+  const previous = process.env.AUTH_TRUSTED_PROXY_CIDRS
+  const event = (forwarded, extra = {}, peer = '::ffff:127.0.0.1') => ({
+    node: {
+      req: { socket: { remoteAddress: peer }, headers: { 'x-forwarded-for': forwarded, ...extra } }
+    }
+  })
+  try {
+    process.env.AUTH_TRUSTED_PROXY_CIDRS = '127.0.0.0/8,::1/128,10.1.0.0/24'
+    assert.equal(clientIp(event('203.0.113.8, 10.1.0.5')), '203.0.113.8')
+    assert.equal(clientIp(event('1.2.3.4, 203.0.113.8, 10.1.0.5')), '203.0.113.8')
+    assert.equal(clientIp(event(' 2001:db8::1 , ::FFFF:127.0.0.2 ')), '2001:db8::1')
+    assert.equal(clientIp(event('::ffff:203.0.113.8, 10.1.0.5')), '203.0.113.8')
+    assert.equal(clientIp(event('1.2.3.4', {}, '203.0.113.8')), '203.0.113.8')
+    assert.equal(
+      clientIp(event('1.2.3.4, 10.1.0.5', { 'x-real-ip': '203.0.113.9' })),
+      '203.0.113.9'
+    )
+    assert.equal(
+      clientIp(event('203.0.113.8, 10.1.0.5', { 'x-real-ip': 'invalid' })),
+      '203.0.113.8'
+    )
+    for (const chain of [
+      '',
+      'invalid',
+      '1.2.3.4,',
+      ', 10.1.0.5',
+      '1.2.3.4:80',
+      'invalid, 10.1.0.5'
+    ]) {
+      assert.equal(clientIp(event(chain)), '127.0.0.1')
+    }
+    // A changed configuration must invalidate the parsed cache, including failures.
+    process.env.AUTH_TRUSTED_PROXY_CIDRS = 'invalid'
+    for (let i = 0; i < 2; i++) assert.throws(() => clientIp(event('203.0.113.8')), status(503))
+    process.env.AUTH_TRUSTED_PROXY_CIDRS = '127.0.0.0/8'
+    assert.equal(clientIp(event('203.0.113.8, 10.1.0.5')), '10.1.0.5')
+  } finally {
+    if (previous === undefined) delete process.env.AUTH_TRUSTED_PROXY_CIDRS
+    else process.env.AUTH_TRUSTED_PROXY_CIDRS = previous
+  }
 })
