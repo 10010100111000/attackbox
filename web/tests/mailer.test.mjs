@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { createResendMailer, mailConfig } from '../server/utils/mailer.ts'
+import { createResendMailer, mailConfig, MailDeliveryError } from '../server/utils/mailer.ts'
 const config = {
   apiKey: 'fake-test-key',
   from: 'AttackBox <hello@example.test>',
@@ -66,5 +66,42 @@ test('email links require a configured trusted origin', () => {
       if (old[i] === undefined) delete process.env[k]
       else process.env[k] = old[i]
     })
+  }
+})
+
+test('delivery diagnostics distinguish rejection, timeout, transport and malformed responses without retaining secrets', async () => {
+  const cases = [
+    [async () => new Response('SECRET provider detail', { status: 403 }), 'provider_rejected', 403],
+    [
+      async () => {
+        throw new DOMException('SECRET URL', 'TimeoutError')
+      },
+      'timeout',
+      undefined
+    ],
+    [
+      async () => {
+        throw new Error('SECRET network detail')
+      },
+      'network_error',
+      undefined
+    ],
+    [async () => new Response('not json'), 'invalid_response', 200],
+    [async () => new Response('null'), 'invalid_response', 200],
+    [async () => new Response('{}'), 'invalid_response', 200]
+  ]
+  for (const [transport, reason, providerStatus] of cases) {
+    await assert.rejects(
+      createResendMailer(config, transport).sendVerificationEmail('u@example.test', 'token'),
+      error => {
+        assert.ok(error instanceof MailDeliveryError)
+        assert.equal(error.message, 'mail_delivery_failed')
+        assert.equal(error.reason, reason)
+        assert.equal(error.providerStatus, providerStatus)
+        assert.ok(!JSON.stringify(error).includes('SECRET'))
+        assert.equal(error.cause, undefined)
+        return true
+      }
+    )
   }
 })

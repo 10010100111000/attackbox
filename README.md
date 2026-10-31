@@ -48,6 +48,10 @@ sudo ./scripts/worker.sh setup
 
 配置文件建议使用 `sudoedit` 编辑。环境文件采用单行 `KEY=value`，工具生成 JSON 双引号字符串；支持常用单／双引号，不执行变量展开或 Shell。只配置 `HOST`、`PORT`，不要额外设置 `NITRO_HOST`、`NITRO_PORT`。
 
+Resend 需要同时配置 `RESEND_API_KEY`、`MAIL_FROM` 和 `APP_BASE_URL`，例如发件地址 `AttackBox <noreply@microsb.de>`、站点地址 `https://microsb.de`。发件域名须在 Resend 的 Domains 中为 Verified，API Key 须有该域名的发送权限；`onboarding@resend.dev` 属于受限制的测试发件地址，不能代替已验证的自有域名。修改 `/etc/attackbox/web.env` 后执行 `sudo systemctl restart attackbox-web` 才会载入新配置。
+
+邮件失败时先查看 Resend 的 Logs，再运行 `sudo journalctl -u attackbox-web --since '10 minutes ago' --no-pager` 查看 `[mail]` 记录：`provider_rejected` 附带 Resend HTTP 状态码，`timeout`／`network_error` 表示请求未正常完成，`invalid_response` 表示返回内容异常，`account_transaction_failed` 表示账号邮件事务异常。这些诊断不记录密钥、收件人、验证链接或供应商原始响应；前台继续返回统一提示。
+
 ## 公网 HTTPS 与 Worker 网关
 
 同机部署且已接入 Cloudflare 的站点，优先参考 [Cloudflare 部署指南](docs/deployment/cloudflare.md)：统一 443 入口、复用已有证书、Turnstile、登录限流与源站限制。

@@ -218,6 +218,9 @@ test(
       assert.ok(!logs.includes(verify))
       assert.ok(!logs.includes(resetToken))
       assert.ok(!logs.includes('PRIVATE provider failure'))
+      assert.match(logs, /reason: 'provider_rejected'/)
+      assert.match(logs, /providerStatus: 422/)
+      assert.ok(!logs.includes(pending), 'mail failure diagnostics must not contain the recipient')
     } finally {
       await browser?.close()
       if (app) {

@@ -1,7 +1,7 @@
 import { createError } from 'h3'
 import { canSendActivationEmail } from '../utils/registration-policy'
 import { client } from '../db'
-import { createResendMailer, mailConfig } from '../utils/mailer'
+import { createResendMailer, mailConfig, MailDeliveryError } from '../utils/mailer'
 import { generateSecureToken, hashToken } from '../utils/auth'
 
 export const emailResult = {
@@ -11,6 +11,7 @@ export function configuredMailer() {
   try {
     return createResendMailer(mailConfig())
   } catch {
+    console.error('[mail] configuration invalid; check RESEND_API_KEY, MAIL_FROM and APP_BASE_URL')
     throw createError({
       statusCode: 503,
       statusMessage: '邮件服务暂不可用，请稍后重试'
@@ -40,9 +41,15 @@ export async function sendAccountEmail(email: string, purpose: 'verify_email' | 
       else await mailer.sendPasswordResetEmail(email, token)
       await tx`update email_tokens set consumed_at=now() where user_id=${user.id} and purpose=${purpose} and consumed_at is null and id<>${issued.id}`
     })
-  } catch {
+  } catch (error) {
+    // Log only internal classifications / numeric provider status. Provider
+    // bodies and thrown messages can contain addresses, credentials or links.
+    console.error('[mail] account email failed', {
+      purpose,
+      reason: error instanceof MailDeliveryError ? error.reason : 'account_transaction_failed',
+      providerStatus: error instanceof MailDeliveryError ? error.providerStatus : undefined
+    })
     if (purpose === 'reset_password') {
-      console.error('[mail] reset delivery failed')
       return emailResult
     }
     throw createError({
