@@ -85,7 +85,6 @@ server {
     }
     location /api/auth/ {
         client_max_body_size 16k;
-        add_header Cache-Control "no-store" always;
         proxy_pass http://attackbox_control;
     }
 @@REFERENCE_LOCATIONS@@
