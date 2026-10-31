@@ -37,3 +37,16 @@ test('documents without headings split by block size without breaking lists or f
   assert.equal(atomic.chunks.length, 1)
   assert.equal((atomic.chunks[0].html.match(/class="code-block"/g) || []).length, 1)
 })
+
+test('static reference chunks preserve tables as complete blocks with reader rendering parity', () => {
+  const source =
+    '# Commands\n\n| Tool | Usage |\n| --- | ---: |\n' +
+    Array.from({ length: 900 }, (_, i) => `| **Tool ${i}** | \`command-${i}\` |`).join('\n') +
+    '\n\n# Next\n\nContinue reading.'
+  const compiled = compileReference(source)
+  assert.equal(compiled.chunks.map(chunk => chunk.html).join(''), renderMarkdown(source).html)
+  const tables = compiled.chunks.filter(chunk => chunk.html.includes('<table>'))
+  assert.equal(tables.length, 1, 'chunking must not split a table between its rows')
+  assert.equal((tables[0].html.match(/<td(?:\s|>)/g) || []).length, 1800)
+  assert.ok(tables[0].html.includes('</table>'))
+})

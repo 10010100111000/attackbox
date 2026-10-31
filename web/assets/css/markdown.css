@@ -213,6 +213,36 @@
 
 .markdown-body table {
   display: block;
+  width: max-content;
   max-width: 100%;
+  margin: 1.5em 0;
   overflow-x: auto;
+  border-collapse: collapse;
+  border-spacing: 0;
+  font-size: 0.94em;
+  line-height: 1.65;
+  overscroll-behavior-x: contain;
+}
+
+.markdown-body th,
+.markdown-body td {
+  min-width: 96px;
+  padding: 10px 14px;
+  border: 1px solid var(--line, var(--border-line));
+  vertical-align: top;
+}
+
+.markdown-body th {
+  background: var(--soft, var(--bg-card));
+  color: var(--ink, var(--text-main));
+  font-weight: 650;
+  text-align: left;
+}
+
+.markdown-body tbody tr:nth-child(even) {
+  background: color-mix(in srgb, var(--soft, var(--bg-card)) 35%, transparent);
+}
+
+.markdown-body table code {
+  white-space: nowrap;
 }

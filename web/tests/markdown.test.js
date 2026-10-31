@@ -17,6 +17,21 @@ test('renderMarkdown converts headers, bold, and list with heading extraction', 
   assert.equal(result.headings[1].level, 2)
 })
 
+test('Markdown tables retain columns, alignment, inline formatting and escaped pipes', () => {
+  const result = renderMarkdown(
+    '| Command | Purpose | Count |\n| :--- | :---: | ---: |\n| `nmap` | **Scan** | 2 |\n| left \\| right | [Docs](https://example.org) | 12 |'
+  )
+  assert.ok(result.html.includes('<table>'))
+  assert.ok(result.html.includes('<thead>') && result.html.includes('<tbody>'))
+  assert.equal((result.html.match(/<th(?:\s|>)/g) || []).length, 3)
+  assert.equal((result.html.match(/<td(?:\s|>)/g) || []).length, 6)
+  assert.ok(result.html.includes('<th style="text-align:center">Purpose</th>'))
+  assert.ok(result.html.includes('<td style="text-align:right">12</td>'))
+  assert.ok(result.html.includes('<code>nmap</code>'))
+  assert.ok(result.html.includes('<strong>Scan</strong>'))
+  assert.ok(result.html.includes('left | right'))
+})
+
 test('renderMarkdown strictly prevents XSS by escaping raw html tags', () => {
   const attack = `<script>alert(1)</script><img src="x" onerror="alert(2)"><a href="javascript:alert(3)">click</a>`
   const result = renderMarkdown(attack)
