@@ -291,7 +291,7 @@ async function submit(stageId: string) {
 .challenge-shell {
   display: flex;
   flex-direction: column;
-  height: calc(100dvh - 68px);
+  height: calc(100dvh - var(--site-header-height));
   min-height: 360px;
   position: relative;
   background: var(--reader-bg);

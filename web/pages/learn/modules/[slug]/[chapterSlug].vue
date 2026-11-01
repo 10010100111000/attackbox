@@ -886,7 +886,7 @@ useHead({
 .reading-loading {
   display: grid;
   place-items: center;
-  min-height: calc(100dvh - 68px);
+  min-height: calc(100dvh - var(--site-header-height));
   padding: 24px;
   color: var(--muted);
   font-size: 13px;

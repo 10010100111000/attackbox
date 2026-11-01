@@ -667,7 +667,7 @@ function getModuleTheme(index: number) {
   display: flex;
   flex-direction: column;
   width: 100%;
-  min-height: calc(100dvh - 68px);
+  min-height: calc(100dvh - var(--site-header-height));
   background: transparent;
   color: var(--ink);
 }

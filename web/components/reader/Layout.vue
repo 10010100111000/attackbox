@@ -128,7 +128,7 @@ defineExpose({ scrollElement, workspaceElement, closeOutline })
 .reader-layout {
   display: grid;
   grid-template-columns: 248px minmax(0, 1fr);
-  height: calc(100dvh - 68px);
+  height: calc(100dvh - var(--site-header-height));
   min-height: 320px;
   background: var(--reader-bg);
   color: var(--ink);

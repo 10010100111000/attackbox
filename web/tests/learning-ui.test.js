@@ -32,15 +32,17 @@ test('LearningHeader.vue uses the optimized logo, AttackBox brand, and navigatio
     path.join(webDir, 'components/learning/LearningHeader.vue'),
     'utf-8'
   )
+  const header = fs.readFileSync(path.join(webDir, 'components/SiteHeader.vue'), 'utf-8')
+  assert.ok(content.includes('<SiteHeader'))
   assert.ok(
-    content.includes('src="~/assets/images/logo.webp"'),
+    header.includes('src="~/assets/images/logo.webp"'),
     'Must use the optimized brand asset'
   )
-  assert.ok(content.includes('AttackBox'), 'Must display AttackBox brand name')
+  assert.ok(header.includes('AttackBox'), 'Must display AttackBox brand name')
   assert.ok(content.includes('to="/learn"'), 'Must link to /learn')
   assert.ok(content.includes('to="/challenges"'), 'Must link to /challenges')
   assert.ok(content.includes('to="/discuss"'), 'Must link to /discuss')
-  assert.ok(content.includes('<UserMenu'), 'Must use the shared account menu')
+  assert.ok(header.includes('<UserMenu'), 'Must use the shared account menu')
 })
 
 test('pages/learn/index.vue defines learning layout, /api/modules fetch, and categories', () => {

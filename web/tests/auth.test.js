@@ -131,8 +131,10 @@ test('layouts/auth.vue defines isolated layout, header with brand, slot, and foo
   assert.ok(content.includes('auth-layout'))
 
   // Header elements
-  assert.ok(content.includes('~/assets/images/logo.webp'))
-  assert.ok(content.includes('AttackBox'))
+  assert.ok(content.includes('<SiteHeader />'))
+  const header = readFileSync(resolve(rootDir, 'components/SiteHeader.vue'), 'utf-8')
+  assert.ok(header.includes('~/assets/images/logo.webp'))
+  assert.ok(header.includes('AttackBox'))
   assert.ok(!content.includes('home-link'))
   assert.ok(!content.includes('返回首页'))
 

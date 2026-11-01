@@ -34,15 +34,15 @@ test(
         assert.ok(Math.abs(frame.x - (width - frame.width) / 2) < 1, 'frame is centered')
         assert.ok(frame.width <= 1360 && frame.width <= width - 64, 'bounded desktop width')
         assert.ok(
-          Math.abs(header.x - frame.x) < 1 && Math.abs(header.width - frame.width) < 1,
-          'header shares frame edges'
+          Math.abs(header.x) < 1 && Math.abs(header.width - width) < 1,
+          'navigation spans the viewport independently of the centered catalog'
         )
         assert.ok(
           Math.abs(box.x - frame.x) < 1 && Math.abs(box.width - frame.width) < 1,
           `${selector} fills the content frame`
         )
         const brand = await page.locator('.learning-header .brand').boundingBox()
-        assert.ok(Math.abs(brand.x - frame.x) < 1, 'content aligns with brand boundary')
+        assert.ok(brand.x >= 16 && brand.x <= 32, 'brand stays near the viewport edge')
         assert.ok(
           await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth),
           'no horizontal overflow'
@@ -139,6 +139,95 @@ test(
       await browser?.close()
       await f.sql`delete from modules where category_id in (select id from content_categories where slug='web-security')`
       await f.sql`delete from content_categories where slug='web-security'`
+      await f.cleanup()
+    }
+  }
+)
+
+test(
+  'public headers share compact edge alignment and readers fill the remaining viewport',
+  { skip: !process.env.CONTENT_TEST_DATABASE_URL, timeout: 90000 },
+  async () => {
+    const f = await learningFixture()
+    let browser
+    try {
+      const mod = await f.createModule('publish', {
+        title: '页头布局验收',
+        chapters: [
+          {
+            title: '开始阅读',
+            slug: 'start',
+            access: 'public',
+            bodyMarkdown: '## 理解与验证\n\n阅读教程，再亲手实践。\n\n' + '正文内容。'.repeat(700),
+            questions: []
+          }
+        ]
+      })
+      browser = await chromium.launch(chromiumOptions())
+      const page = await browser.newPage()
+      const errors = []
+      page.on('pageerror', error => errors.push(error.message))
+      const chapterPath = `/learn/modules/${mod.module.slug}/start`
+      for (const width of [1440, 2560, 390]) {
+        await page.setViewportSize({ width, height: 900 })
+        for (const path of ['/', '/auth', '/learn', '/references', chapterPath]) {
+          await page.goto(f.base + path)
+          await page.waitForFunction(() => !!document.getElementById('__nuxt')?.__vue_app__)
+          if (path === chapterPath) await page.locator('.reader-layout').waitFor()
+          for (const theme of ['graphite', 'midnight']) {
+            await page.evaluate(theme => (document.documentElement.dataset.theme = theme), theme)
+            const geometry = await page.locator('.site-header').evaluate(header => {
+              const rect = el => {
+                const r = el.getBoundingClientRect()
+                return {
+                  x: r.x,
+                  y: r.y,
+                  right: r.right,
+                  bottom: r.bottom,
+                  width: r.width,
+                  height: r.height
+                }
+              }
+              return {
+                header: rect(header),
+                brand: rect(header.querySelector('.brand')),
+                actions: rect(header.querySelector('.header-actions')),
+                viewport: document.documentElement.clientWidth,
+                overflow: document.documentElement.scrollWidth > innerWidth,
+                reader: document.querySelector('.reader-layout')
+                  ? rect(document.querySelector('.reader-layout'))
+                  : null
+              }
+            })
+            assert.equal(geometry.header.height, 56, `${path}: compact shared height`)
+            assert.equal(geometry.header.x, 0)
+            assert.equal(geometry.header.width, geometry.viewport)
+            assert.ok(geometry.brand.x >= 16 && geometry.brand.x <= 32)
+            assert.ok(
+              Math.abs(geometry.viewport - geometry.actions.right - geometry.brand.x) < 1,
+              `${path}: symmetrical edge gutters`
+            )
+            assert.equal(geometry.overflow, false, `${path}: no horizontal overflow`)
+            if (geometry.reader) {
+              assert.equal(geometry.reader.y, geometry.header.bottom)
+              assert.equal(
+                geometry.reader.bottom,
+                900,
+                'reader consumes exactly the available height'
+              )
+            }
+          }
+          if (width === 1440 && ['/', '/learn', chapterPath].includes(path)) {
+            await page.screenshot({
+              path: `/tmp/attackbox-header-${path === '/' ? 'landing' : path === '/learn' ? 'learn' : 'reader'}.png`,
+              animations: 'disabled'
+            })
+          }
+        }
+      }
+      assert.deepEqual(errors, [])
+    } finally {
+      await browser?.close()
       await f.cleanup()
     }
   }

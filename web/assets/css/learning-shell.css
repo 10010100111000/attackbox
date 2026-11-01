@@ -10,7 +10,7 @@
   --learning-content-width: 1360px;
 }
 
-/* Header and catalog pages share one centered frame, independent of navigation labels. */
+/* Catalog content stays centered and readable; site navigation spans the viewport. */
 .learning-frame {
   width: calc(100% - 2 * var(--learning-gutter));
   max-width: var(--learning-content-width);
