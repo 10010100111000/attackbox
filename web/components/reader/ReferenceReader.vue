@@ -117,7 +117,7 @@ async function retryLoad() {
   margin-bottom: 28px;
 }
 h1 {
-  font-size: clamp(26px, 2.7vw, 32px);
+  font-size: var(--reader-title-size);
   font-weight: 700;
   color: var(--ink);
   letter-spacing: -0.6px;

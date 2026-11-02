@@ -1,11 +1,11 @@
 import type MarkdownIt from 'markdown-it'
 
 const titles: Record<string, string> = {
-  note: '本章学习目标',
-  tip: '停下来，想一想',
+  note: '说明',
+  tip: '提示',
   important: '重要提示',
-  warning: '安全警告',
-  caution: '风险警示'
+  warning: '警告',
+  caution: '注意'
 }
 
 // Transform block tokens before inline parsing. Keep the original body tokens:

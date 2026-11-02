@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { mkdtemp, rm, readFile, stat } from 'node:fs/promises'
+import { mkdtemp, rm, readFile, writeFile, stat } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { gunzipSync } from 'node:zlib'
@@ -11,7 +11,8 @@ import {
   referencePublication,
   readReference,
   readReferenceFile,
-  pruneReferenceBuilds
+  pruneReferenceBuilds,
+  referenceBuildAvailable
 } from '../server/content/reference-files.ts'
 
 test('private compilation, atomic publication, rollback, gzip, replacement and withdrawal work under restrictive umask', async () => {
@@ -31,6 +32,31 @@ test('private compilation, atomic publication, rollback, gzip, replacement and w
       imageUrls: {}
     }
     const meta = await buildReference(input)
+    assert.equal(
+      await referenceBuildAvailable(input.id, meta.revision, { currentRenderer: true }),
+      true
+    )
+    const metaPath = path.join(
+      process.env.CONTENT_DATA_DIR,
+      'reference-builds',
+      input.id,
+      meta.revision,
+      'meta.json'
+    )
+    const legacy = { ...meta }
+    delete legacy.rendererVersion
+    await writeFile(metaPath, JSON.stringify(legacy))
+    assert.equal(
+      await referenceBuildAvailable(input.id, meta.revision),
+      true,
+      'older publications remain readable'
+    )
+    assert.equal(
+      await referenceBuildAvailable(input.id, meta.revision, { currentRenderer: true }),
+      false,
+      'scan/import must rebuild older renderer output'
+    )
+    await writeFile(metaPath, JSON.stringify(meta))
     await assert.rejects(readReference('fixture'), e => e.statusCode === 404)
     await referencePublication(async files => files.publish(), meta)
     assert.equal((await readReference('fixture')).meta.revision, meta.revision)

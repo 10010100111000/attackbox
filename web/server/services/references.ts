@@ -79,7 +79,9 @@ export async function scanReferences(): Promise<ReferenceScan> {
     (
       await Promise.all(
         old.map(async doc =>
-          (await referenceBuildAvailable(doc.id, doc.manifest.reading)) ? doc.id : null
+          (await referenceBuildAvailable(doc.id, doc.manifest.reading, { currentRenderer: true }))
+            ? doc.id
+            : null
         )
       )
     ).filter(Boolean)
@@ -226,7 +228,7 @@ export async function importReference(actor: string, body: Record<string, unknow
         if (
           old &&
           !changed(old.manifest, file!.sha, tree) &&
-          (await referenceBuildAvailable(old.id, old.manifest.reading))
+          (await referenceBuildAvailable(old.id, old.manifest.reading, { currentRenderer: true }))
         )
           return { id: old.id, unchanged: true, lockVersion: old.lockVersion, status: old.status }
         const values = {

@@ -1,6 +1,8 @@
 import { createMarkdownRenderer, type MarkdownHeading } from '../../utils/markdown.ts'
 
 const renderer = createMarkdownRenderer()
+// Bump when generated HTML or Callout semantics change, not for CSS-only edits.
+export const referenceRendererVersion = 2
 const targetSize = 24000
 /** Compile at import time, splitting only between top-level Markdown blocks:
  * fences, lists, callouts and cross-section reference links retain their semantics. */

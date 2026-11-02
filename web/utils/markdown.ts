@@ -66,6 +66,10 @@ export function createMarkdownRenderer(options: MarkdownOptions = {}) {
   })
 
   md.use(callouts)
+  // Scroll the table itself, keeping the surrounding document stationary.
+  md.renderer.rules.table_open = () =>
+    '<div class="markdown-table" tabindex="0" role="region" aria-label="表格"><table>\n'
+  md.renderer.rules.table_close = () => '</table></div>\n'
 
   // The fence renderer returns the complete code card directly, avoiding
   // MarkdownIt's default extra <pre><code> wrapper and supporting per-render env options.

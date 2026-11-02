@@ -41,6 +41,7 @@ export interface ReferenceMetadata {
   title: string
   summary: string
   revision: string
+  rendererVersion?: number
   outline: { id: string; text: string; level: number; chunk: number }[]
   chunks: { index: number; title: string; url: string }[]
 }

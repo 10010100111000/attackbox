@@ -10,6 +10,7 @@ defineExpose({ element })
 <style scoped>
 .reader-article {
   --markdown-font-size: 17px;
+  --reader-title-size: clamp(30px, 3vw, 38px);
 
   width: 100%;
   min-width: 0;

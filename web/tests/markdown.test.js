@@ -73,9 +73,9 @@ test('renderMarkdown renders callout containers for blockquotes with type tags',
   const result = renderMarkdown(noteMd)
 
   assert.ok(result.html.includes('class="callout callout-note"'), 'Should render note callout')
-  assert.ok(result.html.includes('本章学习目标'))
+  assert.ok(result.html.includes('说明'))
   assert.ok(result.html.includes('class="callout callout-tip"'), 'Should render tip callout')
-  assert.ok(result.html.includes('停下来，想一想'))
+  assert.ok(result.html.includes('提示'))
 })
 
 test('fenced language labels escape HTML and attribute delimiters', () => {
@@ -90,7 +90,7 @@ test('callouts preserve multiple paragraphs, lists, fences and nested quotes', (
   )
   assert.match(
     result.html,
-    /^<div class="callout callout-note">\s*<strong>本章学习目标<\/strong>\s*<p>First/
+    /^<div class="callout callout-note">\s*<strong>说明<\/strong>\s*<p>First/
   )
   assert.ok(result.html.includes('</p>\n<p>Second paragraph.</p>\n<ul>'))
   assert.ok(result.html.includes('</ul>\n<div class="code-block">'))
@@ -146,4 +146,13 @@ test('tutorial rendering omits copy controls without changing code text or defau
   assert.ok(!tutorial.includes('copy-code-btn'))
   assert.ok(!tutorial.includes('data-code'))
   assert.ok(renderMarkdown(source).html.includes('copy-code-btn'))
+})
+
+test('empty NOTE stays a neutral note and tables have independent scroll containers', () => {
+  const note = renderMarkdown('> [!NOTE]\n>\n>\n').html
+  assert.match(note, /<strong>说明<\/strong>/)
+  assert.ok(!note.includes('学习目标'))
+  const table = renderMarkdown('| A | B |\n| --- | --- |\n| one | two |').html
+  assert.match(table, /^<div class="markdown-table"[^>]*><table>/)
+  assert.ok(table.includes('</table></div>'))
 })

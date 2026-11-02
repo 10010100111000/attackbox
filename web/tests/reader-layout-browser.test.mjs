@@ -21,7 +21,7 @@ async function seedReference(f, source = body) {
 }
 
 test(
-  'GitHub typography applies to runtime and precompiled readers independently of the OS theme',
+  'shared reading theme has clear headings, full-width tables and distinct code surfaces in both themes',
   { skip: !enabled, timeout: 60000 },
   async () => {
     const f = await learningFixture()
@@ -30,7 +30,7 @@ test(
       '| 记录类型 | 描述 |\n| :--- | ---: |\n| RRSIG | 存储单个资源记录的数字签名 |\n| DNSKEY | 发布公钥 |\n| DS | 标识签名密钥 |\n| NSEC3 | 提供经过身份验证的否定响应 |\n\n' +
       '- 先理解\n  - 再验证\n\n1. 阅读\n2. 实践\n\n' +
       '> 普通引用\n\n> [!NOTE]\n> 这里的 **强调** 应当保持行内显示。\n\n' +
-      '### 命令示例\n\n```javascript\nconst record = "DNSKEY"\nconsole.log(record)\n```\n\n' +
+      '#### 进阶设置\n\n普通正文与 **加粗文字**。\n\n##### 补充说明\n\n补充正文。\n\n###### 细节说明\n\n细节正文。\n\n### 命令示例\n\n```javascript\nconst record = "DNSKEY"\nconsole.log(record)\n```\n\n' +
       `| 命令 |\n| --- |\n| \`${'long-command-argument-'.repeat(40)}\` |`
     let reference, browser
     try {
@@ -68,8 +68,27 @@ test(
           await markdown.locator('table').last().scrollIntoViewIfNeeded()
           const styles = await markdown.evaluate(el => {
             const style = selector => getComputedStyle(el.querySelector(selector))
+            const luminance = color => {
+              const channels = color
+                .match(/[\d.]+/g)
+                .slice(0, 3)
+                .map(Number)
+                .map(value => {
+                  const c = value / 255
+                  return c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4
+                })
+              return channels[0] * 0.2126 + channels[1] * 0.7152 + channels[2] * 0.0722
+            }
+            const contrast = (a, b) => {
+              const x = luminance(a),
+                y = luminance(b)
+              return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05)
+            }
+
             const tables = el.querySelectorAll('table')
             const table = tables[tables.length - 1]
+            const wrapper = table.closest('.markdown-table')
+            const width = node => node.getBoundingClientRect().width
             return {
               color: getComputedStyle(el).color,
               background: getComputedStyle(el).backgroundColor,
@@ -84,8 +103,26 @@ test(
               label: style('.callout > strong').display,
               keyword: style('.hljs-keyword').color,
               code: style('pre code').color,
-              tableScroll: table.scrollWidth > table.clientWidth,
-              fits: table.getBoundingClientRect().right <= el.getBoundingClientRect().right + 1,
+              headingSizes: ['h2', 'h3', 'h4', 'h5', 'h6'].map(tag =>
+                parseFloat(style(tag).fontSize)
+              ),
+              headingMargin: parseFloat(style('h4').marginTop),
+              paragraphMargin: parseFloat(style('p').marginBottom),
+              codeSize: parseFloat(style('pre code').fontSize),
+              codeContrast: contrast(style('pre code').color, style('.code-block').backgroundColor),
+              bodyContrast: contrast(
+                getComputedStyle(el).color,
+                getComputedStyle(el.closest('.reader-layout')).backgroundColor
+              ),
+              codePadding: parseFloat(style('pre').paddingTop),
+              codeBackground: style('.code-block').backgroundColor,
+              codeHeaderBackground: style('.code-top').backgroundColor,
+              readerBackground: getComputedStyle(el.closest('.reader-layout')).backgroundColor,
+              tableWidths: [...tables].map(width),
+              bodyWidth: width(el),
+              labelText: el.querySelector('.callout > strong').textContent,
+              tableScroll: wrapper.scrollWidth > wrapper.clientWidth,
+              fits: wrapper.getBoundingClientRect().right <= el.getBoundingClientRect().right + 1,
               pageFits: document.documentElement.scrollWidth <= innerWidth
             }
           })
@@ -97,12 +134,31 @@ test(
           assert.equal(styles.scheme, theme === 'graphite' ? 'light' : 'dark')
           assert.equal(styles.fontSize, '17px')
           assert.equal(styles.cellBorder, '1px')
-          assert.equal(styles.cellPadding, '13px', 'table spacing comes from the GitHub stylesheet')
+          assert.equal(styles.cellPadding, '16px')
           assert.equal(styles.right, 'right')
           assert.equal(styles.bullet, 'disc')
           assert.equal(styles.number, 'decimal')
           assert.equal(styles.inlineBold, 'inline')
           assert.equal(styles.label, 'block')
+          assert.equal(styles.labelText, '说明', 'NOTE must not invent learning objectives')
+          for (let i = 1; i < styles.headingSizes.length; i++)
+            assert.ok(styles.headingSizes[i - 1] > styles.headingSizes[i])
+          assert.ok(
+            styles.headingSizes.at(-1) > 17,
+            'even deep headings remain distinct from body text'
+          )
+          assert.ok(styles.headingMargin >= 24 && styles.paragraphMargin >= 20)
+          assert.ok(styles.codeSize >= 15 && styles.codePadding >= 16)
+          assert.ok(
+            styles.codeContrast >= 7 && styles.bodyContrast >= 7,
+            'body and base code text have strong contrast'
+          )
+          assert.notEqual(styles.codeBackground, styles.readerBackground)
+          assert.notEqual(styles.codeHeaderBackground, styles.codeBackground)
+          assert.ok(
+            Math.abs(styles.tableWidths[0] - styles.bodyWidth) < 2,
+            'short tables span the document width'
+          )
           assert.notEqual(styles.keyword, styles.code, 'highlight.js tokens have a visible theme')
           assert.ok(styles.tableScroll && styles.fits && styles.pageFits)
           await markdown.locator('.copy-code-btn').click()
@@ -115,7 +171,16 @@ test(
             await page.getByLabel('资料正文', { exact: true }).evaluate(el => {
               el.scrollTop = 0
             })
-            await page.screenshot({ path: `/tmp/attackbox-markdown-${theme}.png` })
+            await page.screenshot({
+              path: `/tmp/attackbox-markdown-${theme}.png`,
+              fullPage: false,
+              animations: 'disabled'
+            })
+            await markdown.locator('.code-block').scrollIntoViewIfNeeded()
+            await page.screenshot({
+              path: `/tmp/attackbox-markdown-code-${theme}.png`,
+              animations: 'disabled'
+            })
           }
         }
         assert.deepEqual(errors, [])

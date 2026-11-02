@@ -15,6 +15,7 @@ import ReaderArticle from '~/components/reader/Article.vue'
 import ChapterOutline from '~/components/learning/ChapterOutline.vue'
 import PracticeDock from '~/components/learning/PracticeDock.vue'
 import MarkdownView from '~/components/ui/MarkdownView.vue'
+import MarkdownContent from '~/components/ui/MarkdownContent.vue'
 import { useAuth } from '~/composables/useAuth'
 import type { LearningTarget } from '~/shared/learning-target'
 import type { ChapterProgress, LearningChapter } from '~/shared/learning'
@@ -29,7 +30,6 @@ interface QuestionItem {
   id: string
   position: number
   promptMarkdown: string
-  promptHtml?: string
   errorHint: string | null
   normalization: string | null
 }
@@ -49,7 +49,7 @@ interface ChapterDetail {
   title: string
   bodyMarkdown: string
   durationMinutes: number | null
-  questions: QuestionItem[]
+  questions: (QuestionItem & { promptHtml: string })[]
 }
 
 type ModuleOutlineChapter = LearningChapter
@@ -478,7 +478,7 @@ useHead({
           >
             <div :id="`question-${q.id}`" class="question-label">
               <span class="q-num">{{ qIndex + 1 }}.</span>
-              <div class="q-prompt" v-html="q.promptHtml" />
+              <MarkdownContent class="q-prompt" :html="q.promptHtml" />
             </div>
             <div v-if="!savedProgress.completedAt" class="answer-line">
               <UiInput
@@ -717,7 +717,7 @@ useHead({
   gap: 5px;
 }
 .chapter-main-title {
-  font-size: clamp(26px, 2.7vw, 32px);
+  font-size: var(--reader-title-size);
   font-weight: 700;
   line-height: 1.4;
   letter-spacing: -0.6px;
@@ -780,12 +780,6 @@ useHead({
 .q-prompt {
   min-width: 0;
   overflow-wrap: anywhere;
-}
-.q-prompt :deep(p) {
-  margin: 0;
-}
-.q-prompt :deep(pre) {
-  overflow-x: auto;
 }
 .answer-line {
   display: flex;

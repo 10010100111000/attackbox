@@ -18,7 +18,7 @@ import { promisify } from 'node:util'
 import { randomUUID } from 'node:crypto'
 import { createError } from 'h3'
 import { contentDataDirectory, hash } from './storage.ts'
-import { compileReference } from './reference-compiler.ts'
+import { compileReference, referenceRendererVersion } from './reference-compiler.ts'
 import type { ReferenceMetadata, ReferenceReading } from '../../shared/references'
 
 const gzip = promisify(compress)
@@ -45,7 +45,13 @@ export async function prepareReferenceBuild(input: {
   const compiled = compileReference(input.bodyMarkdown, input.imageUrls)
   const html = compiled.chunks.map(chunk => chunk.html)
   const revision = hash(
-    JSON.stringify({ title: input.title, summary: input.summary, outline: compiled.outline, html })
+    JSON.stringify({
+      rendererVersion: referenceRendererVersion,
+      title: input.title,
+      summary: input.summary,
+      outline: compiled.outline,
+      html
+    })
   )
   const staging = path.join(contentDataDirectory(), '.reference-staging')
   await mkdir(staging, { recursive: true, mode: 0o700 })
@@ -56,6 +62,7 @@ export async function prepareReferenceBuild(input: {
     title: input.title,
     summary: input.summary,
     revision,
+    rendererVersion: referenceRendererVersion,
     outline: compiled.outline,
     chunks: compiled.chunks.map((chunk, index) => ({
       index,
@@ -264,11 +271,19 @@ export async function readReference(slug: string): Promise<ReferenceReading> {
   return { meta, html }
 }
 
-export async function referenceBuildAvailable(id: string, revision?: string) {
+export async function referenceBuildAvailable(
+  id: string,
+  revision?: string,
+  options: { currentRenderer?: boolean } = {}
+) {
   if (!revision) return false
   try {
     const meta = await compiledReference(id, revision)
-    return meta.id === id && meta.revision === revision
+    return (
+      meta.id === id &&
+      meta.revision === revision &&
+      (!options.currentRenderer || meta.rendererVersion === referenceRendererVersion)
+    )
   } catch (error) {
     if (error instanceof SyntaxError || (error as NodeJS.ErrnoException).code === 'ENOENT')
       return false

@@ -1,129 +1,260 @@
-@import 'github-markdown-css/github-markdown.css';
 @import 'highlight.js/styles/github-dark.css';
 
-/* GitHub owns document typography. This adapter binds it to the site's explicit
-   theme and provides only the code toolbar / callouts emitted by our renderer. */
+/* Shared reading theme for live Markdown and precompiled references. Layout
+   components own page geometry; this file owns every document element. */
 .markdown-body {
-  --fgColor-default: var(--markdown-ink, var(--reader-ink));
-  --fgColor-muted: var(--muted);
-  --fgColor-accent: var(--brand);
-  --fgColor-success: var(--success-ink);
-  --fgColor-attention: var(--brand);
-  --fgColor-danger: var(--error-ink);
-  --fgColor-done: var(--brand);
-  --bgColor-default: transparent;
-  --bgColor-muted: var(--soft);
-  --bgColor-neutral-muted: color-mix(in srgb, var(--muted) 15%, transparent);
-  --borderColor-default: var(--line);
-  --borderColor-muted: var(--line);
-  --borderColor-neutral-muted: var(--line);
-  --borderColor-accent-emphasis: var(--focus);
-  --focus-outlineColor: var(--focus);
+  --md-heading: var(--ink);
+  --md-muted: var(--muted);
+  --md-link: #2563eb;
+  --md-line: color-mix(in srgb, var(--reader-ink) 20%, transparent);
+  --md-table-head: color-mix(in srgb, var(--reader-ink) 7%, var(--reader-bg));
+  --md-table-stripe: color-mix(in srgb, var(--reader-ink) 3%, var(--reader-bg));
+  --md-inline-bg: color-mix(in srgb, var(--reader-ink) 8%, var(--reader-bg));
+  --md-code-bg: #20252f;
+  --md-code-head: #292f3b;
+  --md-code-ink: #e6edf3;
+  --md-code-muted: #b4bdcd;
+  --md-code-line: #465061;
+  --md-note: #2563eb;
+  --md-tip: #18794e;
+  --md-important: #7953b2;
+  --md-warning: #986000;
+  --md-caution: #bc3348;
 
+  color: var(--markdown-ink, var(--reader-ink));
+  background: transparent;
   color-scheme: inherit;
   font-family: inherit;
-  font-size: var(--markdown-font-size, 15px);
+  font-size: var(--markdown-font-size, 16px);
   line-height: 1.85;
+  overflow-wrap: anywhere;
 }
-
-/* Tailwind preflight removes native list markers; restore them for documents. */
+[data-theme='midnight'] .markdown-body {
+  --md-link: #8ab4f8;
+  --md-note: #8ab4f8;
+  --md-tip: #89c9a5;
+  --md-important: #c4a7ed;
+  --md-warning: #e6bf7b;
+  --md-caution: #f19da8;
+}
+.markdown-body :where(h1, h2, h3, h4, h5, h6) {
+  color: var(--md-heading);
+  font-weight: 650;
+  line-height: 1.45;
+  margin: 1.8em 0 0.75em;
+  scroll-margin-top: 24px;
+}
+.markdown-body h1 {
+  font-size: 2.12em;
+}
+.markdown-body h2 {
+  font-size: 1.71em;
+}
+.markdown-body h3 {
+  font-size: 1.41em;
+}
+.markdown-body h4 {
+  font-size: 1.24em;
+}
+.markdown-body h5 {
+  font-size: 1.12em;
+}
+.markdown-body h6 {
+  font-size: 1.06em;
+}
+.markdown-body > :first-child,
+.markdown-body .reference-chunk:first-child > :first-child {
+  margin-top: 0;
+}
+.markdown-body > :last-child {
+  margin-bottom: 0;
+}
+.markdown-body :where(p, ul, ol, blockquote, dl, .markdown-table, .code-block, .callout) {
+  margin: 0 0 1.25em;
+}
 .markdown-body :where(ul, ol) {
-  list-style: revert;
+  padding-left: 1.6em;
 }
-
+.markdown-body ul {
+  list-style-type: disc;
+}
+.markdown-body ol {
+  list-style-type: decimal;
+}
+.markdown-body ul ul {
+  list-style-type: circle;
+}
+.markdown-body :where(ul, ol) :where(ul, ol) {
+  margin-block: 0.4em 0;
+}
+.markdown-body li + li {
+  margin-top: 0.4em;
+}
+.markdown-body li > p {
+  margin-block: 0.4em;
+}
+.markdown-body strong {
+  font-weight: 700;
+}
+.markdown-body em {
+  font-style: italic;
+}
+.markdown-body a {
+  color: var(--md-link);
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 0.2em;
+}
+.markdown-body a:hover {
+  text-decoration-thickness: 2px;
+}
+.markdown-body blockquote {
+  padding: 4px 0 4px 20px;
+  border-left: 3px solid var(--md-line);
+  color: var(--md-muted);
+}
+.markdown-body :where(blockquote, .callout) > :last-child {
+  margin-bottom: 0;
+}
+.markdown-body hr {
+  border: 0;
+  border-top: 1px solid var(--md-line);
+  margin-block: 2em;
+}
+.markdown-body img {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  margin-block: 1.25em;
+}
+.markdown-body dt {
+  margin-top: 1em;
+  font-weight: 650;
+}
+.markdown-body dd {
+  margin: 0.4em 0 1em 1.6em;
+}
+.markdown-body :where(code, pre, kbd, samp) {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace;
+}
+.markdown-body :not(pre) > code {
+  padding: 0.15em 0.4em;
+  border-radius: 4px;
+  background: var(--md-inline-bg);
+  font-size: 0.9em;
+}
+.markdown-body kbd {
+  padding: 0.12em 0.4em;
+  border: 1px solid var(--md-line);
+  border-bottom-width: 2px;
+  border-radius: 4px;
+  font-size: 0.85em;
+}
+.markdown-body .markdown-table {
+  width: 100%;
+  overflow-x: auto;
+  border-radius: 6px;
+}
+.markdown-body table {
+  width: 100%;
+  border-collapse: collapse;
+  border-spacing: 0;
+  font-size: 0.94em;
+  line-height: 1.7;
+  font-variant-numeric: tabular-nums;
+}
+.markdown-body :where(th, td) {
+  padding: 11px 16px;
+  border: 1px solid var(--md-line);
+  text-align: left;
+  vertical-align: top;
+}
+.markdown-body th {
+  background: var(--md-table-head);
+  color: var(--md-heading);
+  font-weight: 650;
+}
+.markdown-body tbody tr:nth-child(even) {
+  background: var(--md-table-stripe);
+}
 .markdown-body table code {
   white-space: nowrap;
 }
-
 .markdown-body .code-block {
-  --bgColor-muted: var(--code);
-  --fgColor-default: var(--code-ink);
-  --fgColor-muted: var(--code-muted);
-  --borderColor-default: color-mix(in srgb, var(--code-ink) 18%, transparent);
-
-  margin: 0 0 1rem;
   overflow: hidden;
-  border: 1px solid var(--borderColor-default);
-  border-radius: 6px;
-  background: var(--code);
-  color: var(--code-ink);
+  border: 1px solid var(--md-code-line);
+  border-radius: 9px;
+  background: var(--md-code-bg);
+  color: var(--md-code-ink);
   color-scheme: dark;
 }
-
 .markdown-body .code-top {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  padding: 8px 14px;
-  border-bottom: 1px solid var(--borderColor-default);
-  color: var(--code-muted);
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.04em;
+  padding: 9px 18px;
+  border-bottom: 1px solid var(--md-code-line);
+  background: var(--md-code-head);
+  color: var(--md-code-muted);
+  font-size: 12px;
+  font-weight: 500;
 }
-
 .markdown-body .code-block pre {
   margin: 0;
-  border-radius: 0;
+  padding: 18px 20px;
+  overflow-x: auto;
+  font-size: 0.9em;
+  line-height: 1.75;
+  white-space: pre;
+  overflow-wrap: normal;
 }
-
 .markdown-body .code-block code.hljs {
   padding: 0;
   background: transparent;
+  color: var(--md-code-ink);
+  font-size: inherit;
 }
-
 .markdown-body .copy-code-btn {
   flex-shrink: 0;
   padding: 3px 9px;
-  border: 1px solid var(--borderColor-default);
-  border-radius: 4px;
+  border: 1px solid var(--md-code-line);
+  border-radius: 5px;
   background: transparent;
-  color: var(--code-ink);
+  color: var(--md-code-ink);
   font: inherit;
-  letter-spacing: normal;
   cursor: pointer;
 }
-
 .markdown-body .copy-code-btn:hover,
 .markdown-body .copy-code-btn.copied {
   border-color: currentColor;
+  background: #ffffff0a;
 }
-
-.markdown-body .copy-code-btn:focus-visible {
-  outline: 2px solid var(--focus);
+.markdown-body :where(a, button, .markdown-table):focus-visible {
+  outline: 2px solid var(--md-link);
   outline-offset: 3px;
 }
-
 .markdown-body .callout {
-  --callout-color: var(--fgColor-accent);
-
-  margin: 0 0 1rem;
-  padding: 12px 16px;
+  --callout-color: var(--md-note);
+  padding: 16px 20px;
   border-left: 3px solid var(--callout-color);
-  border-radius: 0 6px 6px 0;
-  background: color-mix(in srgb, var(--callout-color) 7%, transparent);
+  border-radius: 0 8px 8px 0;
+  background: color-mix(in srgb, var(--callout-color) 8%, transparent);
 }
-
 .markdown-body .callout-tip {
-  --callout-color: var(--fgColor-success);
+  --callout-color: var(--md-tip);
 }
-
-.markdown-body .callout-warning,
 .markdown-body .callout-important {
-  --callout-color: var(--fgColor-attention);
+  --callout-color: var(--md-important);
 }
-
+.markdown-body .callout-warning {
+  --callout-color: var(--md-warning);
+}
 .markdown-body .callout-caution {
-  --callout-color: var(--fgColor-danger);
+  --callout-color: var(--md-caution);
 }
-
 .markdown-body .callout > strong:first-child {
   display: block;
   margin-bottom: 8px;
   color: var(--callout-color);
-}
-
-.markdown-body .callout > :last-child {
-  margin-bottom: 0;
 }
