@@ -1,0 +1,11 @@
+job_id,name,status,bytes
+JOB-1001,inventory-export,success,8192
+JOB-1002,metrics-export,failed,32768
+JOB-1003,archive-export,success,4194304
+JOB-1004,orders-export,success,65536
+JOB-1005,users-export,failed,131072
+JOB-1006,catalog-export,pending,0
+JOB-1007,audit-export,success,1048576
+JOB-1008,backup-export,failed,2097152
+JOB-1009,reports-export,success,524288
+JOB-1010,events-export,success,16384

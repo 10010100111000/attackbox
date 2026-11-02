@@ -1,0 +1,5 @@
+Export service handover
+=======================
+Each jobs.csv row describes exactly one job. bytes is a decimal byte count.
+Only status=failed means failure; pending jobs have not completed.
+The production settings are in the [production] section of settings.ini.
