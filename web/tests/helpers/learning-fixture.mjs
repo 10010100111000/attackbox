@@ -213,7 +213,7 @@ export async function learningFixture() {
       },
       body: 'services: {web: {image: nginx:1.27}}'
     })
-    assert.equal(uploaded.status, 200)
+    assert.equal(uploaded.status, 200, await uploaded.clone().text())
     const bundle = (await uploaded.json()).data
     const { data: t } = await request('/api/admin/target-templates', {
       actor: admin,

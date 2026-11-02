@@ -29,7 +29,7 @@ test(
               (_, i) =>
                 `## 步骤 ${i + 1}\n\n阅读教程，同时观察终端里的命令输出。\n\n\`\`\`bash\nnmap -sV --script default 10.201.0.2\n\`\`\``
             ).join('\n\n'),
-            questions: []
+            questions: [{ promptMarkdown: '准备好后输入 ready', answer: 'ready' }]
           }
         ]
       })

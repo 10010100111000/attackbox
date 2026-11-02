@@ -122,7 +122,7 @@ test(
 )
 
 test(
-  'stopping a learning target requires an explicit decision and cancellation sends no request',
+  'releasing a learning environment requires an explicit decision and cancellation sends no request',
   { skip: !process.env.CONTENT_TEST_DATABASE_URL, timeout: 60000 },
   async () => {
     const f = await learningFixture()
@@ -156,14 +156,14 @@ test(
         })
       })
       await page.goto(`${f.base}/learn/modules/${mod.module.slug}/intro`)
-      const stop = page.getByRole('button', { name: '停止靶机', exact: true })
+      const stop = page.getByRole('button', { name: '释放环境', exact: true })
       await stop.click()
-      let dialog = page.getByRole('alertdialog', { name: '停止靶机？' })
+      let dialog = page.getByRole('alertdialog', { name: '释放实验环境？' })
       await dialog.getByRole('button', { name: '取消', exact: true }).click()
       assert.equal(stops, 0)
       await stop.click()
-      await dialog.getByRole('button', { name: '停止靶机', exact: true }).click()
-      await page.getByRole('button', { name: '启动靶机', exact: true }).waitFor()
+      await dialog.getByRole('button', { name: '释放环境', exact: true }).click()
+      await page.getByRole('button', { name: '启动环境', exact: true }).waitFor()
       assert.equal(stops, 1)
     } finally {
       await browser?.close()

@@ -219,10 +219,8 @@ test(
           const reader = await learnerContext.newPage()
           reader.on('pageerror', e => errors.push(e.message))
           await reader.goto(f.base + `/learn/modules/${mod.module.slug}/intro`)
-          await reader.getByText('10.202.0.2:8080', { exact: true }).waitFor()
-          await reader.getByText('服务状态', { exact: true }).click()
+          await reader.getByText('10.202.0.2', { exact: true }).waitFor()
           await reader.getByRole('button', { name: '启动环境', exact: true }).click()
-          await reader.locator('.target-state').filter({ hasText: '已就绪' }).waitFor()
           await reader.getByText('10.202.0.14', { exact: true }).waitFor()
           assert.ok(
             worker.requests.some(r => r.type === 'create_box' && r.payload.owner_id === learner.id)

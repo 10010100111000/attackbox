@@ -15,11 +15,12 @@ withDefaults(
     outlineLabel: string
     outlineTitle: string
     scrollLabel: string
-    backTo: string
-    backLabel: string
+    backTo?: string
+    backLabel?: string
+    outlineTo?: string
     sidePractice?: boolean
   }>(),
-  { sidePractice: false }
+  { sidePractice: false, backTo: undefined, backLabel: undefined, outlineTo: undefined }
 )
 const collapsed = ref(false)
 const mobileOpen = ref(false)
@@ -72,12 +73,15 @@ defineExpose({ scrollElement, workspaceElement, closeOutline })
         </button>
       </div>
       <div class="outline-scroll">
-        <p v-if="!collapsed" class="outline-title">{{ outlineTitle }}</p>
+        <NuxtLink v-if="!collapsed && outlineTo" :to="outlineTo" class="outline-title">{{
+          outlineTitle
+        }}</NuxtLink>
+        <p v-else-if="!collapsed" class="outline-title">{{ outlineTitle }}</p>
         <slot name="outline" :collapsed="collapsed" :close="closeOutline" />
       </div>
     </aside>
     <div class="reader-main">
-      <div class="reader-toolbar">
+      <div class="reader-toolbar" :class="{ 'reader-navigation-only': !backTo && !$slots.tools }">
         <div class="toolbar-navigation">
           <DialogRoot v-model:open="mobileOpen">
             <DialogTrigger class="mobile-menu" :aria-label="`打开${outlineLabel}`"
@@ -96,13 +100,20 @@ defineExpose({ scrollElement, workspaceElement, closeOutline })
                   >选择正文目录，或关闭目录继续阅读。</DialogDescription
                 >
                 <div class="mobile-outline-scroll">
-                  <p class="outline-title">{{ outlineTitle }}</p>
+                  <NuxtLink
+                    v-if="outlineTo"
+                    :to="outlineTo"
+                    class="outline-title"
+                    @click="closeOutline"
+                    >{{ outlineTitle }}</NuxtLink
+                  >
+                  <p v-else class="outline-title">{{ outlineTitle }}</p>
                   <slot name="outline" :collapsed="false" :close="closeOutline" />
                 </div>
               </DialogContent>
             </DialogPortal>
           </DialogRoot>
-          <NuxtLink :to="backTo" class="reader-back"
+          <NuxtLink v-if="backTo" :to="backTo" class="reader-back"
             ><ArrowLeft :size="14" aria-hidden="true" />{{ backLabel }}</NuxtLink
           >
         </div>
@@ -132,6 +143,9 @@ defineExpose({ scrollElement, workspaceElement, closeOutline })
   min-height: 320px;
   background: var(--reader-bg);
   color: var(--ink);
+}
+.reader-toolbar.reader-navigation-only {
+  display: none;
 }
 .reader-layout.outline-collapsed {
   grid-template-columns: 56px minmax(0, 1fr);
@@ -179,6 +193,9 @@ defineExpose({ scrollElement, workspaceElement, closeOutline })
   padding: 20px 16px 28px;
 }
 .outline-title {
+  display: block;
+  color: inherit;
+  text-decoration: none;
   margin: 0 9px 22px;
   font-size: 15px;
   font-weight: 650;
@@ -261,6 +278,9 @@ button:focus-visible {
   outline-offset: -2px;
 }
 @media (max-width: 900px) {
+  .reader-toolbar.reader-navigation-only {
+    display: flex;
+  }
   .reader-layout,
   .reader-layout.outline-collapsed {
     grid-template-columns: minmax(0, 1fr);

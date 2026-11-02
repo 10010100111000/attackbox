@@ -181,9 +181,8 @@ test(
       await p.goto(f.base + `/learn/modules/${d.module.slug}/intro`)
       const box = p.locator('.target-runtime')
       await box.waitFor()
-      await box.locator('summary').click()
       await p.getByText('查看 /home/box/materials', { exact: true }).waitFor()
-      assert.equal(await box.locator('.target-details').getByRole('button').count(), 0)
+      assert.equal(await box.locator('details').count(), 0)
       const rect = await box.boundingBox(),
         body = await p.locator('.reader-article > .markdown-body').boundingBox(),
         quiz = await p.locator('.quiz-card').boundingBox()

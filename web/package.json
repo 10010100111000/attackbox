@@ -43,6 +43,7 @@
     "test:registration-policy": "node --test tests/registration-policy-browser.test.mjs",
     "test:references": "node --test tests/references.test.mjs",
     "test:reader-navigation": "node --test tests/reader-navigation-browser.test.mjs",
+    "test:practice-environment": "node --test tests/practice-environment-browser.test.mjs",
     "test:practice-layout": "node --test tests/practice-layout-browser.test.mjs",
     "test:workbench": "node --test tests/workbench-browser.test.mjs",
     "test:categories": "node --test tests/categories.test.mjs",

@@ -5,8 +5,6 @@ import {
   ArrowRight,
   LockKeyhole,
   Clock3,
-  Terminal,
-  Monitor,
   ChevronUp,
   CheckCircle2,
   CircleAlert,
@@ -144,9 +142,18 @@ const { activeSection, goToSection } = useReaderNavigation(
 function headingsLoaded(headings: MarkdownHeading[]) {
   sections.value = headings.filter(heading => heading.level >= 2)
 }
-const { sandbox: readerSandbox } = useSandboxSession()
+const readerSandbox = useState<import('~/shared/sandbox').SandboxStatus>('sandbox:session', () => ({
+  available: false,
+  instance: null
+}))
+const hasPractice = computed(
+  () => !!chapterData.value?.questions.length || !!chapterResponse.value?.data.target
+)
 const environmentReady = computed(
-  () => readerSandbox.value.instance?.state === 'running' && readerSandbox.value.instance.connected
+  () =>
+    hasPractice.value &&
+    readerSandbox.value.instance?.state === 'running' &&
+    readerSandbox.value.instance.connected
 )
 const practiceMode = ref<'cli' | 'gui'>('cli')
 const practiceOpened = ref(false)
@@ -398,8 +405,7 @@ useHead({
       outline-label="模块目录"
       :outline-title="moduleData?.title || '学习模块'"
       scroll-label="章节正文"
-      :back-to="`/learn/modules/${moduleSlug}`"
-      back-label="返回模块"
+      :outline-to="`/learn/modules/${moduleSlug}`"
       :side-practice="practiceVisible && !practiceMinimized && dock.placement.value === 'right'"
     >
       <template #outline="{ collapsed, close }">
@@ -413,31 +419,6 @@ useHead({
           @section="goToSection"
           @navigate="close"
         />
-      </template>
-      <template #tools>
-        <LearningEnvironmentStatus />
-        <button
-          v-if="environmentReady"
-          class="tool-launch"
-          type="button"
-          :disabled="!readerMounted"
-          :aria-pressed="practiceVisible && !practiceMinimized && practiceMode === 'cli'"
-          @click="openPractice('cli')"
-        >
-          <Terminal :size="15" aria-hidden="true" /><span>CLI</span
-          ><span class="tool-word">终端</span>
-        </button>
-        <button
-          v-if="environmentReady"
-          class="tool-launch"
-          type="button"
-          :disabled="!readerMounted"
-          :aria-pressed="practiceVisible && !practiceMinimized && practiceMode === 'gui'"
-          @click="openPractice('gui')"
-        >
-          <Monitor :size="15" aria-hidden="true" /><span>GUI</span
-          ><span class="tool-word">桌面</span>
-        </button>
       </template>
       <ReaderArticle ref="readerArticle">
         <div class="chapter-meta">
@@ -453,15 +434,16 @@ useHead({
           :image-urls="chapterResponse?.data.imageUrls"
           @headings-loaded="headingsLoaded"
         />
-        <TargetEnvironment
-          v-if="chapterResponse?.data.target"
-          :key="chapterResponse.data.chapter.id"
-          :target="chapterResponse.data.target"
+        <LearningPracticeEnvironment
+          v-if="hasPractice"
+          :key="chapterResponse?.data.chapter.id"
+          :target="chapterResponse?.data.target"
           :context="{
             kind: 'chapter',
             moduleSlug: String(route.params.slug),
             chapterSlug: String(route.params.chapterSlug)
           }"
+          @open="openPractice"
         />
 
         <section
@@ -721,31 +703,6 @@ useHead({
   color: var(--ink);
 }
 
-.tool-launch {
-  height: 32px;
-  box-sizing: border-box;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  line-height: 1;
-  gap: 6px;
-  padding: 6px 9px;
-  border: 1px solid transparent;
-  border-radius: 5px;
-  background: transparent;
-  font-size: 11px;
-  color: var(--muted);
-  cursor: pointer;
-}
-.tool-launch:hover {
-  background: var(--soft);
-  color: var(--ink);
-}
-.tool-launch[aria-pressed='true'] {
-  border-color: var(--line);
-  background: var(--paper);
-  color: var(--ink);
-}
 .chapter-meta {
   display: flex;
   flex-wrap: wrap;
@@ -942,9 +899,6 @@ button:focus-visible {
   outline-offset: 3px;
 }
 @media (max-width: 600px) {
-  .tool-word {
-    display: none;
-  }
   .answer-check-btn {
     padding: 10px 12px;
   }

@@ -93,18 +93,19 @@ export function useSandboxSession() {
       await refresh()
     }
   }
-  async function release() {
+  async function release(options: { confirm?: boolean } = {}) {
     const id = sandbox.value.instance?.id,
       actor = currentUser.value?.id,
       expectedGeneration = runtime.generation
     if (
       !id ||
       busy.value ||
-      !(await confirmAction({
-        title: '释放环境？',
-        description: '所有终端和桌面连接将关闭，沙箱中的文件与进程会被清理。',
-        confirmLabel: '释放环境'
-      }))
+      (options.confirm !== false &&
+        !(await confirmAction({
+          title: '释放环境？',
+          description: '所有终端和桌面连接将关闭，沙箱中的文件与进程会被清理。',
+          confirmLabel: '释放环境'
+        })))
     )
       return
     if (
@@ -263,7 +264,8 @@ export function useSandboxSession() {
     guiElsewhere,
     refresh,
     start,
-    release,
+    release: () => release(),
+    releaseConfirmed: () => release({ confirm: false }),
     openViewer,
     announceGUI,
     resumeGUI,
