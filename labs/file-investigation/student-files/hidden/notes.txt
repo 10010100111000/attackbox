@@ -1,3 +1,0 @@
-The investigation note is somewhere inside this directory, including hidden subdirectories.
-Its filename is .session-note. Find the note and read its case_code.
-Report paths relative to this directory, without a leading ./.
