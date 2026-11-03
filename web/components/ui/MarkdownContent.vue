@@ -3,6 +3,10 @@ const props = withDefaults(defineProps<{ html: string; copyable?: boolean }>(), 
 const handleCopyClick = useMarkdownCopy(() => props.copyable)
 </script>
 <template>
-  <div class="markdown-body" @click="handleCopyClick" v-html="html" />
+  <div
+    class="markdown-body prose dark:prose-invert max-w-none"
+    @click="handleCopyClick"
+    v-html="html"
+  />
 </template>
 <style src="~/assets/css/markdown.css"></style>

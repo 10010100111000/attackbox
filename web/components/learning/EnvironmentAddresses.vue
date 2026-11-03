@@ -53,7 +53,7 @@ onBeforeUnmount(() => clearTimeout(timer))
         <Check v-if="copied === item.address" :size="14" /><Copy v-else :size="14" />
       </UiButton>
     </div>
-    <span v-if="error" role="alert">{{ error }}</span>
+    <span v-if="error" class="address-error" role="alert">{{ error }}</span>
   </div>
 </template>
 <style scoped>
@@ -71,6 +71,9 @@ onBeforeUnmount(() => clearTimeout(timer))
 span {
   font-size: 12px;
   color: var(--muted);
+}
+.address-error {
+  color: var(--error-ink);
 }
 code {
   font-size: 14px;

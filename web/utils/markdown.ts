@@ -1,40 +1,8 @@
 import { markdownHeadings } from './markdown-headings.ts'
 import MarkdownIt from 'markdown-it'
 import { callouts } from './markdown-callouts.ts'
-import hljs from 'highlight.js/lib/core'
-import bash from 'highlight.js/lib/languages/bash'
-import javascript from 'highlight.js/lib/languages/javascript'
-import typescript from 'highlight.js/lib/languages/typescript'
-import json from 'highlight.js/lib/languages/json'
-import markdown from 'highlight.js/lib/languages/markdown'
-import python from 'highlight.js/lib/languages/python'
-import sql from 'highlight.js/lib/languages/sql'
-import yaml from 'highlight.js/lib/languages/yaml'
-import xml from 'highlight.js/lib/languages/xml'
-import c from 'highlight.js/lib/languages/c'
-import cpp from 'highlight.js/lib/languages/cpp'
-import ini from 'highlight.js/lib/languages/ini'
-
-hljs.registerLanguage('bash', bash)
-hljs.registerLanguage('sh', bash)
-hljs.registerLanguage('shell', bash)
-hljs.registerLanguage('javascript', javascript)
-hljs.registerLanguage('js', javascript)
-hljs.registerLanguage('typescript', typescript)
-hljs.registerLanguage('ts', typescript)
-hljs.registerLanguage('json', json)
-hljs.registerLanguage('markdown', markdown)
-hljs.registerLanguage('md', markdown)
-hljs.registerLanguage('python', python)
-hljs.registerLanguage('py', python)
-hljs.registerLanguage('sql', sql)
-hljs.registerLanguage('yaml', yaml)
-hljs.registerLanguage('yml', yaml)
-hljs.registerLanguage('xml', xml)
-hljs.registerLanguage('html', xml)
-hljs.registerLanguage('c', c)
-hljs.registerLanguage('cpp', cpp)
-hljs.registerLanguage('ini', ini)
+import { markdownExtensions } from './markdown-extensions.ts'
+import hljs from 'highlight.js/lib/common'
 
 export interface MarkdownHeading {
   id: string
@@ -66,6 +34,8 @@ export function createMarkdownRenderer(options: MarkdownOptions = {}) {
   })
 
   md.use(callouts)
+  md.use(markdownExtensions)
+
   // Scroll the table itself, keeping the surrounding document stationary.
   md.renderer.rules.table_open = () =>
     '<div class="markdown-table" tabindex="0" role="region" aria-label="表格"><table>\n'

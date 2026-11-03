@@ -1,160 +1,258 @@
 @import 'highlight.js/styles/github-dark.css';
 
-/* Shared reading theme for live Markdown and precompiled references. Layout
-   components own page geometry; this file owns every document element. */
+/* Tailwind Typography (@tailwindcss/typography) prose theme tokens + GFM/Typora extensions */
 .markdown-body {
-  --md-heading: var(--ink);
-  --md-muted: var(--muted);
-  --md-link: #2563eb;
-  --md-line: color-mix(in srgb, var(--reader-ink) 20%, transparent);
-  --md-table-head: color-mix(in srgb, var(--reader-ink) 7%, var(--reader-bg));
-  --md-table-stripe: color-mix(in srgb, var(--reader-ink) 3%, var(--reader-bg));
-  --md-inline-bg: color-mix(in srgb, var(--reader-ink) 8%, var(--reader-bg));
-  --md-code-bg: #20252f;
-  --md-code-head: #292f3b;
+  --tw-prose-body: var(--markdown-ink, var(--reader-ink));
+  --tw-prose-headings: var(--ink);
+  --tw-prose-lead: var(--muted);
+  --tw-prose-links: #2563eb;
+  --tw-prose-bold: var(--ink);
+  --tw-prose-counters: var(--muted);
+  --tw-prose-bullets: color-mix(in srgb, var(--reader-ink) 45%, transparent);
+  --tw-prose-hr: color-mix(in srgb, var(--reader-ink) 16%, transparent);
+  --tw-prose-quotes: var(--muted);
+  --tw-prose-quote-borders: var(--brand);
+  --tw-prose-captions: var(--muted);
+  --tw-prose-code: var(--ink);
+  --tw-prose-th-borders: color-mix(in srgb, var(--reader-ink) 20%, transparent);
+  --tw-prose-td-borders: color-mix(in srgb, var(--reader-ink) 16%, transparent);
+  --md-table-head: color-mix(in srgb, var(--reader-ink) 6%, var(--reader-bg));
+  --md-table-stripe: color-mix(in srgb, var(--reader-ink) 2.5%, var(--reader-bg));
+  --md-inline-bg: color-mix(in srgb, var(--reader-ink) 7%, var(--reader-bg));
+  --md-inline-border: color-mix(in srgb, var(--reader-ink) 14%, transparent);
+  --md-quote-bg: color-mix(in srgb, var(--reader-ink) 3.5%, transparent);
+  --md-mark-bg: rgba(234, 179, 8, 0.28);
+  --md-code-bg: #1e222a;
+  --md-code-head: #272c36;
   --md-code-ink: #e6edf3;
   --md-code-muted: #b4bdcd;
-  --md-code-line: #465061;
+  --md-code-line: #3d4656;
   --md-note: #2563eb;
   --md-tip: #18794e;
   --md-important: #7953b2;
   --md-warning: #986000;
   --md-caution: #bc3348;
 
-  color: var(--markdown-ink, var(--reader-ink));
+  color: var(--tw-prose-body);
   background: transparent;
   color-scheme: inherit;
   font-family: inherit;
   font-size: var(--markdown-font-size, 16px);
-  line-height: 1.85;
+  line-height: 1.8;
+  max-width: none;
   overflow-wrap: anywhere;
 }
+
 [data-theme='midnight'] .markdown-body {
-  --md-link: #8ab4f8;
+  --tw-prose-links: #8ab4f8;
+  --md-mark-bg: rgba(234, 179, 8, 0.24);
   --md-note: #8ab4f8;
   --md-tip: #89c9a5;
   --md-important: #c4a7ed;
   --md-warning: #e6bf7b;
   --md-caution: #f19da8;
 }
+
 .markdown-body :where(h1, h2, h3, h4, h5, h6) {
-  color: var(--md-heading);
+  color: var(--tw-prose-headings);
   font-weight: 650;
-  line-height: 1.45;
-  margin: 1.8em 0 0.75em;
+  line-height: 1.4;
+  letter-spacing: -0.015em;
+  margin: 1.75em 0 0.7em;
   scroll-margin-top: 24px;
 }
+
 .markdown-body h1 {
-  font-size: 2.12em;
+  font-size: 2em;
+  padding-bottom: 0.3em;
+  border-bottom: 1px solid var(--tw-prose-hr);
 }
+
 .markdown-body h2 {
-  font-size: 1.71em;
+  font-size: 1.58em;
+  padding-bottom: 0.28em;
+  border-bottom: 1px solid var(--tw-prose-hr);
 }
+
 .markdown-body h3 {
-  font-size: 1.41em;
+  font-size: 1.32em;
 }
+
 .markdown-body h4 {
-  font-size: 1.24em;
+  font-size: 1.18em;
 }
+
 .markdown-body h5 {
-  font-size: 1.12em;
+  font-size: 1.1em;
 }
+
 .markdown-body h6 {
-  font-size: 1.06em;
+  font-size: 1.04em;
 }
+
 .markdown-body > :first-child,
 .markdown-body .reference-chunk:first-child > :first-child {
   margin-top: 0;
 }
+
 .markdown-body > :last-child {
   margin-bottom: 0;
 }
-.markdown-body :where(p, ul, ol, blockquote, dl, .markdown-table, .code-block, .callout) {
+
+.markdown-body :where(p, ul, ol, blockquote, dl, .markdown-table, .code-block, .callout, .footnotes) {
   margin: 0 0 1.25em;
 }
+
 .markdown-body :where(ul, ol) {
-  padding-left: 1.6em;
+  padding-left: 1.625em;
 }
+
 .markdown-body ul {
   list-style-type: disc;
 }
+
 .markdown-body ol {
   list-style-type: decimal;
 }
+
 .markdown-body ul ul {
   list-style-type: circle;
 }
+
+.markdown-body ul.contains-task-list {
+  list-style: none;
+  padding-left: 0.4em;
+}
+
+.markdown-body li.task-list-item {
+  display: flex;
+  align-items: baseline;
+  gap: 0.55em;
+}
+
+.markdown-body input.task-list-item-checkbox {
+  width: 1em;
+  height: 1em;
+  margin: 0;
+  accent-color: var(--brand);
+  vertical-align: middle;
+  flex-shrink: 0;
+}
+
 .markdown-body :where(ul, ol) :where(ul, ol) {
   margin-block: 0.4em 0;
 }
+
 .markdown-body li + li {
-  margin-top: 0.4em;
+  margin-top: 0.38em;
 }
+
 .markdown-body li > p {
-  margin-block: 0.4em;
+  margin-block: 0.38em;
 }
+
 .markdown-body strong {
-  font-weight: 700;
+  color: var(--tw-prose-bold);
+  font-weight: 650;
 }
+
 .markdown-body em {
   font-style: italic;
 }
+
+.markdown-body mark {
+  padding: 0.1em 0.32em;
+  border-radius: 4px;
+  background: var(--md-mark-bg);
+  color: inherit;
+}
+
+.markdown-body :where(sub, sup) {
+  font-size: 0.78em;
+  line-height: 0;
+}
+
 .markdown-body a {
-  color: var(--md-link);
+  color: var(--tw-prose-links);
+  font-weight: 500;
   text-decoration: underline;
   text-decoration-thickness: 1px;
-  text-underline-offset: 0.2em;
+  text-underline-offset: 0.22em;
 }
+
 .markdown-body a:hover {
   text-decoration-thickness: 2px;
 }
+
 .markdown-body blockquote {
-  padding: 4px 0 4px 20px;
-  border-left: 3px solid var(--md-line);
-  color: var(--md-muted);
+  padding: 0.65em 1.1em;
+  border-left: 3px solid var(--tw-prose-quote-borders);
+  border-radius: 0 6px 6px 0;
+  background: var(--md-quote-bg);
+  color: var(--tw-prose-quotes);
 }
+
 .markdown-body :where(blockquote, .callout) > :last-child {
   margin-bottom: 0;
 }
+
 .markdown-body hr {
   border: 0;
-  border-top: 1px solid var(--md-line);
-  margin-block: 2em;
+  border-top: 1px solid var(--tw-prose-hr);
+  margin-block: 2.2em;
 }
+
 .markdown-body img {
   display: block;
   max-width: 100%;
   height: auto;
-  margin-block: 1.25em;
+  margin-block: 1.5em;
+  border-radius: 8px;
 }
+
 .markdown-body dt {
   margin-top: 1em;
+  color: var(--tw-prose-headings);
   font-weight: 650;
 }
+
 .markdown-body dd {
   margin: 0.4em 0 1em 1.6em;
 }
+
 .markdown-body :where(code, pre, kbd, samp) {
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace;
 }
+
 .markdown-body :not(pre) > code {
-  padding: 0.15em 0.4em;
-  border-radius: 4px;
+  padding: 0.18em 0.44em;
+  border: 1px solid var(--md-inline-border);
+  border-radius: 5px;
   background: var(--md-inline-bg);
-  font-size: 0.9em;
+  color: var(--tw-prose-code);
+  font-size: 0.88em;
+  font-weight: 500;
 }
+
+.markdown-body :not(pre) > code::before,
+.markdown-body :not(pre) > code::after {
+  content: none;
+}
+
 .markdown-body kbd {
-  padding: 0.12em 0.4em;
-  border: 1px solid var(--md-line);
+  padding: 0.12em 0.42em;
+  border: 1px solid var(--tw-prose-th-borders);
   border-bottom-width: 2px;
   border-radius: 4px;
   font-size: 0.85em;
 }
+
 .markdown-body .markdown-table {
   width: 100%;
   overflow-x: auto;
-  border-radius: 6px;
+  border-radius: 8px;
 }
+
 .markdown-body table {
   width: 100%;
   border-collapse: collapse;
@@ -163,23 +261,28 @@
   line-height: 1.7;
   font-variant-numeric: tabular-nums;
 }
+
 .markdown-body :where(th, td) {
   padding: 11px 16px;
-  border: 1px solid var(--md-line);
+  border: 1px solid var(--tw-prose-td-borders);
   text-align: left;
   vertical-align: top;
 }
+
 .markdown-body th {
   background: var(--md-table-head);
-  color: var(--md-heading);
+  color: var(--tw-prose-headings);
   font-weight: 650;
 }
+
 .markdown-body tbody tr:nth-child(even) {
   background: var(--md-table-stripe);
 }
+
 .markdown-body table code {
   white-space: nowrap;
 }
+
 .markdown-body .code-block {
   overflow: hidden;
   border: 1px solid var(--md-code-line);
@@ -188,6 +291,7 @@
   color: var(--md-code-ink);
   color-scheme: dark;
 }
+
 .markdown-body .code-top {
   display: flex;
   align-items: center;
@@ -200,6 +304,7 @@
   font-size: 12px;
   font-weight: 500;
 }
+
 .markdown-body .code-block pre {
   margin: 0;
   padding: 18px 20px;
@@ -209,12 +314,15 @@
   white-space: pre;
   overflow-wrap: normal;
 }
+
 .markdown-body .code-block code.hljs {
   padding: 0;
+  border: 0;
   background: transparent;
   color: var(--md-code-ink);
   font-size: inherit;
 }
+
 .markdown-body .copy-code-btn {
   flex-shrink: 0;
   padding: 3px 9px;
@@ -225,15 +333,18 @@
   font: inherit;
   cursor: pointer;
 }
+
 .markdown-body .copy-code-btn:hover,
 .markdown-body .copy-code-btn.copied {
   border-color: currentColor;
   background: #ffffff0a;
 }
+
 .markdown-body :where(a, button, .markdown-table):focus-visible {
-  outline: 2px solid var(--md-link);
+  outline: 2px solid var(--tw-prose-links);
   outline-offset: 3px;
 }
+
 .markdown-body .callout {
   --callout-color: var(--md-note);
   padding: 16px 20px;
@@ -241,20 +352,36 @@
   border-radius: 0 8px 8px 0;
   background: color-mix(in srgb, var(--callout-color) 8%, transparent);
 }
+
 .markdown-body .callout-tip {
   --callout-color: var(--md-tip);
 }
+
 .markdown-body .callout-important {
   --callout-color: var(--md-important);
 }
+
 .markdown-body .callout-warning {
   --callout-color: var(--md-warning);
 }
+
 .markdown-body .callout-caution {
   --callout-color: var(--md-caution);
 }
+
 .markdown-body .callout > strong:first-child {
   display: block;
   margin-bottom: 8px;
   color: var(--callout-color);
+}
+
+.markdown-body .footnotes {
+  padding-top: 1.25em;
+  border-top: 1px solid var(--tw-prose-hr);
+  color: var(--tw-prose-quotes);
+  font-size: 0.9em;
+}
+
+.markdown-body .footnote-backref {
+  text-decoration: none;
 }

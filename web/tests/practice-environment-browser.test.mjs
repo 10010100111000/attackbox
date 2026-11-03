@@ -81,44 +81,28 @@ test(
       )
       await page.goto(f.base + path + '/lab')
       const panel = page.getByRole('region', { name: '实验环境', exact: true })
+      await panel.getByRole('button', { name: '启动靶机', exact: true }).click()
+      await panel.getByText('10.202.0.2', { exact: true }).waitFor()
+      assert.equal(worker.boxes.size, 0, 'starting target does not auto-start sandbox')
       await panel.getByRole('button', { name: '启动环境', exact: true }).click()
       await page.locator('.terminal-status').filter({ hasText: '已连接' }).waitFor()
-      await panel.getByText('10.202.0.2', { exact: true }).waitFor()
       await panel.getByText('10.202.0.14', { exact: true }).waitFor()
       assert.equal(await panel.getByText('exercise-lab', { exact: true }).count(), 0)
       assert.equal(await panel.locator('details').count(), 0)
       assert.equal(await page.getByRole('link', { name: '返回模块', exact: true }).count(), 0)
       await panel.getByRole('button', { name: '复制靶机 IP', exact: true }).click()
       assert.equal(await page.evaluate(() => navigator.clipboard.readText()), '10.202.0.2')
-      const create = worker.requests.findIndex(r => r.type === 'create_box')
-      const start = worker.requests.findIndex(r => r.type === 'compose_start')
-      assert.ok(start >= 0 && create > start, 'target placement selects the sandbox node')
-      await panel.getByRole('button', { name: '释放环境', exact: true }).click()
-      const dialog = page.getByRole('alertdialog', { name: '释放实验环境？' })
-      await dialog.getByRole('button', { name: '取消', exact: true }).click()
+      await panel.getByRole('button', { name: '停止靶机' }).click()
+      const targetDialog = page.getByRole('alertdialog', { name: '停止靶机？' })
+      await targetDialog.getByRole('button', { name: '取消', exact: true }).click()
       assert.equal(worker.requests.filter(r => r.type === 'compose_stop').length, 0)
-      // Target cleanup failure must preserve the attack sandbox for recovery.
-      await page.route('**/api/targets', async route => {
-        if (route.request().method() !== 'POST' || route.request().postDataJSON().action !== 'stop')
-          return route.continue()
-        const [row] =
-          await f.sql`select id,expires_at from target_instances where user_id=${learner.id}`
-        await route.fulfill({
-          json: {
-            id: row.id,
-            expiresAt: row.expires_at,
-            state: 'cleanup_pending',
-            error: '测试：靶机释放待确认'
-          }
-        })
-      })
-      await panel.getByRole('button', { name: '释放环境', exact: true }).click()
-      await dialog.getByRole('button', { name: '释放环境', exact: true }).click()
-      await panel.getByRole('alert').filter({ hasText: '靶机释放待确认' }).waitFor()
-      assert.equal(worker.boxes.size, 1)
-      await page.unroute('**/api/targets')
-      await panel.getByRole('button', { name: '释放环境', exact: true }).click()
-      await dialog.getByRole('button', { name: '释放环境', exact: true }).click()
+      await panel.getByRole('button', { name: '停止靶机' }).click()
+      await targetDialog.getByRole('button', { name: '停止靶机', exact: true }).click()
+      await panel.getByRole('button', { name: '启动靶机', exact: true }).waitFor()
+      assert.equal(worker.boxes.size, 1, 'stopping target keeps sandbox running independently')
+      await panel.getByRole('button', { name: '停止环境' }).click()
+      const sandboxDialog = page.getByRole('alertdialog', { name: '释放环境？' })
+      await sandboxDialog.getByRole('button', { name: '释放环境', exact: true }).click()
       await panel.locator('button:enabled').filter({ hasText: '启动环境' }).waitFor()
       assert.equal(worker.boxes.size, 0)
       const stops = worker.requests.map(r => r.type)

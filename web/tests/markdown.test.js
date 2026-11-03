@@ -156,3 +156,31 @@ test('empty NOTE stays a neutral note and tables have independent scroll contain
   assert.match(table, /^<div class="markdown-table"[^>]*><table>/)
   assert.ok(table.includes('</table></div>'))
 })
+
+test('renderMarkdown supports task lists, highlight mark, subscript, superscript, footnotes and extended highlight.js languages', () => {
+  const source = [
+    '- [ ] 扫描开放端口',
+    '- [x] 获取初始凭据',
+    '',
+    '这是 ==关键线索==，包含 H~2~O 与 2^10^ 以及引用[^1]。',
+    '',
+    '[^1]: 详见渗透测试手册第一章。',
+    '',
+    '```go',
+    'package main',
+    'func main() {}',
+    '```'
+  ].join('\n')
+  const result = renderMarkdown(source)
+  assert.ok(result.html.includes('class="contains-task-list"'))
+  assert.ok(result.html.includes('class="task-list-item"'))
+  assert.ok(result.html.includes('<input class="task-list-item-checkbox" type="checkbox" disabled>'))
+  assert.ok(result.html.includes('<input class="task-list-item-checkbox" type="checkbox" disabled checked>'))
+  assert.ok(result.html.includes('<mark>关键线索</mark>'))
+  assert.ok(result.html.includes('<sub>2</sub>'))
+  assert.ok(result.html.includes('<sup>10</sup>'))
+  assert.ok(result.html.includes('class="footnote-ref"'))
+  assert.ok(result.html.includes('class="footnotes"'))
+  assert.ok(result.html.includes('language-go'))
+  assert.ok(result.html.includes('hljs-keyword'))
+})

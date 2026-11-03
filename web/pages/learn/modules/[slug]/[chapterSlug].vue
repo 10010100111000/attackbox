@@ -8,7 +8,9 @@ import {
   ChevronUp,
   CheckCircle2,
   CircleAlert,
-  BookOpen
+  BookOpen,
+  Terminal,
+  Monitor
 } from 'lucide-vue-next'
 import ReaderLayout from '~/components/reader/Layout.vue'
 import ReaderArticle from '~/components/reader/Article.vue'
@@ -146,9 +148,7 @@ const readerSandbox = useState<import('~/shared/sandbox').SandboxStatus>('sandbo
   available: false,
   instance: null
 }))
-const hasPractice = computed(
-  () => !!chapterData.value?.questions.length || !!chapterResponse.value?.data.target
-)
+const hasPractice = computed(() => !!chapterData.value?.questions.length)
 const environmentReady = computed(
   () =>
     hasPractice.value &&

@@ -3,7 +3,7 @@ defineProps<{ chunks: { index: number; html: string }[] }>()
 const copy = useMarkdownCopy()
 </script>
 <template>
-  <div class="markdown-body" @click="copy">
+  <div class="markdown-body prose dark:prose-invert max-w-none" @click="copy">
     <section
       v-for="chunk in chunks"
       :key="chunk.index"

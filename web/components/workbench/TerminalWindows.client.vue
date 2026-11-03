@@ -32,6 +32,13 @@ function focus(w: WindowState) {
   w.z = ++z
   focused.value = w.id
 }
+function syncWindowSize(e: PointerEvent, w: WindowState) {
+  if (w.maximized) return
+  const el = e.currentTarget as HTMLElement | null
+  if (!el) return
+  if (el.offsetWidth >= 260) w.width = el.offsetWidth
+  if (el.offsetHeight >= 180) w.height = el.offsetHeight
+}
 function restore(w: WindowState) {
   w.minimized = false
   focus(w)
@@ -49,8 +56,8 @@ function add() {
     name: `终端 ${++sequence}`,
     x: Math.min(24 + offset, Math.max(0, width - 360)),
     y: Math.min(20 + offset, Math.max(0, height - 240)),
-    width: Math.min(850, width),
-    height: Math.min(500, height),
+    width: Math.min(850, Math.max(260, width - 32)),
+    height: Math.min(500, Math.max(180, height - 32)),
     z: ++z,
     minimized: false,
     maximized: false
@@ -168,6 +175,7 @@ onBeforeUnmount(() => {
         "
         :aria-label="w.name"
         @pointerdown="focus(w)"
+        @pointerup="syncWindowSize($event, w)"
       >
         <header
           @pointerdown="begin($event, w)"

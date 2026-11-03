@@ -1,4 +1,13 @@
+import { createRequire } from 'node:module'
 import type { Config } from 'tailwindcss'
+
+const require = createRequire(import.meta.url)
+const plugins: NonNullable<Config['plugins']> = []
+try {
+  plugins.push(require('@tailwindcss/typography'))
+} catch {
+  /* Falls back to prose typography rules in assets/css/markdown.css if not yet installed */
+}
 
 export default {
   darkMode: ['class', '[data-theme="midnight"]'],
@@ -46,5 +55,6 @@ export default {
         'card-glow': 'var(--card-glow)'
       }
     }
-  }
+  },
+  plugins
 } satisfies Config

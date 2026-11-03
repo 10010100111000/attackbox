@@ -57,6 +57,7 @@ function extractPlainText(md: string): string {
   return md
     .replace(/```[\s\S]*?```/g, '')
     .replace(/`([^`]+)`/g, '$1')
+    .replace(/!\[([^\]]*)\]\([^)]+\)/g, '$1')
     .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
     .replace(/[#*~_>]/g, '')
     .replace(/\s+/g, ' ')

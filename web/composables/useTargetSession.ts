@@ -19,10 +19,10 @@ export interface TargetInstance {
   error?: string
 }
 
-export function useTargetSession(
-  props: { context: Record<string, string>; target?: TargetDisplay },
-  options: { followSandbox?: boolean } = {}
-) {
+export function useTargetSession(props: {
+  context: Record<string, string>
+  target?: TargetDisplay
+}) {
   const confirmAction = useConfirm()
   const { currentUser } = useAuth()
   const sandboxSession = useState<import('~/shared/sandbox').SandboxStatus>(
@@ -54,7 +54,9 @@ export function useTargetSession(
   const unavailable = computed(() => props.target?.status === 'unavailable')
   const state = computed(() => current.value?.state || 'stopped')
   const active = computed(() => !!current.value && state.value !== 'stopped')
-  const canRetry = computed(() => ['missing', 'created'].includes(state.value))
+  const canRetry = computed(
+    () => ['missing', 'created'].includes(state.value) || (active.value && remaining.value === 0)
+  )
   const status = computed(() => {
     if (initializing.value) return ''
     if (active.value && remaining.value === 0) return '租期已到期'
@@ -90,7 +92,6 @@ export function useTargetSession(
       (unavailable.value && operation === 'start')
     )
       return
-    if (operation === 'start' && active.value && remaining.value === 0) return
     const expectedId = current.value?.id,
       expectedGeneration = identityGeneration,
       expectedContext = JSON.stringify(props.context)
@@ -161,6 +162,7 @@ export function useTargetSession(
           ) {
             clearInterval(clockTimer)
             clockTimer = undefined
+            if (alive && active.value) void run('inspect')
           }
         }, 1000)
       }
@@ -175,12 +177,11 @@ export function useTargetSession(
     if (props.target) void run('inspect')
     else initializing.value = false
   })
-  // A sandbox identity transition is an action/lifecycle event, not a polling loop.
+  // When the learner's sandbox starts or changes, refresh target attachment / reverse IP.
   watch(
     () => sandboxSession.value.instance?.id,
     () => {
-      if (options.followSandbox !== false && active.value && current.value?.instance?.attachment)
-        void run('inspect')
+      if (active.value && current.value?.instance?.attachment) void run('inspect')
     }
   )
   watch([active, () => current.value?.expiresAt], () => {
