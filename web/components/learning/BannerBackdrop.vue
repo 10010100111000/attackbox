@@ -5,7 +5,7 @@ const identity = computed(() => {
   let hash = 2166136261
   for (const char of props.seed) hash = Math.imul(hash ^ char.charCodeAt(0), 16777619) >>> 0
   return {
-    color: ['#f97316', '#ea580c', '#38bdf8', '#10b981'][hash % 4],
+    color: ['#ea580c', '#f97316', '#ea580c', '#f97316'][hash % 4],
     motif: (hash >>> 8) % 3
   }
 })
@@ -25,62 +25,63 @@ const identity = computed(() => {
       </defs>
 
       <g mask="url(#ab-banner-mask)">
-        <!-- 精密等轴测基准坐标轴 -->
-        <g stroke="currentColor" stroke-opacity="0.16" stroke-width="1">
-          <line x1="560" y1="44" x2="1160" y2="44" stroke-dasharray="2 6" />
-          <line x1="560" y1="120" x2="1160" y2="120" />
-          <line x1="560" y1="196" x2="1160" y2="196" stroke-dasharray="2 6" />
+        <!-- 精密等轴测基准坐标轴 (结构锌灰) -->
+        <g stroke="var(--ink)" stroke-opacity="0.08" stroke-width="1">
+          <line x1="520" y1="44" x2="1180" y2="44" stroke-dasharray="2 6" />
+          <line x1="520" y1="120" x2="1180" y2="120" />
+          <line x1="520" y1="196" x2="1180" y2="196" stroke-dasharray="2 6" />
           <line x1="780" y1="0" x2="780" y2="240" stroke-dasharray="3 5" />
           <line x1="980" y1="0" x2="980" y2="240" />
         </g>
 
-        <!-- 光学雷达测距环 -->
-        <g stroke="currentColor">
-          <circle cx="980" cy="120" r="88" stroke-opacity="0.22" stroke-width="1.2" />
+        <!-- 光学雷达测距环 (外环结构锌灰 + 内环信号橙锁定) -->
+        <g>
+          <circle cx="980" cy="120" r="96" stroke="var(--ink)" stroke-opacity="0.12" stroke-width="1.2" />
           <circle
             cx="980"
             cy="120"
-            r="60"
-            stroke-opacity="0.28"
-            stroke-width="1"
+            r="64"
+            stroke="var(--ink)"
+            stroke-opacity="0.18"
+            stroke-width="1.1"
             stroke-dasharray="5 4"
           />
-          <circle cx="980" cy="120" r="28" stroke-opacity="0.36" stroke-width="1.2" />
-          <circle cx="980" cy="120" r="4" fill="currentColor" fill-opacity="0.9" />
+          <circle cx="980" cy="120" r="32" stroke="currentColor" stroke-opacity="0.55" stroke-width="1.4" />
+          <circle cx="980" cy="120" r="4.5" fill="currentColor" />
         </g>
 
         <!-- 动态变体几何拓扑模块 -->
         <polygon
           v-if="identity.motif !== 1"
-          points="980,46 1044,120 980,194 916,120"
-          stroke="currentColor"
-          stroke-opacity="0.24"
-          stroke-width="1"
+          points="980,42 1048,120 980,198 912,120"
+          stroke="var(--ink)"
+          stroke-opacity="0.14"
+          stroke-width="1.1"
         />
         <rect
           v-if="identity.motif !== 2"
-          x="736"
-          y="76"
-          width="88"
-          height="88"
+          x="732"
+          y="72"
+          width="96"
+          height="96"
           rx="8"
-          stroke="currentColor"
-          stroke-opacity="0.26"
-          stroke-width="1.1"
+          stroke="var(--ink)"
+          stroke-opacity="0.15"
+          stroke-width="1.2"
         />
 
         <!-- 信号扫描矢量与关键信标锚点 -->
         <path
-          d="M680 168 L780 120 L884 148 L980 120 L1088 68"
+          d="M660 172 L780 120 L884 150 L980 120 L1096 64"
           stroke="currentColor"
-          stroke-opacity="0.65"
-          stroke-width="1.6"
+          stroke-opacity="0.88"
+          stroke-width="1.8"
           stroke-linecap="round"
           stroke-linejoin="round"
         />
-        <circle cx="780" cy="120" r="3.5" fill="currentColor" />
-        <circle cx="884" cy="148" r="3" fill="currentColor" fill-opacity="0.75" />
-        <circle cx="1088" cy="68" r="4" fill="currentColor" />
+        <circle cx="780" cy="120" r="4" fill="currentColor" />
+        <circle cx="884" cy="150" r="3.5" fill="var(--ink)" fill-opacity="0.45" />
+        <circle cx="1096" cy="64" r="4.5" fill="currentColor" />
       </g>
     </svg>
   </div>
@@ -95,11 +96,11 @@ const identity = computed(() => {
   color: var(--banner-accent);
   background:
     radial-gradient(
-      ellipse 52% 95% at 84% 48%,
-      color-mix(in srgb, var(--banner-accent) 14%, transparent),
-      transparent 76%
+      ellipse 46% 90% at 84% 50%,
+      color-mix(in srgb, var(--banner-accent) 10%, transparent),
+      transparent 74%
     ),
-    linear-gradient(110deg, var(--paper) 42%, color-mix(in srgb, var(--banner-accent) 5%, var(--soft)) 100%);
+    linear-gradient(110deg, #ffffff 48%, #fafaf9 100%);
 }
 
 :global([data-theme='midnight']) .banner-backdrop {

@@ -10,10 +10,6 @@ import TerminalBackdrop from './TerminalBackdrop.vue'
     <div class="hero-grain" aria-hidden="true" />
     <div class="wrap">
       <div class="hero-copy">
-        <div class="hero-eyebrow" aria-hidden="true">
-          <span class="eyebrow-dot" />
-          <span>ATTACKBOX // SECURITY LAB</span>
-        </div>
         <h1>
           <span>理解原理。</span>
           <span class="warm">亲手验证。</span>
@@ -50,39 +46,11 @@ import TerminalBackdrop from './TerminalBackdrop.vue'
 
 .hero-copy {
   pointer-events: auto;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-}
-
-.hero-eyebrow {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  padding: 5px 12px;
-  margin-bottom: 24px;
-  border-radius: 999px;
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  background: rgba(18, 18, 21, 0.75);
-  box-shadow: var(--surface-highlight), 0 8px 20px -4px rgba(0, 0, 0, 0.6);
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 1.2px;
-  color: var(--body);
-}
-
-.eyebrow-dot {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: var(--brand);
-  box-shadow: 0 0 10px var(--brand);
 }
 
 .hero h1 {
   font-size: 84px;
-  line-height: 1.12;
+  line-height: 1.14;
   letter-spacing: -4px;
   font-weight: 700;
   color: var(--ink);
@@ -94,7 +62,10 @@ import TerminalBackdrop from './TerminalBackdrop.vue'
 }
 
 .hero h1 .warm {
-  background: var(--gradient-warm, linear-gradient(100deg, #ffffff 0%, #fed7aa 48%, #f97316 100%));
+  background: var(
+    --gradient-warm,
+    linear-gradient(100deg, #ffedd5 0%, #fdba74 36%, #fb923c 68%, #f97316 100%)
+  );
   background-clip: text;
   -webkit-background-clip: text;
   color: transparent;
@@ -116,7 +87,7 @@ import TerminalBackdrop from './TerminalBackdrop.vue'
   padding: 13px 22px;
   border-radius: var(--radius-md, 7px);
   font-size: 13px;
-  font-weight: 650;
+  font-weight: 700;
   text-decoration: none;
   display: inline-flex;
   gap: 36px;
@@ -143,13 +114,23 @@ import TerminalBackdrop from './TerminalBackdrop.vue'
   pointer-events: none;
   background:
     radial-gradient(
-      ellipse 70% 380px at 50% 0%,
-      rgba(255, 255, 255, 0.06),
-      rgba(249, 115, 22, 0.04) 48%,
-      transparent 78%
+      ellipse 95% 85% at 50% 48%,
+      rgba(9, 9, 11, 0.24) 0%,
+      rgba(9, 9, 11, 0.34) 36%,
+      rgba(9, 9, 11, 0.52) 66%,
+      rgba(9, 9, 11, 0.78) 88%,
+      #09090b 100%
     ),
-    radial-gradient(ellipse at 50% 48%, #09090bf0 0%, #09090be0 28%, #09090b88 60%, #09090b55 82%),
-    linear-gradient(0deg, #09090b, transparent 24%, transparent 78%, #09090b);
+    linear-gradient(
+      180deg,
+      #09090b 0%,
+      rgba(9, 9, 11, 0.62) 12%,
+      rgba(9, 9, 11, 0.16) 28%,
+      rgba(9, 9, 11, 0.08) 50%,
+      rgba(9, 9, 11, 0.2) 72%,
+      rgba(9, 9, 11, 0.68) 88%,
+      #09090b 100%
+    );
 }
 
 .hero-grain {
@@ -157,10 +138,10 @@ import TerminalBackdrop from './TerminalBackdrop.vue'
   inset: 0;
   z-index: 2;
   pointer-events: none;
-  opacity: 0.026;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.82' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
-  background-repeat: repeat;
-  background-size: 180px 180px;
+  opacity: 0.06;
+  background: repeating-linear-gradient(0deg, transparent 0 3px, rgba(0, 0, 0, 0.24) 3px 4px);
+  mask-image: linear-gradient(0deg, transparent, #000 25%, #000 75%, transparent);
+  -webkit-mask-image: linear-gradient(0deg, transparent, #000 25%, #000 75%, transparent);
 }
 
 @media (max-width: 1100px) {

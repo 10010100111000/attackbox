@@ -39,14 +39,27 @@ export default {
       },
       fontFamily: {
         sans: [
+          'Inter',
           '-apple-system',
           'BlinkMacSystemFont',
-          '"Segoe UI"',
+          '"HarmonyOS Sans SC"',
+          '"MiSans"',
           '"PingFang SC"',
+          '"Hiragino Sans GB"',
+          '"Noto Sans SC"',
+          '"Microsoft YaHei UI"',
           '"Microsoft Yahei"',
+          '"Segoe UI"',
           'sans-serif'
         ],
-        mono: ['"SFMono-Regular"', 'Consolas', 'monospace']
+        mono: [
+          '"JetBrains Mono"',
+          'ui-monospace',
+          '"SFMono-Regular"',
+          '"Cascadia Code"',
+          'Consolas',
+          'monospace'
+        ]
       },
       backgroundImage: {
         'warm-gradient': 'var(--gradient-warm)'

@@ -26,8 +26,8 @@ const { branch, typedCommand, showCursor, feedLines, isClearing } = useTerminalP
   inset: 0;
   z-index: 1;
   pointer-events: none;
-  opacity: 0.62;
-  filter: blur(1.4px);
+  opacity: 0.46;
+  filter: blur(1.2px);
   background: radial-gradient(ellipse at 18% 50%, #a0674917, transparent 55%);
 }
 
@@ -44,6 +44,22 @@ const { branch, typedCommand, showCursor, feedLines, isClearing } = useTerminalP
     monospace;
   white-space: pre;
   color: #b8a9b8;
+  mask-image: linear-gradient(
+    90deg,
+    rgba(0, 0, 0, 0.9) 0%,
+    rgba(0, 0, 0, 0.65) 24%,
+    rgba(0, 0, 0, 0.28) 46%,
+    rgba(0, 0, 0, 0.12) 68%,
+    transparent 92%
+  );
+  -webkit-mask-image: linear-gradient(
+    90deg,
+    rgba(0, 0, 0, 0.9) 0%,
+    rgba(0, 0, 0, 0.65) 24%,
+    rgba(0, 0, 0, 0.28) 46%,
+    rgba(0, 0, 0, 0.12) 68%,
+    transparent 92%
+  );
 }
 
 .terminal-feed {

@@ -191,13 +191,7 @@ const levelLabels = {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  font:
-    600 10px ui-monospace,
-    SFMono-Regular,
-    Menlo,
-    Monaco,
-    Consolas,
-    monospace;
+  font: 600 10.5px var(--font-mono);
   letter-spacing: 0.8px;
   color: var(--muted);
   z-index: 3;
@@ -209,8 +203,7 @@ const levelLabels = {
 
 .level {
   font:
-    600 10px / 1.4 -apple-system,
-    sans-serif;
+    700 10.5px / 1.4 var(--font-sans);
   letter-spacing: 0;
   border: 1px solid rgba(255, 255, 255, 0.12);
   border-radius: 5px;
@@ -230,14 +223,14 @@ const levelLabels = {
 .card-copy h3 {
   font-size: 20px;
   letter-spacing: -0.5px;
-  font-weight: 650;
+  font-weight: 700;
   color: var(--ink);
   margin: 0 0 9px;
   overflow-wrap: anywhere;
 }
 
 .card-copy p {
-  font-size: 12.5px;
+  font-size: 13px;
   line-height: 1.65;
   color: var(--muted);
   margin-bottom: 20px;
@@ -252,7 +245,7 @@ const levelLabels = {
   align-items: center;
   justify-content: space-between;
   font-size: 11px;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-family: var(--font-mono);
   color: var(--muted);
   border-top: 1px solid var(--line);
   padding-top: 13px;

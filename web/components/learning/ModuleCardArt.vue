@@ -12,32 +12,32 @@ const props = withDefaults(
 const artThemes = [
   {
     gradient:
-      'radial-gradient(ellipse 90% 85% at 78% 18%, rgba(249, 115, 22, 0.18), transparent 68%), linear-gradient(180deg, rgba(255, 255, 255, 0.03), transparent)',
-    accent: '#f97316',
+      'radial-gradient(ellipse 80% 85% at 82% 20%, rgba(249, 115, 22, 0.11), transparent 68%)',
+    accent: 'var(--brand)',
     type: 'radar'
   },
   {
     gradient:
-      'radial-gradient(ellipse 90% 85% at 78% 18%, rgba(228, 228, 231, 0.13), transparent 68%), linear-gradient(180deg, rgba(255, 255, 255, 0.025), transparent)',
-    accent: '#d4d4d8',
+      'radial-gradient(ellipse 80% 85% at 82% 20%, rgba(249, 115, 22, 0.08), transparent 68%)',
+    accent: 'var(--brand)',
     type: 'grid'
   },
   {
     gradient:
-      'radial-gradient(ellipse 90% 85% at 78% 18%, rgba(56, 189, 248, 0.14), transparent 68%), linear-gradient(180deg, rgba(255, 255, 255, 0.025), transparent)',
-    accent: '#38bdf8',
+      'radial-gradient(ellipse 80% 85% at 82% 20%, rgba(249, 115, 22, 0.1), transparent 68%)',
+    accent: 'var(--brand)',
     type: 'nodes'
   },
   {
     gradient:
-      'radial-gradient(ellipse 90% 85% at 78% 18%, rgba(52, 211, 153, 0.14), transparent 68%), linear-gradient(180deg, rgba(255, 255, 255, 0.025), transparent)',
-    accent: '#34d399',
+      'radial-gradient(ellipse 80% 85% at 82% 20%, rgba(249, 115, 22, 0.09), transparent 68%)',
+    accent: 'var(--brand)',
     type: 'waves'
   },
   {
     gradient:
-      'radial-gradient(ellipse 90% 85% at 78% 18%, rgba(251, 146, 60, 0.15), transparent 68%), linear-gradient(180deg, rgba(255, 255, 255, 0.025), transparent)',
-    accent: '#fb923c',
+      'radial-gradient(ellipse 80% 85% at 82% 20%, rgba(249, 115, 22, 0.11), transparent 68%)',
+    accent: 'var(--brand)',
     type: 'rings'
   }
 ] as const
@@ -54,110 +54,151 @@ const formattedIndex = computed(() => String(props.index + 1).padStart(2, '0'))
     <svg
       v-if="!hasCover"
       class="art-svg"
-      viewBox="0 0 120 68"
+      viewBox="0 0 320 118"
+      preserveAspectRatio="xMidYMid slice"
       fill="none"
       xmlns="http://www.w3.org/2000/svg"
       aria-hidden="true"
     >
+      <!-- 全幅底层基准网格与技术刻度 -->
+      <g stroke="currentColor" stroke-opacity="0.09" stroke-width="1">
+        <line x1="0" y1="30" x2="320" y2="30" stroke-dasharray="2 5" />
+        <line x1="0" y1="62" x2="320" y2="62" />
+        <line x1="0" y1="94" x2="320" y2="94" stroke-dasharray="2 5" />
+        <line x1="64" y1="0" x2="64" y2="118" stroke-dasharray="2 5" />
+        <line x1="160" y1="0" x2="160" y2="118" />
+        <line x1="248" y1="0" x2="248" y2="118" stroke-dasharray="2 5" />
+      </g>
+
       <!-- 拓扑节点网络 -->
       <template v-if="theme.type === 'nodes'">
-        <circle cx="24" cy="36" r="2.5" fill="var(--art-accent)" fill-opacity="0.7" />
-        <circle cx="58" cy="18" r="3" fill="var(--art-accent)" fill-opacity="0.9" />
-        <circle cx="94" cy="38" r="2.5" fill="var(--art-accent)" fill-opacity="0.6" />
-        <circle cx="52" cy="50" r="2" fill="currentColor" fill-opacity="0.35" />
-        <line
-          x1="24"
-          y1="36"
-          x2="58"
-          y2="18"
+        <path
+          d="M42 82 L108 42 L176 74 L236 32 L288 58"
           stroke="currentColor"
           stroke-opacity="0.28"
-          stroke-dasharray="2 2"
+          stroke-width="1.3"
         />
-        <line x1="58" y1="18" x2="94" y2="38" stroke="currentColor" stroke-opacity="0.32" />
-        <line x1="24" y1="36" x2="52" y2="50" stroke="currentColor" stroke-opacity="0.22" />
-        <line x1="52" y1="50" x2="94" y2="38" stroke="currentColor" stroke-opacity="0.18" />
+        <path
+          d="M108 42 L176 26 L236 32"
+          stroke="var(--art-accent)"
+          stroke-opacity="0.55"
+          stroke-width="1.3"
+          stroke-dasharray="3 3"
+        />
+        <circle cx="42" cy="82" r="3" fill="currentColor" fill-opacity="0.4" />
+        <circle cx="108" cy="42" r="4" fill="var(--art-accent)" fill-opacity="0.85" />
+        <circle cx="176" cy="74" r="3.5" fill="currentColor" fill-opacity="0.5" />
+        <circle cx="236" cy="32" r="4.5" fill="var(--art-accent)" />
+        <circle
+          cx="236"
+          cy="32"
+          r="11"
+          stroke="var(--art-accent)"
+          stroke-opacity="0.45"
+          stroke-width="1.2"
+        />
       </template>
 
       <!-- 精密雷达同心刻度 -->
       <template v-else-if="theme.type === 'radar' || theme.type === 'rings'">
         <circle
-          cx="96"
-          cy="58"
-          r="22"
-          stroke="currentColor"
-          stroke-opacity="0.26"
-          stroke-width="1"
+          cx="248"
+          cy="86"
+          r="26"
+          stroke="var(--art-accent)"
+          stroke-opacity="0.48"
+          stroke-width="1.3"
         />
         <circle
-          cx="96"
-          cy="58"
-          r="42"
+          cx="248"
+          cy="86"
+          r="52"
           stroke="currentColor"
-          stroke-opacity="0.18"
-          stroke-dasharray="3 3"
-        />
-        <circle cx="96" cy="58" r="62" stroke="currentColor" stroke-opacity="0.1" />
-        <line
-          x1="96"
-          y1="58"
-          x2="52"
-          y2="18"
-          stroke="var(--art-accent)"
-          stroke-opacity="0.55"
+          stroke-opacity="0.28"
           stroke-width="1.2"
+          stroke-dasharray="4 4"
         />
-        <circle cx="52" cy="18" r="2.5" fill="var(--art-accent)" />
+        <circle
+          cx="248"
+          cy="86"
+          r="82"
+          stroke="currentColor"
+          stroke-opacity="0.16"
+          stroke-width="1.1"
+        />
+        <circle
+          cx="248"
+          cy="86"
+          r="116"
+          stroke="currentColor"
+          stroke-opacity="0.1"
+          stroke-width="1"
+        />
+        <line
+          x1="248"
+          y1="86"
+          x2="176"
+          y2="28"
+          stroke="var(--art-accent)"
+          stroke-opacity="0.78"
+          stroke-width="1.6"
+        />
+        <circle cx="176" cy="28" r="4" fill="var(--art-accent)" />
+        <circle cx="248" cy="86" r="3.5" fill="var(--art-accent)" />
       </template>
 
       <!-- 工业坐标矩阵 -->
       <template v-else-if="theme.type === 'grid'">
-        <path
-          d="M16 18H104M16 34H104M16 50H104"
-          stroke="currentColor"
-          stroke-opacity="0.14"
-          stroke-width="1"
-        />
-        <path
-          d="M34 8V60M60 8V60M86 8V60"
-          stroke="currentColor"
-          stroke-opacity="0.14"
-          stroke-width="1"
-        />
         <rect
-          x="55"
-          y="29"
-          width="10"
-          height="10"
-          rx="2"
-          stroke="var(--art-accent)"
-          stroke-opacity="0.75"
+          x="132"
+          y="24"
+          width="116"
+          height="70"
+          rx="6"
+          stroke="currentColor"
+          stroke-opacity="0.24"
           stroke-width="1.2"
         />
-        <circle cx="60" cy="34" r="2" fill="var(--art-accent)" />
+        <rect
+          x="166"
+          y="42"
+          width="48"
+          height="34"
+          rx="4"
+          stroke="var(--art-accent)"
+          stroke-opacity="0.72"
+          stroke-width="1.4"
+        />
+        <line
+          x1="88"
+          y1="59"
+          x2="276"
+          y2="59"
+          stroke="var(--art-accent)"
+          stroke-opacity="0.45"
+          stroke-width="1.2"
+          stroke-dasharray="3 3"
+        />
+        <circle cx="190" cy="59" r="3.5" fill="var(--art-accent)" />
       </template>
 
       <!-- 信号频谱波形 -->
       <template v-else>
         <path
-          d="M12 48C32 36 48 54 72 38C86 28 96 38 108 30"
+          d="M16 86 C68 52, 112 96, 168 54 C212 22, 248 68, 304 34"
           stroke="var(--art-accent)"
-          stroke-opacity="0.55"
-          stroke-width="1.3"
+          stroke-opacity="0.72"
+          stroke-width="1.7"
         />
         <path
-          d="M12 34C30 22 52 38 76 22C88 14 98 24 108 18"
+          d="M16 64 C64 34, 118 74, 174 38 C218 12, 254 48, 304 20"
           stroke="currentColor"
-          stroke-opacity="0.22"
-          stroke-width="1.1"
-          stroke-dasharray="2 2"
+          stroke-opacity="0.28"
+          stroke-width="1.2"
+          stroke-dasharray="3 3"
         />
-        <path
-          d="M12 20C36 10 56 24 80 12C92 6 100 14 108 10"
-          stroke="currentColor"
-          stroke-opacity="0.12"
-          stroke-width="1"
-        />
+        <circle cx="168" cy="54" r="3.5" fill="var(--art-accent)" />
+        <circle cx="238" cy="44" r="3" fill="currentColor" fill-opacity="0.45" />
       </template>
     </svg>
 
@@ -181,16 +222,15 @@ const formattedIndex = computed(() => String(props.index + 1).padStart(2, '0'))
 
 .art-svg {
   position: absolute;
-  right: 8px;
-  bottom: 0;
-  width: 148px;
-  height: 82px;
+  inset: 0;
+  width: 100%;
+  height: 100%;
   color: var(--ink);
   transition: transform 0.35s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 :global(.card:hover) .art-svg {
-  transform: translateY(-3px) scale(1.03);
+  transform: scale(1.04);
 }
 
 .art-index-pill {
@@ -198,19 +238,19 @@ const formattedIndex = computed(() => String(props.index + 1).padStart(2, '0'))
   z-index: 2;
   display: inline-flex;
   align-items: center;
-  gap: 5px;
-  padding: 3px 8px;
+  gap: 6px;
+  padding: 3.5px 9px;
   border-radius: 6px;
   border: 1px solid var(--line-strong, rgba(255, 255, 255, 0.14));
-  background: color-mix(in srgb, var(--paper) 82%, transparent);
+  background: color-mix(in srgb, var(--paper) 88%, transparent);
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
   box-shadow: var(--surface-highlight);
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-family: var(--font-mono);
   font-size: 11px;
-  font-weight: 600;
+  font-weight: 700;
   letter-spacing: 0.5px;
-  color: var(--muted);
+  color: var(--ink);
   transition:
     transform 0.2s ease,
     border-color 0.2s ease,
@@ -218,11 +258,10 @@ const formattedIndex = computed(() => String(props.index + 1).padStart(2, '0'))
 }
 
 .pill-dot {
-  width: 4px;
-  height: 4px;
+  width: 5px;
+  height: 5px;
   border-radius: 50%;
   background: var(--art-accent, var(--brand));
-  opacity: 0.85;
 }
 
 :global(.card:hover) .art-index-pill {

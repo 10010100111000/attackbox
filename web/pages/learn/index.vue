@@ -350,10 +350,10 @@ const filteredModules = computed(() => {
 
 <style scoped>
 .home-placeholder {
-  height: 176px;
+  height: 204px;
   background: var(--surface-well);
   border: 1px solid var(--well-border);
-  border-radius: 13px;
+  border-radius: 14px;
   margin-bottom: 20px;
 }
 
@@ -375,16 +375,23 @@ const filteredModules = computed(() => {
   display: flex;
   align-items: center;
   gap: 20px;
-  margin: -2px 0 20px;
-  color: var(--muted);
-  font-size: 12px;
+  margin: 0 0 22px;
+  color: var(--body);
+  font-size: 12.5px;
+  font-weight: 500;
 }
 
 .discovery-controls > span {
   margin-right: auto;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-  font-size: 11.5px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 700;
   letter-spacing: 0.3px;
+  color: var(--ink);
+  background: var(--soft);
+  border: 1px solid var(--line);
+  padding: 4px 10px;
+  border-radius: 6px;
 }
 
 .discovery-controls label {
@@ -399,13 +406,11 @@ const filteredModules = computed(() => {
   align-items: center;
   justify-content: space-between;
   gap: 24px;
-  padding: 18px 24px;
+  padding: 20px 26px;
   margin-bottom: 22px;
-  border: 1px solid var(--brand-border);
-  border-radius: 13px;
-  background:
-    radial-gradient(ellipse 60% 120% at 0% 50%, var(--brand-soft), transparent 70%),
-    var(--card-surface);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--card-surface);
   box-shadow: var(--surface-highlight), var(--card-shadow);
   color: var(--ink);
   text-decoration: none;
@@ -422,24 +427,24 @@ const filteredModules = computed(() => {
   left: 0;
   top: 14px;
   bottom: 14px;
-  width: 3px;
+  width: 3.5px;
   border-radius: 0 3px 3px 0;
   background: var(--brand);
 }
 
 .recent-learning:hover {
   transform: translateY(-2px);
-  border-color: var(--brand);
+  border-color: var(--brand-border);
   box-shadow: var(--card-hover-shadow);
 }
 
 .resume-action {
-  padding: 8px 15px;
-  border-radius: 7px;
+  padding: 9px 16px;
+  border-radius: 8px;
   background: var(--btn-primary-bg);
   color: var(--btn-primary-fg);
-  font-size: 12.5px;
-  font-weight: 650;
+  font-size: 13px;
+  font-weight: 700;
   box-shadow: var(--btn-primary-shadow);
   flex-shrink: 0;
 }
@@ -448,31 +453,31 @@ const filteredModules = computed(() => {
   flex: 1;
   min-width: 0;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 150px;
+  grid-template-columns: minmax(0, 1fr) 160px;
   column-gap: 20px;
 }
 
 .recent-label {
   grid-column: 1;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-  font-size: 10.5px;
-  font-weight: 600;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 700;
   letter-spacing: 0.6px;
   color: var(--brand);
 }
 
 .recent-learning h2 {
   grid-column: 1;
-  font-size: 16px;
-  margin: 4px 0 3px;
-  font-weight: 650;
-  letter-spacing: -0.3px;
+  font-size: 17.5px;
+  margin: 4px 0 4px;
+  font-weight: 700;
+  letter-spacing: -0.35px;
 }
 
 .recent-learning p {
   grid-column: 1;
-  font-size: 12.5px;
-  color: var(--muted);
+  font-size: 13px;
+  color: var(--body);
   margin: 0 0 6px;
 }
 
@@ -480,11 +485,11 @@ const filteredModules = computed(() => {
   grid-column: 2;
   grid-row: 2;
   align-self: center;
-  height: 5px;
+  height: 6px;
   width: min(100%, 320px);
   border-radius: 999px;
   background: var(--surface-well);
-  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.5);
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.35);
   overflow: hidden;
 }
 
@@ -500,8 +505,9 @@ const filteredModules = computed(() => {
   grid-row: 3;
   display: block;
   margin-top: 0;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-  font-size: 11px;
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  font-weight: 500;
   color: var(--muted);
 }
 
@@ -523,20 +529,20 @@ const filteredModules = computed(() => {
 
 .page-tabs {
   display: flex;
-  gap: 28px;
+  gap: 32px;
   border-bottom: 1px solid var(--line);
-  margin: 18px 0 24px;
+  margin: 16px 0 22px;
 }
 
 .tab-link {
-  font-size: 13.5px;
+  font-size: 15px;
   font-weight: 500;
-  padding: 0 0 12px;
+  padding: 0 2px 13px;
   color: var(--muted);
   background: transparent;
   border: none;
   cursor: pointer;
-  border-bottom: 2px solid transparent;
+  border-bottom: 2.5px solid transparent;
   transition:
     color 0.16s ease,
     border-color 0.16s ease;
@@ -549,7 +555,7 @@ const filteredModules = computed(() => {
 .tab-link.selected {
   color: var(--ink);
   border-bottom-color: var(--brand);
-  font-weight: 650;
+  font-weight: 700;
 }
 
 .toolbar {
@@ -558,7 +564,7 @@ const filteredModules = computed(() => {
   justify-content: space-between;
   gap: 16px;
   flex-wrap: wrap;
-  margin-bottom: 20px;
+  margin-bottom: 16px;
 }
 
 .filters {
@@ -573,12 +579,12 @@ const filteredModules = computed(() => {
 }
 
 .filter-btn {
-  padding: 6px 14px;
+  padding: 7px 16px;
   border: 1px solid transparent;
   border-radius: 7px;
   background: transparent;
-  color: var(--muted);
-  font-size: 12px;
+  color: var(--body);
+  font-size: 13px;
   font-weight: 500;
   cursor: pointer;
   transition:
@@ -596,11 +602,11 @@ const filteredModules = computed(() => {
   color: var(--btn-primary-fg);
   border-color: transparent;
   box-shadow: var(--btn-primary-shadow);
-  font-weight: 650;
+  font-weight: 700;
 }
 
 .search-input {
-  min-width: 230px;
+  min-width: 240px;
 }
 
 .state-panel {
@@ -627,14 +633,14 @@ const filteredModules = computed(() => {
 
 .cards {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(288px, 1fr));
-  gap: 20px;
+  grid-template-columns: repeat(auto-fill, minmax(292px, 1fr));
+  gap: 22px;
 }
 
 .card {
   background: var(--card-surface);
   border: 1px solid var(--line);
-  border-radius: 13px;
+  border-radius: 14px;
   box-shadow: var(--surface-highlight), var(--card-shadow);
   overflow: hidden;
   text-decoration: none;
@@ -655,16 +661,16 @@ const filteredModules = computed(() => {
 }
 
 .card-art {
-  height: 112px;
+  height: 118px;
   position: relative;
   overflow: hidden;
   color: var(--ink);
-  background: color-mix(in srgb, var(--bg) 55%, var(--paper));
+  background: color-mix(in srgb, var(--soft) 45%, var(--paper));
   border-bottom: 1px solid var(--line);
 }
 
 .card-body {
-  padding: 20px 22px;
+  padding: 22px 24px;
   display: flex;
   flex-direction: column;
   flex: 1;
@@ -674,47 +680,52 @@ const filteredModules = computed(() => {
   align-self: flex-start;
   display: inline-flex;
   align-items: center;
-  border: 1px solid transparent;
-  border-radius: 5px;
-  padding: 2px 8px;
-  font-size: 11px;
-  font-weight: 600;
-  color: var(--muted);
+  gap: 6px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 3px 9px;
+  font-size: 11.5px;
+  font-weight: 700;
+  letter-spacing: 0.2px;
+  color: var(--ink);
   background: var(--soft);
 }
 
-.tag.beginner {
-  color: var(--tone-green);
-  background: var(--tone-green-soft);
-  border-color: color-mix(in srgb, var(--tone-green) 24%, transparent);
+.tag::before {
+  content: '';
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--muted);
 }
 
-.tag.intermediate {
-  color: var(--tone-blue);
-  background: var(--tone-blue-soft);
-  border-color: color-mix(in srgb, var(--tone-blue) 24%, transparent);
+.tag.beginner::before {
+  background: var(--tone-green);
 }
 
-.tag.advanced {
-  color: var(--tone-red);
-  background: var(--tone-red-soft);
-  border-color: color-mix(in srgb, var(--tone-red) 24%, transparent);
+.tag.intermediate::before {
+  background: var(--tone-blue);
+}
+
+.tag.advanced::before {
+  background: var(--tone-red);
 }
 
 .card-title {
-  font-size: 16.5px;
-  font-weight: 650;
-  margin: 11px 0 6px;
+  font-size: 18px;
+  font-weight: 700;
+  line-height: 1.38;
+  margin: 12px 0 8px;
   color: var(--ink);
-  letter-spacing: -0.35px;
+  letter-spacing: -0.4px;
 }
 
 .card-desc {
-  font-size: 12.5px;
+  font-size: 13.5px;
   line-height: 1.65;
-  color: var(--muted);
-  margin: 0 0 18px;
-  min-height: 40px;
+  color: var(--body);
+  margin: 0 0 20px;
+  min-height: 44px;
   display: -webkit-box;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
@@ -725,35 +736,55 @@ const filteredModules = computed(() => {
   display: flex;
   gap: 12px;
   color: var(--muted);
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-  font-size: 11px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 500;
   margin-top: auto;
   margin-bottom: 16px;
 }
 
 .card-bottom {
   border-top: 1px solid var(--line);
-  padding-top: 14px;
-  font-size: 12px;
+  padding-top: 15px;
+  font-size: 13px;
   display: flex;
   align-items: center;
   justify-content: space-between;
 }
 
 .status-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   color: var(--ink);
-  font-weight: 600;
+  font-weight: 700;
   transition: color 0.16s ease;
+}
+
+.status-action::after {
+  content: '→';
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--muted);
+  transition:
+    transform 0.18s ease,
+    color 0.16s ease;
 }
 
 .card:hover .status-action {
   color: var(--brand);
 }
 
+.card:hover .status-action::after {
+  color: var(--brand);
+  transform: translateX(3px);
+}
+
 .status-label {
-  color: var(--muted);
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-  font-size: 11px;
+  color: var(--ink);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 700;
 }
 
 .published-routes {
@@ -768,7 +799,7 @@ const filteredModules = computed(() => {
   padding: 28px;
   background: var(--card-surface);
   border: 1px solid var(--line);
-  border-radius: 13px;
+  border-radius: 14px;
   box-shadow: var(--surface-highlight), var(--card-shadow);
   color: var(--ink);
   text-decoration: none;
@@ -786,9 +817,9 @@ const filteredModules = computed(() => {
 
 .published-route span {
   color: var(--brand);
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-  font-size: 11.5px;
-  font-weight: 600;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 700;
 }
 
 .published-route > svg {
@@ -809,21 +840,21 @@ const filteredModules = computed(() => {
 .published-route h2 {
   overflow-wrap: anywhere;
   font-size: 21px;
-  font-weight: 650;
-  letter-spacing: -0.4px;
+  font-weight: 700;
+  letter-spacing: -0.45px;
   margin: 14px 0 10px;
 }
 
 .published-route p {
-  font-size: 13px;
+  font-size: 13.5px;
   line-height: 1.7;
-  color: var(--muted);
+  color: var(--body);
   margin: 0;
 }
 
 .footer-tagline {
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-  font-size: 10px;
+  font-family: var(--font-mono);
+  font-size: 10.5px;
   letter-spacing: 1.6px;
   color: var(--muted);
   text-align: center;

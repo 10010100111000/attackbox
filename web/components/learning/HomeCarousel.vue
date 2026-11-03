@@ -152,26 +152,26 @@ onUnmounted(() => {
 <style scoped>
 .feature-banner {
   --banner-ink: var(--ink);
-  --banner-muted: var(--muted);
+  --banner-muted: var(--body);
   position: relative;
   isolation: isolate;
   overflow: hidden;
-  min-height: 176px;
-  padding: 22px 28px;
+  min-height: 204px;
+  padding: 28px 34px;
   border: 1px solid var(--line);
-  border-radius: 12px;
-  margin-bottom: 18px;
-  background: linear-gradient(120deg, var(--soft), var(--paper));
+  border-radius: 14px;
+  margin-bottom: 20px;
+  background: var(--card-surface);
   box-shadow: var(--surface-highlight), var(--card-shadow);
   display: flex;
   align-items: center;
 }
 .has-pagination {
-  padding-bottom: 44px;
+  padding-bottom: 48px;
 }
 .has-image {
   --banner-ink: #fff;
-  --banner-muted: rgba(255, 255, 255, 0.8);
+  --banner-muted: rgba(255, 255, 255, 0.84);
 }
 .banner-image {
   position: absolute;
@@ -200,27 +200,46 @@ onUnmounted(() => {
   overflow-wrap: anywhere;
 }
 .feature-label {
-  margin-bottom: 8px;
-  color: var(--banner-muted);
-  font-size: 11px;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  margin-bottom: 13px;
+  padding: 4px 11px;
+  border-radius: 999px;
+  background: #18181b;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  box-shadow: 0 2px 6px rgba(9, 9, 11, 0.12);
+  color: #fafafa;
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  font-weight: 700;
+  letter-spacing: 0.4px;
   line-height: 1.4;
+}
+.feature-label::before {
+  content: '';
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #f97316;
+  box-shadow: 0 0 8px rgba(249, 115, 22, 0.8);
 }
 .feature-banner h1 {
   margin: 0;
-  font-size: 23px;
-  font-weight: 650;
-  letter-spacing: -0.6px;
-  line-height: 1.35;
+  font-size: 27px;
+  font-weight: 700;
+  letter-spacing: -0.7px;
+  line-height: 1.3;
   color: var(--banner-ink);
 }
 .feature-banner p {
-  margin: 8px 0 0;
-  font-size: 13px;
-  line-height: 1.6;
+  margin: 10px 0 0;
+  font-size: 14px;
+  line-height: 1.65;
   color: var(--banner-muted);
 }
 .banner-link {
-  margin-top: 14px;
+  margin-top: 16px;
 }
 .feature-banner h1,
 .feature-banner p {

@@ -29,74 +29,74 @@ const { currentUser } = useAuth()
   background: var(--bg);
   color: var(--ink);
   overflow-x: clip;
+}
 
-  .wrap {
-    width: min(1240px, calc(100% - 100px));
-    margin: auto;
+.landing-layout .wrap {
+  width: min(1240px, calc(100% - 100px));
+  margin: auto;
+}
+
+.landing-layout .platform-link {
+  border: 1px solid var(--line-strong);
+  background: rgba(255, 255, 255, 0.03);
+  box-shadow: var(--surface-highlight);
+  padding: 7px 14px;
+  border-radius: var(--radius-md, 7px);
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ink);
+  text-decoration: none;
+  transition:
+    background 0.18s ease,
+    border-color 0.18s ease,
+    transform 0.18s ease;
+}
+
+.landing-layout .platform-link:hover {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: var(--brand-border);
+  transform: translateY(-1px);
+}
+
+.landing-layout .footer {
+  border-top: 1px solid var(--line);
+  padding: 28px 0 34px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  color: var(--muted);
+  font-size: 11px;
+  font-family: var(--font-mono);
+}
+
+.landing-layout .footer-brand {
+  color: var(--ink);
+  font-family: var(--font-sans);
+  font-weight: 700;
+  font-size: 13px;
+  text-decoration: none;
+}
+
+@media (max-width: 1100px) {
+  .landing-layout .wrap {
+    width: calc(100% - 60px);
   }
+}
 
-  .platform-link {
-    border: 1px solid var(--line-strong);
-    background: rgba(255, 255, 255, 0.03);
-    box-shadow: var(--surface-highlight);
-    padding: 7px 14px;
-    border-radius: var(--radius-md, 7px);
-    display: flex;
-    align-items: center;
-    gap: 18px;
-    font-size: 12px;
-    font-weight: 550;
-    color: var(--ink);
-    text-decoration: none;
-    transition:
-      background 0.18s ease,
-      border-color 0.18s ease,
-      transform 0.18s ease;
+@media (max-width: 760px) {
+  .landing-layout .wrap {
+    width: calc(100% - 40px);
   }
-
-  .platform-link:hover {
-    background: rgba(255, 255, 255, 0.08);
-    border-color: var(--brand-border);
-    transform: translateY(-1px);
-  }
-
-  .footer {
-    border-top: 1px solid var(--line);
-    padding: 28px 0 34px;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    color: var(--muted);
+  .landing-layout .platform-link {
     font-size: 11px;
-    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    padding: 6px 11px;
+    gap: 10px;
   }
-
-  .footer-brand {
-    color: var(--ink);
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-    font-weight: 600;
-    font-size: 13px;
-    text-decoration: none;
-  }
-
-  @media (max-width: 1100px) {
-    .wrap {
-      width: calc(100% - 60px);
-    }
-  }
-
-  @media (max-width: 760px) {
-    .wrap {
-      width: calc(100% - 40px);
-    }
-    .platform-link {
-      font-size: 11px;
-      padding: 6px 11px;
-      gap: 10px;
-    }
-    .footer {
-      font-size: 10px;
-    }
+  .landing-layout .footer {
+    font-size: 10px;
   }
 }
 </style>

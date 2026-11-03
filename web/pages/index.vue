@@ -77,7 +77,7 @@ useSeoMeta({
 
 .section-head h2 {
   font-size: 36px;
-  font-weight: 650;
+  font-weight: 700;
   letter-spacing: -1.4px;
   color: var(--ink);
 }

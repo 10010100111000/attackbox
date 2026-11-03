@@ -5,6 +5,13 @@
 :root {
   --site-header-height: 56px;
   --site-gutter: clamp(16px, 2.2vw, 32px);
+  --font-sans:
+    'Inter', -apple-system, BlinkMacSystemFont, 'HarmonyOS Sans SC', 'MiSans', 'PingFang SC',
+    'Hiragino Sans GB', 'Noto Sans SC', 'Microsoft YaHei UI', 'Microsoft Yahei', 'Segoe UI',
+    sans-serif;
+  --font-mono:
+    'JetBrains Mono', ui-monospace, 'SFMono-Regular', 'Cascadia Code', Menlo, Monaco, Consolas,
+    monospace;
 }
 
 :root,
@@ -114,7 +121,7 @@
   --color-error: #e6a49c;
 
   /* 渐变与阴影 Token */
-  --gradient-warm: linear-gradient(100deg, #ffffff 0%, #fed7aa 48%, #f97316 100%);
+  --gradient-warm: linear-gradient(100deg, #ffedd5 0%, #fdba74 36%, #fb923c 68%, #f97316 100%);
   --selection-bg: rgba(249, 115, 22, 0.24);
   --card-glow: 0 16px 46px rgba(0, 0, 0, 0.55);
 
@@ -138,33 +145,33 @@
   --text-on-accent: #ffffff;
   --color-error: #c53030;
 
-  /* 浅色模式：纯净冷锌灰画布 (#f4f4f5) + 下沉凹槽 (#e7e7ec) + 纯白悬浮卡片 (#ffffff) */
-  --bg: #f4f4f5;
-  --surface-well: #e7e7ec;
-  --well-shadow: inset 0 1px 2px rgba(9, 9, 11, 0.07), 0 1px 0 rgba(255, 255, 255, 0.85);
+  /* 浅色模式：纯净冷锌白画布 (#f7f7f8) + 下沉凹槽 (#ececf0) + 纯白悬浮卡片 (#ffffff) */
+  --bg: #f7f7f8;
+  --surface-well: #ececf0;
+  --well-shadow: inset 0 1px 2px rgba(9, 9, 11, 0.06), 0 1px 0 rgba(255, 255, 255, 0.9);
   --well-border: rgba(9, 9, 11, 0.07);
   --paper: #ffffff;
   --ink: #09090b;
-  --muted: #63636b;
+  --muted: #686870;
   --body: #27272a;
   --reader-bg: #fafafa;
   --reader-ink: #27262b;
-  --line: #e2e2e7;
-  --line-strong: #d0d0d7;
+  --line: #e4e4e9;
+  --line-strong: #d4d4da;
 
   --btn-primary-bg: #09090b;
   --btn-primary-hover: #27272a;
   --btn-primary-fg: #ffffff;
-  --btn-primary-shadow: 0 2px 8px rgba(9, 9, 11, 0.16);
+  --btn-primary-shadow: 0 2px 8px rgba(9, 9, 11, 0.14);
 
   --brand: #ea580c;
-  --brand-soft: rgba(234, 88, 12, 0.09);
-  --brand-border: rgba(234, 88, 12, 0.35);
+  --brand-soft: rgba(234, 88, 12, 0.08);
+  --brand-border: rgba(234, 88, 12, 0.32);
   --green: var(--brand);
   --mint: var(--brand-soft);
 
-  --soft: #ebebef;
-  --hover: #f0f0f4;
+  --soft: #f1f1f4;
+  --hover: #f4f4f7;
   --on-accent: #ffffff;
   --focus: #ea580c;
 
@@ -189,22 +196,22 @@
   --error-bg: #fef2f2;
   --error-ink: #b91c1c;
 
-  --card-surface: linear-gradient(180deg, #ffffff 0%, #fafafa 100%);
+  --card-surface: #ffffff;
   --surface-highlight: inset 0 1px 0 0 #ffffff;
-  --card-shadow: 0 1px 2px rgba(9, 9, 11, 0.05), 0 12px 28px -6px rgba(9, 9, 11, 0.07);
+  --card-shadow: 0 1px 3px rgba(9, 9, 11, 0.04), 0 10px 24px -6px rgba(9, 9, 11, 0.06);
   --card-hover-shadow:
-    0 18px 36px -8px rgba(9, 9, 11, 0.12), 0 4px 14px -2px rgba(234, 88, 12, 0.1);
+    0 16px 32px -8px rgba(9, 9, 11, 0.1), 0 4px 12px -2px rgba(234, 88, 12, 0.08);
 
-  /* 极简深空双源径向聚光 (浅色模式) */
+  /* 浅色模式纯净天光径向聚光 (避免黑灰脏雾感) */
   --backdrop-glow: radial-gradient(
     ellipse 76% 380px at 50% -10%,
-    rgba(9, 9, 11, 0.045),
-    rgba(234, 88, 12, 0.03) 52%,
+    rgba(255, 255, 255, 0.95),
+    rgba(249, 115, 22, 0.025) 52%,
     transparent 80%
   );
   --backdrop-secondary-glow: radial-gradient(
     circle 500px at 86% 12%,
-    rgba(9, 9, 11, 0.025),
+    rgba(255, 255, 255, 0.7),
     transparent 70%
   );
 }
@@ -213,9 +220,12 @@ body {
   margin: 0;
   background-color: var(--bg);
   color: var(--ink);
-  font-family:
-    -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft Yahei', sans-serif;
+  font-family: var(--font-sans);
+  font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11';
+  font-optical-sizing: auto;
   -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
 }
 
 /* 原生 <select> 目前只剩 GitModuleDetail 的多选控件;
