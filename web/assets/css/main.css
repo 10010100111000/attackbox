@@ -11,7 +11,7 @@
 [data-theme='midnight'] {
   color-scheme: dark;
 
-  /* 基础主题 Token */
+  /* 基础主题兼容回退 Token */
   --bg-app: #090a0e;
   --bg-card: #111217;
   --bg-input: #121318;
@@ -19,99 +19,104 @@
   --text-muted: #96939d;
   --border-line: rgba(255, 255, 255, 0.07);
 
-  /* 四层明度阶梯 (彻底解决暗色下「前景背景一团黑、没有区分度」的问题)
-   * Tier 0 (--bg):       #07080c (深邃底层背景画布)
-   * Tier 1 (--paper):    #141821 (前景卡片主表面，比背景提亮整整 14 个色阶)
-   * Tier 2 (--soft):     #1d2230 (卡片内嵌块/胶囊/表头，再提亮 10 个色阶)
-   * Tier 3 (--line/rim): 11.5% 亮边 + 12% 顶部金属反光高光边
+  /* Carbon & Signal Orange 五层光学纵深体系
+   * Level -1 (--surface-well): #040406 下沉式凹槽轨道/内嵌托盘
+   * Level  0 (--bg):           #09090b 深邃曜石锌黑画布
+   * Level +1 (--paper):        #121215 哑光石墨悬浮卡片主表面
+   * Level +2 (--soft):         #1c1c21 卡片内嵌胶囊与高亮块
+   * Specular (--surface-highlight): 1px 顶光源金属高光棱线
    */
-  --bg: #07080c;
-  --paper: #141821;
-  --ink: #f4f3f0;
-  --muted: #959aa6;
-  --body: #c5c9d3;
-  --reader-bg: #14171e;
+  --bg: #09090b;
+  --surface-well: rgba(4, 4, 6, 0.72);
+  --well-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.82), 0 1px 0 rgba(255, 255, 255, 0.05);
+  --well-border: rgba(255, 255, 255, 0.06);
+  --paper: #121215;
+  --ink: #fafafa;
+  --muted: #8e8e96;
+  --body: #d4d4d8;
+  --reader-bg: #111216;
   --reader-ink: #dce0e8;
-  --line: rgba(255, 255, 255, 0.115);
+  --line: rgba(255, 255, 255, 0.085);
+  --line-strong: rgba(255, 255, 255, 0.15);
 
-  /* 主按钮：纯净高反差珍珠白 + 曜石黑字 */
-  --btn-primary-bg: #f2f0ec;
+  /* 主按钮：高反差纯净冷白实体键 + 曜石黑字 */
+  --btn-primary-bg: #fafafa;
   --btn-primary-hover: #ffffff;
-  --btn-primary-fg: #090a0e;
-  --btn-primary-shadow: 0 2px 8px rgba(0, 0, 0, 0.55), inset 0 1px 0 #ffffff;
+  --btn-primary-fg: #09090b;
+  --btn-primary-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.6), 0 4px 12px rgba(0, 0, 0, 0.45), inset 0 1px 0 #ffffff;
 
-  /* 低饱和暖铜砂金点缀色 (与 landing.vue 同源) */
-  --brand: #dfb086;
-  --brand-soft: rgba(223, 176, 134, 0.13);
-  --brand-border: rgba(223, 176, 134, 0.38);
+  /* 工业机械信号橙点缀色 (Teenage Engineering / Nothing 风格，5% 克制点缀) */
+  --brand: #f97316;
+  --brand-soft: rgba(249, 115, 22, 0.12);
+  --brand-border: rgba(249, 115, 22, 0.42);
   --green: var(--brand);
   --mint: var(--brand-soft);
 
-  --soft: #1d2230;
-  --hover: #191e2a;
-  --on-accent: #14100c;
-  --focus: #dfb086;
+  --soft: #1c1c21;
+  --hover: #18181d;
+  --on-accent: #09090b;
+  --focus: #f97316;
 
-  /* 下拉框 (Select) 与浮层：高对比度深灰蓝底 + 清晰亮边 */
-  --select-bg: #1b202d;
-  --select-border: rgba(255, 255, 255, 0.18);
-  --select-hover-border: rgba(223, 176, 134, 0.55);
-  --select-text: #f4f3f0;
-  --popover-bg: #171b26;
-  --popover-border: rgba(255, 255, 255, 0.14);
+  /* 下拉框 (Select) 与浮层：高对比度深碳底 + 清晰亮边 */
+  --select-bg: #16161b;
+  --select-border: rgba(255, 255, 255, 0.14);
+  --select-hover-border: rgba(249, 115, 22, 0.55);
+  --select-text: #fafafa;
+  --popover-bg: #141418;
+  --popover-border: rgba(255, 255, 255, 0.12);
 
   /* 头像表面：高反差金属立体环 */
-  --avatar-bg: linear-gradient(145deg, #282f42 0%, #191d29 100%);
-  --avatar-border: rgba(255, 255, 255, 0.28);
+  --avatar-bg: linear-gradient(145deg, #27272a 0%, #18181b 100%);
+  --avatar-border: rgba(255, 255, 255, 0.24);
   --avatar-fg: #ffffff;
-  --avatar-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.22), 0 4px 12px rgba(0, 0, 0, 0.5);
+  --avatar-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.2), 0 4px 12px rgba(0, 0, 0, 0.55);
 
   /* 装饰与代码高亮面板 */
-  --code: #0a0c11;
-  --code-ink: #e8ecf2;
-  --code-muted: #8b92a2;
-  --code-highlight: #e8be96;
+  --code: #09090b;
+  --code-ink: #f4f4f5;
+  --code-muted: #8e8e96;
+  --code-highlight: #fb923c;
 
   /* 状态语义色 */
-  --success-bg: rgba(135, 184, 177, 0.16);
-  --success-ink: #a3d4cd;
-  --error-bg: rgba(225, 130, 130, 0.16);
-  --error-ink: #f0acac;
+  --success-bg: rgba(16, 185, 129, 0.14);
+  --success-ink: #6ee7b7;
+  --error-bg: rgba(239, 68, 68, 0.15);
+  --error-ink: #fca5a5;
 
-  /* 决定前景与背景分离度的关键：卡片表面微光泽 + 1px 顶部高光棱线 + 深邃投影 */
+  /* 前景与背景分离度关键：卡片表面垂直微光泽 + 1px 顶光源高光棱线 + 双层景深投影 */
   --card-surface:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.05) 0%, rgba(255, 255, 255, 0.008) 100%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.045) 0%, rgba(255, 255, 255, 0.006) 100%),
     var(--paper);
-  --surface-highlight: inset 0 1px 0 0 rgba(255, 255, 255, 0.11);
-  --card-shadow: 0 16px 38px -8px rgba(0, 0, 0, 0.72), 0 4px 12px -2px rgba(0, 0, 0, 0.45);
+  --surface-highlight: inset 0 1px 0 0 rgba(255, 255, 255, 0.13);
+  --card-shadow: 0 1px 2px rgba(0, 0, 0, 0.55), 0 16px 36px -8px rgba(0, 0, 0, 0.78);
   --card-hover-shadow:
-    inset 0 1px 0 0 rgba(255, 255, 255, 0.18), 0 20px 44px -10px rgba(0, 0, 0, 0.82),
-    0 0 28px -8px rgba(223, 176, 134, 0.16);
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.22), 0 22px 44px -10px rgba(0, 0, 0, 0.86),
+    0 0 26px -8px rgba(249, 115, 22, 0.2);
 
-  /* 动态拓扑背景专属变量 (暗色模式) */
-  --grid-major: rgba(255, 255, 255, 0.055);
-  --grid-minor: rgba(255, 255, 255, 0.022);
-  --grid-cross: rgba(223, 176, 134, 0.32);
-  --beam-warm: #e5b88b;
-  --beam-cool: #9ab0c7;
-  --beam-silver: #e2e8f0;
+  /* 极简深空双源径向聚光 (暗色模式) */
   --backdrop-glow: radial-gradient(
-    ellipse 68% 380px at 50% 0%,
-    rgba(216, 165, 123, 0.11),
-    rgba(154, 176, 199, 0.04) 55%,
+    ellipse 76% 420px at 50% -10%,
+    rgba(255, 255, 255, 0.065),
+    rgba(249, 115, 22, 0.035) 52%,
     transparent 80%
   );
+  --backdrop-secondary-glow: radial-gradient(
+    circle 540px at 86% 12%,
+    rgba(161, 161, 170, 0.045),
+    transparent 70%
+  );
 
-  /* 品牌高亮与交互态 */
+  /* 品牌高亮与交互态兼容回退 */
   --accent-coral: #ffaf88;
   --accent-hover: #ffc19e;
   --text-on-accent: #271a15;
   --color-error: #e6a49c;
 
   /* 渐变与阴影 Token */
-  --gradient-warm: linear-gradient(100deg, #ffe0b0, #ffae82 48%, #ef7c8d);
-  --selection-bg: rgba(223, 176, 134, 0.25);
-  --card-glow: 0 15px 45px rgba(0, 0, 0, 0.4);
+  --gradient-warm: linear-gradient(100deg, #ffffff 0%, #fed7aa 48%, #f97316 100%);
+  --selection-bg: rgba(249, 115, 22, 0.24);
+  --card-glow: 0 16px 46px rgba(0, 0, 0, 0.55);
 
   /* 统一圆角 */
   --radius-sm: 4px;
@@ -122,89 +127,92 @@
 
 [data-theme='graphite'] {
   color-scheme: light;
-  --bg-app: #f4f3ef;
+  --bg-app: #f4f4f5;
   --bg-card: #ffffff;
-  --bg-input: #eceae4;
-  --text-main: #18181b;
-  --text-muted: #68666e;
-  --border-line: rgba(0, 0, 0, 0.08);
-  --accent-coral: #18181b;
-  --accent-hover: #2c2b30;
+  --bg-input: #e4e4e7;
+  --text-main: #09090b;
+  --text-muted: #63636b;
+  --border-line: rgba(9, 9, 11, 0.08);
+  --accent-coral: #09090b;
+  --accent-hover: #27272a;
   --text-on-accent: #ffffff;
   --color-error: #c53030;
 
-  /* 浅色模式同样拉开背景 (#f3f2ee) 与纯白前景卡片 (#ffffff) 的明度差 */
-  --bg: #f3f2ee;
+  /* 浅色模式：纯净冷锌灰画布 (#f4f4f5) + 下沉凹槽 (#e7e7ec) + 纯白悬浮卡片 (#ffffff) */
+  --bg: #f4f4f5;
+  --surface-well: #e7e7ec;
+  --well-shadow: inset 0 1px 2px rgba(9, 9, 11, 0.07), 0 1px 0 rgba(255, 255, 255, 0.85);
+  --well-border: rgba(9, 9, 11, 0.07);
   --paper: #ffffff;
-  --ink: #18181b;
-  --muted: #66646c;
-  --body: #3f3d45;
-  --reader-bg: #faf9f6;
+  --ink: #09090b;
+  --muted: #63636b;
+  --body: #27272a;
+  --reader-bg: #fafafa;
   --reader-ink: #27262b;
-  --line: #dfddd6;
+  --line: #e2e2e7;
+  --line-strong: #d0d0d7;
 
-  --btn-primary-bg: #18181b;
-  --btn-primary-hover: #2c2b30;
+  --btn-primary-bg: #09090b;
+  --btn-primary-hover: #27272a;
   --btn-primary-fg: #ffffff;
-  --btn-primary-shadow: 0 3px 10px rgba(24, 24, 27, 0.14);
+  --btn-primary-shadow: 0 2px 8px rgba(9, 9, 11, 0.16);
 
-  --brand: #9c623e;
-  --brand-soft: #f5ede6;
-  --brand-border: rgba(156, 98, 62, 0.32);
+  --brand: #ea580c;
+  --brand-soft: rgba(234, 88, 12, 0.09);
+  --brand-border: rgba(234, 88, 12, 0.35);
   --green: var(--brand);
   --mint: var(--brand-soft);
 
-  --soft: #eae8e2;
-  --hover: #f0eee9;
+  --soft: #ebebef;
+  --hover: #f0f0f4;
   --on-accent: #ffffff;
-  --focus: #9c623e;
+  --focus: #ea580c;
 
   --select-bg: #ffffff;
-  --select-border: #cfccc4;
-  --select-hover-border: #9c623e;
-  --select-text: #18181b;
+  --select-border: #d4d4d8;
+  --select-hover-border: #ea580c;
+  --select-text: #09090b;
   --popover-bg: #ffffff;
-  --popover-border: rgba(0, 0, 0, 0.12);
+  --popover-border: rgba(9, 9, 11, 0.12);
 
-  --avatar-bg: linear-gradient(145deg, #28262c 0%, #18181b 100%);
-  --avatar-border: rgba(0, 0, 0, 0.18);
+  --avatar-bg: linear-gradient(145deg, #27272a 0%, #09090b 100%);
+  --avatar-border: rgba(9, 9, 11, 0.18);
   --avatar-fg: #ffffff;
-  --avatar-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
-  --code: #16171d;
-  --code-ink: #eae8ee;
-  --code-muted: #9b98a6;
-  --code-highlight: #e5c39f;
+  --avatar-shadow: 0 2px 8px rgba(9, 9, 11, 0.12);
+  --code: #121215;
+  --code-ink: #f4f4f5;
+  --code-muted: #a1a1aa;
+  --code-highlight: #fb923c;
 
-  --success-bg: #e6f2ef;
-  --success-ink: #245e56;
-  --error-bg: #fbeeee;
-  --error-ink: #9e3533;
+  --success-bg: #ecfdf5;
+  --success-ink: #047857;
+  --error-bg: #fef2f2;
+  --error-ink: #b91c1c;
 
-  --card-surface: linear-gradient(180deg, #ffffff 0%, #fcfbf9 100%);
+  --card-surface: linear-gradient(180deg, #ffffff 0%, #fafafa 100%);
   --surface-highlight: inset 0 1px 0 0 #ffffff;
-  --card-shadow: 0 10px 28px -6px rgba(24, 22, 18, 0.08), 0 2px 6px -1px rgba(24, 22, 18, 0.04);
+  --card-shadow: 0 1px 2px rgba(9, 9, 11, 0.05), 0 12px 28px -6px rgba(9, 9, 11, 0.07);
   --card-hover-shadow:
-    0 18px 36px -8px rgba(24, 22, 18, 0.12), 0 4px 12px -2px rgba(156, 98, 62, 0.08);
+    0 18px 36px -8px rgba(9, 9, 11, 0.12), 0 4px 14px -2px rgba(234, 88, 12, 0.1);
 
-  /* 动态拓扑背景专属变量 (浅色模式) */
-  --grid-major: rgba(24, 24, 27, 0.055);
-  --grid-minor: rgba(24, 24, 27, 0.022);
-  --grid-cross: rgba(156, 98, 62, 0.3);
-  --beam-warm: #b56c3f;
-  --beam-cool: #4f6d8c;
-  --beam-silver: #52525b;
+  /* 极简深空双源径向聚光 (浅色模式) */
   --backdrop-glow: radial-gradient(
-    ellipse 68% 360px at 50% 0%,
-    rgba(156, 98, 62, 0.07),
-    rgba(79, 109, 140, 0.03) 55%,
+    ellipse 76% 380px at 50% -10%,
+    rgba(9, 9, 11, 0.045),
+    rgba(234, 88, 12, 0.03) 52%,
     transparent 80%
+  );
+  --backdrop-secondary-glow: radial-gradient(
+    circle 500px at 86% 12%,
+    rgba(9, 9, 11, 0.025),
+    transparent 70%
   );
 }
 
 body {
   margin: 0;
-  background-color: var(--bg-app);
-  color: var(--text-main);
+  background-color: var(--bg);
+  color: var(--ink);
   font-family:
     -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft Yahei', sans-serif;
   -webkit-font-smoothing: antialiased;

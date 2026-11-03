@@ -13,6 +13,9 @@ const webDir = path.resolve(
 test('learning components, layouts, and page templates exist', () => {
   const files = [
     'layouts/learning.vue',
+    'components/ui/AmbientBackdrop.vue',
+    'components/learning/ModuleCardArt.vue',
+    'components/learning/BannerBackdrop.vue',
     'components/learning/LearningHeader.vue',
     'components/ui/MarkdownView.vue',
     'composables/useTheme.ts',
@@ -25,6 +28,17 @@ test('learning components, layouts, and page templates exist', () => {
     const fullPath = path.join(webDir, f)
     assert.ok(fs.existsSync(fullPath), `File should exist: ${f}`)
   }
+
+  const layout = fs.readFileSync(path.join(webDir, 'layouts/learning.vue'), 'utf-8')
+  assert.ok(layout.includes('UiAmbientBackdrop'), 'learning layout must use UiAmbientBackdrop')
+  assert.ok(!layout.includes('backdrop-circuit'), 'legacy circuit grid must be removed')
+
+  const banner = fs.readFileSync(
+    path.join(webDir, 'components/learning/BannerBackdrop.vue'),
+    'utf-8'
+  )
+  assert.ok(!banner.includes('rpg-dragon'), 'legacy RPG dragon art must be removed')
+  assert.ok(banner.includes('--banner-accent'), 'must retain --banner-accent binding')
 })
 
 test('LearningHeader.vue uses the optimized logo, AttackBox brand, and navigation links', () => {
@@ -54,6 +68,11 @@ test('pages/learn/index.vue defines learning layout, /api/modules fetch, and cat
   assert.ok(content.includes('page-tabs'))
   assert.ok(content.includes('cards'))
   assert.ok(content.includes('card-art'))
+  assert.ok(
+    content.includes('LearningModuleCardArt'),
+    'learn/index.vue must delegate card art to LearningModuleCardArt'
+  )
+  assert.ok(!content.includes('const artThemes'), 'inline artThemes must be extracted')
 })
 
 test('pages/learn/modules/[slug]/index.vue renders real module content and configurable learning outcomes', () => {

@@ -49,13 +49,13 @@
 
 [data-theme='midnight'] .markdown-body {
   --tw-prose-links: #60a5fa;
-  --tw-prose-code: #f3be8c;
-  --md-inline-bg: rgba(223, 176, 134, 0.13);
-  --md-inline-border: rgba(223, 176, 134, 0.28);
-  --md-quote-bg: rgba(223, 176, 134, 0.06);
+  --tw-prose-code: #fb923c;
+  --md-inline-bg: rgba(249, 115, 22, 0.12);
+  --md-inline-border: rgba(249, 115, 22, 0.28);
+  --md-quote-bg: rgba(249, 115, 22, 0.06);
   --md-mark-bg: rgba(250, 204, 21, 0.22);
-  --md-code-bg: #0f1218;
-  --md-code-head: #171b24;
+  --md-code-bg: #0c0d12;
+  --md-code-head: #14151c;
   --md-note: #60a5fa;
   --md-tip: #34d399;
   --md-important: #a78bfa;

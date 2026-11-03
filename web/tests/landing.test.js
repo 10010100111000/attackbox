@@ -74,7 +74,10 @@ test('landing uses public module data and direct browsing links', () => {
     assert.ok(!source.includes('次实践'))
   }
   const card = readFileSync(resolve(rootDir, 'components/landing/ModuleCard.vue'), 'utf-8')
+  const featured = readFileSync(resolve(rootDir, 'components/landing/FeaturedModule.vue'), 'utf-8')
   assert.ok(card.includes('/learn/modules/${module.slug}'), 'cards must link to the module page')
+  assert.ok(!card.includes('#c1a381'), 'legacy muddy brown tone must be removed from ModuleCard')
+  assert.ok(featured.includes('#f97316'), 'FeaturedModule must use Signal Orange tone')
   assert.ok(hero.includes('to="/learn"'))
   assert.ok(header.includes('to="/learn"'))
 })

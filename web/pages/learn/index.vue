@@ -137,45 +137,6 @@ const filteredModules = computed(() => {
 
   return list
 })
-
-// 预设优雅的生成式渐变主题与图案配置 (保留发散设计)
-// 与 landing.vue 卡片完全同源的低饱和度暗调微光主题 (克制、内敛、耐看)
-const artThemes = [
-  {
-    gradient:
-      'radial-gradient(ellipse at 65% 25%, rgba(163, 107, 66, 0.20), transparent 68%), linear-gradient(180deg, rgba(216, 165, 123, 0.06), transparent)',
-    border: 'rgba(216, 165, 123, 0.22)',
-    type: 'radar'
-  },
-  {
-    gradient:
-      'radial-gradient(ellipse at 65% 25%, rgba(110, 135, 160, 0.18), transparent 68%), linear-gradient(180deg, rgba(154, 176, 199, 0.06), transparent)',
-    border: 'rgba(154, 176, 199, 0.22)',
-    type: 'grid'
-  },
-  {
-    gradient:
-      'radial-gradient(ellipse at 65% 25%, rgba(175, 110, 108, 0.18), transparent 68%), linear-gradient(180deg, rgba(211, 145, 143, 0.06), transparent)',
-    border: 'rgba(211, 145, 143, 0.22)',
-    type: 'waves'
-  },
-  {
-    gradient:
-      'radial-gradient(ellipse at 65% 25%, rgba(69, 119, 120, 0.19), transparent 68%), linear-gradient(180deg, rgba(135, 184, 177, 0.06), transparent)',
-    border: 'rgba(135, 184, 177, 0.22)',
-    type: 'nodes'
-  },
-  {
-    gradient:
-      'radial-gradient(ellipse at 65% 25%, rgba(130, 115, 155, 0.17), transparent 68%), linear-gradient(180deg, rgba(182, 156, 219, 0.05), transparent)',
-    border: 'rgba(182, 156, 219, 0.20)',
-    type: 'rings'
-  }
-]
-
-function getModuleTheme(index: number) {
-  return artThemes[index % artThemes.length]
-}
 </script>
 
 <template>
@@ -211,6 +172,7 @@ function getModuleTheme(index: number) {
         </div>
         <span class="resume-action">继续学习</span>
       </NuxtLink>
+
       <!-- 二级标签栏 (学习模块 / 学习路线) -->
       <div class="page-tabs" role="tablist" aria-label="学习导航">
         <button
@@ -233,7 +195,7 @@ function getModuleTheme(index: number) {
 
       <!-- Tab 1: 学习模块 -->
       <div v-if="activeTab === 'modules'" id="module-list" class="tab-content">
-        <!-- 筛选与搜索工具栏 -->
+        <!-- 筛选与搜索工具栏 (下沉凹槽轨道设计) -->
         <div class="toolbar">
           <div class="filters" role="group" aria-label="分类过滤">
             <button
@@ -271,6 +233,7 @@ function getModuleTheme(index: number) {
           /></label>
         </div>
         <AdvertisingSlot placement="learn_catalog" />
+
         <!-- 加载状态 -->
         <LearningCatalogSkeleton v-if="pending && !response" label="正在读取学习模块" />
 
@@ -280,7 +243,7 @@ function getModuleTheme(index: number) {
           <button type="button" class="btn secondary" @click="() => refresh()">重新加载</button>
         </div>
 
-        <!-- 卡片网格 (三列，生成式渐变与图形，克制箭头) -->
+        <!-- 卡片网格 -->
         <div v-else-if="filteredModules.length > 0" class="cards">
           <NuxtLink
             v-for="(mod, index) in filteredModules"
@@ -293,9 +256,7 @@ function getModuleTheme(index: number) {
             "
             class="card"
           >
-            <!-- 生成式渐变艺术区与微几何图腾 (保留发散设计) -->
-            <div class="card-art" :style="{ background: getModuleTheme(index).gradient }">
-              <!-- 几何 SVG 图腾 -->
+            <div class="card-art">
               <img
                 v-if="mod.coverAssetId && !failedCovers.has(mod.id)"
                 :src="`/api/modules/${mod.slug}/assets/${mod.coverAssetId}`"
@@ -303,128 +264,13 @@ function getModuleTheme(index: number) {
                 class="module-cover"
                 loading="lazy"
                 @error="failedCovers.add(mod.id)"
-              /><svg
-                v-else
-                class="art-svg"
-                viewBox="0 0 100 60"
-                fill="none"
-                xmlns="http://www.w3.org/2000/svg"
-                aria-hidden="true"
-              >
-                <!-- 节点网络 -->
-                <template v-if="getModuleTheme(index).type === 'nodes'">
-                  <circle cx="20" cy="30" r="3" fill="currentColor" fill-opacity="0.3" />
-                  <circle cx="50" cy="18" r="4" fill="currentColor" fill-opacity="0.4" />
-                  <circle cx="80" cy="36" r="3" fill="currentColor" fill-opacity="0.3" />
-                  <circle cx="45" cy="46" r="2.5" fill="currentColor" fill-opacity="0.25" />
-                  <line
-                    x1="20"
-                    y1="30"
-                    x2="50"
-                    y2="18"
-                    stroke="currentColor"
-                    stroke-opacity="0.25"
-                    stroke-dasharray="2 2"
-                  />
-                  <line
-                    x1="50"
-                    y1="18"
-                    x2="80"
-                    y2="36"
-                    stroke="currentColor"
-                    stroke-opacity="0.25"
-                  />
-                  <line
-                    x1="20"
-                    y1="30"
-                    x2="45"
-                    y2="46"
-                    stroke="currentColor"
-                    stroke-opacity="0.2"
-                  />
-                </template>
-
-                <!-- 雷达波同心弧 -->
-                <template
-                  v-else-if="
-                    getModuleTheme(index).type === 'radar' || getModuleTheme(index).type === 'rings'
-                  "
-                >
-                  <circle
-                    cx="85"
-                    cy="55"
-                    r="22"
-                    stroke="currentColor"
-                    stroke-opacity="0.2"
-                    stroke-width="1.2"
-                  />
-                  <circle
-                    cx="85"
-                    cy="55"
-                    r="44"
-                    stroke="currentColor"
-                    stroke-opacity="0.15"
-                    stroke-dasharray="3 3"
-                  />
-                  <circle cx="85" cy="55" r="66" stroke="currentColor" stroke-opacity="0.1" />
-                  <line
-                    x1="85"
-                    y1="55"
-                    x2="45"
-                    y2="20"
-                    stroke="currentColor"
-                    stroke-opacity="0.2"
-                  />
-                </template>
-
-                <!-- 网格线框 -->
-                <template v-else-if="getModuleTheme(index).type === 'grid'">
-                  <path
-                    d="M10 15L90 15M10 30L90 30M10 45L90 45"
-                    stroke="currentColor"
-                    stroke-opacity="0.15"
-                    stroke-width="1"
-                  />
-                  <path
-                    d="M25 5L25 55M50 5L50 55M75 5L75 55"
-                    stroke="currentColor"
-                    stroke-opacity="0.15"
-                    stroke-width="1"
-                  />
-                  <circle cx="50" cy="30" r="3" fill="currentColor" fill-opacity="0.4" />
-                </template>
-
-                <!-- 拓扑等高波纹 -->
-                <template v-else>
-                  <path
-                    d="M10 45C30 35 45 50 65 38C75 32 85 40 90 35"
-                    stroke="currentColor"
-                    stroke-opacity="0.25"
-                    stroke-width="1.5"
-                  />
-                  <path
-                    d="M10 30C28 20 48 35 68 22C78 16 85 24 90 20"
-                    stroke="currentColor"
-                    stroke-opacity="0.18"
-                    stroke-width="1.2"
-                    stroke-dasharray="2 2"
-                  />
-                  <path
-                    d="M10 18C32 10 50 22 70 12C80 8 85 14 90 10"
-                    stroke="currentColor"
-                    stroke-opacity="0.1"
-                    stroke-width="1"
-                  />
-                </template>
-              </svg>
-
-              <!-- 模块序号艺术字符 -->
-              <div class="art-index-pill">
-                {{ String(index + 1).padStart(2, '0') }}
-              </div>
+              />
+              <LearningModuleCardArt
+                :index="index"
+                :has-cover="Boolean(mod.coverAssetId && !failedCovers.has(mod.id))"
+              />
             </div>
 
-            <!-- 卡片主体 -->
             <div class="card-body">
               <span class="tag" :class="mod.difficulty">{{
                 difficultyToLabel(mod.difficulty)
@@ -438,7 +284,6 @@ function getModuleTheme(index: number) {
                 ><span v-if="mod.durationMinutes">约 {{ mod.durationMinutes }} 分钟</span>
               </div>
 
-              <!-- 卡片底栏 (保持克制，去除多余 ↗ 箭头) -->
               <div class="card-bottom">
                 <span class="status-action">{{
                   historyByModule.get(mod.id)?.isCompleted
@@ -498,7 +343,6 @@ function getModuleTheme(index: number) {
         </div>
       </div>
 
-      <!-- 短页靠底，长页随正文排列 -->
       <footer class="footer-tagline">LEARN WITH INTENTION. BUILD WITH CONFIDENCE.</footer>
     </div>
   </div>
@@ -506,46 +350,17 @@ function getModuleTheme(index: number) {
 
 <style scoped>
 .home-placeholder {
-  height: 188px;
-  background: var(--soft);
-  border-radius: 11px;
-  margin-bottom: 18px;
+  height: 176px;
+  background: var(--surface-well);
+  border: 1px solid var(--well-border);
+  border-radius: 13px;
+  margin-bottom: 20px;
 }
 
 .empty-doodle {
   color: var(--learning-spark);
   transform: rotate(-8deg);
   margin: 0 auto 12px;
-}
-
-.card:hover .art-index-pill {
-  transform: rotate(-5deg);
-  border-color: var(--brand-border);
-  color: var(--ink);
-}
-
-.art-index-pill {
-  transition:
-    transform 0.18s ease,
-    border-color 0.18s ease,
-    color 0.18s ease;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-  font-size: 11px;
-  color: var(--muted);
-  border: 1px solid var(--line);
-  background: var(--paper);
-  padding: 2px 7px;
-  border-radius: 5px;
-  z-index: 2;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .art-index-pill {
-    transition: none;
-  }
-  .card:hover .art-index-pill {
-    transform: none;
-  }
 }
 
 .module-cover {
@@ -560,13 +375,16 @@ function getModuleTheme(index: number) {
   display: flex;
   align-items: center;
   gap: 20px;
-  margin: -4px 0 18px;
+  margin: -2px 0 20px;
   color: var(--muted);
   font-size: 12px;
 }
 
 .discovery-controls > span {
   margin-right: auto;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 11.5px;
+  letter-spacing: 0.3px;
 }
 
 .discovery-controls label {
@@ -576,61 +394,84 @@ function getModuleTheme(index: number) {
 }
 
 .recent-learning {
+  position: relative;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 24px;
-  padding: 16px 22px;
-  margin-bottom: 20px;
+  padding: 18px 24px;
+  margin-bottom: 22px;
   border: 1px solid var(--brand-border);
-  border-radius: 12px;
-  background: linear-gradient(105deg, var(--brand-soft) 0%, var(--paper) 75%);
-  box-shadow: var(--surface-highlight);
+  border-radius: 13px;
+  background:
+    radial-gradient(ellipse 60% 120% at 0% 50%, var(--brand-soft), transparent 70%),
+    var(--card-surface);
+  box-shadow: var(--surface-highlight), var(--card-shadow);
   color: var(--ink);
   text-decoration: none;
+  overflow: hidden;
   transition:
-    transform 0.18s ease,
-    border-color 0.18s ease;
+    transform 0.2s cubic-bezier(0.22, 1, 0.36, 1),
+    border-color 0.2s ease,
+    box-shadow 0.2s ease;
+}
+
+.recent-learning::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 14px;
+  bottom: 14px;
+  width: 3px;
+  border-radius: 0 3px 3px 0;
+  background: var(--brand);
 }
 
 .recent-learning:hover {
   transform: translateY(-2px);
   border-color: var(--brand);
+  box-shadow: var(--card-hover-shadow);
 }
 
 .resume-action {
-  padding: 7px 14px;
-  border-radius: 6px;
+  padding: 8px 15px;
+  border-radius: 7px;
   background: var(--btn-primary-bg);
   color: var(--btn-primary-fg);
-  font-weight: 600;
+  font-size: 12.5px;
+  font-weight: 650;
   box-shadow: var(--btn-primary-shadow);
+  flex-shrink: 0;
 }
 
 .recent-copy {
   flex: 1;
   min-width: 0;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 140px;
+  grid-template-columns: minmax(0, 1fr) 150px;
   column-gap: 20px;
 }
 
 .recent-label {
   grid-column: 1;
-  font-size: 11px;
-  color: var(--muted);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.6px;
+  color: var(--brand);
 }
 
 .recent-learning h2 {
   grid-column: 1;
-  font-size: 15px;
-  margin: 3px 0;
+  font-size: 16px;
+  margin: 4px 0 3px;
   font-weight: 650;
+  letter-spacing: -0.3px;
 }
 
 .recent-learning p {
   grid-column: 1;
-  font-size: 12px;
+  font-size: 12.5px;
   color: var(--muted);
   margin: 0 0 6px;
 }
@@ -639,10 +480,11 @@ function getModuleTheme(index: number) {
   grid-column: 2;
   grid-row: 2;
   align-self: center;
-  height: 4px;
+  height: 5px;
   width: min(100%, 320px);
-  border-radius: 4px;
-  background: var(--line);
+  border-radius: 999px;
+  background: var(--surface-well);
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.5);
   overflow: hidden;
 }
 
@@ -658,6 +500,7 @@ function getModuleTheme(index: number) {
   grid-row: 3;
   display: block;
   margin-top: 0;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
   font-size: 11px;
   color: var(--muted);
 }
@@ -678,8 +521,6 @@ function getModuleTheme(index: number) {
   flex-direction: column;
 }
 
-/* 二级 Tab 切换栏 */
-
 .page-tabs {
   display: flex;
   gap: 28px;
@@ -688,14 +529,17 @@ function getModuleTheme(index: number) {
 }
 
 .tab-link {
-  font-size: 13px;
+  font-size: 13.5px;
+  font-weight: 500;
   padding: 0 0 12px;
   color: var(--muted);
   background: transparent;
   border: none;
   cursor: pointer;
   border-bottom: 2px solid transparent;
-  transition: all 0.15s ease;
+  transition:
+    color 0.16s ease,
+    border-color 0.16s ease;
 }
 
 .tab-link:hover {
@@ -705,10 +549,8 @@ function getModuleTheme(index: number) {
 .tab-link.selected {
   color: var(--ink);
   border-bottom-color: var(--brand);
-  font-weight: 600;
+  font-weight: 650;
 }
-
-/* 工具栏 */
 
 .toolbar {
   display: flex;
@@ -716,29 +558,37 @@ function getModuleTheme(index: number) {
   justify-content: space-between;
   gap: 16px;
   flex-wrap: wrap;
-  margin-bottom: 22px;
+  margin-bottom: 20px;
 }
 
 .filters {
   display: flex;
-  gap: 8px;
+  gap: 4px;
   flex-wrap: wrap;
+  padding: 4px;
+  border-radius: 10px;
+  background: var(--surface-well);
+  border: 1px solid var(--well-border);
+  box-shadow: var(--well-shadow);
 }
 
 .filter-btn {
   padding: 6px 14px;
-  border: 1px solid var(--line);
+  border: 1px solid transparent;
   border-radius: 7px;
-  background: var(--paper);
+  background: transparent;
   color: var(--muted);
   font-size: 12px;
+  font-weight: 500;
   cursor: pointer;
-  transition: all 0.15s ease;
+  transition:
+    color 0.16s ease,
+    background 0.16s ease,
+    box-shadow 0.16s ease;
 }
 
 .filter-btn:hover {
   color: var(--ink);
-  border-color: var(--focus);
 }
 
 .filter-btn.active {
@@ -746,46 +596,45 @@ function getModuleTheme(index: number) {
   color: var(--btn-primary-fg);
   border-color: transparent;
   box-shadow: var(--btn-primary-shadow);
-  font-weight: 600;
+  font-weight: 650;
 }
 
 .search-input {
-  min-width: 220px;
+  min-width: 230px;
 }
 
-/* 状态容器 */
-
 .state-panel {
-  padding: 40px;
+  padding: 44px;
   text-align: center;
-  background: var(--paper);
-  border: 1px solid var(--line);
-  border-radius: 10px;
+  background: var(--surface-well);
+  border: 1px solid var(--well-border);
+  box-shadow: var(--well-shadow);
+  border-radius: 12px;
   color: var(--muted);
   font-size: 13px;
 }
 
 .empty-notice {
-  padding: 40px;
+  padding: 56px 32px;
   text-align: center;
+  background: var(--surface-well);
+  border: 1px solid var(--well-border);
+  box-shadow: var(--well-shadow);
+  border-radius: 13px;
   color: var(--muted);
   font-size: 13px;
 }
 
-/* 卡片网格 (3 列，克制优雅) */
-
 .cards {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(288px, 1fr));
   gap: 20px;
 }
 
 .card {
   background: var(--card-surface);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
   border: 1px solid var(--line);
-  border-radius: 12px;
+  border-radius: 13px;
   box-shadow: var(--surface-highlight), var(--card-shadow);
   overflow: hidden;
   text-decoration: none;
@@ -794,9 +643,9 @@ function getModuleTheme(index: number) {
   flex-direction: column;
   animation: surface-rise 0.28s cubic-bezier(0.22, 1, 0.36, 1) both;
   transition:
-    transform 0.22s cubic-bezier(0.22, 1, 0.36, 1),
-    box-shadow 0.22s ease,
-    border-color 0.22s ease;
+    transform 0.24s cubic-bezier(0.22, 1, 0.36, 1),
+    box-shadow 0.24s ease,
+    border-color 0.24s ease;
 }
 
 .card:hover {
@@ -805,34 +654,17 @@ function getModuleTheme(index: number) {
   box-shadow: var(--card-hover-shadow);
 }
 
-/* 专属艺术渐变区 */
-
 .card-art {
-  height: 108px;
+  height: 112px;
   position: relative;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 16px 20px;
   overflow: hidden;
   color: var(--ink);
+  background: color-mix(in srgb, var(--bg) 55%, var(--paper));
   border-bottom: 1px solid var(--line);
 }
 
-.art-svg {
-  position: absolute;
-  right: 10px;
-  bottom: 0;
-  width: 140px;
-  height: 80px;
-  pointer-events: none;
-  color: var(--ink);
-}
-
-/* 卡片主体 */
-
 .card-body {
-  padding: 20px;
+  padding: 20px 22px;
   display: flex;
   flex-direction: column;
   flex: 1;
@@ -843,10 +675,10 @@ function getModuleTheme(index: number) {
   display: inline-flex;
   align-items: center;
   border: 1px solid transparent;
-  border-radius: 6px;
+  border-radius: 5px;
   padding: 2px 8px;
   font-size: 11px;
-  font-weight: 550;
+  font-weight: 600;
   color: var(--muted);
   background: var(--soft);
 }
@@ -854,35 +686,35 @@ function getModuleTheme(index: number) {
 .tag.beginner {
   color: var(--tone-green);
   background: var(--tone-green-soft);
-  border-color: color-mix(in srgb, var(--tone-green) 22%, transparent);
+  border-color: color-mix(in srgb, var(--tone-green) 24%, transparent);
 }
 
 .tag.intermediate {
   color: var(--tone-blue);
   background: var(--tone-blue-soft);
-  border-color: color-mix(in srgb, var(--tone-blue) 22%, transparent);
+  border-color: color-mix(in srgb, var(--tone-blue) 24%, transparent);
 }
 
 .tag.advanced {
   color: var(--tone-red);
   background: var(--tone-red-soft);
-  border-color: color-mix(in srgb, var(--tone-red) 22%, transparent);
+  border-color: color-mix(in srgb, var(--tone-red) 24%, transparent);
 }
 
 .card-title {
-  font-size: 16px;
-  font-weight: 600;
-  margin: 10px 0 6px;
+  font-size: 16.5px;
+  font-weight: 650;
+  margin: 11px 0 6px;
   color: var(--ink);
-  letter-spacing: -0.3px;
+  letter-spacing: -0.35px;
 }
 
 .card-desc {
-  font-size: 12px;
-  line-height: 1.6;
+  font-size: 12.5px;
+  line-height: 1.65;
   color: var(--muted);
-  margin: 0 0 16px;
-  min-height: 38px;
+  margin: 0 0 18px;
+  min-height: 40px;
   display: -webkit-box;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
@@ -893,12 +725,11 @@ function getModuleTheme(index: number) {
   display: flex;
   gap: 12px;
   color: var(--muted);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
   font-size: 11px;
   margin-top: auto;
   margin-bottom: 16px;
 }
-
-/* 卡片底栏 (保持克制，无冗余箭头) */
 
 .card-bottom {
   border-top: 1px solid var(--line);
@@ -911,24 +742,23 @@ function getModuleTheme(index: number) {
 
 .status-action {
   color: var(--ink);
-  font-weight: 550;
-  transition: color 0.15s ease;
+  font-weight: 600;
+  transition: color 0.16s ease;
 }
 
 .card:hover .status-action {
-  color: var(--green);
+  color: var(--brand);
 }
 
 .status-label {
   color: var(--muted);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
   font-size: 11px;
 }
 
-/* Tab 2: 路线列表 */
-
 .published-routes {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(288px, 1fr));
   gap: 20px;
 }
 
@@ -936,36 +766,52 @@ function getModuleTheme(index: number) {
   position: relative;
   display: block;
   padding: 28px;
-  background: var(--paper);
+  background: var(--card-surface);
   border: 1px solid var(--line);
-  border-radius: 10px;
+  border-radius: 13px;
+  box-shadow: var(--surface-highlight), var(--card-shadow);
   color: var(--ink);
   text-decoration: none;
   transition:
-    border-color 0.15s ease,
-    transform 0.15s ease;
+    border-color 0.22s ease,
+    transform 0.22s cubic-bezier(0.22, 1, 0.36, 1),
+    box-shadow 0.22s ease;
 }
 
 .published-route:hover {
-  border-color: var(--focus);
-  transform: translateY(-2px);
+  border-color: var(--brand-border);
+  transform: translateY(-3px);
+  box-shadow: var(--card-hover-shadow);
 }
 
 .published-route span {
-  color: var(--green);
-  font-size: 12px;
+  color: var(--brand);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 11.5px;
+  font-weight: 600;
 }
 
 .published-route > svg {
   position: absolute;
   right: 28px;
   top: 28px;
+  color: var(--muted);
+  transition:
+    transform 0.18s ease,
+    color 0.18s ease;
+}
+
+.published-route:hover > svg {
+  transform: translateX(3px);
+  color: var(--brand);
 }
 
 .published-route h2 {
   overflow-wrap: anywhere;
-  font-size: 22px;
-  margin: 14px 0;
+  font-size: 21px;
+  font-weight: 650;
+  letter-spacing: -0.4px;
+  margin: 14px 0 10px;
 }
 
 .published-route p {
@@ -975,20 +821,16 @@ function getModuleTheme(index: number) {
   margin: 0;
 }
 
-/* 底部标语 */
-
 .footer-tagline {
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
   font-size: 10px;
-  letter-spacing: 1.5px;
+  letter-spacing: 1.6px;
   color: var(--muted);
   text-align: center;
   margin-top: auto;
-  padding-top: 48px;
-  opacity: 0.7;
+  padding-top: 52px;
+  opacity: 0.65;
 }
-
-/* 响应式调整 */
 
 @media (max-width: 900px) {
   .cards {

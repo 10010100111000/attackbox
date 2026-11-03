@@ -24,12 +24,10 @@ const { currentUser } = useAuth()
 </template>
 
 <style>
-/* 落地页外壳:只保留布局自身的骨架与页脚。
-   首页各区块的样式分别位于 pages/index.vue 与 components/landing/*。 */
 .landing-layout {
   min-height: 100vh;
-  background: var(--bg-app);
-  color: var(--text-main);
+  background: var(--bg);
+  color: var(--ink);
   overflow-x: clip;
 
   .wrap {
@@ -38,31 +36,47 @@ const { currentUser } = useAuth()
   }
 
   .platform-link {
-    border: 1px solid rgba(255, 255, 255, 0.15);
-    padding: 8px 14px;
+    border: 1px solid var(--line-strong);
+    background: rgba(255, 255, 255, 0.03);
+    box-shadow: var(--surface-highlight);
+    padding: 7px 14px;
     border-radius: var(--radius-md, 7px);
     display: flex;
-    gap: 22px;
-    font-size: 11px;
-    transition: background 0.2s;
+    align-items: center;
+    gap: 18px;
+    font-size: 12px;
+    font-weight: 550;
+    color: var(--ink);
+    text-decoration: none;
+    transition:
+      background 0.18s ease,
+      border-color 0.18s ease,
+      transform 0.18s ease;
   }
 
   .platform-link:hover {
-    background: rgba(255, 255, 255, 0.05);
+    background: rgba(255, 255, 255, 0.08);
+    border-color: var(--brand-border);
+    transform: translateY(-1px);
   }
 
   .footer {
-    border-top: 1px solid var(--border-line, rgba(255, 255, 255, 0.07));
-    padding: 26px 0 30px;
+    border-top: 1px solid var(--line);
+    padding: 28px 0 34px;
     display: flex;
+    align-items: center;
     justify-content: space-between;
-    color: #716777;
-    font-size: 10px;
+    color: var(--muted);
+    font-size: 11px;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
   }
 
   .footer-brand {
-    color: #a99cae;
-    font-size: 12px;
+    color: var(--ink);
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    font-weight: 600;
+    font-size: 13px;
+    text-decoration: none;
   }
 
   @media (max-width: 1100px) {
@@ -76,8 +90,8 @@ const { currentUser } = useAuth()
       width: calc(100% - 40px);
     }
     .platform-link {
-      font-size: 10px;
-      padding: 7px 10px;
+      font-size: 11px;
+      padding: 6px 11px;
       gap: 10px;
     }
     .footer {

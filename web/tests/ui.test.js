@@ -33,6 +33,13 @@ test('main.css contains all required design tokens and accessibility rules', () 
   assert.ok(css.includes('--selection-bg:'))
   assert.ok(css.includes('--card-glow:'))
 
+  // Carbon & Signal Orange 5-tier optical tokens & legacy grid cleanup
+  assert.ok(css.includes('--bg: #09090b;'))
+  assert.ok(css.includes('--brand: #f97316;'))
+  assert.ok(css.includes('--surface-well:'))
+  assert.ok(css.includes('--well-shadow:'))
+  assert.ok(!css.includes('--grid-major'))
+
   // Radii
   assert.ok(css.includes('--radius-sm: 4px;'))
   assert.ok(css.includes('--radius-md: 7px;'))

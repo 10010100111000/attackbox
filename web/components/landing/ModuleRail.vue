@@ -10,7 +10,7 @@ watch(
   () => props.modules,
   () => nextTick(measure)
 )
-const tones = ['#d6b188', '#d3918f', '#87b8b1', '#a997c6', '#9ab0c7']
+const tones = ['#f97316', '#e4e4e7', '#38bdf8', '#34d399', '#a1a1aa']
 </script>
 
 <template>
@@ -36,7 +36,7 @@ const tones = ['#d6b188', '#d3918f', '#87b8b1', '#a997c6', '#9ab0c7']
   gap: 20px;
   overflow-x: auto;
   overflow-y: hidden;
-  padding: 6px 1px 15px;
+  padding: 6px 1px 18px;
   scrollbar-width: none;
   overscroll-behavior-x: contain;
   overflow-anchor: none;
@@ -51,7 +51,7 @@ const tones = ['#d6b188', '#d3918f', '#87b8b1', '#a997c6', '#9ab0c7']
 }
 
 .module-rail:focus-visible {
-  outline: 1px solid rgba(195, 154, 123, 0.4);
+  outline: 2px solid var(--brand);
   outline-offset: 6px;
 }
 

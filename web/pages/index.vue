@@ -49,7 +49,7 @@ useSeoMeta({
 
 <style scoped>
 .modules {
-  padding: 55px 0 74px;
+  padding: 58px 0 80px;
   position: relative;
 }
 
@@ -57,36 +57,46 @@ useSeoMeta({
   content: '';
   position: absolute;
   top: 0;
-  left: 20%;
-  right: 20%;
+  left: 15%;
+  right: 15%;
   height: 1px;
-  background: linear-gradient(90deg, transparent, #c19e7f33, transparent);
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(255, 255, 255, 0.14) 35%,
+    rgba(249, 115, 22, 0.38) 50%,
+    rgba(255, 255, 255, 0.14) 65%,
+    transparent
+  );
 }
 
 .section-head {
   text-align: center;
-  margin-bottom: 38px;
+  margin-bottom: 40px;
 }
 
 .section-head h2 {
-  font-size: 34px;
-  font-weight: 550;
-  letter-spacing: -1.3px;
+  font-size: 36px;
+  font-weight: 650;
+  letter-spacing: -1.4px;
+  color: var(--ink);
 }
 
 .catalog-empty {
   display: grid;
   justify-items: center;
   gap: 18px;
-  padding: 60px 24px;
-  color: var(--text-muted);
-  border: 1px solid var(--border-line);
-  border-radius: 11px;
-  background: radial-gradient(ellipse at 50% 100%, var(--brand-warm-soft), transparent 70%);
+  padding: 64px 24px;
+  color: var(--muted);
+  border: 1px solid var(--well-border);
+  border-radius: 13px;
+  background:
+    radial-gradient(ellipse at 50% 100%, var(--brand-soft), transparent 70%), var(--surface-well);
+  box-shadow: var(--well-shadow);
 }
 
 .catalog-empty :deep(svg) {
-  color: var(--brand-warm);
+  color: var(--brand);
 }
 
 .catalog-empty p {
@@ -96,30 +106,40 @@ useSeoMeta({
 .catalog-link {
   display: flex;
   justify-content: center;
-  margin-top: 30px;
+  margin-top: 34px;
 }
 
 .catalog-link a {
-  color: var(--brand-warm);
-  font-size: 12px;
-  padding: 10px 16px;
-  border-radius: 7px;
-  border: 1px solid var(--border-line);
+  color: var(--ink);
+  font-size: 12.5px;
+  font-weight: 600;
+  padding: 11px 20px;
+  border-radius: 8px;
+  border: 1px solid var(--line-strong);
+  background: var(--card-surface);
+  box-shadow: var(--surface-highlight), var(--card-shadow);
+  text-decoration: none;
+  transition:
+    transform 0.18s ease,
+    border-color 0.18s ease,
+    box-shadow 0.18s ease;
 }
 
 .catalog-link a:hover {
-  background: var(--brand-warm-soft);
+  transform: translateY(-2px);
+  border-color: var(--brand-border);
+  box-shadow: var(--card-hover-shadow);
 }
 
 @media (max-width: 760px) {
   .modules {
-    padding: 35px 0 42px;
+    padding: 36px 0 44px;
   }
   .section-head {
-    margin-bottom: 27px;
+    margin-bottom: 28px;
   }
   .section-head h2 {
-    font-size: 27px;
+    font-size: 28px;
   }
 }
 </style>

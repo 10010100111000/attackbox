@@ -58,7 +58,7 @@ function stagePercent(c: ChallengeSummary): number {
   <div class="learning-frame learning-shell challenge-list">
     <header class="page-head">
       <span class="head-badge" aria-hidden="true">
-        <Flag :size="20" />
+        <Flag :size="19" />
       </span>
       <h1>挑战</h1>
     </header>
@@ -128,13 +128,14 @@ function stagePercent(c: ChallengeSummary): number {
 
 <style scoped>
 .empty-flag {
-  color: var(--learning-spark);
+  color: var(--brand);
   transform: rotate(-8deg);
   margin: 0 auto 12px;
 }
 .empty a {
-  color: var(--green);
+  color: var(--brand);
   font-size: 13px;
+  font-weight: 550;
 }
 
 .page-head {
@@ -149,29 +150,36 @@ function stagePercent(c: ChallengeSummary): number {
   width: 38px;
   height: 38px;
   border-radius: 10px;
-  background: var(--soft);
+  background: var(--surface-well);
   color: var(--brand);
-  border: 1px solid var(--line);
-  box-shadow: var(--surface-highlight);
+  border: 1px solid var(--well-border);
+  box-shadow: var(--well-shadow);
 }
 
 h1 {
   font-size: 30px;
+  font-weight: 700;
   margin: 0;
-  letter-spacing: -0.6px;
+  letter-spacing: -0.7px;
 }
 
 .intro {
   color: var(--muted);
   font-size: 14px;
-  margin: 14px 0 28px;
+  margin: 12px 0 24px;
 }
 
 .filters {
   display: flex;
   flex-wrap: wrap;
-  gap: 12px;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
   margin-bottom: 26px;
+  border-radius: 12px;
+  background: var(--surface-well);
+  border: 1px solid var(--well-border);
+  box-shadow: var(--well-shadow);
 }
 
 button {
@@ -193,17 +201,17 @@ input {
 
 .cards {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(288px, 1fr));
   gap: 20px;
 }
 
 .card {
   position: relative;
-  background: var(--card-surface);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
+  background:
+    radial-gradient(ellipse 75% 55% at 95% 0%, var(--brand-soft), transparent 72%),
+    var(--card-surface);
   border: 1px solid var(--line);
-  border-radius: 12px;
+  border-radius: 13px;
   box-shadow: var(--surface-highlight), var(--card-shadow);
   padding: 24px 26px;
   text-decoration: none;
@@ -240,7 +248,7 @@ input {
 
 .diff-pill {
   font-size: 11px;
-  font-weight: 550;
+  font-weight: 600;
   padding: 2px 8px;
   border-radius: 5px;
   border: 1px solid transparent;
@@ -251,20 +259,24 @@ input {
 .diff-pill.beginner {
   color: var(--tone-green);
   background: var(--tone-green-soft);
+  border-color: color-mix(in srgb, var(--tone-green) 24%, transparent);
 }
 
 .diff-pill.intermediate {
   color: var(--tone-blue);
   background: var(--tone-blue-soft);
+  border-color: color-mix(in srgb, var(--tone-blue) 24%, transparent);
 }
 
 .diff-pill.advanced {
   color: var(--tone-red);
   background: var(--tone-red-soft);
+  border-color: color-mix(in srgb, var(--tone-red) 24%, transparent);
 }
 
 .cat-label {
-  font-size: 12px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 11.5px;
   color: var(--muted);
 }
 
@@ -273,9 +285,9 @@ input {
 }
 
 h2 {
-  font-size: 20px;
+  font-size: 19px;
   font-weight: 650;
-  letter-spacing: -0.3px;
+  letter-spacing: -0.35px;
   margin: 18px 0 10px;
 }
 
@@ -302,7 +314,8 @@ footer {
   align-items: center;
   justify-content: space-between;
   color: var(--muted);
-  font-size: 12px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 11.5px;
   font-variant-numeric: tabular-nums;
 }
 
@@ -318,9 +331,10 @@ footer {
 }
 
 .stage-bar {
-  height: 4px;
-  border-radius: 4px;
-  background: var(--soft);
+  height: 5px;
+  border-radius: 999px;
+  background: var(--surface-well);
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.5);
   overflow: hidden;
 }
 
@@ -332,8 +346,12 @@ footer {
 }
 
 .empty {
-  padding: 60px;
+  padding: 60px 24px;
   text-align: center;
+  background: var(--surface-well);
+  border: 1px solid var(--well-border);
+  box-shadow: var(--well-shadow);
+  border-radius: 13px;
   color: var(--muted);
 }
 </style>

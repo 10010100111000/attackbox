@@ -33,10 +33,11 @@ withDefaults(defineProps<{ brandTo?: string }>(), { brandTo: '/' })
   top: 0;
   z-index: 50;
   border-bottom: 1px solid var(--line);
-  background: color-mix(in srgb, var(--bg-app) 90%, transparent);
-  backdrop-filter: blur(14px);
-  -webkit-backdrop-filter: blur(14px);
-  color: var(--text-main);
+  background: color-mix(in srgb, var(--bg) 82%, transparent);
+  backdrop-filter: blur(16px) saturate(140%);
+  -webkit-backdrop-filter: blur(16px) saturate(140%);
+  box-shadow: 0 1px 0 0 rgba(255, 255, 255, 0.03);
+  color: var(--ink);
 }
 .header-inner {
   width: 100%;
@@ -60,9 +61,9 @@ withDefaults(defineProps<{ brandTo?: string }>(), { brandTo: '/' })
   align-items: center;
   gap: 9px;
   font-weight: 650;
-  font-size: 17px;
-  letter-spacing: -0.4px;
-  color: inherit;
+  font-size: 16px;
+  letter-spacing: -0.45px;
+  color: var(--ink);
   text-decoration: none;
 }
 .brand-logo {
@@ -71,7 +72,8 @@ withDefaults(defineProps<{ brandTo?: string }>(), { brandTo: '/' })
   display: block;
   object-fit: contain;
   border-radius: 6px;
-  transition: transform 0.18s ease;
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.1);
+  transition: transform 0.18s cubic-bezier(0.22, 1, 0.36, 1);
 }
 .brand:hover .brand-logo {
   transform: rotate(-6deg) translateY(-1px);

@@ -22,7 +22,7 @@ const result = computed(() => data.value?.data)
   <div class="learning-frame learning-shell references-index">
     <header>
       <div class="reference-mark">
-        <BookOpen :size="22" :stroke-width="1.5" aria-hidden="true" />
+        <BookOpen :size="20" :stroke-width="1.6" aria-hidden="true" />
       </div>
       <h1>参考资料</h1>
       <p>留一份时间，读得更深一点。</p>
@@ -39,7 +39,7 @@ const result = computed(() => data.value?.data)
         :key="item.id"
         :to="`/references/${item.slug}`"
         class="reference-item"
-        ><BookOpen :size="20" :stroke-width="1.4" aria-hidden="true" />
+        ><BookOpen :size="20" :stroke-width="1.5" aria-hidden="true" />
         <div>
           <h2>{{ item.title }}</h2>
           <p v-if="item.summary">{{ item.summary }}</p>
@@ -66,41 +66,58 @@ const result = computed(() => data.value?.data)
 </template>
 <style scoped>
 header {
-  padding: 16px 0 34px;
+  padding: 12px 0 28px;
   border-bottom: 1px solid var(--line);
 }
 .reference-mark {
+  display: inline-grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  border-radius: 10px;
+  background: var(--surface-well);
+  border: 1px solid var(--well-border);
+  box-shadow: var(--well-shadow);
   color: var(--brand);
-  margin-bottom: 18px;
+  margin-bottom: 16px;
 }
 h1 {
   font-size: 30px;
-  font-weight: 650;
+  font-weight: 700;
   letter-spacing: -0.8px;
   color: var(--ink);
   margin: 0;
 }
 header p {
-  font-size: 13px;
+  font-size: 13.5px;
   color: var(--muted);
-  margin: 12px 0 0;
+  margin: 10px 0 0;
 }
 .reference-list {
-  margin-top: 12px;
+  margin-top: 22px;
+  display: grid;
+  gap: 12px;
 }
 .reference-item {
   display: flex;
   align-items: center;
-  gap: 24px;
-  padding: 28px 20px;
-  border-bottom: 1px solid var(--line);
+  gap: 20px;
+  padding: 22px 24px;
+  background: var(--card-surface);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  box-shadow: var(--surface-highlight), var(--card-shadow);
   text-decoration: none;
   color: var(--ink);
-  border-radius: 8px;
-  transition: background 0.18s;
+  transition:
+    transform 0.2s cubic-bezier(0.22, 1, 0.36, 1),
+    border-color 0.2s ease,
+    box-shadow 0.2s ease;
 }
 .reference-item:hover {
-  background: var(--soft);
+  transform: translateY(-2px);
+  border-color: var(--brand-border);
+  box-shadow: var(--card-hover-shadow);
 }
 .reference-item > svg {
   color: var(--brand);
@@ -111,27 +128,46 @@ header p {
   min-width: 0;
 }
 h2 {
-  font-size: 18px;
-  font-weight: 600;
+  font-size: 17.5px;
+  font-weight: 650;
+  letter-spacing: -0.3px;
   margin: 0;
   overflow-wrap: anywhere;
 }
 .reference-item p {
   color: var(--muted);
   font-size: 13px;
-  line-height: 1.8;
-  margin: 8px 0 0;
+  line-height: 1.75;
+  margin: 6px 0 0;
   overflow-wrap: anywhere;
 }
 .reference-item > span {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
   font-size: 11px;
+  font-weight: 600;
+  padding: 5px 10px;
+  border-radius: 6px;
+  background: var(--surface-well);
+  border: 1px solid var(--well-border);
   color: var(--muted);
+  transition:
+    color 0.16s ease,
+    border-color 0.16s ease;
+}
+.reference-item:hover > span {
+  color: var(--brand);
+  border-color: var(--brand-border);
 }
 .reference-empty {
   display: grid;
   justify-items: center;
   gap: 16px;
-  padding: 90px 20px;
+  margin-top: 22px;
+  padding: 80px 20px;
+  background: var(--surface-well);
+  border: 1px solid var(--well-border);
+  box-shadow: var(--well-shadow);
+  border-radius: 13px;
   color: var(--muted);
   font-size: 13px;
 }
@@ -144,6 +180,7 @@ h2 {
   align-items: center;
   gap: 24px;
   margin-top: 32px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
   font-size: 12px;
   color: var(--muted);
 }
@@ -153,8 +190,8 @@ a:focus-visible {
 }
 @media (max-width: 640px) {
   .reference-item {
-    padding: 24px 4px;
-    gap: 16px;
+    padding: 18px 16px;
+    gap: 14px;
   }
 }
 </style>

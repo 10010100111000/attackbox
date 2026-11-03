@@ -26,17 +26,19 @@ const isDiscussActive = computed(() => route.path.startsWith('/discuss'))
 }
 
 .main-nav a {
+  position: relative;
   height: 100%;
   display: flex;
   align-items: center;
   border-bottom: 2px solid transparent;
   padding: 2px 2px 0;
-  font-size: 14px;
+  font-size: 13.5px;
+  font-weight: 500;
   color: var(--muted);
   text-decoration: none;
   transition:
-    color 0.15s ease,
-    border-color 0.15s ease;
+    color 0.16s ease,
+    border-color 0.16s ease;
 }
 
 .main-nav a:hover {

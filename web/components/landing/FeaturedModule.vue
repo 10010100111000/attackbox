@@ -6,5 +6,5 @@ defineProps<{ module: PublicModule }>()
 </script>
 
 <template>
-  <ModuleCard :module="module" featured tone="#d8a57b" />
+  <ModuleCard :module="module" featured tone="#f97316" />
 </template>

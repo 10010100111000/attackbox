@@ -8,7 +8,7 @@ withDefaults(
     featured?: boolean
     tone?: string
   }>(),
-  { featured: false, tone: '#c1a381' }
+  { featured: false, tone: '#f97316' }
 )
 
 const failedCover = ref(false)
@@ -53,24 +53,25 @@ const levelLabels = {
         <path
           d="M80 66L200 30L321 66L200 104Z M80 66V105L200 145L321 105V66 M200 104V145 M140 48L260 86 M140 85L260 48"
           stroke="currentColor"
-          stroke-width=".8"
+          stroke-width=".85"
         />
         <path
           d="M140 48V87L200 107L260 87V48"
           stroke="currentColor"
           stroke-dasharray="3 5"
-          opacity=".45"
+          opacity=".48"
         />
         <circle cx="200" cy="30" r="4" fill="currentColor" />
         <circle cx="80" cy="66" r="3" fill="currentColor" />
         <circle cx="321" cy="66" r="3" fill="currentColor" />
         <text
-          x="170"
+          x="166"
           y="88"
           fill="currentColor"
           stroke="none"
           font-size="10"
           font-family="monospace"
+          letter-spacing="1.5"
         >
           ATTACKBOX
         </text>
@@ -79,14 +80,14 @@ const levelLabels = {
         <path
           d="M70 108L160 55L250 108L160 143Z M70 80L160 27L250 80L160 115Z M70 80V108 M250 80V108 M160 115V143"
           stroke="currentColor"
-          opacity=".6"
+          opacity=".65"
         />
         <circle cx="160" cy="55" r="4" fill="currentColor" />
         <path
           d="M160 27V55 M115 54L205 107 M115 107L205 54"
           stroke="currentColor"
           stroke-dasharray="3 5"
-          opacity=".35"
+          opacity=".38"
         />
       </svg>
     </div>
@@ -106,39 +107,44 @@ const levelLabels = {
 
 <style scoped>
 .module-card {
-  --tone: #c1a381;
-  --glow: #d3a275;
+  --tone: #f97316;
+  --glow: #f97316;
   position: relative;
-  border: 1px solid var(--border-line, rgba(255, 255, 255, 0.07));
-  background: var(--bg-card, #111217);
-  border-radius: var(--radius-lg, 11px);
+  border: 1px solid var(--line);
+  background: var(--card-surface);
+  box-shadow: var(--surface-highlight), var(--card-shadow);
+  border-radius: 13px;
   overflow: hidden;
   isolation: isolate;
   display: block;
+  text-decoration: none;
+  color: var(--ink);
   transition:
-    transform 0.3s,
-    border-color 0.3s,
-    box-shadow 0.3s;
+    transform 0.25s cubic-bezier(0.22, 1, 0.36, 1),
+    border-color 0.25s ease,
+    box-shadow 0.25s ease;
 }
 
 .module-card:hover {
   transform: translateY(-4px);
-  border-color: color-mix(in srgb, var(--tone) 50%, transparent);
-  box-shadow: var(--card-glow, 0 15px 45px rgba(0, 0, 0, 0.4));
+  border-color: color-mix(in srgb, var(--tone) 52%, transparent);
+  box-shadow: var(--card-hover-shadow);
 }
 
 .module-art {
-  height: 163px;
+  height: 164px;
   position: relative;
   overflow: hidden;
-  background: var(--bg-input, #121318);
+  background:
+    radial-gradient(ellipse at 50% 25%, color-mix(in srgb, var(--tone) 15%, transparent), transparent 68%),
+    #0d0d10;
 }
 
 .module-art:after {
   content: '';
   position: absolute;
   inset: 0;
-  background: linear-gradient(0deg, var(--bg-card, #111217), transparent 75%);
+  background: linear-gradient(0deg, var(--paper) 2%, transparent 78%);
 }
 
 .module-art:before {
@@ -148,7 +154,7 @@ const levelLabels = {
   z-index: 2;
   background: radial-gradient(
     280px circle at var(--mx, 50%) var(--my, 40%),
-    color-mix(in srgb, var(--glow) 14%, transparent),
+    color-mix(in srgb, var(--glow) 18%, transparent),
     transparent 75%
   );
   opacity: 0;
@@ -165,29 +171,35 @@ const levelLabels = {
   width: 100%;
   height: 100%;
   object-fit: cover;
-  opacity: 0.45;
-  filter: saturate(0.35);
+  opacity: 0.5;
+  filter: saturate(0.5);
   transition:
     transform 0.7s,
     opacity 0.5s;
 }
 
 .module-card:hover img {
-  transform: scale(1.07);
-  opacity: 0.65;
+  transform: scale(1.06);
+  opacity: 0.72;
 }
 
 .card-topline {
   position: absolute;
-  top: 17px;
-  left: 21px;
-  right: 21px;
+  top: 16px;
+  left: 20px;
+  right: 20px;
   display: flex;
   justify-content: space-between;
   align-items: center;
-  font: 8px monospace;
-  letter-spacing: 1.4px;
-  color: #99909b;
+  font:
+    600 10px ui-monospace,
+    SFMono-Regular,
+    Menlo,
+    Monaco,
+    Consolas,
+    monospace;
+  letter-spacing: 0.8px;
+  color: var(--muted);
   z-index: 3;
 }
 
@@ -197,18 +209,20 @@ const levelLabels = {
 
 .level {
   font:
-    9px / 1.5 -apple-system,
+    600 10px / 1.4 -apple-system,
     sans-serif;
   letter-spacing: 0;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: var(--radius-sm, 4px);
-  padding: 2px 6px;
-  color: #d2b29c;
-  background: rgba(23, 21, 26, 0.5);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 5px;
+  padding: 2px 7px;
+  color: var(--ink);
+  background: rgba(9, 9, 11, 0.65);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
 }
 
 .card-copy {
-  padding: 0 23px 21px;
+  padding: 2px 23px 22px;
   position: relative;
   z-index: 3;
 }
@@ -216,14 +230,16 @@ const levelLabels = {
 .card-copy h3 {
   font-size: 20px;
   letter-spacing: -0.5px;
-  font-weight: 550;
-  margin-bottom: 9px;
+  font-weight: 650;
+  color: var(--ink);
+  margin: 0 0 9px;
   overflow-wrap: anywhere;
 }
 
 .card-copy p {
-  font-size: 11px;
-  color: #8c8593;
+  font-size: 12.5px;
+  line-height: 1.65;
+  color: var(--muted);
   margin-bottom: 20px;
   display: -webkit-box;
   -webkit-line-clamp: 3;
@@ -235,14 +251,16 @@ const levelLabels = {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  font-size: 9px;
-  color: #7b7582;
-  border-top: 1px solid rgba(255, 255, 255, 0.04);
+  font-size: 11px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  color: var(--muted);
+  border-top: 1px solid var(--line);
   padding-top: 13px;
 }
 
 .cloud-art {
-  background: radial-gradient(ellipse at 55% 30%, rgba(138, 91, 71, 0.2), transparent 66%), #121318;
+  background:
+    radial-gradient(ellipse at 55% 32%, rgba(249, 115, 22, 0.2), transparent 66%), #0d0d10;
 }
 
 .diagram {
@@ -250,7 +268,7 @@ const levelLabels = {
   width: 100%;
   height: 100%;
   color: var(--tone);
-  opacity: 0.65;
+  opacity: 0.72;
   transition: transform 0.7s;
 }
 
@@ -261,20 +279,21 @@ const levelLabels = {
 .featured-module {
   display: grid;
   grid-template-columns: 1.25fr 1fr;
-  min-height: 310px;
-  margin-bottom: 23px;
-  background: linear-gradient(120deg, #18171c, var(--bg-card, #111217));
-  border-color: rgba(195, 154, 123, 0.13);
+  min-height: 316px;
+  margin-bottom: 24px;
+  background:
+    linear-gradient(120deg, rgba(249, 115, 22, 0.045), transparent 55%), var(--card-surface);
+  border-color: rgba(255, 255, 255, 0.13);
 }
 
 .featured-module .module-art {
   height: 100%;
-  min-height: 310px;
-  background: radial-gradient(ellipse at 50% 50%, rgba(163, 107, 66, 0.19), transparent 68%);
+  min-height: 316px;
+  background: radial-gradient(ellipse at 50% 50%, rgba(249, 115, 22, 0.22), transparent 68%);
 }
 
 .featured-module .module-art:after {
-  background: linear-gradient(90deg, transparent 65%, #141419);
+  background: linear-gradient(90deg, transparent 62%, var(--paper));
 }
 
 .featured-module .card-copy {
@@ -285,23 +304,23 @@ const levelLabels = {
 .featured-module .card-copy h3 {
   font-size: 32px;
   letter-spacing: -1px;
-  margin-bottom: 15px;
+  margin-bottom: 14px;
 }
 
 .featured-module .card-copy p {
-  font-size: 12px;
-  line-height: 1.9;
-  max-width: 250px;
-  margin-bottom: 31px;
+  font-size: 13.5px;
+  line-height: 1.8;
+  max-width: 310px;
+  margin-bottom: 30px;
 }
 
 .featured-module .card-foot {
-  font-size: 10px;
+  font-size: 11.5px;
 }
 
 .featured-module .diagram {
   transform: scale(0.93);
-  opacity: 0.9;
+  opacity: 0.92;
 }
 
 .featured-module:hover .diagram {
@@ -322,7 +341,7 @@ const levelLabels = {
     font-size: 19px;
   }
   .card-copy p {
-    font-size: 10px;
+    font-size: 12px;
   }
 }
 
@@ -337,18 +356,18 @@ const levelLabels = {
     min-height: 0;
   }
   .featured-module .module-art:after {
-    background: linear-gradient(0deg, #141419, transparent 70%);
+    background: linear-gradient(0deg, var(--paper), transparent 70%);
   }
   .featured-module .card-copy {
     padding: 0 25px 24px;
   }
   .featured-module .card-copy h3 {
-    font-size: 27px;
+    font-size: 26px;
     margin-bottom: 11px;
   }
   .featured-module .card-copy p {
     max-width: 100%;
-    font-size: 11px;
+    font-size: 12.5px;
     margin-bottom: 20px;
   }
 }
