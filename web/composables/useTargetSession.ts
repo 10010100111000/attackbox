@@ -62,10 +62,7 @@ export function useTargetSession(props: {
     if (active.value && remaining.value === 0) return '租期已到期'
     if (action.value === 'start') return ''
     if (action.value === 'stop') return ''
-    if (state.value === 'running' && current.value?.instance?.attachment === 'not_connected')
-      return '服务运行中 · 尚未接入攻击环境'
-    if (current.value?.instance?.ready && state.value === 'running') return '已就绪'
-    if (state.value === 'running') return '运行中'
+    if (state.value === 'running') return ''
     return (
       (
         {

@@ -2,7 +2,6 @@
 import { ref, computed, onBeforeUnmount, watch, useId } from 'vue'
 import {
   Terminal,
-  Monitor,
   ExternalLink,
   Minus,
   X,
@@ -93,12 +92,6 @@ watch(
     if (state === 'running' && props.mode === 'cli' && !tabs.value.length) addTerminal()
   }
 )
-const stateLabels = {
-  creating: '创建中',
-  running: '运行中',
-  stopping: '释放中',
-  cleanup_failed: '等待清理'
-}
 watch(
   () => props.active,
   active => {
@@ -187,15 +180,44 @@ onBeforeUnmount(stopResize)
       <span />
     </div>
     <div class="dock-header">
-      <div class="dock-title">
-        <Terminal v-if="mode === 'cli'" :size="15" aria-hidden="true" /><Monitor
-          v-else
-          :size="15"
-          aria-hidden="true"
-        />{{ mode === 'cli' ? '终端' : '桌面'
-        }}<span v-if="sandbox.instance" class="sandbox-state">{{
-          sandbox.instance.connected ? stateLabels[sandbox.instance.state] : '节点断开'
-        }}</span>
+      <div class="dock-bar-left">
+        <div
+          v-if="currentUser && !loading && sandbox.instance?.state === 'running' && mode === 'cli'"
+          class="terminal-tabs"
+          aria-label="终端列表"
+        >
+          <div
+            v-for="tab in tabs"
+            :key="tab.id"
+            class="terminal-tab"
+            :class="{ selected: selectedTab === tab.id }"
+          >
+            <button
+              type="button"
+              :aria-pressed="selectedTab === tab.id"
+              @click="selectedTab = tab.id"
+            >
+              {{ tab.label }}</button
+            ><button type="button" :aria-label="'关闭' + tab.label" @click="closeTerminal(tab.id)">
+              <X :size="12" aria-hidden="true" />
+            </button>
+          </div>
+          <button
+            type="button"
+            class="add-terminal"
+            aria-label="新建终端"
+            :disabled="!sandbox.instance.connected"
+            @click="addTerminal"
+          >
+            <Plus :size="15" aria-hidden="true" />
+          </button>
+        </div>
+        <span
+          v-if="sandbox.instance && !sandbox.instance.connected"
+          class="sandbox-state"
+          role="status"
+          >节点断开</span
+        >
       </div>
       <div class="dock-actions">
         <button
@@ -215,13 +237,13 @@ onBeforeUnmount(stopResize)
         <button
           type="button"
           class="independent-open"
-          @click="openViewer(mode)"
           title="在新标签页打开"
           aria-label="在新标签页打开"
+          @click="openViewer(mode)"
         >
           <ExternalLink :size="15" aria-hidden="true" />
         </button>
-        <button type="button" aria-label="收起练习面板" @click="emit('minimize')">
+        <button type="button" title="收起练习面板" aria-label="收起练习面板" @click="emit('minimize')">
           <Minus :size="16" aria-hidden="true" />
         </button>
       </div>
@@ -259,33 +281,6 @@ onBeforeUnmount(stopResize)
         <button @click="resumeGUI">在此继续操作</button>
       </div>
       <div v-if="sandbox.instance?.state === 'running'" v-show="mode === 'cli'" class="cli-area">
-        <div class="terminal-tabs" aria-label="终端列表">
-          <div
-            v-for="tab in tabs"
-            :key="tab.id"
-            class="terminal-tab"
-            :class="{ selected: selectedTab === tab.id }"
-          >
-            <button
-              type="button"
-              :aria-pressed="selectedTab === tab.id"
-              @click="selectedTab = tab.id"
-            >
-              {{ tab.label }}</button
-            ><button type="button" :aria-label="'关闭' + tab.label" @click="closeTerminal(tab.id)">
-              <X :size="12" aria-hidden="true" />
-            </button>
-          </div>
-          <button
-            type="button"
-            class="add-terminal"
-            aria-label="新建终端"
-            :disabled="!sandbox.instance.connected"
-            @click="addTerminal"
-          >
-            <Plus :size="15" aria-hidden="true" />
-          </button>
-        </div>
         <div class="terminal-workspace">
           <ClientOnly
             ><SandboxTerminal
@@ -303,7 +298,7 @@ onBeforeUnmount(stopResize)
       </div>
       <div v-else-if="sandbox.instance" class="dock-empty" role="status">
         <UiBusyIndicator v-if="sandbox.instance.state !== 'cleanup_failed'" label="环境准备" />
-        <h2 v-else>{{ stateLabels[sandbox.instance.state] }}</h2>
+        <h2 v-else>等待清理</h2>
         <p>
           {{
             sandbox.instance.state === 'cleanup_failed'
@@ -385,36 +380,36 @@ onBeforeUnmount(stopResize)
 }
 
 .dock-header {
-  height: 38px;
-  padding: 0 14px 0 20px;
+  min-height: 34px;
+  padding: 0 10px 0 12px;
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 8px;
   border-bottom: 1px solid var(--line);
   flex-shrink: 0;
 }
 
-.dock-title,
-.dock-actions {
+.dock-bar-left {
   display: flex;
   align-items: center;
   gap: 8px;
-}
-
-.dock-title {
-  font-size: 12px;
-  color: var(--ink);
+  min-width: 0;
+  flex: 1;
 }
 
 .dock-actions {
+  display: flex;
+  align-items: center;
   gap: 3px;
+  flex-shrink: 0;
 }
 
 .dock-actions button {
   display: grid;
   place-items: center;
-  width: 29px;
-  height: 28px;
+  width: 28px;
+  height: 26px;
   padding: 0;
   border: 0;
   background: transparent;
@@ -461,9 +456,8 @@ button:focus-visible,
 }
 
 .sandbox-state {
-  font-size: 10px;
-  color: var(--muted);
-  margin-left: 6px;
+  font-size: 11px;
+  color: var(--error-ink);
 }
 
 .sandbox-notice {
@@ -480,11 +474,10 @@ button:focus-visible,
   padding: 9px 16px;
   font-size: 12px;
   text-decoration: none;
-  border: 1px solid var(--line);
+  border: 1px solid transparent;
   cursor: pointer;
   background: var(--btn-primary-bg);
   color: var(--btn-primary-fg);
-  border-color: transparent;
   box-shadow: var(--btn-primary-shadow);
   font-weight: 600;
 }
@@ -494,18 +487,16 @@ button:focus-visible,
   align-items: center;
   gap: 4px;
   min-height: 32px;
-  padding: 0 12px;
-  border-bottom: 1px solid var(--line);
   overflow-x: auto;
-  flex-shrink: 0;
+  min-width: 0;
 }
 
 .terminal-tab {
   display: flex;
   align-items: center;
-  gap: 3px;
+  gap: 2px;
   flex-shrink: 0;
-  padding: 0 3px;
+  padding: 0 4px;
   border-bottom: 2px solid transparent;
 }
 
@@ -521,13 +512,14 @@ button:focus-visible,
   cursor: pointer;
   display: flex;
   align-items: center;
-  padding: 7px 4px;
+  padding: 6px 4px;
   font-size: 11px;
   white-space: nowrap;
 }
 
 .terminal-tab.selected button {
   color: var(--ink);
+  font-weight: 600;
 }
 
 .add-terminal:disabled {

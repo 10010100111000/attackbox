@@ -13,7 +13,7 @@ defineExpose({ element })
   --reader-title-size: clamp(28px, 2.8vw, 36px);
 
   width: 100%;
-  max-width: 920px;
+  max-width: 1100px;
   margin-inline: auto;
   min-width: 0;
   padding: 40px clamp(24px, 4vw, 56px) 72px;

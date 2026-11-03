@@ -22,7 +22,7 @@ const pending = computed(() => initializing.value || !!action.value || requestPe
 <template>
   <LearningEnvironmentPanel class="target-runtime">
     <template #controls>
-      <span v-if="active" class="target-state" role="status">{{ status }}</span>
+      <span v-if="active && status" class="target-state" role="status">{{ status }}</span>
       <NuxtLink v-if="!currentUser" to="/auth">登录后启动</NuxtLink>
       <template v-else>
         <UiButton
