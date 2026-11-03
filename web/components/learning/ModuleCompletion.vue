@@ -41,6 +41,7 @@ const emit = defineEmits<{ 'update:open': [value: boolean] }>()
   inset: 0;
   background: #0007;
   z-index: 140;
+  -webkit-backdrop-filter: blur(4px);
   backdrop-filter: blur(4px);
 }
 

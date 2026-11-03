@@ -96,11 +96,6 @@ function toggle() {
   border-color: currentColor;
   background: var(--environment-danger-bg, #fff0f1);
 }
-:global([data-theme='midnight']) .environment-toggle.running,
-:global([data-theme='midnight']) .environment-toggle.cleanup {
-  --environment-danger: #ff9da8;
-  --environment-danger-bg: #39252c;
-}
 .environment-toggle:hover:not(:disabled) {
   filter: brightness(0.94);
 }

@@ -90,6 +90,8 @@
   --success-ink: #6ee7b7;
   --error-bg: rgba(239, 68, 68, 0.15);
   --error-ink: #fca5a5;
+  --environment-danger: #ff9da8;
+  --environment-danger-bg: #39252c;
 
   /* 前景与背景分离度关键：卡片表面垂直微光泽 + 1px 顶光源高光棱线 + 双层景深投影 */
   --card-surface:
@@ -195,6 +197,8 @@
   --success-ink: #047857;
   --error-bg: #fef2f2;
   --error-ink: #b91c1c;
+  --environment-danger: #b42336;
+  --environment-danger-bg: #fff0f1;
 
   --card-surface: #ffffff;
   --surface-highlight: inset 0 1px 0 0 #ffffff;
@@ -214,6 +218,11 @@
     rgba(255, 255, 255, 0.7),
     transparent 70%
   );
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
 }
 
 body {

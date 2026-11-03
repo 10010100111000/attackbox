@@ -5,6 +5,13 @@
 
 [data-theme='midnight'] .brand-experience,
 .brand-experience[data-theme='midnight'] {
+  --bg: #09090b;
+  --paper: #121215;
+  --ink: #fafafa;
+  --muted: #8e8e96;
+  --body: #d4d4d8;
+  --line: rgba(255, 255, 255, 0.085);
+  --line-strong: rgba(255, 255, 255, 0.15);
   --brand-warm: #f97316;
   --brand-warm-soft: rgba(249, 115, 22, 0.1);
   --bg-app: #09090b;

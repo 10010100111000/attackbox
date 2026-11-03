@@ -112,6 +112,7 @@ const bgImage = '/images/auth-explore.webp'
   background: linear-gradient(100deg, #ffe1b7, #ffb493 55%, #de939b);
   -webkit-background-clip: text;
   background-clip: text;
+  -webkit-text-fill-color: transparent;
   color: transparent;
 }
 

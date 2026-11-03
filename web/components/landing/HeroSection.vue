@@ -66,10 +66,10 @@ import TerminalBackdrop from './TerminalBackdrop.vue'
     --gradient-warm,
     linear-gradient(100deg, #ffedd5 0%, #fdba74 36%, #fb923c 68%, #f97316 100%)
   );
-  background-clip: text;
   -webkit-background-clip: text;
-  color: transparent;
+  background-clip: text;
   -webkit-text-fill-color: transparent;
+  color: transparent;
 }
 
 .hero-actions {
@@ -140,8 +140,8 @@ import TerminalBackdrop from './TerminalBackdrop.vue'
   pointer-events: none;
   opacity: 0.06;
   background: repeating-linear-gradient(0deg, transparent 0 3px, rgba(0, 0, 0, 0.24) 3px 4px);
-  mask-image: linear-gradient(0deg, transparent, #000 25%, #000 75%, transparent);
   -webkit-mask-image: linear-gradient(0deg, transparent, #000 25%, #000 75%, transparent);
+  mask-image: linear-gradient(0deg, transparent, #000 25%, #000 75%, transparent);
 }
 
 @media (max-width: 1100px) {

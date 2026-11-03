@@ -727,8 +727,9 @@ const filteredModules = computed(() => {
   margin: 0 0 20px;
   min-height: 44px;
   display: -webkit-box;
-  -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
   overflow: hidden;
 }
 

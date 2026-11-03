@@ -74,6 +74,7 @@ onBeforeUnmount(() => $confirmation.controller.cancel())
   inset: 0;
   z-index: 300;
   background: #0007;
+  -webkit-backdrop-filter: blur(5px);
   backdrop-filter: blur(5px);
 }
 .confirm-dialog {

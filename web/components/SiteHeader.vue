@@ -34,8 +34,8 @@ withDefaults(defineProps<{ brandTo?: string }>(), { brandTo: '/' })
   z-index: 50;
   border-bottom: 1px solid var(--line);
   background: color-mix(in srgb, var(--bg) 82%, transparent);
-  backdrop-filter: blur(16px) saturate(140%);
   -webkit-backdrop-filter: blur(16px) saturate(140%);
+  backdrop-filter: blur(16px) saturate(140%);
   box-shadow: 0 1px 0 0 rgba(255, 255, 255, 0.03);
   color: var(--ink);
 }

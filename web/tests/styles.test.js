@@ -44,3 +44,22 @@ test('style owners do not repeat selectors inside the same cascade context', () 
     'Merge changes into the owning rule instead of appending an override'
   )
 })
+
+test('scoped styles do not chain descendant selectors after :global()', () => {
+  const brokenGlobal = []
+  for (const file of ['components', 'layouts', 'pages'].flatMap(directory =>
+    files(resolve(root, directory)).filter(path => path.endsWith('.vue'))
+  )) {
+    const source = readFileSync(file, 'utf8')
+    for (const style of parse(source).descriptor.styles.filter(style => style.scoped)) {
+      if (/:global\([^)]+\)\s+[^,{]/.test(style.content)) {
+        brokenGlobal.push(relative(root, file))
+      }
+    }
+  }
+  assert.deepEqual(
+    brokenGlobal,
+    [],
+    '@vue/compiler-sfc drops selectors after :global(...); use CSS custom properties instead'
+  )
+})

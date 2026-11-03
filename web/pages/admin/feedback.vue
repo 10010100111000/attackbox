@@ -326,8 +326,9 @@ h1 {
 }
 .feedback-row p {
   display: -webkit-box;
-  -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
   overflow: hidden;
   margin: 14px 0;
   font-size: 13px;

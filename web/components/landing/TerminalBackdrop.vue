@@ -44,7 +44,7 @@ const { branch, typedCommand, showCursor, feedLines, isClearing } = useTerminalP
     monospace;
   white-space: pre;
   color: #b8a9b8;
-  mask-image: linear-gradient(
+  -webkit-mask-image: linear-gradient(
     90deg,
     rgba(0, 0, 0, 0.9) 0%,
     rgba(0, 0, 0, 0.65) 24%,
@@ -52,7 +52,7 @@ const { branch, typedCommand, showCursor, feedLines, isClearing } = useTerminalP
     rgba(0, 0, 0, 0.12) 68%,
     transparent 92%
   );
-  -webkit-mask-image: linear-gradient(
+  mask-image: linear-gradient(
     90deg,
     rgba(0, 0, 0, 0.9) 0%,
     rgba(0, 0, 0, 0.65) 24%,

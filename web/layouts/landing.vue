@@ -26,8 +26,9 @@ const { currentUser } = useAuth()
 <style>
 .landing-layout {
   min-height: 100vh;
-  background: var(--bg);
-  color: var(--ink);
+  background-color: #09090b;
+  background: var(--bg, #09090b);
+  color: var(--ink, #fafafa);
   overflow-x: clip;
 }
 

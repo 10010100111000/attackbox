@@ -51,44 +51,71 @@ const levelLabels = {
         focusable="false"
       >
         <path
-          d="M80 66L200 30L321 66L200 104Z M80 66V105L200 145L321 105V66 M200 104V145 M140 48L260 86 M140 85L260 48"
+          d="M 24 138 C 108 132, 156 54, 248 82 C 312 102, 348 48, 384 36"
           stroke="currentColor"
-          stroke-width=".85"
+          stroke-opacity="0.68"
+          stroke-width="1.35"
+          stroke-linecap="round"
         />
         <path
-          d="M140 48V87L200 107L260 87V48"
+          d="M 32 104 C 118 68, 178 134, 266 88 C 324 58, 356 84, 384 68"
+          stroke="currentColor"
+          stroke-opacity="0.28"
+          stroke-width="1.05"
+          stroke-linecap="round"
+        />
+        <path
+          d="M 44 154 C 132 114, 194 146, 282 106 C 334 82, 362 56, 384 48"
           stroke="currentColor"
           stroke-dasharray="3 5"
-          opacity=".48"
+          stroke-opacity="0.22"
+          stroke-width="0.9"
+          stroke-linecap="round"
         />
-        <circle cx="200" cy="30" r="4" fill="currentColor" />
-        <circle cx="80" cy="66" r="3" fill="currentColor" />
-        <circle cx="321" cy="66" r="3" fill="currentColor" />
-        <text
-          x="166"
-          y="88"
-          fill="currentColor"
-          stroke="none"
-          font-size="10"
-          font-family="monospace"
-          letter-spacing="1.5"
-        >
-          ATTACKBOX
-        </text>
+        <path
+          class="diagram-pulse"
+          d="M 24 138 C 108 132, 156 54, 248 82 C 312 102, 348 48, 384 36"
+          stroke="currentColor"
+          stroke-width="2"
+          stroke-linecap="round"
+        />
+        <circle cx="104" cy="112" r="2" fill="currentColor" fill-opacity="0.45" />
+        <circle cx="164" cy="74" r="3" fill="currentColor" fill-opacity="0.88" />
+        <circle cx="164" cy="74" r="8" fill="currentColor" fill-opacity="0.14" />
+        <circle cx="212" cy="96" r="1.8" fill="currentColor" fill-opacity="0.35" />
+        <circle cx="248" cy="82" r="3.2" fill="currentColor" />
+        <circle cx="248" cy="82" r="9" fill="currentColor" fill-opacity="0.16" />
+        <circle cx="312" cy="64" r="2.2" fill="currentColor" fill-opacity="0.65" />
+        <circle cx="348" cy="48" r="2.6" fill="currentColor" fill-opacity="0.9" />
       </svg>
       <svg v-else class="diagram" viewBox="0 0 320 163" fill="none" aria-hidden="true">
         <path
-          d="M70 108L160 55L250 108L160 143Z M70 80L160 27L250 80L160 115Z M70 80V108 M250 80V108 M160 115V143"
+          d="M 20 124 C 88 118, 134 52, 212 78 C 260 94, 286 52, 304 42"
           stroke="currentColor"
-          opacity=".65"
+          stroke-opacity="0.65"
+          stroke-width="1.3"
+          stroke-linecap="round"
         />
-        <circle cx="160" cy="55" r="4" fill="currentColor" />
         <path
-          d="M160 27V55 M115 54L205 107 M115 107L205 54"
+          d="M 24 92 C 94 62, 148 118, 224 82 C 268 60, 290 78, 304 66"
           stroke="currentColor"
-          stroke-dasharray="3 5"
-          opacity=".38"
+          stroke-opacity="0.26"
+          stroke-width="1"
+          stroke-linecap="round"
         />
+        <path
+          class="diagram-pulse"
+          d="M 20 124 C 88 118, 134 52, 212 78 C 260 94, 286 52, 304 42"
+          stroke="currentColor"
+          stroke-width="1.85"
+          stroke-linecap="round"
+        />
+        <circle cx="88" cy="100" r="1.8" fill="currentColor" fill-opacity="0.4" />
+        <circle cx="142" cy="68" r="2.6" fill="currentColor" fill-opacity="0.85" />
+        <circle cx="142" cy="68" r="6.5" fill="currentColor" fill-opacity="0.14" />
+        <circle cx="212" cy="78" r="2.8" fill="currentColor" />
+        <circle cx="212" cy="78" r="7" fill="currentColor" fill-opacity="0.16" />
+        <circle cx="264" cy="62" r="2" fill="currentColor" fill-opacity="0.6" />
       </svg>
     </div>
     <div class="card-copy">
@@ -210,8 +237,8 @@ const levelLabels = {
   padding: 2px 7px;
   color: var(--ink);
   background: rgba(9, 9, 11, 0.65);
-  backdrop-filter: blur(6px);
   -webkit-backdrop-filter: blur(6px);
+  backdrop-filter: blur(6px);
 }
 
 .card-copy {
@@ -235,8 +262,9 @@ const levelLabels = {
   color: var(--muted);
   margin-bottom: 20px;
   display: -webkit-box;
-  -webkit-line-clamp: 3;
   -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  line-clamp: 3;
   overflow: hidden;
 }
 
@@ -261,8 +289,20 @@ const levelLabels = {
   width: 100%;
   height: 100%;
   color: var(--tone);
-  opacity: 0.72;
+  opacity: 0.78;
   transition: transform 0.7s;
+}
+
+.diagram-pulse {
+  stroke-dasharray: 52 360;
+  stroke-dashoffset: 412;
+  animation: diagram-stream 7.5s linear infinite;
+}
+
+@keyframes diagram-stream {
+  to {
+    stroke-dashoffset: 0;
+  }
 }
 
 .module-card:hover .diagram {
