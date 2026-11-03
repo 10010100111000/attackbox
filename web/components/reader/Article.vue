@@ -9,12 +9,14 @@ defineExpose({ element })
 
 <style scoped>
 .reader-article {
-  --markdown-font-size: 17px;
-  --reader-title-size: clamp(30px, 3vw, 38px);
+  --markdown-font-size: 16.5px;
+  --reader-title-size: clamp(28px, 2.8vw, 36px);
 
   width: 100%;
+  max-width: 920px;
+  margin-inline: auto;
   min-width: 0;
-  padding: 36px clamp(24px, 3vw, 48px) 64px;
+  padding: 40px clamp(24px, 4vw, 56px) 72px;
   overflow-wrap: anywhere;
 }
 @media (max-width: 600px) {

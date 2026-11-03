@@ -1,6 +1,6 @@
 @import 'highlight.js/styles/github-dark.css';
 
-/* Tailwind Typography (@tailwindcss/typography) prose theme tokens + GFM/Typora extensions */
+/* Tailwind Typography (@tailwindcss/typography) + Typora modern reading theme */
 .markdown-body {
   --tw-prose-body: var(--markdown-ink, var(--reader-ink));
   --tw-prose-headings: var(--ink);
@@ -8,86 +8,100 @@
   --tw-prose-links: #2563eb;
   --tw-prose-bold: var(--ink);
   --tw-prose-counters: var(--muted);
-  --tw-prose-bullets: color-mix(in srgb, var(--reader-ink) 45%, transparent);
-  --tw-prose-hr: color-mix(in srgb, var(--reader-ink) 16%, transparent);
+  --tw-prose-bullets: color-mix(in srgb, var(--brand) 70%, var(--muted));
+  --tw-prose-hr: color-mix(in srgb, var(--reader-ink) 14%, transparent);
   --tw-prose-quotes: var(--muted);
   --tw-prose-quote-borders: var(--brand);
   --tw-prose-captions: var(--muted);
-  --tw-prose-code: var(--ink);
-  --tw-prose-th-borders: color-mix(in srgb, var(--reader-ink) 20%, transparent);
-  --tw-prose-td-borders: color-mix(in srgb, var(--reader-ink) 16%, transparent);
-  --md-table-head: color-mix(in srgb, var(--reader-ink) 6%, var(--reader-bg));
-  --md-table-stripe: color-mix(in srgb, var(--reader-ink) 2.5%, var(--reader-bg));
-  --md-inline-bg: color-mix(in srgb, var(--reader-ink) 7%, var(--reader-bg));
-  --md-inline-border: color-mix(in srgb, var(--reader-ink) 14%, transparent);
-  --md-quote-bg: color-mix(in srgb, var(--reader-ink) 3.5%, transparent);
-  --md-mark-bg: rgba(234, 179, 8, 0.28);
-  --md-code-bg: #1e222a;
-  --md-code-head: #272c36;
+  --tw-prose-code: #b45309;
+  --tw-prose-th-borders: color-mix(in srgb, var(--reader-ink) 18%, transparent);
+  --tw-prose-td-borders: color-mix(in srgb, var(--reader-ink) 11%, transparent);
+  --md-table-head: color-mix(in srgb, var(--reader-ink) 5%, var(--paper));
+  --md-table-stripe: color-mix(in srgb, var(--reader-ink) 2%, transparent);
+  --md-table-hover: color-mix(in srgb, var(--brand) 6%, transparent);
+  --md-inline-bg: rgba(217, 119, 6, 0.1);
+  --md-inline-border: rgba(217, 119, 6, 0.24);
+  --md-quote-bg: color-mix(in srgb, var(--brand) 5%, var(--paper));
+  --md-mark-bg: rgba(250, 204, 21, 0.32);
+  --md-code-bg: #181b22;
+  --md-code-head: #212631;
   --md-code-ink: #e6edf3;
-  --md-code-muted: #b4bdcd;
-  --md-code-line: #3d4656;
+  --md-code-muted: #9ca6b8;
+  --md-code-line: rgba(255, 255, 255, 0.1);
   --md-note: #2563eb;
-  --md-tip: #18794e;
-  --md-important: #7953b2;
-  --md-warning: #986000;
-  --md-caution: #bc3348;
+  --md-tip: #10b981;
+  --md-important: #8b5cf6;
+  --md-warning: #d97706;
+  --md-caution: #e11d48;
 
   color: var(--tw-prose-body);
   background: transparent;
   color-scheme: inherit;
-  font-family: inherit;
+  font-family:
+    -apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB',
+    'Microsoft YaHei', sans-serif;
   font-size: var(--markdown-font-size, 16px);
-  line-height: 1.8;
+  line-height: 1.85;
+  letter-spacing: 0.01em;
   max-width: none;
   overflow-wrap: anywhere;
 }
 
 [data-theme='midnight'] .markdown-body {
-  --tw-prose-links: #8ab4f8;
-  --md-mark-bg: rgba(234, 179, 8, 0.24);
-  --md-note: #8ab4f8;
-  --md-tip: #89c9a5;
-  --md-important: #c4a7ed;
-  --md-warning: #e6bf7b;
-  --md-caution: #f19da8;
+  --tw-prose-links: #60a5fa;
+  --tw-prose-code: #f3be8c;
+  --md-inline-bg: rgba(223, 176, 134, 0.13);
+  --md-inline-border: rgba(223, 176, 134, 0.28);
+  --md-quote-bg: rgba(223, 176, 134, 0.06);
+  --md-mark-bg: rgba(250, 204, 21, 0.22);
+  --md-code-bg: #0f1218;
+  --md-code-head: #171b24;
+  --md-note: #60a5fa;
+  --md-tip: #34d399;
+  --md-important: #a78bfa;
+  --md-warning: #fbbf24;
+  --md-caution: #fb7185;
 }
 
 .markdown-body :where(h1, h2, h3, h4, h5, h6) {
   color: var(--tw-prose-headings);
-  font-weight: 650;
-  line-height: 1.4;
-  letter-spacing: -0.015em;
-  margin: 1.75em 0 0.7em;
+  font-weight: 700;
+  line-height: 1.38;
+  letter-spacing: -0.02em;
+  margin: 1.9em 0 0.75em;
   scroll-margin-top: 24px;
 }
 
 .markdown-body h1 {
-  font-size: 2em;
-  padding-bottom: 0.3em;
-  border-bottom: 1px solid var(--tw-prose-hr);
+  font-size: 1.95em;
+  padding-bottom: 0.35em;
+  border-bottom: 2px solid var(--tw-prose-hr);
 }
 
 .markdown-body h2 {
-  font-size: 1.58em;
-  padding-bottom: 0.28em;
+  font-size: 1.52em;
+  padding: 0.1em 0 0.28em 0.6em;
+  border-left: 4px solid var(--brand);
   border-bottom: 1px solid var(--tw-prose-hr);
 }
 
 .markdown-body h3 {
-  font-size: 1.32em;
+  font-size: 1.26em;
+  padding-left: 0.5em;
+  border-left: 3px solid color-mix(in srgb, var(--brand) 55%, transparent);
 }
 
 .markdown-body h4 {
-  font-size: 1.18em;
+  font-size: 1.12em;
 }
 
 .markdown-body h5 {
-  font-size: 1.1em;
+  font-size: 1.05em;
 }
 
 .markdown-body h6 {
-  font-size: 1.04em;
+  font-size: 1em;
+  color: var(--tw-prose-quotes);
 }
 
 .markdown-body > :first-child,
@@ -100,11 +114,11 @@
 }
 
 .markdown-body :where(p, ul, ol, blockquote, dl, .markdown-table, .code-block, .callout, .footnotes) {
-  margin: 0 0 1.25em;
+  margin: 0 0 1.3em;
 }
 
 .markdown-body :where(ul, ol) {
-  padding-left: 1.625em;
+  padding-left: 1.65em;
 }
 
 .markdown-body ul {
@@ -119,9 +133,14 @@
   list-style-type: circle;
 }
 
+.markdown-body li::marker {
+  color: var(--tw-prose-bullets);
+  font-weight: 600;
+}
+
 .markdown-body ul.contains-task-list {
   list-style: none;
-  padding-left: 0.4em;
+  padding-left: 0.35em;
 }
 
 .markdown-body li.task-list-item {
@@ -131,8 +150,8 @@
 }
 
 .markdown-body input.task-list-item-checkbox {
-  width: 1em;
-  height: 1em;
+  width: 1.02em;
+  height: 1.02em;
   margin: 0;
   accent-color: var(--brand);
   vertical-align: middle;
@@ -140,11 +159,11 @@
 }
 
 .markdown-body :where(ul, ol) :where(ul, ol) {
-  margin-block: 0.4em 0;
+  margin-block: 0.42em 0;
 }
 
 .markdown-body li + li {
-  margin-top: 0.38em;
+  margin-top: 0.42em;
 }
 
 .markdown-body li > p {
@@ -153,7 +172,7 @@
 
 .markdown-body strong {
   color: var(--tw-prose-bold);
-  font-weight: 650;
+  font-weight: 700;
 }
 
 .markdown-body em {
@@ -161,10 +180,11 @@
 }
 
 .markdown-body mark {
-  padding: 0.1em 0.32em;
+  padding: 0.12em 0.36em;
   border-radius: 4px;
   background: var(--md-mark-bg);
   color: inherit;
+  font-weight: 500;
 }
 
 .markdown-body :where(sub, sup) {
@@ -177,7 +197,8 @@
   font-weight: 500;
   text-decoration: underline;
   text-decoration-thickness: 1px;
-  text-underline-offset: 0.22em;
+  text-underline-offset: 0.24em;
+  transition: color 0.15s ease;
 }
 
 .markdown-body a:hover {
@@ -185,11 +206,12 @@
 }
 
 .markdown-body blockquote {
-  padding: 0.65em 1.1em;
-  border-left: 3px solid var(--tw-prose-quote-borders);
-  border-radius: 0 6px 6px 0;
+  padding: 0.85em 1.25em;
+  border-left: 4px solid var(--tw-prose-quote-borders);
+  border-radius: 0 10px 10px 0;
   background: var(--md-quote-bg);
   color: var(--tw-prose-quotes);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
 }
 
 .markdown-body :where(blockquote, .callout) > :last-child {
@@ -199,15 +221,17 @@
 .markdown-body hr {
   border: 0;
   border-top: 1px solid var(--tw-prose-hr);
-  margin-block: 2.2em;
+  margin-block: 2.4em;
 }
 
 .markdown-body img {
   display: block;
   max-width: 100%;
   height: auto;
-  margin-block: 1.5em;
-  border-radius: 8px;
+  margin: 1.6em auto;
+  border-radius: 10px;
+  border: 1px solid var(--tw-prose-hr);
+  box-shadow: 0 10px 28px -6px rgba(0, 0, 0, 0.22);
 }
 
 .markdown-body dt {
@@ -221,17 +245,19 @@
 }
 
 .markdown-body :where(code, pre, kbd, samp) {
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace;
+  font-family:
+    'JetBrains Mono', 'Fira Code', ui-monospace, SFMono-Regular, Menlo, Consolas,
+    'Liberation Mono', monospace;
 }
 
 .markdown-body :not(pre) > code {
-  padding: 0.18em 0.44em;
+  padding: 0.18em 0.46em;
   border: 1px solid var(--md-inline-border);
   border-radius: 5px;
   background: var(--md-inline-bg);
   color: var(--tw-prose-code);
-  font-size: 0.88em;
-  font-weight: 500;
+  font-size: 0.875em;
+  font-weight: 550;
 }
 
 .markdown-body :not(pre) > code::before,
@@ -240,43 +266,56 @@
 }
 
 .markdown-body kbd {
-  padding: 0.12em 0.42em;
+  padding: 0.14em 0.44em;
   border: 1px solid var(--tw-prose-th-borders);
   border-bottom-width: 2px;
-  border-radius: 4px;
-  font-size: 0.85em;
+  border-radius: 5px;
+  background: var(--paper);
+  font-size: 0.84em;
 }
 
 .markdown-body .markdown-table {
   width: 100%;
   overflow-x: auto;
-  border-radius: 8px;
+  border: 1px solid var(--tw-prose-th-borders);
+  border-radius: 10px;
+  background: var(--paper);
+  box-shadow: 0 4px 14px -4px rgba(0, 0, 0, 0.08);
 }
 
 .markdown-body table {
   width: 100%;
   border-collapse: collapse;
   border-spacing: 0;
-  font-size: 0.94em;
+  font-size: 0.93em;
   line-height: 1.7;
   font-variant-numeric: tabular-nums;
 }
 
 .markdown-body :where(th, td) {
-  padding: 11px 16px;
-  border: 1px solid var(--tw-prose-td-borders);
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--tw-prose-td-borders);
   text-align: left;
   vertical-align: top;
 }
 
+.markdown-body tbody tr:last-child td {
+  border-bottom: 0;
+}
+
 .markdown-body th {
   background: var(--md-table-head);
+  border-bottom: 1px solid var(--tw-prose-th-borders);
   color: var(--tw-prose-headings);
   font-weight: 650;
 }
 
 .markdown-body tbody tr:nth-child(even) {
   background: var(--md-table-stripe);
+}
+
+.markdown-body tbody tr:hover {
+  background: var(--md-table-hover);
 }
 
 .markdown-body table code {
@@ -286,10 +325,11 @@
 .markdown-body .code-block {
   overflow: hidden;
   border: 1px solid var(--md-code-line);
-  border-radius: 9px;
+  border-radius: 11px;
   background: var(--md-code-bg);
   color: var(--md-code-ink);
   color-scheme: dark;
+  box-shadow: 0 12px 32px -8px rgba(0, 0, 0, 0.38);
 }
 
 .markdown-body .code-top {
@@ -297,19 +337,51 @@
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  padding: 9px 18px;
+  padding: 9px 16px;
   border-bottom: 1px solid var(--md-code-line);
   background: var(--md-code-head);
   color: var(--md-code-muted);
-  font-size: 12px;
-  font-weight: 500;
+  font-size: 11.5px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+}
+
+.markdown-body .code-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.markdown-body .code-dots {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.markdown-body .code-dots i {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+}
+
+.markdown-body .code-dots i:nth-child(1) {
+  background: #ff5f56;
+}
+
+.markdown-body .code-dots i:nth-child(2) {
+  background: #ffbd2e;
+}
+
+.markdown-body .code-dots i:nth-child(3) {
+  background: #27c93f;
 }
 
 .markdown-body .code-block pre {
   margin: 0;
   padding: 18px 20px;
   overflow-x: auto;
-  font-size: 0.9em;
+  font-size: 0.89em;
   line-height: 1.75;
   white-space: pre;
   overflow-wrap: normal;
@@ -325,19 +397,20 @@
 
 .markdown-body .copy-code-btn {
   flex-shrink: 0;
-  padding: 3px 9px;
-  border: 1px solid var(--md-code-line);
-  border-radius: 5px;
-  background: transparent;
+  padding: 3px 10px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.04);
   color: var(--md-code-ink);
   font: inherit;
   cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease;
 }
 
 .markdown-body .copy-code-btn:hover,
 .markdown-body .copy-code-btn.copied {
-  border-color: currentColor;
-  background: #ffffff0a;
+  border-color: rgba(255, 255, 255, 0.45);
+  background: rgba(255, 255, 255, 0.12);
 }
 
 .markdown-body :where(a, button, .markdown-table):focus-visible {
@@ -348,9 +421,11 @@
 .markdown-body .callout {
   --callout-color: var(--md-note);
   padding: 16px 20px;
-  border-left: 3px solid var(--callout-color);
-  border-radius: 0 8px 8px 0;
-  background: color-mix(in srgb, var(--callout-color) 8%, transparent);
+  border: 1px solid color-mix(in srgb, var(--callout-color) 22%, transparent);
+  border-left: 4px solid var(--callout-color);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--callout-color) 8%, var(--paper));
+  box-shadow: 0 4px 12px -4px rgba(0, 0, 0, 0.08);
 }
 
 .markdown-body .callout-tip {
@@ -373,6 +448,8 @@
   display: block;
   margin-bottom: 8px;
   color: var(--callout-color);
+  font-size: 0.95em;
+  letter-spacing: 0.02em;
 }
 
 .markdown-body .footnotes {

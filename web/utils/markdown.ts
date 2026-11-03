@@ -64,7 +64,7 @@ export function createMarkdownRenderer(options: MarkdownOptions = {}) {
     const copyButton = showCopy
       ? '<button type="button" class="copy-code-btn">复制代码</button>'
       : ''
-    return `<div class="code-block"><div class="code-top"><span>${displayLang}</span>${copyButton}</div><pre><code class="hljs ${langName ? 'language-' + md.utils.escapeHtml(langName) : ''}">${highlighted}</code></pre></div>\n`
+    return `<div class="code-block"><div class="code-top"><div class="code-title"><span class="code-dots" aria-hidden="true"><i></i><i></i><i></i></span><span class="code-lang">${displayLang}</span></div>${copyButton}</div><pre><code class="hljs ${langName ? 'language-' + md.utils.escapeHtml(langName) : ''}">${highlighted}</code></pre></div>\n`
   }
 
   // 严格链接协议校验：仅允许 http, https, mailto 或相对链接锚点
