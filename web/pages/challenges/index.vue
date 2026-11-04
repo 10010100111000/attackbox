@@ -3,9 +3,14 @@ import { ref, computed } from 'vue'
 import { Flag, ArrowRight, CheckCircle2 } from 'lucide-vue-next'
 import { useAuth } from '~/composables/useAuth'
 import type { ChallengeSummary } from '~/shared/challenges'
+import {
+  DEFAULT_SEO_KEYWORDS,
+  buildKeywords,
+  canonicalUrl
+} from '~/shared/seo'
+import { useSiteOrigin } from '~/composables/useSiteOrigin'
 
 definePageMeta({ layout: 'learning' })
-useHead({ title: '挑战 — AttackBox' })
 
 const { currentUser } = useAuth()
 const learner = computed(() => currentUser.value?.id || '')
@@ -22,6 +27,27 @@ const difficulty = ref('')
 const categories = computed(() => [
   ...new Set((data.value?.data || []).map(c => c.category).filter((c): c is string => Boolean(c)))
 ])
+
+const siteOrigin = useSiteOrigin()
+const pageCanonical = canonicalUrl(siteOrigin, '/challenges')
+const pageDescription =
+  '从一个目标开始，逐步找到答案。在 AttackBox 参与网络安全实战挑战与夺旗练习（CTF），在真实靶场环境中验证漏洞与权限提升。'
+
+useHead(() => ({
+  title: '挑战 — AttackBox',
+  meta: [
+    { name: 'description', content: pageDescription },
+    {
+      name: 'keywords',
+      content: buildKeywords(DEFAULT_SEO_KEYWORDS, '网络安全挑战', 'CTF夺旗', categories.value)
+    },
+    { property: 'og:title', content: '挑战 — AttackBox' },
+    { property: 'og:description', content: pageDescription },
+    { property: 'og:type', content: 'website' },
+    { property: 'og:url', content: pageCanonical }
+  ],
+  link: [{ rel: 'canonical', href: pageCanonical }]
+}))
 
 const rows = computed(
   () =>

@@ -1,12 +1,26 @@
 <script setup lang="ts">
 import { NuxtLink } from '#components'
 import { computed, ref, watch } from 'vue'
-import { useRoute, useFetch, useHead } from '#imports'
+import {
+  useRoute,
+  useFetch,
+  useHead,
+  useRequestEvent,
+  setResponseStatus
+} from '#imports'
 import { ArrowLeft, Check, LockKeyhole, Clock3, CheckCircle2 } from 'lucide-vue-next'
 import MarkdownView from '~/components/ui/MarkdownView.vue'
 import { useAuth } from '~/composables/useAuth'
 import type { LearningChapter, ModuleProgress } from '~/shared/learning'
 import type { ContentCategory, Difficulty, PrerequisiteModule } from '~/shared/content'
+import {
+  buildKeywords,
+  canonicalUrl,
+  difficultySeoLabel,
+  extractSeoExcerpt,
+  serializeJsonLd
+} from '~/shared/seo'
+import { useSiteOrigin } from '~/composables/useSiteOrigin'
 
 definePageMeta({ layout: 'learning' })
 type ChapterItem = LearningChapter
@@ -38,6 +52,10 @@ const {
     progress: ModuleProgress | null
   }
 }>(() => `/api/modules/${slug.value}`, { key: `learning:module:${slug.value}`, watch: [learnerId] })
+if (import.meta.server && error.value) {
+  const event = useRequestEvent()
+  if (event) setResponseStatus(event, error.value.statusCode || 404)
+}
 const moduleData = computed(() => {
   const data = response.value?.data
   return data
@@ -101,6 +119,92 @@ function chapterLink(chapter: ChapterItem) {
   const path = `/learn/modules/${slug.value}/${chapter.slug}`
   return chapter.lockReason === 'login' ? `/auth?returnTo=${encodeURIComponent(path)}` : path
 }
+const siteOrigin = useSiteOrigin()
+const moduleCanonical = computed(() =>
+  canonicalUrl(siteOrigin, `/learn/modules/${encodeURIComponent(slug.value)}`)
+)
+const moduleSeoDescription = computed(
+  () =>
+    moduleData.value?.summary ||
+    extractSeoExcerpt(rawMarkdown.value, 150) ||
+    '在 AttackBox 学习网络安全模块，通过分步章节与实验环境验证安全原理。'
+)
+const moduleKeywords = computed(() =>
+  buildKeywords(
+    moduleData.value?.title,
+    moduleData.value?.category?.name,
+    difficultySeoLabel(moduleData.value?.difficulty),
+    moduleData.value?.chapters.slice(0, 6).map(ch => ch.title),
+    '网络安全课程',
+    'AttackBox'
+  )
+)
+const moduleJsonLd = computed(() => {
+  if (!moduleData.value) return ''
+  return serializeJsonLd({
+    '@context': 'https://schema.org',
+    '@graph': [
+      {
+        '@type': 'Course',
+        name: moduleData.value.title,
+        description: moduleSeoDescription.value,
+        url: moduleCanonical.value,
+        inLanguage: 'zh-CN',
+        educationalLevel: difficultySeoLabel(moduleData.value.difficulty),
+        provider: {
+          '@type': 'Organization',
+          name: 'AttackBox',
+          url: siteOrigin
+        },
+        ...(moduleData.value.learningOutcomes.length
+          ? { teaches: moduleData.value.learningOutcomes }
+          : {}),
+        hasPart: moduleData.value.chapters.map((ch, idx) => ({
+          '@type': 'LearningResource',
+          position: idx + 1,
+          name: ch.title,
+          url: canonicalUrl(
+            siteOrigin,
+            `/learn/modules/${encodeURIComponent(slug.value)}/${encodeURIComponent(ch.slug)}`
+          )
+        }))
+      },
+      {
+        '@type': 'BreadcrumbList',
+        itemListElement: [
+          { '@type': 'ListItem', position: 1, name: '首页', item: `${siteOrigin}/` },
+          { '@type': 'ListItem', position: 2, name: '学习', item: `${siteOrigin}/learn` },
+          {
+            '@type': 'ListItem',
+            position: 3,
+            name: moduleData.value.title,
+            item: moduleCanonical.value
+          }
+        ]
+      }
+    ]
+  })
+})
+useHead(() => ({
+  meta: [
+    { name: 'description', content: moduleSeoDescription.value },
+    { name: 'keywords', content: moduleKeywords.value },
+    {
+      property: 'og:title',
+      content: moduleData.value
+        ? `${moduleData.value.title} — AttackBox`
+        : '学习模块 — AttackBox'
+    },
+    { property: 'og:description', content: moduleSeoDescription.value },
+    { property: 'og:type', content: 'article' },
+    { property: 'og:url', content: moduleCanonical.value },
+    ...(error.value ? [{ name: 'robots', content: 'noindex, nofollow' }] : [])
+  ],
+  link: [{ rel: 'canonical', href: moduleCanonical.value }],
+  script: moduleJsonLd.value
+    ? [{ type: 'application/ld+json', innerHTML: moduleJsonLd.value }]
+    : []
+}))
 useHead({
   title: computed(() =>
     moduleData.value ? `${moduleData.value.title} — AttackBox` : '学习模块 — AttackBox'

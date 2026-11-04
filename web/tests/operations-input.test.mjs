@@ -68,6 +68,12 @@ test('analytics records only public paths and explicit campaign fields, without 
   }
   assert.equal('password' in parseVisit(input), false)
   assert.equal(visitSource(parseVisit(input), 'microsb.de').channel, 'search')
+  for (const cnSearchHost of ['www.baidu.com', 'm.sogou.com', 'www.so.com', 'm.sm.cn']) {
+    assert.equal(
+      visitSource({ ...input, referrerHost: cnSearchHost }, 'microsb.de').channel,
+      'search'
+    )
+  }
   assert.equal(
     visitSource({ ...input, referrerHost: 'google.com.evil.test' }, 'microsb.de').channel,
     'referral'

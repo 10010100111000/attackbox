@@ -5,14 +5,16 @@ import type { LearningHistoryItem } from '~/shared/learning'
 import { ref, computed, watch } from 'vue'
 import { useLazyFetch, useHead } from '#imports'
 import type { PublicModule } from '~/shared/module-catalog'
+import {
+  DEFAULT_SEO_KEYWORDS,
+  buildKeywords,
+  canonicalUrl,
+  serializeJsonLd
+} from '~/shared/seo'
+import { useSiteOrigin } from '~/composables/useSiteOrigin'
 
 definePageMeta({
   layout: 'learning'
-})
-
-useHead({
-  title: '学习 — AttackBox',
-  meta: [{ name: 'description', content: '选择一个模块开始，或沿着学习路线循序渐进。' }]
 })
 
 const {
@@ -94,6 +96,51 @@ function resetFilters() {
   difficulty.value = ''
   selectedCategory.value = '全部模块'
 }
+
+const siteOrigin = useSiteOrigin()
+const learnCanonical = canonicalUrl(siteOrigin, '/learn')
+const learnDescription =
+  '选择一个模块开始，或沿着学习路线循序渐进。涵盖 Web 安全、Linux 基础、渗透测试与实战演练模块。'
+const pageKeywords = computed(() =>
+  buildKeywords(
+    DEFAULT_SEO_KEYWORDS,
+    categories.value.filter(c => c !== '全部模块'),
+    modules.value.slice(0, 8).map(m => m.title)
+  )
+)
+const learnJsonLd = computed(() =>
+  serializeJsonLd({
+    '@context': 'https://schema.org',
+    '@type': 'CollectionPage',
+    name: '学习模块与学习路线 — AttackBox',
+    description: learnDescription,
+    url: learnCanonical,
+    inLanguage: 'zh-CN',
+    mainEntity: {
+      '@type': 'ItemList',
+      itemListElement: modules.value.slice(0, 12).map((m, index) => ({
+        '@type': 'ListItem',
+        position: index + 1,
+        name: m.title,
+        url: canonicalUrl(siteOrigin, `/learn/modules/${encodeURIComponent(m.slug)}`)
+      }))
+    }
+  })
+)
+
+useHead(() => ({
+  title: '学习 — AttackBox',
+  meta: [
+    { name: 'description', content: learnDescription },
+    { name: 'keywords', content: pageKeywords.value },
+    { property: 'og:title', content: '学习 — AttackBox' },
+    { property: 'og:description', content: learnDescription },
+    { property: 'og:type', content: 'website' },
+    { property: 'og:url', content: learnCanonical }
+  ],
+  link: [{ rel: 'canonical', href: learnCanonical }],
+  script: [{ type: 'application/ld+json', innerHTML: learnJsonLd.value }]
+}))
 
 function difficultyToLabel(diff: string): string {
   switch (diff) {

@@ -3,6 +3,15 @@ import { BookOpen } from 'lucide-vue-next'
 import HeroSection from '~/components/landing/HeroSection.vue'
 import FeaturedModule from '~/components/landing/FeaturedModule.vue'
 import type { PublicModule } from '~/shared/module-catalog'
+import {
+  DEFAULT_SEO_DESCRIPTION,
+  DEFAULT_SEO_KEYWORDS,
+  SITE_NAME,
+  buildKeywords,
+  canonicalUrl,
+  serializeJsonLd
+} from '~/shared/seo'
+import { useSiteOrigin } from '~/composables/useSiteOrigin'
 import ModuleRail from '~/components/landing/ModuleRail.vue'
 
 definePageMeta({
@@ -17,12 +26,63 @@ if (import.meta.server && error.value) {
   if (event) setResponseStatus(event, 503)
 }
 const modules = computed(() => data.value?.data || [])
+const siteOrigin = useSiteOrigin()
+const homeCanonical = canonicalUrl(siteOrigin, '/')
+const homeKeywords = computed(() =>
+  buildKeywords(
+    DEFAULT_SEO_KEYWORDS,
+    modules.value.slice(0, 6).map(m => m.title),
+    modules.value.map(m => m.category?.name)
+  )
+)
+const homeJsonLd = computed(() =>
+  serializeJsonLd({
+    '@context': 'https://schema.org',
+    '@graph': [
+      {
+        '@type': 'WebSite',
+        '@id': `${siteOrigin}/#website`,
+        name: SITE_NAME,
+        url: homeCanonical,
+        inLanguage: 'zh-CN',
+        description: DEFAULT_SEO_DESCRIPTION
+      },
+      {
+        '@type': 'EducationalOrganization',
+        '@id': `${siteOrigin}/#organization`,
+        name: SITE_NAME,
+        url: homeCanonical,
+        description: '面向中文学习者的交互式网络安全与实战靶场学习平台。'
+      },
+      ...(modules.value.length
+        ? [
+            {
+              '@type': 'ItemList',
+              name: '精选网络安全学习模块',
+              itemListElement: modules.value.slice(0, 6).map((mod, idx) => ({
+                '@type': 'ListItem',
+                position: idx + 1,
+                name: mod.title,
+                url: canonicalUrl(siteOrigin, `/learn/modules/${encodeURIComponent(mod.slug)}`)
+              }))
+            }
+          ]
+        : [])
+    ]
+  })
+)
+useHead(() => ({
+  meta: [{ name: 'keywords', content: homeKeywords.value }],
+  link: [{ rel: 'canonical', href: homeCanonical }],
+  script: [{ type: 'application/ld+json', innerHTML: homeJsonLd.value }]
+}))
 useSeoMeta({
   title: 'AttackBox — 理解原理，亲手验证。',
   description:
     '从教程到实践，在 AttackBox 学习网络安全。浏览学习模块，阅读公开章节，在终端和实验环境中亲手验证。',
   ogTitle: 'AttackBox — 理解原理，亲手验证。',
   ogDescription: '从教程到实践，探索网络安全。',
+  ogUrl: homeCanonical,
   ogType: 'website'
 })
 </script>

@@ -3,6 +3,12 @@ import { computed } from 'vue'
 import { ArrowLeft, BookOpen, Clock3, CheckCircle2, ArrowRight } from 'lucide-vue-next'
 import type { LearningRoute } from '~/shared/routes'
 import { useAuth } from '~/composables/useAuth'
+import {
+  buildKeywords,
+  canonicalUrl,
+  serializeJsonLd
+} from '~/shared/seo'
+import { useSiteOrigin } from '~/composables/useSiteOrigin'
 
 definePageMeta({ layout: 'learning', key: route => route.fullPath })
 
@@ -14,6 +20,10 @@ const { data, error } = await useFetch<{ data: LearningRoute }>(`/api/routes/${r
   key: `learning:route:${routeId}`,
   watch: [learner]
 })
+if (import.meta.server && error.value) {
+  const event = useRequestEvent()
+  if (event) setResponseStatus(event, error.value.statusCode || 404)
+}
 
 const route = computed(() => data.value?.data)
 const next = computed(
@@ -21,6 +31,77 @@ const next = computed(
     route.value?.modules?.find(m => m.completedChapters < m.chapterCount) ||
     route.value?.modules?.[0]
 )
+
+const siteOrigin = useSiteOrigin()
+const routeCanonical = canonicalUrl(siteOrigin, `/learn/routes/${encodeURIComponent(routeId)}`)
+const routeDescription = computed(
+  () => route.value?.summary || '按推荐顺序循序渐进学习网络安全模块。'
+)
+const routeJsonLd = computed(() => {
+  if (!route.value) return ''
+  return serializeJsonLd({
+    '@context': 'https://schema.org',
+    '@graph': [
+      {
+        '@type': 'ItemList',
+        name: route.value.title,
+        description: routeDescription.value,
+        url: routeCanonical,
+        numberOfItems: route.value.modules.length,
+        itemListElement: route.value.modules.map((item, idx) => ({
+          '@type': 'ListItem',
+          position: idx + 1,
+          name: item.title,
+          url: canonicalUrl(siteOrigin, `/learn/modules/${encodeURIComponent(item.slug)}`)
+        }))
+      },
+      {
+        '@type': 'BreadcrumbList',
+        itemListElement: [
+          { '@type': 'ListItem', position: 1, name: '首页', item: `${siteOrigin}/` },
+          {
+            '@type': 'ListItem',
+            position: 2,
+            name: '学习路线',
+            item: `${siteOrigin}/learn?tab=routes`
+          },
+          {
+            '@type': 'ListItem',
+            position: 3,
+            name: route.value.title,
+            item: routeCanonical
+          }
+        ]
+      }
+    ]
+  })
+})
+
+useHead(() => ({
+  meta: [
+    {
+      name: 'keywords',
+      content: buildKeywords(
+        route.value?.title,
+        route.value?.modules.map(m => m.title),
+        '网络安全学习路线',
+        'AttackBox'
+      )
+    },
+    {
+      property: 'og:title',
+      content: route.value ? `${route.value.title} — AttackBox` : '学习路线 — AttackBox'
+    },
+    { property: 'og:description', content: routeDescription.value },
+    { property: 'og:type', content: 'website' },
+    { property: 'og:url', content: routeCanonical },
+    ...(error.value ? [{ name: 'robots', content: 'noindex, nofollow' }] : [])
+  ],
+  link: [{ rel: 'canonical', href: routeCanonical }],
+  script: routeJsonLd.value
+    ? [{ type: 'application/ld+json', innerHTML: routeJsonLd.value }]
+    : []
+}))
 
 useHead(() => ({
   title: route.value ? `${route.value.title} — AttackBox` : '学习路线 — AttackBox',

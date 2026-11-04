@@ -18,6 +18,8 @@ import {
 } from 'lucide-vue-next'
 import { useAuth } from '~/composables/useAuth'
 
+useHead({ meta: [{ name: 'robots', content: 'noindex, nofollow' }] })
+
 const route = useRoute()
 const { currentUser, isInitialized, fetchMe } = useAuth()
 

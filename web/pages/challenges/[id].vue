@@ -13,6 +13,14 @@ import MarkdownView from '~/components/ui/MarkdownView.vue'
 import PracticeDock from '~/components/learning/PracticeDock.vue'
 import { useAuth } from '~/composables/useAuth'
 import type { Challenge } from '~/shared/challenges'
+import {
+  buildKeywords,
+  canonicalUrl,
+  difficultySeoLabel,
+  extractSeoExcerpt,
+  serializeJsonLd
+} from '~/shared/seo'
+import { useSiteOrigin } from '~/composables/useSiteOrigin'
 import { apiErrorMessage, apiFetch } from '~/utils/api'
 
 definePageMeta({ layout: 'learning', key: r => r.fullPath })
@@ -25,6 +33,10 @@ const { data, error, refresh } = await useFetch<{ data: Challenge }>(`/api/chall
   key: `challenges:detail:${id}`,
   watch: [learner]
 })
+if (import.meta.server && error.value) {
+  const event = useRequestEvent()
+  if (event) setResponseStatus(event, error.value.statusCode || 404)
+}
 
 const ready = ref(false)
 const c = computed(() => data.value?.data)
@@ -71,10 +83,78 @@ watch(learner, () => {
   feedback.value = {}
 })
 
-useHead(() => ({
-  title: c.value ? `${c.value.title} — AttackBox` : '挑战 — AttackBox',
-  meta: [{ name: 'description', content: c.value?.summary || '安全学习挑战' }]
-}))
+const siteOrigin = useSiteOrigin()
+const pageCanonical = canonicalUrl(siteOrigin, `/challenges/${encodeURIComponent(id)}`)
+
+useHead(() => {
+  const title = c.value ? `${c.value.title} — AttackBox` : '挑战 — AttackBox'
+  const description =
+    c.value?.summary ||
+    extractSeoExcerpt(c.value?.bodyMarkdown, 150) ||
+    '在 AttackBox 参与网络安全实战挑战。'
+  return {
+    title,
+    meta: [
+      { name: 'description', content: description },
+      {
+        name: 'keywords',
+        content: buildKeywords(
+          c.value?.title,
+          c.value?.category,
+          difficultySeoLabel(c.value?.difficulty),
+          '网络安全挑战',
+          'CTF靶场',
+          'AttackBox'
+        )
+      },
+      { property: 'og:title', content: title },
+      { property: 'og:description', content: description },
+      { property: 'og:type', content: 'article' },
+      { property: 'og:url', content: pageCanonical },
+      ...(error.value ? [{ name: 'robots', content: 'noindex, nofollow' }] : [])
+    ],
+    link: [{ rel: 'canonical', href: pageCanonical }],
+    script: c.value
+      ? [
+          {
+            type: 'application/ld+json',
+            innerHTML: serializeJsonLd({
+              '@context': 'https://schema.org',
+              '@graph': [
+                {
+                  '@type': 'LearningResource',
+                  name: c.value.title,
+                  description,
+                  url: pageCanonical,
+                  inLanguage: 'zh-CN',
+                  learningResourceType: '网络安全实战挑战',
+                  educationalLevel: difficultySeoLabel(c.value.difficulty)
+                },
+                {
+                  '@type': 'BreadcrumbList',
+                  itemListElement: [
+                    { '@type': 'ListItem', position: 1, name: '首页', item: `${siteOrigin}/` },
+                    {
+                      '@type': 'ListItem',
+                      position: 2,
+                      name: '挑战',
+                      item: `${siteOrigin}/challenges`
+                    },
+                    {
+                      '@type': 'ListItem',
+                      position: 3,
+                      name: c.value.title,
+                      item: pageCanonical
+                    }
+                  ]
+                }
+              ]
+            })
+          }
+        ]
+      : []
+  }
+})
 
 async function submit(stageId: string) {
   if (busy.value) return

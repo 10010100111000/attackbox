@@ -4,7 +4,10 @@ import { Bell, Trash2, Mail, MessageCircle, ArrowLeft } from 'lucide-vue-next'
 import { apiErrorMessage, apiFetch } from '~/utils/api'
 
 definePageMeta({ layout: 'learning' })
-useHead({ title: '通知 — AttackBox' })
+useHead({
+  title: '通知 — AttackBox',
+  meta: [{ name: 'robots', content: 'noindex, nofollow' }]
+})
 
 const { currentUser } = useAuth()
 const { setUnread } = useNotifications()

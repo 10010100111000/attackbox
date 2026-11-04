@@ -1,6 +1,12 @@
 <script setup lang="ts">
 import { ref, computed, watch, onMounted } from 'vue'
-import { useRoute, useFetch, useHead } from '#imports'
+import {
+  useRoute,
+  useFetch,
+  useHead,
+  useRequestEvent,
+  setResponseStatus
+} from '#imports'
 import {
   ArrowRight,
   LockKeyhole,
@@ -21,6 +27,13 @@ import MarkdownContent from '~/components/ui/MarkdownContent.vue'
 import { useAuth } from '~/composables/useAuth'
 import type { LearningTarget } from '~/shared/learning-target'
 import type { ChapterProgress, LearningChapter } from '~/shared/learning'
+import {
+  buildKeywords,
+  canonicalUrl,
+  extractSeoExcerpt,
+  serializeJsonLd
+} from '~/shared/seo'
+import { useSiteOrigin } from '~/composables/useSiteOrigin'
 import { renderMarkdown, type MarkdownHeading } from '~/utils/markdown'
 import { apiErrorMessage, apiFetch } from '~/utils/api'
 
@@ -88,6 +101,10 @@ const {
   key: `learning:chapter:${moduleSlug.value}:${chapterSlug.value}`,
   watch: [learnerId]
 })
+if (import.meta.server && chapterError.value) {
+  const event = useRequestEvent()
+  if (event) setResponseStatus(event, chapterError.value.statusCode || 404)
+}
 
 // 2. 获取所属模块完整大纲
 const { data: moduleResponse, refresh: refreshModule } = await useFetch<{
@@ -351,10 +368,114 @@ async function handleCheckAnswer(q: QuestionItem) {
   }
 }
 
+const siteOrigin = useSiteOrigin()
+const chapterCanonical = computed(() =>
+  canonicalUrl(
+    siteOrigin,
+    `/learn/modules/${encodeURIComponent(moduleSlug.value)}/${encodeURIComponent(
+      chapterSlug.value
+    )}`
+  )
+)
+const chapterDescription = computed(
+  () =>
+    extractSeoExcerpt(chapterData.value?.bodyMarkdown, 155) ||
+    moduleData.value?.summary ||
+    '在 AttackBox 阅读网络安全实训章节并完成动手验证。'
+)
+const chapterRobots = computed(() => {
+  const access = chapterResponse.value?.data?.chapter.access
+  if (chapterError.value || access === 'authenticated') {
+    return 'noindex, nofollow'
+  }
+  return 'index, follow'
+})
+const chapterKeywords = computed(() =>
+  buildKeywords(
+    chapterData.value?.title,
+    moduleData.value?.title,
+    sections.value.slice(0, 6).map(s => s.text),
+    '网络安全教程',
+    'AttackBox'
+  )
+)
+const chapterJsonLd = computed(() => {
+  if (!chapterData.value || !moduleData.value || chapterRobots.value.startsWith('noindex')) {
+    return ''
+  }
+  const moduleUrl = canonicalUrl(
+    siteOrigin,
+    `/learn/modules/${encodeURIComponent(moduleSlug.value)}`
+  )
+  return serializeJsonLd({
+    '@context': 'https://schema.org',
+    '@graph': [
+      {
+        '@type': 'TechArticle',
+        headline: chapterData.value.title,
+        description: chapterDescription.value,
+        url: chapterCanonical.value,
+        inLanguage: 'zh-CN',
+        isPartOf: {
+          '@type': 'Course',
+          name: moduleData.value.title,
+          url: moduleUrl
+        },
+        author: {
+          '@type': 'Organization',
+          name: 'AttackBox',
+          url: siteOrigin
+        }
+      },
+      {
+        '@type': 'BreadcrumbList',
+        itemListElement: [
+          { '@type': 'ListItem', position: 1, name: '首页', item: `${siteOrigin}/` },
+          { '@type': 'ListItem', position: 2, name: '学习', item: `${siteOrigin}/learn` },
+          {
+            '@type': 'ListItem',
+            position: 3,
+            name: moduleData.value.title,
+            item: moduleUrl
+          },
+          {
+            '@type': 'ListItem',
+            position: 4,
+            name: chapterData.value.title,
+            item: chapterCanonical.value
+          }
+        ]
+      }
+    ]
+  })
+})
+
+useHead(() => ({
+  meta: [
+    { name: 'description', content: chapterDescription.value },
+    { name: 'keywords', content: chapterKeywords.value },
+    { name: 'robots', content: chapterRobots.value },
+    {
+      property: 'og:title',
+      content:
+        chapterData.value && moduleData.value
+          ? `${chapterData.value.title} — ${moduleData.value.title} — AttackBox`
+          : '学习章节 — AttackBox'
+    },
+    { property: 'og:description', content: chapterDescription.value },
+    { property: 'og:type', content: 'article' },
+    { property: 'og:url', content: chapterCanonical.value }
+  ],
+  link: [{ rel: 'canonical', href: chapterCanonical.value }],
+  script: chapterJsonLd.value
+    ? [{ type: 'application/ld+json', innerHTML: chapterJsonLd.value }]
+    : []
+}))
+
 useHead({
   title: computed(() => {
     if (chapterData.value && moduleData.value) {
-      return `${chapterData.value.title} — ${moduleData.value.title}`
+      return `${chapterData.value.title} — ${moduleData.value.title} — AttackBox`
     }
     return '学习章节 — AttackBox'
   })

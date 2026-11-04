@@ -111,6 +111,10 @@ export function visitSource(
     'google.co.jp',
     'bing.com',
     'baidu.com',
+    'sogou.com',
+    'so.com',
+    'sm.cn',
+    'toutiao.com',
     'duckduckgo.com',
     'yandex.com'
   ]

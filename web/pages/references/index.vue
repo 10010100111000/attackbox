@@ -1,17 +1,48 @@
 <script setup lang="ts">
 import { BookOpen, ChevronLeft, ChevronRight } from 'lucide-vue-next'
 import type { ReferencePage } from '~/shared/references'
+import {
+  DEFAULT_SEO_KEYWORDS,
+  buildKeywords,
+  canonicalUrl
+} from '~/shared/seo'
+import { useSiteOrigin } from '~/composables/useSiteOrigin'
 definePageMeta({ layout: 'learning' })
-useSeoMeta({
-  title: '参考资料 — AttackBox',
-  description: '公开的安全学习参考资料、阅读笔记与译文。'
-})
 const route = useRoute()
 const page = computed(() => Number(route.query.page || 1))
+const siteOrigin = useSiteOrigin()
+const pageCanonical = computed(() => {
+  const base = canonicalUrl(siteOrigin, '/references')
+  return page.value > 1 ? `${base}?page=${page.value}` : base
+})
+const pageDescription = '公开的网络安全学习参考资料、技术阅读笔记与安全译文。'
+useSeoMeta({
+  title: () => (page.value > 1 ? `参考资料（第 ${page.value} 页）— AttackBox` : '参考资料 — AttackBox'),
+  description: pageDescription,
+  ogTitle: () =>
+    page.value > 1 ? `参考资料（第 ${page.value} 页）— AttackBox` : '参考资料 — AttackBox',
+  ogDescription: pageDescription,
+  ogType: 'website',
+  ogUrl: () => pageCanonical.value
+})
 const { data, pending, error } = await useFetch<{ data: ReferencePage }>('/api/references', {
   key: () => `references:catalog:${page.value}`,
   query: { page }
 })
+useHead(() => ({
+  meta: [
+    {
+      name: 'keywords',
+      content: buildKeywords(
+        DEFAULT_SEO_KEYWORDS,
+        '网络安全参考资料',
+        '安全技术译文',
+        data.value?.data.items.slice(0, 6).map(i => i.title)
+      )
+    }
+  ],
+  link: [{ rel: 'canonical', href: pageCanonical.value }]
+}))
 if (import.meta.server && error.value) {
   const event = useRequestEvent()
   if (event) setResponseStatus(event, error.value.statusCode || 503)
