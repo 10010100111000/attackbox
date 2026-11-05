@@ -1,14 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, watch, onMounted } from 'vue'
-import {
-  ArrowLeft,
-  CheckCircle2,
-  LockKeyhole,
-  Flag,
-  Terminal,
-  Monitor,
-  ChevronUp
-} from 'lucide-vue-next'
+import { ArrowLeft, CheckCircle2, LockKeyhole, Flag } from 'lucide-vue-next'
 import MarkdownView from '~/components/ui/MarkdownView.vue'
 import PracticeDock from '~/components/learning/PracticeDock.vue'
 import { useAuth } from '~/composables/useAuth'
@@ -44,36 +36,10 @@ const answers = ref<Record<string, string>>({})
 const feedback = ref<Record<string, string>>({})
 const busy = ref(false)
 
-// PracticeDock state for CLI / GUI access inside challenge arena
-const practiceMode = ref<'cli' | 'gui'>('cli')
-const practiceOpened = ref(false)
-const practiceVisible = ref(false)
-const practiceMinimized = ref(false)
 const workspace = ref<HTMLElement | null>(null)
-const dock = usePracticeLayout(workspace)
-const { sandbox } = useSandboxSession()
-const environmentReady = computed(
-  () => sandbox.value.instance?.state === 'running' && sandbox.value.instance.connected
-)
-watch(environmentReady, value => {
-  if (!value) {
-    practiceOpened.value = false
-    practiceVisible.value = false
-    practiceMinimized.value = false
-  }
-})
+const hasPractice = computed(() => !!c.value)
+const dock = usePracticeLayout(workspace, hasPractice)
 
-function openPractice(mode: 'cli' | 'gui') {
-  if (!environmentReady.value) return
-  practiceOpened.value = true
-  practiceMode.value = mode
-  practiceVisible.value = true
-  practiceMinimized.value = false
-}
-
-function minimizePractice() {
-  practiceMinimized.value = true
-}
 onMounted(() => {
   ready.value = true
 })
@@ -191,39 +157,13 @@ async function submit(stageId: string) {
         <ArrowLeft :size="14" aria-hidden="true" />
         <span>挑战列表</span>
       </NuxtLink>
-
-      <div class="toolbar-tools" role="group" aria-label="练习环境">
-        <LearningEnvironmentStatus />
-        <button
-          v-if="environmentReady"
-          type="button"
-          :disabled="!ready"
-          :aria-pressed="practiceVisible && !practiceMinimized && practiceMode === 'cli'"
-          @click="openPractice('cli')"
-        >
-          <Terminal :size="15" aria-hidden="true" />
-          <span>CLI</span>
-          <span class="tool-word">终端</span>
-        </button>
-        <button
-          v-if="environmentReady"
-          type="button"
-          :disabled="!ready"
-          :aria-pressed="practiceVisible && !practiceMinimized && practiceMode === 'gui'"
-          @click="openPractice('gui')"
-        >
-          <Monitor :size="15" aria-hidden="true" />
-          <span>GUI</span>
-          <span class="tool-word">桌面</span>
-        </button>
-      </div>
     </div>
 
     <div
       ref="workspace"
       class="challenge-workspace"
       :class="{
-        'dock-is-right': practiceVisible && !practiceMinimized && dock.placement.value === 'right'
+        'dock-is-right': dock.sidePractice.value
       }"
     >
       <div class="challenge-scroll">
@@ -252,11 +192,11 @@ async function submit(stageId: string) {
             </header>
 
             <MarkdownView :content="c.bodyMarkdown" />
-            <TargetEnvironment
-              v-if="c.target"
-              :key="String($route.params.id)"
+            <LearningPracticeEnvironment
+              :key="c.id"
               :target="c.target"
-              :context="{ kind: 'challenge', challengeId: String($route.params.id) }"
+              :context="{ kind: 'challenge', challengeId: c.id }"
+              @open="dock.open"
             />
 
             <section v-if="c.stages.length" aria-label="阶段任务" class="stage-list">
@@ -314,39 +254,7 @@ async function submit(stageId: string) {
         </main>
       </div>
 
-      <PracticeDock
-        v-if="practiceOpened"
-        v-show="practiceVisible && !practiceMinimized"
-        :key="learner"
-        :active="practiceVisible && !practiceMinimized"
-        :height="dock.height.value"
-        :width="dock.width.value"
-        :placement="dock.placement.value"
-        :side-available="dock.sideAvailable.value"
-        :min-width="dock.minWidth"
-        :max-width="dock.maxWidth.value"
-        :min-height="dock.minHeight.value"
-        :max-height="dock.maxHeight.value"
-        :mode="practiceMode"
-        @update:height="dock.setHeight"
-        @update:width="dock.setWidth"
-        @update:placement="dock.setPlacement"
-        @resize-end="dock.persist"
-        @minimize="minimizePractice"
-      />
-
-      <button
-        v-if="practiceVisible && practiceMinimized"
-        type="button"
-        class="dock-restore"
-        aria-label="恢复练习面板"
-        @click="practiceMinimized = false"
-      >
-        <Terminal v-if="practiceMode === 'cli'" :size="14" aria-hidden="true" />
-        <Monitor v-else :size="14" aria-hidden="true" />
-        <span>{{ practiceMode === 'cli' ? '终端' : '桌面' }}</span>
-        <ChevronUp :size="15" aria-hidden="true" />
-      </button>
+      <PracticeDock v-if="dock.opened.value" :key="learner" :layout="dock" />
     </div>
   </div>
 </template>
@@ -400,36 +308,6 @@ async function submit(stageId: string) {
 }
 
 .back:hover {
-  color: var(--ink);
-}
-
-.toolbar-tools {
-  display: flex;
-  align-items: center;
-  gap: 5px;
-}
-
-.toolbar-tools button {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 6px 9px;
-  border: 1px solid transparent;
-  border-radius: 5px;
-  background: transparent;
-  font-size: 11px;
-  color: var(--muted);
-  cursor: pointer;
-}
-
-.toolbar-tools button:hover:not(:disabled) {
-  background: var(--soft);
-  color: var(--ink);
-}
-
-.toolbar-tools button[aria-pressed='true'] {
-  border-color: var(--line);
-  background: var(--paper);
   color: var(--ink);
 }
 
@@ -562,27 +440,9 @@ article > p,
   color: var(--green);
 }
 
-.dock-restore {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  min-height: 35px;
-  flex-shrink: 0;
-  background: var(--paper);
-  color: var(--muted);
-  border: 0;
-  border-top: 1px solid var(--line);
-  cursor: pointer;
-  font-size: 11px;
-}
-
 @media (max-width: 600px) {
   .challenge-top-bar {
     padding: 0 16px;
-  }
-  .tool-word {
-    display: none;
   }
   .challenge-detail {
     padding: 26px 18px 56px;

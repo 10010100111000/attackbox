@@ -17,17 +17,27 @@ test('learning components, layouts, and page templates exist', () => {
     'components/learning/ModuleCardArt.vue',
     'components/learning/BannerBackdrop.vue',
     'components/learning/LearningHeader.vue',
+    'components/learning/PracticeEnvironment.vue',
+    'components/learning/PracticeDock.vue',
     'components/ui/MarkdownView.vue',
     'composables/useTheme.ts',
+    'composables/usePracticeLayout.ts',
     'pages/learn/index.vue',
     'pages/learn/modules/[slug]/index.vue',
-    'pages/learn/modules/[slug]/[chapterSlug].vue'
+    'pages/learn/modules/[slug]/[chapterSlug].vue',
+    'pages/challenges/[id].vue'
   ]
 
   for (const f of files) {
     const fullPath = path.join(webDir, f)
     assert.ok(fs.existsSync(fullPath), `File should exist: ${f}`)
   }
+
+  assert.equal(
+    fs.existsSync(path.join(webDir, 'components/TargetEnvironment.vue')),
+    false,
+    'legacy standalone TargetEnvironment.vue must be removed'
+  )
 
   const layout = fs.readFileSync(path.join(webDir, 'layouts/learning.vue'), 'utf-8')
   assert.ok(layout.includes('UiAmbientBackdrop'), 'learning layout must use UiAmbientBackdrop')
@@ -102,6 +112,8 @@ test('pages/learn/modules/[slug]/[chapterSlug].vue renders shared reader compone
   assert.ok(content.includes('ReaderLayout'))
   assert.ok(content.includes('ReaderArticle'))
   assert.ok(content.includes('MarkdownView'))
+  assert.ok(content.includes('LearningPracticeEnvironment'))
+  assert.ok(content.includes('PracticeDock'))
   assert.ok(content.includes('quiz-card'))
   assert.ok(content.includes('answer-check-btn'))
   assert.ok(content.includes('auth-gate-card'))
@@ -112,6 +124,35 @@ test('pages/learn/modules/[slug]/[chapterSlug].vue renders shared reader compone
   assert.ok(
     content.includes('renderPrompt'),
     'question prompts must render through sanitized markdown'
+  )
+})
+
+test('pages/challenges/[id].vue and chapterSlug.vue share LearningPracticeEnvironment and PracticeDock without top-bar duplication', () => {
+  const challengePage = fs.readFileSync(path.join(webDir, 'pages/challenges/[id].vue'), 'utf-8')
+  const chapterPage = fs.readFileSync(
+    path.join(webDir, 'pages/learn/modules/[slug]/[chapterSlug].vue'),
+    'utf-8'
+  )
+  const dockComponent = fs.readFileSync(
+    path.join(webDir, 'components/learning/PracticeDock.vue'),
+    'utf-8'
+  )
+
+  assert.ok(challengePage.includes('<LearningPracticeEnvironment'))
+  assert.ok(challengePage.includes('<PracticeDock'))
+  assert.ok(!challengePage.includes('TargetEnvironment'))
+  assert.ok(!challengePage.includes('LearningEnvironmentStatus'))
+  assert.ok(!challengePage.includes('toolbar-tools'))
+  assert.ok(!challengePage.includes('useSandboxSession'))
+  assert.ok(
+    chapterPage.includes(
+      '!!chapterData.value?.questions.length || !!chapterResponse.value?.data.target'
+    ),
+    'chapter page must render PracticeEnvironment when either questions or target is configured'
+  )
+  assert.ok(
+    dockComponent.includes('dock-restore'),
+    'PracticeDock must encapsulate the minimized restore bar'
   )
 })
 

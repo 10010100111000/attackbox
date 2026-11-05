@@ -2,6 +2,8 @@
 import { ref, computed, onBeforeUnmount, watch, useId } from 'vue'
 import {
   Terminal,
+  Monitor,
+  ChevronUp,
   ExternalLink,
   Minus,
   X,
@@ -10,35 +12,30 @@ import {
   Columns2,
   Rows2
 } from 'lucide-vue-next'
+import type { PracticeLayout } from '~/composables/usePracticeLayout'
 import { useSandboxSession } from '~/composables/useSandboxSession'
 import {
   LearningSandboxTerminal as SandboxTerminal,
   LearningSandboxDesktop as SandboxDesktop
 } from '#components'
+
 const props = defineProps<{
-  active: boolean
-  mode: 'cli' | 'gui'
-  placement: 'bottom' | 'right'
-  sideAvailable: boolean
-  height: number
-  minHeight: number
-  maxHeight: number
-  width: number
-  minWidth: number
-  maxWidth: number
+  layout: PracticeLayout
 }>()
-const emit = defineEmits<{
-  'update:height': [height: number]
-  'update:width': [width: number]
-  'update:placement': [placement: 'bottom' | 'right']
-  minimize: []
-  'resize-end': []
-}>()
+
 const panelId = useId()
-const isRight = computed(() => props.placement === 'right')
-const size = computed(() => (isRight.value ? props.width : props.height))
-const minSize = computed(() => (isRight.value ? props.minWidth : props.minHeight))
-const maxSize = computed(() => (isRight.value ? props.maxWidth : props.maxHeight))
+const mode = computed(() => props.layout.mode.value)
+const active = computed(() => props.layout.active.value)
+const placement = computed(() => props.layout.placement.value)
+const sideAvailable = computed(() => props.layout.sideAvailable.value)
+const isRight = computed(() => placement.value === 'right')
+const size = computed(() => (isRight.value ? props.layout.width.value : props.layout.height.value))
+const minSize = computed(() =>
+  isRight.value ? props.layout.minWidth : props.layout.minHeight.value
+)
+const maxSize = computed(() =>
+  isRight.value ? props.layout.maxWidth.value : props.layout.maxHeight.value
+)
 const {
   sandbox,
   loading,
@@ -63,9 +60,9 @@ function addTerminal() {
 }
 let terminalCount = 0
 watch(
-  () => props.mode,
-  mode => {
-    if (mode === 'gui') desktopOpened.value = true
+  mode,
+  nextMode => {
+    if (nextMode === 'gui') desktopOpened.value = true
     else if (sandbox.value.instance?.state === 'running' && !tabs.value.length) addTerminal()
   },
   { immediate: true }
@@ -82,22 +79,19 @@ watch(
     tabs.value = []
     selectedTab.value = ''
     terminalCount = 0
-    desktopOpened.value = props.mode === 'gui'
-    if (id && props.mode === 'cli' && sandbox.value.instance?.state === 'running') addTerminal()
+    desktopOpened.value = mode.value === 'gui'
+    if (id && mode.value === 'cli' && sandbox.value.instance?.state === 'running') addTerminal()
   }
 )
 watch(
   () => sandbox.value.instance?.state,
   state => {
-    if (state === 'running' && props.mode === 'cli' && !tabs.value.length) addTerminal()
+    if (state === 'running' && mode.value === 'cli' && !tabs.value.length) addTerminal()
   }
 )
-watch(
-  () => props.active,
-  active => {
-    if (active) void refreshSandbox()
-  }
-)
+watch(active, isActive => {
+  if (isActive) void refreshSandbox()
+})
 const resizing = ref(false)
 let startPosition = 0,
   startSize = 0,
@@ -105,8 +99,8 @@ let startPosition = 0,
   pointerId: number | null = null
 function setSize(value: number) {
   const bounded = Math.max(minSize.value, Math.min(maxSize.value, value))
-  if (isRight.value) emit('update:width', bounded)
-  else emit('update:height', bounded)
+  if (isRight.value) props.layout.setWidth(bounded)
+  else props.layout.setHeight(bounded)
 }
 function stopResize() {
   const wasResizing = resizing.value
@@ -117,10 +111,10 @@ function stopResize() {
   pointerId = null
   if (element && pointer !== null && element.hasPointerCapture(pointer))
     element.releasePointerCapture(pointer)
-  if (wasResizing) emit('resize-end')
+  if (wasResizing) props.layout.persist()
 }
 function startResize(event: PointerEvent) {
-  if (event.button !== 0 || !props.active) return
+  if (event.button !== 0 || !active.value) return
   event.preventDefault()
   startPosition = isRight.value ? event.clientX : event.clientY
   startSize = size.value
@@ -146,18 +140,19 @@ function keyResize(event: KeyboardEvent) {
         ? maxSize.value
         : size.value + (event.key === grow ? 20 : -20)
   )
-  emit('resize-end')
+  props.layout.persist()
 }
-watch([() => props.placement, () => props.active], stopResize)
+watch([placement, active], stopResize)
 onBeforeUnmount(stopResize)
 </script>
 
 <template>
   <section
+    v-show="active"
     :id="panelId"
     class="practice-dock"
-    :class="{ resizing, 'dock-right': placement === 'right' }"
-    :style="isRight ? { width: `${width}px` } : { height: `${height}px` }"
+    :class="{ resizing, 'dock-right': isRight }"
+    :style="isRight ? { width: `${layout.width.value}px` } : { height: `${layout.height.value}px` }"
     aria-label="练习环境面板"
   >
     <div
@@ -224,11 +219,11 @@ onBeforeUnmount(stopResize)
           v-if="sideAvailable"
           type="button"
           class="placement-toggle"
-          :title="placement === 'right' ? '切换为底部停靠' : '切换为右侧分屏'"
-          :aria-label="placement === 'right' ? '切换为底部停靠' : '切换为右侧分屏'"
-          @click="emit('update:placement', placement === 'right' ? 'bottom' : 'right')"
+          :title="isRight ? '切换为底部停靠' : '切换为右侧分屏'"
+          :aria-label="isRight ? '切换为底部停靠' : '切换为右侧分屏'"
+          @click="layout.setPlacement(isRight ? 'bottom' : 'right')"
         >
-          <Rows2 v-if="placement === 'right'" :size="15" aria-hidden="true" /><Columns2
+          <Rows2 v-if="isRight" :size="15" aria-hidden="true" /><Columns2
             v-else
             :size="15"
             aria-hidden="true"
@@ -243,7 +238,12 @@ onBeforeUnmount(stopResize)
         >
           <ExternalLink :size="15" aria-hidden="true" />
         </button>
-        <button type="button" title="收起练习面板" aria-label="收起练习面板" @click="emit('minimize')">
+        <button
+          type="button"
+          title="收起练习面板"
+          aria-label="收起练习面板"
+          @click="layout.minimize()"
+        >
           <Minus :size="16" aria-hidden="true" />
         </button>
       </div>
@@ -320,6 +320,19 @@ onBeforeUnmount(stopResize)
       </div>
     </template>
   </section>
+
+  <button
+    v-if="layout.visible.value && layout.minimized.value"
+    type="button"
+    class="dock-restore"
+    aria-label="恢复练习面板"
+    @click="layout.restore()"
+  >
+    <Terminal v-if="mode === 'cli'" :size="14" aria-hidden="true" />
+    <Monitor v-else :size="14" aria-hidden="true" />
+    <span>{{ mode === 'cli' ? '终端' : '桌面' }}</span>
+    <ChevronUp :size="15" aria-hidden="true" />
+  </button>
 </template>
 
 <style scoped>
@@ -546,5 +559,20 @@ button:focus-visible,
   flex: 1;
   min-width: 0;
   min-height: 0;
+}
+
+.dock-restore {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 35px;
+  flex-shrink: 0;
+  background: var(--paper);
+  color: var(--muted);
+  border: 0;
+  border-top: 1px solid var(--line);
+  cursor: pointer;
+  font-size: 11px;
 }
 </style>

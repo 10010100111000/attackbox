@@ -11,12 +11,9 @@ import {
   ArrowRight,
   LockKeyhole,
   Clock3,
-  ChevronUp,
   CheckCircle2,
   CircleAlert,
-  BookOpen,
-  Terminal,
-  Monitor
+  BookOpen
 } from 'lucide-vue-next'
 import ReaderLayout from '~/components/reader/Layout.vue'
 import ReaderArticle from '~/components/reader/Article.vue'
@@ -161,40 +158,12 @@ const { activeSection, goToSection } = useReaderNavigation(
 function headingsLoaded(headings: MarkdownHeading[]) {
   sections.value = headings.filter(heading => heading.level >= 2)
 }
-const readerSandbox = useState<import('~/shared/sandbox').SandboxStatus>('sandbox:session', () => ({
-  available: false,
-  instance: null
-}))
-const hasPractice = computed(() => !!chapterData.value?.questions.length)
-const environmentReady = computed(
-  () =>
-    hasPractice.value &&
-    readerSandbox.value.instance?.state === 'running' &&
-    readerSandbox.value.instance.connected
+const hasPractice = computed(
+  () => !!chapterData.value?.questions.length || !!chapterResponse.value?.data.target
 )
-const practiceMode = ref<'cli' | 'gui'>('cli')
-const practiceOpened = ref(false)
-const practiceVisible = ref(false),
-  practiceMinimized = ref(false)
 const workspace = computed(() => readerLayout.value?.workspaceElement ?? null)
-const dock = usePracticeLayout(workspace)
-watch(environmentReady, ready => {
-  if (!ready) {
-    practiceOpened.value = false
-    practiceVisible.value = false
-    practiceMinimized.value = false
-  }
-})
-function openPractice(mode: 'cli' | 'gui') {
-  if (!environmentReady.value) return
-  practiceOpened.value = true
-  practiceMode.value = mode
-  practiceVisible.value = true
-  practiceMinimized.value = false
-}
-function minimizePractice() {
-  practiceMinimized.value = true
-}
+const dock = usePracticeLayout(workspace, hasPractice)
+
 onMounted(() => {
   readerMounted.value = true
   recordVisit()
@@ -527,7 +496,7 @@ useHead({
       :outline-title="moduleData?.title || '学习模块'"
       scroll-label="章节正文"
       :outline-to="`/learn/modules/${moduleSlug}`"
-      :side-practice="practiceVisible && !practiceMinimized && dock.placement.value === 'right'"
+      :side-practice="dock.sidePractice.value"
     >
       <template #outline="{ collapsed, close }">
         <ChapterOutline
@@ -564,7 +533,7 @@ useHead({
             moduleSlug: String(route.params.slug),
             chapterSlug: String(route.params.chapterSlug)
           }"
-          @open="openPractice"
+          @open="dock.open"
         />
 
         <section
@@ -710,40 +679,7 @@ useHead({
         </footer>
       </ReaderArticle>
       <template #practice>
-        <PracticeDock
-          v-if="practiceOpened"
-          v-show="practiceVisible && !practiceMinimized"
-          :key="learnerId"
-          :active="practiceVisible && !practiceMinimized"
-          :height="dock.height.value"
-          :width="dock.width.value"
-          :placement="dock.placement.value"
-          :side-available="dock.sideAvailable.value"
-          :min-width="dock.minWidth"
-          :max-width="dock.maxWidth.value"
-          :min-height="dock.minHeight.value"
-          :max-height="dock.maxHeight.value"
-          :mode="practiceMode"
-          @update:height="dock.setHeight"
-          @update:width="dock.setWidth"
-          @update:placement="dock.setPlacement"
-          @resize-end="dock.persist"
-          @minimize="minimizePractice"
-        />
-        <button
-          v-if="practiceVisible && practiceMinimized"
-          type="button"
-          class="dock-restore"
-          aria-label="恢复练习面板"
-          @click="practiceMinimized = false"
-        >
-          <Terminal v-if="practiceMode === 'cli'" :size="14" aria-hidden="true" /><Monitor
-            v-else
-            :size="14"
-            aria-hidden="true"
-          />{{ practiceMode === 'cli' ? '终端' : '桌面'
-          }}<ChevronUp :size="15" aria-hidden="true" />
-        </button>
+        <PracticeDock v-if="dock.opened.value" :key="learnerId" :layout="dock" />
       </template>
     </ReaderLayout>
     <UiBusyIndicator v-else class="reading-loading" label="章节加载" />
@@ -939,20 +875,6 @@ useHead({
 }
 .answer-feedback.checking {
   color: var(--muted);
-}
-.dock-restore {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  min-height: 35px;
-  flex-shrink: 0;
-  background: var(--paper);
-  color: var(--muted);
-  border: 0;
-  border-top: 1px solid var(--line);
-  cursor: pointer;
-  font-size: 11px;
 }
 .auth-gate-container,
 .reading-loading {

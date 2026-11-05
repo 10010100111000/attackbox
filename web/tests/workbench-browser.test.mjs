@@ -46,7 +46,7 @@ test(
       })
       const page = await context.newPage()
       await page.goto(`${browserBase}/learn/modules/${mod.module.slug}/intro`)
-      await page.locator('.environment-status time').waitFor()
+      await page.locator('.environment-panel time').waitFor()
       await page.getByRole('button', { name: 'CLI 终端', exact: true }).click()
       await page.locator('.terminal-status').filter({ hasText: '已连接' }).waitFor()
       const popup = context.waitForEvent('page')

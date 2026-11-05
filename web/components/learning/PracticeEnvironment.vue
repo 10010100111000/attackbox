@@ -53,7 +53,10 @@ async function handleStartSandbox() {
 <template>
   <LearningEnvironmentPanel :class="{ 'target-runtime': !!props.target }">
     <template #controls>
-      <NuxtLink v-if="!currentUser" :to="{ path: '/auth', query: { returnTo: $route.fullPath } }"
+      <NuxtLink
+        v-if="!currentUser"
+        :to="{ path: '/auth', query: { returnTo: $route.fullPath } }"
+        class="login-link"
         >登录后启动环境</NuxtLink
       >
       <template v-else>
@@ -122,6 +125,11 @@ async function handleStartSandbox() {
 <style scoped>
 time {
   font-variant-numeric: tabular-nums;
+}
+.login-link {
+  font-size: 13px;
+  color: var(--green);
+  text-decoration: none;
 }
 .state {
   font-size: 12px;

@@ -170,8 +170,8 @@ export function useTargetSession(props: {
   }
   onMounted(() => {
     syncClock()
-    initializing.value = !!currentUser.value && !unavailable.value
-    if (props.target) void run('inspect')
+    initializing.value = !!currentUser.value && !!props.target && !unavailable.value
+    if (currentUser.value && props.target) void run('inspect')
     else initializing.value = false
   })
   // When the learner's sandbox starts or changes, refresh target attachment / reverse IP.
@@ -185,16 +185,21 @@ export function useTargetSession(props: {
     if (import.meta.client) syncClock()
   })
   watch(
-    () => currentUser.value?.id,
-    () => {
-      identityGeneration++
-      current.value = null
-      message.value = ''
-      action.value = ''
-      requestPending.value = false
-      initializing.value = !!currentUser.value
-      if (currentUser.value && props.target) void run('inspect')
-      else initializing.value = false
+    () => [currentUser.value?.id, Boolean(props.target)] as const,
+    ([userId, hasTarget], [prevUserId]) => {
+      if (userId !== prevUserId) {
+        identityGeneration++
+        current.value = null
+        message.value = ''
+        action.value = ''
+        requestPending.value = false
+      }
+      if (userId && hasTarget) {
+        initializing.value = !unavailable.value && !current.value
+        void run('inspect')
+      } else {
+        initializing.value = false
+      }
     }
   )
   onBeforeUnmount(() => {

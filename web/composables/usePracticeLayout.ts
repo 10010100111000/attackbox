@@ -1,19 +1,41 @@
 import { computed, ref, watch, onMounted, onBeforeUnmount, type Ref } from 'vue'
+import { useState } from '#imports'
+import type { SandboxStatus } from '~/shared/sandbox'
 
 export type PracticePlacement = 'bottom' | 'right'
+export type PracticeMode = 'cli' | 'gui'
 const storageKey = 'attackbox-reader-practice-layout'
 const minReaderWidth = 480,
   minPracticeWidth = 420
 const clamp = (value: number, min: number, max: number) => Math.max(min, Math.min(max, value))
 
-export function usePracticeLayout(workspace: Readonly<Ref<HTMLElement | null>>) {
+export function usePracticeLayout(
+  workspace: Readonly<Ref<HTMLElement | null>>,
+  enabled: Readonly<Ref<boolean>> = computed(() => true)
+) {
+  const sandbox = useState<SandboxStatus>('sandbox:session', () => ({
+    available: false,
+    instance: null
+  }))
   const preferred = ref<PracticePlacement>('right')
   const widthRatio = ref(0.5),
     savedHeight = ref(310)
   const availableWidth = ref(0),
     availableHeight = ref(0)
+  const mode = ref<PracticeMode>('cli')
+  const opened = ref(false)
+  const visible = ref(false)
+  const minimized = ref(false)
+  const environmentReady = computed(
+    () =>
+      enabled.value &&
+      sandbox.value.instance?.state === 'running' &&
+      sandbox.value.instance.connected
+  )
   const sideAvailable = computed(() => availableWidth.value >= 1000)
   const placement = computed(() => (sideAvailable.value ? preferred.value : 'bottom'))
+  const active = computed(() => visible.value && !minimized.value)
+  const sidePractice = computed(() => active.value && placement.value === 'right')
   const maxWidth = computed(() => Math.max(minPracticeWidth, availableWidth.value - minReaderWidth))
   const width = computed(() =>
     clamp(Math.round(availableWidth.value * widthRatio.value), minPracticeWidth, maxWidth.value)
@@ -61,6 +83,27 @@ export function usePracticeLayout(workspace: Readonly<Ref<HTMLElement | null>>) 
   function setHeight(value: number) {
     if (Number.isFinite(value)) savedHeight.value = clamp(value, minHeight.value, maxHeight.value)
   }
+  function close() {
+    opened.value = false
+    visible.value = false
+    minimized.value = false
+  }
+  function open(nextMode: PracticeMode) {
+    if (!environmentReady.value) return
+    opened.value = true
+    mode.value = nextMode
+    visible.value = true
+    minimized.value = false
+  }
+  function minimize() {
+    minimized.value = true
+  }
+  function restore() {
+    minimized.value = false
+  }
+  watch(environmentReady, ready => {
+    if (!ready) close()
+  })
   watch(workspace, observe, { flush: 'post' })
   onMounted(() => {
     try {
@@ -82,6 +125,13 @@ export function usePracticeLayout(workspace: Readonly<Ref<HTMLElement | null>>) 
     observer?.disconnect()
   })
   return {
+    mode,
+    opened,
+    visible,
+    minimized,
+    active,
+    sidePractice,
+    environmentReady,
     placement,
     sideAvailable,
     width,
@@ -93,6 +143,12 @@ export function usePracticeLayout(workspace: Readonly<Ref<HTMLElement | null>>) 
     setPlacement,
     setWidth,
     setHeight,
-    persist
+    persist,
+    open,
+    minimize,
+    restore,
+    close
   }
 }
+
+export type PracticeLayout = ReturnType<typeof usePracticeLayout>

@@ -202,7 +202,7 @@ export function useSandboxSession() {
         }
       }
       runtime.focus = () => {
-        if (!document.hidden) void runtime.refresh()
+        if (!document.hidden && currentUser.value) void runtime.refresh()
       }
       runtime.timer = setInterval(runtime.focus, 10000)
       window.addEventListener('focus', runtime.focus)

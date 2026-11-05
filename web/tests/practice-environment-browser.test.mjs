@@ -6,14 +6,14 @@ import { learningFixture } from './helpers/learning-fixture.mjs'
 import { sandboxWorker } from './helpers/sandbox-worker.mjs'
 
 test(
-  'chapter practice combines sandbox and target, exposes IPs, protects partial failure and hides on reading-only chapters',
+  'chapter and challenge practice combine sandbox and target, gate unauthenticated users without status polling and hide on reading-only chapters',
   {
     skip: !process.env.CONTENT_TEST_DATABASE_URL || !process.env.NODE_TEST_CLUSTER_SECRET,
     timeout: 90000
   },
   async () => {
     const f = await learningFixture()
-    let worker, browser, page, learner
+    let worker, browser, page, learner, challengeId
     try {
       worker = await sandboxWorker(f.base, process.env.NODE_TEST_CLUSTER_SECRET, {
         composeLabs: true
@@ -51,10 +51,53 @@ test(
         ]
       })
       await f.sql`update modules set default_target_template_id=${template.id} where id=${mod.module.id}`
+      const createdChallenge = await f.request('/api/admin/challenges', {
+        actor: f.admin,
+        method: 'POST',
+        body: {
+          title: '统一挑战实验环境',
+          summary: '挑战页复用统一实验环境面板',
+          category: 'Web 安全',
+          difficulty: 'beginner',
+          bodyMarkdown: '## 挑战背景\n\n启动环境或靶机完成验证。',
+          targetTemplateId: template.id,
+          intent: 'publish',
+          stages: [
+            { title: '第一阶段', promptMarkdown: '提交 Flag', hint: '', flag: 'flag{unified}' }
+          ]
+        }
+      })
+      challengeId = createdChallenge.data.id
       browser = await chromium.launch({
         executablePath: '/usr/bin/chromium',
         args: ['--no-sandbox']
       })
+      const path = `/learn/modules/${mod.module.slug}`
+
+      // Guest check: public chapters and challenges show login prompt and trigger zero runtime requests
+      const guestContext = await browser.newContext({ viewport: { width: 1440, height: 1000 } })
+      const guestPage = await guestContext.newPage()
+      const guestRequests = []
+      guestPage.on('request', r => {
+        if (r.url().includes('/api/sandbox/') || r.url().includes('/api/targets'))
+          guestRequests.push(r.url())
+      })
+      await guestPage.goto(f.base + path + '/lab')
+      const guestPanel = guestPage.getByRole('region', { name: '实验环境', exact: true })
+      await guestPanel.getByRole('link', { name: '登录后启动环境', exact: true }).waitFor()
+      assert.equal(await guestPanel.getByRole('button', { name: '启动环境' }).count(), 0)
+      assert.equal(await guestPanel.getByRole('button', { name: '启动靶机' }).count(), 0)
+      await guestPage.goto(`${f.base}/challenges/${challengeId}`)
+      await guestPanel.getByRole('link', { name: '登录后启动环境', exact: true }).waitFor()
+      assert.equal(await guestPanel.getByRole('button', { name: '启动环境' }).count(), 0)
+      assert.equal(await guestPanel.getByRole('button', { name: '启动靶机' }).count(), 0)
+      assert.equal(
+        guestRequests.length,
+        0,
+        'guest visits must not poll sandbox or target endpoints'
+      )
+      await guestContext.close()
+
       const context = await browser.newContext({
         viewport: { width: 1440, height: 1000 },
         permissions: ['clipboard-read', 'clipboard-write']
@@ -69,7 +112,6 @@ test(
         if (r.url().includes('/api/sandbox/') || r.url().includes('/api/targets'))
           requests.push(r.url())
       })
-      const path = `/learn/modules/${mod.module.slug}`
       await page.goto(f.base + path + '/reading')
       await page.getByRole('heading', { name: '只读章节', exact: true }).waitFor()
       assert.equal(await page.getByRole('region', { name: '实验环境', exact: true }).count(), 0)
@@ -143,6 +185,7 @@ test(
       await browser?.close()
       await worker?.close()
       if (learner) await f.sql`delete from target_instances where user_id=${learner.id}`
+      if (challengeId) await f.sql`delete from challenges where id=${challengeId}`
       await f.cleanup()
     }
   }
