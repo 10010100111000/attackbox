@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
+import { ref, computed } from 'vue'
 import { useLazyFetch, useHead } from '#imports'
 import { RefreshCw, Monitor } from 'lucide-vue-next'
 import type { AdminSandboxInstance } from '~/shared/sandbox'
@@ -45,18 +45,6 @@ async function stop(instance: AdminSandboxInstance) {
     await refresh()
   }
 }
-let timer: ReturnType<typeof setInterval> | undefined
-function poll() {
-  if (!document.hidden) refresh()
-}
-onMounted(() => {
-  timer = setInterval(poll, 10000)
-  window.addEventListener('focus', poll)
-})
-onBeforeUnmount(() => {
-  clearInterval(timer)
-  window.removeEventListener('focus', poll)
-})
 </script>
 
 <template>

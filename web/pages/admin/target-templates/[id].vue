@@ -234,6 +234,15 @@ function applyGitPreview(data: ComposePreview) {
     form.value.name =
       data.source?.directory.split('/').at(-1) || data.source?.repository.split('/').at(-1) || ''
 }
+function handleRepoInput(val: string) {
+  gitForm.value.repository = val
+  const match = val.trim().match(/github\.com\/([^/]+\/[^/]+?)(?:\.git)?(?:\/tree\/([^/]+)(?:\/(.*))?)?$/i)
+  if (match) {
+    gitForm.value.repository = match[1]!
+    gitForm.value.branch = match[2] || 'master'
+    gitForm.value.directory = match[3] || ''
+  }
+}
 async function importGit() {
   busy.value = true
   failed.value = false
@@ -410,9 +419,12 @@ const preparation = (node: string) => preparations.value.find(p => p.nodeId === 
   <div class="compose-editor">
     <NuxtLink class="back" to="/admin/target-templates"><ArrowLeft :size="14" />靶场模板</NuxtLink>
     <header>
-      <div>
+      <div class="title-group">
         <h1>{{ isNew ? '新建靶场' : 'Compose 靶场' }}</h1>
-        <p>导入部署文件，按整套环境准备和管理。</p>
+        <UiBadge :variant="form.enabled ? 'success' : 'neutral'" dot>
+          {{ form.enabled ? '已启用' : '未启用' }}
+        </UiBadge>
+        <UiBadge v-if="dirty" variant="warning">未保存修改</UiBadge>
       </div>
       <UiButton
         variant="primary"
@@ -443,7 +455,7 @@ const preparation = (node: string) => preparations.value.find(p => p.nodeId === 
                       ? `${preview.services.length} 个服务 · ${preview.files} 个文件`
                       : '选择 Compose 文件或 ZIP 部署包'
                   }}</strong>
-                  <p>ZIP 请保留 Compose 与配套文件的相对目录。</p>
+                  <p>ZIP 请保留 Compose 与配套文件的相对目录，支持开源靶场配置。</p>
                 </div>
                 <label class="file-button"
                   ><Upload :size="14" />{{ preview ? '替换文件' : '选择文件'
@@ -453,14 +465,15 @@ const preparation = (node: string) => preparations.value.find(p => p.nodeId === 
               <div class="source-actions">
                 <UiButton type="button" variant="secondary" size="xs" @click="gitOpen = !gitOpen"
                   ><Github :size="14" />从 GitHub 导入</UiButton
-                ><span class="muted">公开仓库可留空 Token；私有仓库使用只读 Token。</span>
+                ><span class="muted">支持直接粘贴开源靶场 URL；公开仓库留空 Token。</span>
               </div>
               <div v-if="gitOpen" class="git-form">
                 <label
                   >GitHub 仓库<UiInput
-                    v-model="gitForm.repository"
+                    :model-value="gitForm.repository"
                     bare
-                    placeholder="owner/repository 或 HTTPS 链接"
+                    placeholder="owner/repository 或 HTTPS 链接（自动解析目录与分支）"
+                    @update:model-value="handleRepoInput"
                 /></label>
                 <div class="field-pair git-fields">
                   <label
@@ -753,6 +766,12 @@ header {
   align-items: center;
   margin: 20px 0 24px;
   gap: 24px;
+}
+
+.title-group {
+  display: flex;
+  align-items: center;
+  gap: 12px;
 }
 
 h1 {
