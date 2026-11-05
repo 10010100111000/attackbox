@@ -90,7 +90,7 @@ async function remove(c: ChallengeSummary) {
               <span class="record-summary">{{ c.summary }}</span>
             </td>
             <td>{{ c.category || '未分类' }}</td>
-            <td>{{ c.totalStages }}</td>
+            <td>{{ c.totalStages ? `${c.totalStages} 阶段` : '自由练习' }}</td>
             <td>
               <UiBadge :variant="c.status === 'published' ? 'success' : 'neutral'" dot>
                 {{ c.status === 'published' ? '已发布' : '草稿' }}

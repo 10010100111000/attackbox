@@ -27,13 +27,14 @@ function submit() {
 <template>
   <AdminListPage
     title="靶场模板"
-    description="集中维护教学与挑战环境配置。启用表示允许关联，不代表容器正在运行。"
+    description="集中维护教学与挑战的 Docker Compose 环境配置。"
   >
-    <template #actions
-      ><UiButton to="/admin/target-templates/new" size="sm"
-        ><Plus :size="16" aria-hidden="true" />新建模板</UiButton
-      ></template
-    >
+    <template #actions>
+      <UiButton to="/admin/target-templates/new" size="sm">
+        <Plus :size="16" aria-hidden="true" />
+        <span>新建模板</span>
+      </UiButton>
+    </template>
     <AdminDataLoading :pending="pending" :has-data="!!data" />
 
     <form class="filters" @submit.prevent="submit">
@@ -55,9 +56,8 @@ function submit() {
         <thead>
           <tr>
             <th>模板</th>
-            <th>部署文件</th>
-            <th>服务端口</th>
-            <th>允许关联</th>
+            <th>访问入口</th>
+            <th>状态</th>
             <th class="actions">操作</th>
           </tr>
         </thead>
@@ -70,10 +70,17 @@ function submit() {
               <span class="record-summary">{{ item.description }}</span>
             </td>
             <td>
-              <code class="image-code">{{ item.settings.file }}</code>
-            </td>
-            <td>
-              {{ item.settings.entryPort }}
+              <div class="flex items-center gap-2">
+                <UiBadge variant="neutral">
+                  <code>{{ item.settings.entryService || 'web' }}:{{ item.settings.entryPort }}</code>
+                </UiBadge>
+                <code
+                  v-if="item.settings.file && item.settings.file !== 'compose.yml'"
+                  class="text-[11px] muted"
+                >
+                  {{ item.settings.file }}
+                </code>
+              </div>
             </td>
             <td>
               <UiBadge :variant="item.enabled ? 'success' : 'neutral'" dot>
@@ -82,9 +89,9 @@ function submit() {
             </td>
             <td class="actions">
               <div class="row-actions">
-                <UiButton variant="secondary" size="xs" :to="`/admin/target-templates/${item.id}`"
-                  >编辑</UiButton
-                >
+                <UiButton variant="secondary" size="xs" :to="`/admin/target-templates/${item.id}`">
+                  编辑
+                </UiButton>
               </div>
             </td>
           </tr>

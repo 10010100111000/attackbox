@@ -1,16 +1,9 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, watch, onBeforeUnmount } from 'vue'
 import { useEditorGuard } from '~/composables/useEditorGuard'
-import {
-  ArrowLeft,
-  Upload,
-  FileArchive,
-  Check,
-  Server,
-  Trash2,
-  Github,
-  Download
-} from 'lucide-vue-next'
+import { ArrowLeft, Check, Zap } from 'lucide-vue-next'
+import TargetSourcePanel from '~/components/admin/TargetSourcePanel.vue'
+import TargetNodesPanel from '~/components/admin/TargetNodesPanel.vue'
 import type { TargetTemplate } from '~/shared/target-templates'
 import type { ComposePreview, ComposeSettings, ComposePreparation } from '~/shared/compose-labs'
 import { apiErrorMessage, apiData } from '~/utils/api'
@@ -18,10 +11,12 @@ import { apiErrorMessage, apiData } from '~/utils/api'
 const confirmAction = useConfirm()
 definePageMeta({ layout: 'admin', key: r => r.fullPath })
 useHead({ title: 'Compose 靶场模板 — AttackBox' })
+
 const route = useRoute(),
   id = String(route.params.id),
   isNew = id === 'new',
   request = useRequestFetch()
+
 const busy = ref(false),
   loaded = ref(isNew),
   message = ref(''),
@@ -31,10 +26,9 @@ const busy = ref(false),
   version = ref(0),
   storedKeys = ref<string[]>([]),
   variables = ref<Record<string, string>>(Object.create(null)),
-  clearVariables = ref<string[]>([])
-const gitOpen = ref(false),
-  gitForm = ref({ repository: '', branch: 'main', directory: '', token: '' }),
+  clearVariables = ref<string[]>([]),
   checkedCommit = ref('')
+
 const form = ref({ name: '', description: '', accessInstructions: '', enabled: false })
 const settings = ref<ComposeSettings>({
   file: 'compose.yml',
@@ -43,14 +37,17 @@ const settings = ref<ComposeSettings>({
   entryPort: 8080,
   prefixBits: 28
 })
+
 const nodes = ref<
     { id: string; label: string; available: boolean; state: string; bootId: string | null }[]
   >([]),
   preparations = ref<ComposePreparation[]>([]),
   nodeBusy = ref('')
+
 const initial = ref(''),
   configuration = ref('')
 let alive = true
+
 const contentKey = () => JSON.stringify({ hash: preview.value?.hash, settings: settings.value })
 const stateKey = () =>
   JSON.stringify({
@@ -60,6 +57,7 @@ const stateKey = () =>
     variables: variables.value,
     clear: clearVariables.value
   })
+
 const dirty = computed(() => loaded.value && stateKey() !== initial.value)
 const configChanged = computed(
   () =>
@@ -68,27 +66,11 @@ const configChanged = computed(
     clearVariables.value.length > 0
 )
 const ready = computed(() => !configChanged.value && preparations.value.some(p => !!p.deploymentId))
-const networks = computed(
-  () => preview.value?.services.find(s => s.name === settings.value.entryService)?.networks || []
-)
 const issues = computed(() => [
   ...(preview.value?.issues || []),
   ...(preview.value?.missingFiles || []).map(f => `缺少配套文件／目录：${f}`)
 ])
-const composeFileOptions = computed(
-  () => preview.value?.composeFiles.map(file => ({ value: file, label: file })) || []
-)
-const serviceOptions = computed(
-  () => preview.value?.services.map(service => ({ value: service.name, label: service.name })) || []
-)
-const networkOptions = computed(() => networks.value.map(name => ({ value: name, label: name })))
-const prefixOptions = [
-  { value: '28', label: '/28 · 常规靶场' },
-  { value: '27', label: '/27 · 较大靶场' },
-  { value: '26', label: '/26' },
-  { value: '25', label: '/25' },
-  { value: '24', label: '/24' }
-]
+
 const labels: Record<string, string> = {
   ready: '已准备',
   preparing: '准备中',
@@ -97,39 +79,34 @@ const labels: Record<string, string> = {
   cancelling: '取消中',
   cancelled: '已取消'
 }
+
 watch(configChanged, value => {
   if (value) form.value.enabled = false
 })
-watch(
-  () => settings.value.entryService,
-  () => {
-    if (!loaded.value || busy.value) return
-    const ports = preview.value?.services.find(s => s.name === settings.value.entryService)?.ports
-    if (ports?.length)
-      settings.value.entryPort = (ports.find(p => p.protocol === 'tcp') || ports[0])!.port
-    if (!networks.value.includes(settings.value.entryNetwork))
-      settings.value.entryNetwork = networks.value[0] || 'default'
-  }
-)
+
 function baseline() {
   variables.value = Object.create(null)
   clearVariables.value = []
   configuration.value = contentKey()
   initial.value = stateKey()
 }
+
 function showError(e: unknown, fallback: string) {
   message.value = apiErrorMessage(e, fallback)
   failed.value = true
 }
+
 useEditorGuard({
   dirty,
   busy: () => loaded.value && busy.value,
   title: '放弃靶场配置？',
   description: '当前未保存的配置将丢失。'
 })
+
 onBeforeUnmount(() => {
   alive = false
 })
+
 async function loadPreparation() {
   const { data } = await request<{
     data: { items: ComposePreparation[]; nodes: typeof nodes.value }
@@ -139,6 +116,7 @@ async function loadPreparation() {
     nodes.value = data.nodes
   }
 }
+
 async function load() {
   busy.value = true
   try {
@@ -167,10 +145,12 @@ async function load() {
     busy.value = false
   }
 }
+
 onMounted(() => {
   if (!isNew) void load()
   else baseline()
 })
+
 async function upload(e: Event) {
   const input = e.target as HTMLInputElement,
     file = input.files?.[0]
@@ -191,11 +171,13 @@ async function upload(e: Event) {
     preview.value = data
     bundleId.value = data.id
     settings.value.file = data.composeFiles[0]!
-    settings.value.entryService =
-      data.services.find(s => s.name === 'web')?.name || data.services[0]?.name || ''
-    settings.value.entryNetwork =
-      data.services.find(s => s.name === settings.value.entryService)?.networks[0] || 'default'
-    const ports = data.services.find(s => s.name === settings.value.entryService)?.ports
+    const defaultSvc =
+      data.services.find(s => s.name === 'web') ||
+      data.services.find(s => s.ports?.length) ||
+      data.services[0]
+    settings.value.entryService = defaultSvc?.name || ''
+    settings.value.entryNetwork = defaultSvc?.networks[0] || 'default'
+    const ports = defaultSvc?.ports
     if (ports?.length)
       settings.value.entryPort = (ports.find(p => p.protocol === 'tcp') || ports[0])!.port
     form.value.enabled = false
@@ -210,6 +192,7 @@ async function upload(e: Event) {
     input.value = ''
   }
 }
+
 function applyGitPreview(data: ComposePreview) {
   const previousHash = preview.value?.hash
   preview.value = data
@@ -219,6 +202,7 @@ function applyGitPreview(data: ComposePreview) {
   const service =
     data.services.find(s => s.name === settings.value.entryService) ||
     data.services.find(s => s.name === 'web') ||
+    data.services.find(s => s.ports?.length) ||
     data.services[0]
   settings.value.entryService = service?.name || ''
   if (!service?.networks.includes(settings.value.entryNetwork))
@@ -234,28 +218,23 @@ function applyGitPreview(data: ComposePreview) {
     form.value.name =
       data.source?.directory.split('/').at(-1) || data.source?.repository.split('/').at(-1) || ''
 }
-function handleRepoInput(val: string) {
-  gitForm.value.repository = val
-  const match = val.trim().match(/github\.com\/([^/]+\/[^/]+?)(?:\.git)?(?:\/tree\/([^/]+)(?:\/(.*))?)?$/i)
-  if (match) {
-    gitForm.value.repository = match[1]!
-    gitForm.value.branch = match[2] || 'master'
-    gitForm.value.directory = match[3] || ''
-  }
-}
-async function importGit() {
+
+async function importGit(gitPayload: {
+  repository: string
+  branch: string
+  directory: string
+  token: string
+}) {
   busy.value = true
   failed.value = false
   message.value = ''
   try {
     const data = await apiData<{ bundle: ComposePreview }>('/api/admin/lab-bundles/git', {
       method: 'POST',
-      body: gitForm.value,
+      body: gitPayload,
       retry: false
     })
     applyGitPreview(data.bundle)
-    gitForm.value.token = ''
-    gitOpen.value = false
     message.value = '已导入，请确认部署入口并保存模板。'
   } catch (e) {
     showError(e, 'Git 导入失败')
@@ -263,6 +242,7 @@ async function importGit() {
     busy.value = false
   }
 }
+
 async function checkGit() {
   busy.value = true
   failed.value = false
@@ -280,6 +260,7 @@ async function checkGit() {
     busy.value = false
   }
 }
+
 async function importUpdate() {
   busy.value = true
   failed.value = false
@@ -303,6 +284,7 @@ async function importUpdate() {
     busy.value = false
   }
 }
+
 async function selectFile(file: string) {
   if (busy.value || !bundleId.value || file === settings.value.file) return
   busy.value = true
@@ -312,7 +294,10 @@ async function selectFile(file: string) {
     const data = await apiData<ComposePreview>(`/api/admin/lab-bundles/${bundleId.value}`, {
       query: { file }
     })
-    const service = data.services.find(s => s.name === 'web') || data.services[0]
+    const service =
+      data.services.find(s => s.name === 'web') ||
+      data.services.find(s => s.ports?.length) ||
+      data.services[0]
     preview.value = data
     settings.value = {
       ...settings.value,
@@ -330,6 +315,7 @@ async function selectFile(file: string) {
     busy.value = false
   }
 }
+
 async function save() {
   if (busy.value || !preview.value || issues.value.length) return
   busy.value = true
@@ -371,6 +357,9 @@ async function save() {
     busy.value = false
   }
 }
+
+const preparation = (node: string) => preparations.value.find(p => p.nodeId === node)
+
 async function prepare(nodeId: string, action: 'prepare' | 'status' | 'cancel' | 'rebuild') {
   if (nodeBusy.value || (dirty.value && ['prepare', 'rebuild'].includes(action))) return
   if (
@@ -410,667 +399,152 @@ async function prepare(nodeId: string, action: 'prepare' | 'status' | 'cancel' |
     nodeBusy.value = ''
   }
 }
-const preparationActive = (node: string) =>
-  ['preparing', 'cancelling', 'unknown'].includes(preparation(node)?.state || '')
 
-const preparation = (node: string) => preparations.value.find(p => p.nodeId === node)
+async function quickPrepareAndEnable() {
+  if (busy.value || !preview.value || issues.value.length) return
+  if (dirty.value || isNew) {
+    await save()
+    if (failed.value || isNew) return
+  }
+  const availableNode = nodes.value.find(n => n.available)
+  if (!availableNode) {
+    showError(null, '当前没有可用的在线 Compose 节点')
+    return
+  }
+  if (!ready.value) {
+    await prepare(availableNode.id, 'prepare')
+    if (failed.value) return
+    await prepare(availableNode.id, 'status')
+  }
+  if (ready.value && !form.value.enabled) {
+    form.value.enabled = true
+    await save()
+  }
+}
 </script>
+
 <template>
-  <div class="compose-editor">
-    <NuxtLink class="back" to="/admin/target-templates"><ArrowLeft :size="14" />靶场模板</NuxtLink>
-    <header>
-      <div class="title-group">
-        <h1>{{ isNew ? '新建靶场' : 'Compose 靶场' }}</h1>
-        <UiBadge :variant="form.enabled ? 'success' : 'neutral'" dot>
-          {{ form.enabled ? '已启用' : '未启用' }}
+  <div class="w-full text-[var(--ink)]">
+    <NuxtLink
+      class="inline-flex items-center gap-1.5 text-xs text-[var(--muted)] no-underline hover:text-[var(--ink)]"
+      to="/admin/target-templates"
+    >
+      <ArrowLeft :size="14" />
+      <span>靶场模板</span>
+    </NuxtLink>
+
+    <header class="flex flex-wrap items-center justify-between gap-4 my-5">
+      <div class="flex items-center gap-3">
+        <h1 class="text-2xl font-bold m-0">{{ isNew ? '新建靶场' : 'Compose 靶场' }}</h1>
+        <UiBadge :variant="form.enabled ? 'success' : ready ? 'brand' : 'neutral'" dot>
+          {{ form.enabled ? '已启用' : ready ? '已准备' : '未启用' }}
         </UiBadge>
         <UiBadge v-if="dirty" variant="warning">未保存修改</UiBadge>
       </div>
-      <UiButton
-        variant="primary"
-        size="sm"
-        :disabled="busy || !preview || !!issues.length"
-        :loading="busy"
-        @click="save"
-      >
-        <Check :size="15" />
-        <span>保存模板</span>
-      </UiButton>
-    </header>
-    <UiNotice v-if="message" :variant="failed ? 'error' : 'info'" class="mb-4">{{
-      message
-    }}</UiNotice>
-    <AdminDataLoading :pending="busy" :has-data="loaded" />
-    <form v-if="loaded" @submit.prevent="save">
-      <fieldset :disabled="busy">
-        <div class="editor-grid">
-          <div class="main-column">
-            <section class="panel">
-              <h2>部署包</h2>
-              <div class="upload-row">
-                <FileArchive :size="24" />
-                <div>
-                  <strong>{{
-                    preview
-                      ? `${preview.services.length} 个服务 · ${preview.files} 个文件`
-                      : '选择 Compose 文件或 ZIP 部署包'
-                  }}</strong>
-                  <p>ZIP 请保留 Compose 与配套文件的相对目录，支持开源靶场配置。</p>
-                </div>
-                <label class="file-button"
-                  ><Upload :size="14" />{{ preview ? '替换文件' : '选择文件'
-                  }}<input type="file" accept=".zip,.yml,.yaml" :disabled="busy" @change="upload"
-                /></label>
-              </div>
-              <div class="source-actions">
-                <UiButton type="button" variant="secondary" size="xs" @click="gitOpen = !gitOpen"
-                  ><Github :size="14" />从 GitHub 导入</UiButton
-                ><span class="muted">支持直接粘贴开源靶场 URL；公开仓库留空 Token。</span>
-              </div>
-              <div v-if="gitOpen" class="git-form">
-                <label
-                  >GitHub 仓库<UiInput
-                    :model-value="gitForm.repository"
-                    bare
-                    placeholder="owner/repository 或 HTTPS 链接（自动解析目录与分支）"
-                    @update:model-value="handleRepoInput"
-                /></label>
-                <div class="field-pair git-fields">
-                  <label
-                    >分支 / 标签<UiInput v-model="gitForm.branch" bare placeholder="main" /></label
-                  ><label
-                    >仓库内目录<UiInput
-                      v-model="gitForm.directory"
-                      bare
-                      placeholder="留空读取仓库根目录"
-                  /></label>
-                </div>
-                <label
-                  >只读 Token<UiInput
-                    v-model="gitForm.token"
-                    bare
-                    type="password"
-                    autocomplete="new-password"
-                    placeholder="公开仓库可留空" /></label
-                ><UiButton
-                  type="button"
-                  variant="primary"
-                  size="sm"
-                  :disabled="!gitForm.repository.trim()"
-                  @click="importGit"
-                  ><Download :size="14" />导入并预览</UiButton
-                >
-                <p class="muted">凭据加密保存在靶场来源中，不回显，也不使用教程仓库凭据。</p>
-              </div>
-              <div v-if="preview?.source" class="git-source">
-                <div>
-                  <strong>{{ preview.source.repository }}</strong>
-                  <p class="muted">
-                    {{ preview.source.branch }} · {{ preview.source.directory || '仓库根目录' }} ·
-                    <code :title="preview.source.commit">{{
-                      preview.source.commit.slice(0, 12)
-                    }}</code>
-                  </p>
-                </div>
-                <UiButton
-                  variant="secondary"
-                  size="xs"
-                  type="button"
-                  :disabled="
-                    Object.keys(variables).some(k => variables[k]) || clearVariables.length > 0
-                  "
-                  @click="checkGit"
-                  >检查更新</UiButton
-                >
-                <div v-if="checkedCommit" class="update-confirm">
-                  <span
-                    >新提交 <code>{{ checkedCommit.slice(0, 12) }}</code></span
-                  ><UiButton
-                    variant="secondary"
-                    size="xs"
-                    type="button"
-                    :disabled="
-                      Object.keys(variables).some(k => variables[k]) || clearVariables.length > 0
-                    "
-                    @click="importUpdate"
-                    >确认导入更新</UiButton
-                  >
-                </div>
-              </div>
-              <label v-if="preview && preview.composeFiles.length > 1" class="compact"
-                >部署入口<UiSelect
-                  :model-value="settings.file"
-                  aria-label="部署入口"
-                  :options="composeFileOptions"
-                  @update:model-value="selectFile"
-              /></label>
-              <p v-for="note in preview?.notes" :key="note" class="muted">{{ note }}</p>
-              <ul v-if="issues.length" class="problems">
-                <li v-for="issue in issues" :key="issue">{{ issue }}</li>
-              </ul>
-              <table v-if="preview">
-                <thead>
-                  <tr>
-                    <th>服务</th>
-                    <th>镜像／构建</th>
-                    <th>网络</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr v-for="service in preview.services" :key="service.name">
-                    <td>{{ service.name }}</td>
-                    <td>
-                      <code>{{ service.build ? service.build.dockerfile : service.image }}</code
-                      ><small v-if="service.build" class="build-context"
-                        >本地构建 · {{ service.build.context
-                        }}<span v-if="service.build.target">
-                          · {{ service.build.target }}</span
-                        ></small
-                      >
-                    </td>
-                    <td>{{ service.networks.join('、') }}</td>
-                  </tr>
-                </tbody>
-              </table>
-            </section>
-            <section class="panel">
-              <h2>基本信息</h2>
-              <label class="name-field"
-                >名称<UiInput v-model="form.name" bare required maxlength="120" /></label
-              ><label>简介<UiTextarea v-model="form.description" rows="2" maxlength="500" /></label
-              ><label
-                >访问说明<UiTextarea
-                  v-model="form.accessInstructions"
-                  rows="3"
-                  maxlength="4000"
-                  placeholder="可填写服务路径、练习账号等教学说明。"
-                />
-              </label>
-            </section>
-            <section v-if="preview?.variables.length" class="panel">
-              <h2>部署变量</h2>
-              <p class="muted">
-                变量加密保存，已保存的值不会回显。留空保留已有值或使用 Compose 默认值。
-              </p>
-              <div class="variables">
-                <label v-for="key in preview.variables" :key="key"
-                  >{{ key
-                  }}<UiButton
-                    v-if="storedKeys.includes(key)"
-                    variant="secondary"
-                    size="xs"
-                    type="button"
-                    class="float-right"
-                    :aria-label="`清除 ${key} 的已保存值`"
-                    @click="
-                      clearVariables = clearVariables.includes(key)
-                        ? clearVariables.filter(k => k !== key)
-                        : [...clearVariables, key]
-                    "
-                    ><Trash2 :size="12" />{{
-                      clearVariables.includes(key) ? '待清除' : '清除'
-                    }}</UiButton
-                  ><UiInput
-                    v-model="variables[key]"
-                    bare
-                    type="password"
-                    autocomplete="new-password"
-                    :placeholder="
-                      clearVariables.includes(key)
-                        ? '保存后清除，使用默认值'
-                        : storedKeys.includes(key)
-                          ? '已设置，留空保留'
-                          : '输入变量值'
-                    "
-                /></label>
-              </div>
-            </section>
-          </div>
-          <aside>
-            <section class="panel">
-              <h2>访问入口</h2>
-              <label
-                >服务<UiSelect
-                  v-model="settings.entryService"
-                  aria-label="服务"
-                  :options="serviceOptions"
-                  :disabled="!preview"
-              /></label>
-              <div class="field-pair">
-                <label
-                  >端口<UiInput
-                    v-model.number="settings.entryPort"
-                    bare
-                    type="number"
-                    min="1"
-                    max="65535" /></label
-                ><label
-                  >接入网络<UiSelect
-                    v-model="settings.entryNetwork"
-                    aria-label="接入网络"
-                    :options="networkOptions"
-                /></label>
-              </div>
-              <label class="compact"
-                >网络规格<UiSelect
-                  :model-value="String(settings.prefixBits)"
-                  aria-label="网络规格"
-                  :options="prefixOptions"
-                  @update:model-value="value => (settings.prefixBits = Number(value))"
-              /></label>
-              <p class="muted">学员直连服务地址，不映射宿主机端口。</p>
-              <details>
-                <summary>默认资源策略</summary>
-                <p class="muted">整套靶场默认 1 GiB 内存、2 CPU、256 个进程，最多 8 个服务。</p>
-              </details>
-            </section>
-            <section class="panel">
-              <h2>关联状态</h2>
-              <label class="toggle"
-                ><UiCheckbox
-                  v-model="form.enabled"
-                  :disabled="!ready && !form.enabled"
-                />允许学习和挑战关联</label
-              >
-              <p class="muted">先保存，再完成节点准备，最后启用。修改部署配置后需要重新准备。</p>
-            </section>
-          </aside>
-        </div>
-      </fieldset>
-    </form>
-    <section v-if="!isNew && loaded" class="panel node-panel">
-      <h2><Server :size="17" />节点准备</h2>
-      <p v-if="dirty" class="muted">请先保存修改，再准备部署。</p>
-      <p v-if="!nodes.length" class="muted">尚未配置可用节点。</p>
-      <div v-for="node in nodes" :key="node.id" class="node-row">
-        <div>
-          <strong>{{ node.label }}</strong
-          ><small>{{ node.id }}</small>
-        </div>
-        <span>{{
-          node.available
-            ? labels[preparation(node.id)?.state || ''] || '未准备'
-            : 'Compose 能力不可用'
-        }}</span
-        ><small
-          v-if="
-            node.available &&
-            node.bootId === preparation(node.id)?.bootId &&
-            preparation(node.id)?.deploymentId &&
-            preparation(node.id)?.state !== 'ready'
-          "
-          class="available-deployment"
-          >现有部署可用</small
+
+      <div class="flex items-center gap-3">
+        <label
+          v-if="!isNew"
+          class="inline-flex items-center gap-2 text-xs font-medium cursor-pointer select-none px-2.5 py-1.5 rounded border border-[var(--line)] bg-[var(--paper)]"
         >
-        <p v-if="preparation(node.id)?.error" class="failure">{{ preparation(node.id)?.error }}</p>
-        <div class="node-actions">
-          <UiButton
-            variant="secondary"
-            size="xs"
-            :disabled="!!nodeBusy || !node.available"
-            @click="prepare(node.id, 'status')"
-            >查询状态</UiButton
-          ><UiButton
-            v-if="preparationActive(node.id)"
-            variant="secondary"
-            size="xs"
-            :disabled="!!nodeBusy || !node.available"
-            @click="prepare(node.id, 'cancel')"
-            >{{ preparation(node.id)?.state === 'cancelling' ? '再次取消' : '取消准备' }}</UiButton
-          ><template v-else
-            ><UiButton
-              v-if="preparation(node.id)?.state !== 'ready'"
-              variant="secondary"
-              size="xs"
-              :disabled="dirty || !!nodeBusy || !node.available"
-              @click="prepare(node.id, 'prepare')"
-              >{{ preparation(node.id) ? '重试准备' : '准备部署' }}</UiButton
-            ><UiButton
-              v-if="preparation(node.id)"
-              variant="secondary"
-              size="xs"
-              :disabled="dirty || !!nodeBusy || !node.available"
-              @click="prepare(node.id, 'rebuild')"
-              >强制重建</UiButton
-            ></template
-          >
-        </div>
-        <details v-if="preparation(node.id)?.logs?.length" class="node-log">
-          <summary>准备记录</summary>
-          <ol>
-            <li v-for="(line, index) in preparation(node.id)?.logs" :key="index">{{ line }}</li>
-          </ol>
-        </details>
+          <UiCheckbox v-model="form.enabled" :disabled="!ready && !form.enabled" />
+          <span>允许学习和挑战关联</span>
+        </label>
+
+        <UiButton
+          v-if="!isNew && !form.enabled && nodes.some(n => n.available)"
+          type="button"
+          variant="secondary"
+          size="sm"
+          :disabled="busy || !!nodeBusy || !preview || !!issues.length"
+          @click="quickPrepareAndEnable"
+        >
+          <Zap :size="14" />
+          <span>一键准备并启用</span>
+        </UiButton>
+
+        <UiButton
+          variant="primary"
+          size="sm"
+          :disabled="busy || !preview || !!issues.length"
+          :loading="busy"
+          @click="save"
+        >
+          <Check :size="15" />
+          <span>保存模板</span>
+        </UiButton>
       </div>
-    </section>
+    </header>
+
+    <UiNotice v-if="message" :variant="failed ? 'error' : 'info'" class="mb-4">
+      {{ message }}
+    </UiNotice>
+
+    <AdminDataLoading :pending="busy" :has-data="loaded" />
+
+    <div
+      v-if="loaded"
+      class="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_340px] gap-6 items-start"
+    >
+      <form class="min-w-0" @submit.prevent="save">
+        <fieldset :disabled="busy" class="border-0 m-0 p-0 min-w-0 space-y-6">
+          <TargetSourcePanel
+            v-model:settings="settings"
+            v-model:variables="variables"
+            v-model:clear-variables="clearVariables"
+            :preview="preview"
+            :busy="busy"
+            :stored-keys="storedKeys"
+            :checked-commit="checkedCommit"
+            @upload="upload"
+            @import-git="importGit"
+            @check-git="checkGit"
+            @import-update="importUpdate"
+            @select-file="selectFile"
+          />
+
+          <section class="panel space-y-4">
+            <h2 class="text-[15px] font-semibold m-0">基本信息</h2>
+            <label class="block text-xs font-medium space-y-2 max-w-[440px]">
+              <span>名称</span>
+              <UiInput v-model="form.name" bare required maxlength="120" />
+            </label>
+            <label class="block text-xs font-medium space-y-2">
+              <span>简介</span>
+              <UiTextarea v-model="form.description" rows="2" maxlength="500" />
+            </label>
+            <label class="block text-xs font-medium space-y-2">
+              <span>访问说明（学员启动靶机后显示在 IP 下方）</span>
+              <UiTextarea
+                v-model="form.accessInstructions"
+                rows="3"
+                maxlength="4000"
+                placeholder="可填写服务路径、练习账号等教学说明。"
+              />
+            </label>
+          </section>
+        </fieldset>
+      </form>
+
+      <aside class="min-w-0">
+        <TargetNodesPanel
+          :is-new="isNew"
+          :dirty="dirty"
+          :node-busy="nodeBusy"
+          :nodes="nodes"
+          :preparations="preparations"
+          @prepare="prepare"
+        />
+      </aside>
+    </div>
   </div>
 </template>
+
 <style scoped>
-.compose-editor {
-  width: 100%;
-  color: var(--ink);
-}
-
-.back {
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
-  color: var(--muted);
-  font-size: 12px;
-  text-decoration: none;
-}
-
-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin: 20px 0 24px;
-  gap: 24px;
-}
-
-.title-group {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-
-h1 {
-  font-size: 24px;
-  margin: 0;
-}
-
-header p,
-.muted {
-  font-size: 12px;
-  color: var(--muted);
-  line-height: 1.7;
-}
-
-header p {
-  margin: 8px 0 0;
-}
-
-.editor-grid {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 340px;
-  gap: 24px;
-  align-items: start;
-}
-
-.main-column,
-aside {
-  display: grid;
-  gap: 24px;
-}
-
 .panel {
   background: var(--paper);
   border: 1px solid var(--line);
   border-radius: 10px;
   padding: 24px;
-}
-
-h2 {
-  font-size: 15px;
-  margin: 0 0 20px;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-fieldset {
-  border: 0;
-  margin: 0;
-  padding: 0;
-  min-width: 0;
-}
-
-label {
-  display: block;
-  font-size: 12px;
-  font-weight: 550;
-  margin: 0 0 18px;
-}
-
-label:last-child {
-  margin-bottom: 0;
-}
-
-input:not([type='checkbox']):not([type='file']),
-textarea {
-  margin-top: 8px;
-}
-
-.name-field {
-  max-width: 440px;
-}
-
-.compact {
-  max-width: 240px;
-}
-
-.field-pair,
-.variables {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 16px;
-}
-
-.field-pair {
-  grid-template-columns: 90px minmax(0, 1fr);
-}
-
-.toggle {
-  display: flex;
-  align-items: center;
-  gap: 9px;
-}
-
-.file-button {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 7px;
-  padding: 9px 13px;
-  border: 1px solid var(--line);
-  background: var(--paper);
-  color: var(--ink);
-  border-radius: 6px;
-  font-size: 12px;
-  cursor: pointer;
-  text-decoration: none;
-  position: relative;
-  margin: 0;
-  overflow: hidden;
-}
-
-.upload-row {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-  background: var(--bg);
-  border: 1px dashed var(--line);
-  border-radius: 8px;
-  padding: 20px;
-}
-
-.upload-row > svg {
-  color: var(--muted);
-}
-
-.upload-row > div {
-  flex: 1;
-  min-width: 0;
-}
-
-.upload-row strong {
-  font-size: 13px;
-}
-
-.upload-row p {
-  font-size: 12px;
-  color: var(--muted);
-  margin: 7px 0 0;
-}
-
-.file-button input {
-  position: absolute;
-  inset: 0;
-  opacity: 0;
-  cursor: pointer;
-  width: 100%;
-}
-
-table {
-  width: 100%;
-  border-collapse: collapse;
-  table-layout: fixed;
-  margin-top: 20px;
-  font-size: 12px;
-}
-
-th,
-td {
-  text-align: left;
-  padding: 12px 8px;
-  border-bottom: 1px solid var(--line);
-  overflow-wrap: anywhere;
-}
-
-th {
-  font-weight: 500;
-  color: var(--muted);
-}
-
-th:first-child {
-  width: 18%;
-}
-
-th:last-child {
-  width: 24%;
-}
-
-code {
-  font-size: 11px;
-}
-
-.failure,
-.problems {
-  color: var(--error-ink);
-}
-
-.problems {
-  font-size: 12px;
-  line-height: 1.8;
-  padding-left: 18px;
-}
-
-.node-panel {
-  margin-top: 24px;
-}
-
-.node-row {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 24px;
-  padding: 16px 0;
-  border-top: 1px solid var(--line);
-  font-size: 12px;
-}
-
-.node-row > div:first-child {
-  min-width: 180px;
-}
-
-.node-row small {
-  display: block;
-  color: var(--muted);
-  margin-top: 5px;
-}
-
-.node-row p {
-  margin: 0;
-}
-
-.node-actions {
-  margin-left: auto;
-  display: flex;
-  gap: 8px;
-}
-
-textarea {
-  resize: vertical;
-}
-
-.available-deployment {
-  color: var(--muted);
-}
-
-.build-context {
-  display: block;
-  color: var(--muted);
-  margin-top: 6px;
-}
-
-.source-actions {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  margin: 16px 0;
-}
-
-.git-form {
-  padding: 20px;
-  background: var(--bg);
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  margin: 16px 0;
-}
-
-.git-fields {
-  grid-template-columns: 180px minmax(0, 1fr);
-}
-
-.git-source {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 12px;
-  border-bottom: 1px solid var(--line);
-  padding: 16px 0;
-  font-size: 12px;
-}
-
-.git-source > div:first-child {
-  flex: 1;
-}
-
-.git-source p {
-  margin: 5px 0;
-}
-
-.update-confirm {
-  width: 100%;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 12px;
-  background: var(--bg);
-  border-radius: 6px;
-}
-
-.node-log {
-  width: 100%;
-  color: var(--muted);
-  font-size: 12px;
-}
-
-.node-log summary {
-  cursor: pointer;
-}
-
-.node-log li {
-  margin: 8px 0;
 }
 </style>

@@ -130,9 +130,11 @@ function stagePercent(c: ChallengeSummary): number {
           <div class="footer-row">
             <span class="stage-count">
               {{
-                currentUser
-                  ? `${c.completedStages} / ${c.totalStages} 阶段已完成`
-                  : `${c.totalStages} 个阶段`
+                !c.totalStages
+                  ? '自由练习'
+                  : currentUser
+                    ? `${c.completedStages} / ${c.totalStages} 阶段已完成`
+                    : `${c.totalStages} 个阶段`
               }}
             </span>
             <ArrowRight :size="16" class="card-arrow" aria-hidden="true" />

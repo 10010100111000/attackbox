@@ -293,11 +293,13 @@ async function save(intent: 'draft' | 'publish') {
 
         <section class="panel stages">
           <div class="section-head">
-            <h2>阶段 Flag</h2>
-            <span>{{ form.stages.length }} / 30</span>
+            <h2>阶段 Flag（可选）</h2>
+            <UiBadge variant="neutral">
+              {{ form.stages.length ? `${form.stages.length} / 30 阶段` : '自由练习模式' }}
+            </UiBadge>
           </div>
           <p class="hint">
-            按顺序通过；Flag 区分大小写，忽略首尾空白。通过记录不会因修改 Flag 自动清除。
+            不添加阶段即可直接发布为开放练习靶场（无需提交 Flag）；添加阶段后则按顺序验证 Flag。
           </p>
 
           <div v-for="(s, i) in form.stages" :key="s.id || i" class="stage-editor">

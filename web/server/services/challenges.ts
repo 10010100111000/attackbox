@@ -112,11 +112,9 @@ export async function saveChallenge(id: string | null, body: any) {
   }
   if (
     body.intent === 'publish' &&
-    (!body.stages.length ||
-      body.stages.some((s: any) => !s.flag.trim()) ||
-      !body.bodyMarkdown.trim())
+    (!body.bodyMarkdown.trim() || body.stages.some((s: any) => !s.flag.trim()))
   )
-    fail(400, '发布前请填写挑战正文，并为每个阶段配置 Flag')
+    fail(400, '发布前请填写挑战正文，若添加了阶段则需为每个阶段配置 Flag')
   return client.begin(async tx => {
     const [old] = id ? await tx`select * from challenges where id=${id} for update` : []
     if (id && !old) fail(404, '挑战不存在')

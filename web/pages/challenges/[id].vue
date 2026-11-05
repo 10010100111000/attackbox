@@ -235,7 +235,7 @@ async function submit(stageId: string) {
               <div class="eyebrow">{{ c.category || '综合挑战' }}</div>
               <h1>{{ c.title }}</h1>
               <p>{{ c.summary }}</p>
-              <div class="progress">
+              <div v-if="c.totalStages > 0" class="progress">
                 <Flag :size="16" aria-hidden="true" />
                 <span>
                   {{
@@ -259,7 +259,7 @@ async function submit(stageId: string) {
               :context="{ kind: 'challenge', challengeId: String($route.params.id) }"
             />
 
-            <section aria-label="阶段任务" class="stage-list">
+            <section v-if="c.stages.length" aria-label="阶段任务" class="stage-list">
               <article v-for="(s, index) in c.stages" :key="s.id" class="stage">
                 <header class="stage-heading">
                   <span class="number">{{ String(index + 1).padStart(2, '0') }}</span>

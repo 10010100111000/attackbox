@@ -57,7 +57,7 @@ test(
       await f.request('/api/admin/challenges', { status: 401 })
       await f.request('/api/admin/challenges', { actor: alice, status: 403 })
       await f.request('/api/me/challenges', { status: 401 })
-      await save(null, { ...draft, intent: 'publish', stages: [] }, 400)
+      await save(null, { ...draft, intent: 'publish', bodyMarkdown: '   ' }, 400)
       const created = await save(null, draft)
       ids.push(created.id)
       const path = `/api/challenges/${created.id}`,
