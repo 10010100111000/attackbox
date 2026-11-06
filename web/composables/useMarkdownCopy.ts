@@ -1,3 +1,5 @@
+import { writeBrowserClipboard } from '~/utils/clipboard'
+
 export function useMarkdownCopy(copyable: () => boolean = () => true) {
   return function handleCopyClick(event: MouseEvent) {
     if (!copyable()) return
@@ -10,24 +12,19 @@ export function useMarkdownCopy(copyable: () => boolean = () => true) {
       ? decodeURIComponent(btn.dataset.code)
       : (codeEl?.textContent ?? '')
     if (!codeToCopy) return
-    if (!navigator?.clipboard) {
-      btn.textContent = '无法复制'
-      return
-    }
 
-    navigator.clipboard
-      .writeText(codeToCopy)
-      .then(() => {
-        const originalText = btn.textContent
-        btn.textContent = '已复制 ✓'
-        btn.classList.add('copied')
-        setTimeout(() => {
-          btn.textContent = originalText
-          btn.classList.remove('copied')
-        }, 2000)
-      })
-      .catch(() => {
+    void writeBrowserClipboard(codeToCopy).then(ok => {
+      if (!ok) {
         btn.textContent = '复制失败'
-      })
+        return
+      }
+      const originalText = btn.textContent
+      btn.textContent = '已复制 ✓'
+      btn.classList.add('copied')
+      setTimeout(() => {
+        btn.textContent = originalText
+        btn.classList.remove('copied')
+      }, 2000)
+    })
   }
 }

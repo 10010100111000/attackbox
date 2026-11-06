@@ -1,23 +1,32 @@
 <script setup lang="ts">
 import { ref, onMounted, onBeforeUnmount, watch, nextTick } from 'vue'
-import type { Terminal } from '@xterm/xterm'
+import type { IDisposable, Terminal } from '@xterm/xterm'
 import type { FitAddon } from '@xterm/addon-fit'
 import type { SandboxTicket } from '~/shared/sandbox'
 import '@xterm/xterm/css/xterm.css'
 import { apiErrorMessage, apiFetch } from '~/utils/api'
+import {
+  decodeOsc52Clipboard,
+  readBrowserClipboard,
+  writeBrowserClipboard
+} from '~/utils/clipboard'
 const props = defineProps<{ sandboxId: string; windowId: string; active: boolean }>()
 const host = ref<HTMLElement | null>(null),
   state = ref(''),
   clipboardNotice = ref(''),
   reconnecting = ref(false)
 let terminal: Terminal | undefined, fit: FitAddon | undefined, socket: WebSocket | undefined
+let selectionDisposable: IDisposable | undefined, osc52Disposable: IDisposable | undefined
 let resize: ResizeObserver | undefined, retryTimer: ReturnType<typeof setTimeout> | undefined
 let stableTimer: ReturnType<typeof setTimeout> | undefined,
-  connectTimer: ReturnType<typeof setTimeout> | undefined
+  connectTimer: ReturnType<typeof setTimeout> | undefined,
+  pasteFallbackTimer: ReturnType<typeof setTimeout> | undefined
 let destroyed = false,
   generation = 0,
   retries = 0,
-  hadConnection = false
+  hadConnection = false,
+  lastNativePasteAt = 0
+
 function fitTerminal() {
   if (!props.active || !host.value?.clientWidth || !host.value.clientHeight || !terminal || !fit)
     return
@@ -28,6 +37,34 @@ function fitTerminal() {
 function reconnect() {
   retries = 0
   connect()
+}
+async function copySelection(clearAfterCopy = false) {
+  const selected = terminal?.getSelection() || ''
+  if (!selected) return
+  clipboardNotice.value = ''
+  const ok = await writeBrowserClipboard(selected)
+  if (!ok) clipboardNotice.value = '请通过终端右键菜单复制。'
+  if (clearAfterCopy) terminal?.clearSelection()
+}
+async function pasteFromBrowser() {
+  if (destroyed || !terminal) return
+  clipboardNotice.value = ''
+  const text = await readBrowserClipboard()
+  if (typeof text === 'string' && text.length > 0) {
+    terminal.paste(text)
+  }
+}
+function onHostCopy(event: ClipboardEvent) {
+  const selected = terminal?.getSelection() || ''
+  if (!selected) return
+  event.preventDefault()
+  event.clipboardData?.setData('text/plain', selected)
+  clipboardNotice.value = ''
+  void writeBrowserClipboard(selected)
+}
+function onHostPaste() {
+  lastNativePasteAt = Date.now()
+  clipboardNotice.value = ''
 }
 async function connect() {
   if (destroyed || reconnecting.value) return
@@ -132,27 +169,62 @@ onMounted(async () => {
     }
   })
   terminal.attachCustomKeyEventHandler(event => {
-    const copy =
-      (event.ctrlKey && event.shiftKey && !event.altKey) || (event.metaKey && !event.altKey)
-    if (
-      event.type !== 'keydown' ||
-      !copy ||
-      event.key.toLowerCase() !== 'c' ||
-      !terminal?.hasSelection()
-    )
-      return true
-    event.preventDefault()
-    clipboardNotice.value = ''
-    if (navigator.clipboard?.writeText) {
-      void navigator.clipboard.writeText(terminal.getSelection()).catch(() => {
-        clipboardNotice.value = '请通过终端右键菜单复制。'
-      })
-    } else if (!document.execCommand('copy')) clipboardNotice.value = '请通过终端右键菜单复制。'
-    return false
+    if (event.type !== 'keydown') return true
+    const key = event.key.toLowerCase()
+    const hasSelection = !!terminal?.hasSelection()
+
+    // Copy: Ctrl+Shift+C, Cmd+C, Ctrl+Insert, or Ctrl+C when text is actively selected
+    const isCopyKey =
+      !event.altKey &&
+      (((event.ctrlKey || event.metaKey) && key === 'c') ||
+        (event.ctrlKey && !event.shiftKey && event.key === 'Insert'))
+    if (isCopyKey && hasSelection) {
+      event.preventDefault()
+      const isPlainCtrlC = event.ctrlKey && !event.shiftKey && !event.metaKey && key === 'c'
+      void copySelection(isPlainCtrlC)
+      return false
+    }
+
+    // Paste: Ctrl+Shift+V or Shift+Insert (explicit clipboard read to avoid duplicate native paste)
+    const isExplicitPaste =
+      (!event.altKey && event.ctrlKey && event.shiftKey && key === 'v') ||
+      (!event.altKey && !event.ctrlKey && !event.metaKey && event.shiftKey && event.key === 'Insert')
+    if (isExplicitPaste) {
+      event.preventDefault()
+      void pasteFromBrowser()
+      return false
+    }
+
+    // Paste: standard Ctrl+V / Cmd+V — let browser fire native paste first, fallback to Clipboard API
+    const isStandardPaste =
+      !event.altKey && !event.shiftKey && (event.ctrlKey || event.metaKey) && key === 'v'
+    if (isStandardPaste) {
+      const triggeredAt = Date.now()
+      clearTimeout(pasteFallbackTimer)
+      pasteFallbackTimer = setTimeout(() => {
+        if (lastNativePasteAt < triggeredAt) {
+          void pasteFromBrowser()
+        }
+      }, 20)
+      return false
+    }
+
+    return true
+  })
+  selectionDisposable = terminal.onSelectionChange(() => {
+    const selected = terminal?.getSelection() || ''
+    if (selected) void writeBrowserClipboard(selected)
+  })
+  osc52Disposable = terminal.parser.registerOscHandler(52, data => {
+    const decoded = decodeOsc52Clipboard(data)
+    if (decoded !== null) void writeBrowserClipboard(decoded)
+    return true
   })
   fit = new Fit()
   terminal.loadAddon(fit)
   terminal.open(host.value)
+  host.value.addEventListener('copy', onHostCopy, true)
+  host.value.addEventListener('paste', onHostPaste, true)
   terminal.onData(value => {
     if (socket?.readyState !== WebSocket.OPEN) return
     const bytes = new TextEncoder().encode(value)
@@ -171,6 +243,11 @@ onBeforeUnmount(() => {
   clearTimeout(retryTimer)
   clearTimeout(stableTimer)
   clearTimeout(connectTimer)
+  clearTimeout(pasteFallbackTimer)
+  host.value?.removeEventListener('copy', onHostCopy, true)
+  host.value?.removeEventListener('paste', onHostPaste, true)
+  selectionDisposable?.dispose()
+  osc52Disposable?.dispose()
   resize?.disconnect()
   socket?.close()
   terminal?.dispose()

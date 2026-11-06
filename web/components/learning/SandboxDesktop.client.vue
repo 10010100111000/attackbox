@@ -6,6 +6,11 @@ import { useSandboxSession } from '~/composables/useSandboxSession'
 import type RFB from '@novnc/novnc'
 import type { SandboxTicket } from '~/shared/sandbox'
 import { apiErrorMessage, apiFetch } from '~/utils/api'
+import {
+  onClipboardSync,
+  readBrowserClipboard,
+  writeBrowserClipboard
+} from '~/utils/clipboard'
 const props = defineProps<{ sandboxId: string; active: boolean; autoResize?: boolean }>()
 const { announceGUI } = useSandboxSession()
 const host = ref<HTMLElement | null>(null),
@@ -18,10 +23,49 @@ const clipboardOpen = ref(false),
 let viewer: RFB | undefined,
   retryTimer: ReturnType<typeof setTimeout> | undefined,
   connectTimer: ReturnType<typeof setTimeout> | undefined,
-  stableTimer: ReturnType<typeof setTimeout> | undefined
+  stableTimer: ReturnType<typeof setTimeout> | undefined,
+  stopClipboardSync: (() => void) | undefined
 let disposed = false,
   generation = 0,
-  retries = 0
+  retries = 0,
+  lastSyncedClipboard = ''
+
+function pushClipboardToDesktop(rawText: string) {
+  if (disposed || !viewer || state.value !== '桌面已连接') return false
+  const text = rawText.slice(0, 65536)
+  if (!text) return false
+  lastSyncedClipboard = text
+  clipboardText.value = text
+  viewer.clipboardPasteFrom(text)
+  return true
+}
+
+async function syncBrowserToDesktop() {
+  if (disposed || !viewer || state.value !== '桌面已连接' || clipboardOpen.value) return
+  if (typeof navigator === 'undefined' || !navigator.clipboard?.readText) return
+  try {
+    const text = (await navigator.clipboard.readText()).slice(0, 65536)
+    if (!text || text === lastSyncedClipboard) return
+    pushClipboardToDesktop(text)
+  } catch {
+    /* Silent when browser blocks background clipboard reads; manual popover or paste event still works. */
+  }
+}
+
+function onDesktopPaste(event: ClipboardEvent) {
+  const text = event.clipboardData?.getData('text/plain') || ''
+  if (!text) return
+  if (pushClipboardToDesktop(text)) {
+    clipboardMessage.value = '已发送到桌面，可在桌面内粘贴。'
+  }
+}
+
+function onDesktopCopy(event: ClipboardEvent) {
+  if (!clipboardText.value) return
+  event.preventDefault()
+  event.clipboardData?.setData('text/plain', clipboardText.value)
+}
+
 function reconnect() {
   retries = 0
   connect()
@@ -85,8 +129,11 @@ async function connect() {
     })
     connection.addEventListener('clipboard', event => {
       if (disposed || viewer !== connection) return
-      clipboardText.value = (event as CustomEvent<{ text: string }>).detail.text.slice(0, 65536)
+      const text = (event as CustomEvent<{ text: string }>).detail.text.slice(0, 65536)
+      lastSyncedClipboard = text
+      clipboardText.value = text
       clipboardMessage.value = '已接收桌面剪贴板'
+      void writeBrowserClipboard(text, { broadcast: false })
     })
     connection.addEventListener('securityfailure', () => {
       if (viewer === connection) state.value = '桌面认证失败，请检查节点配置'
@@ -100,24 +147,25 @@ async function connect() {
   }
 }
 async function readClipboard() {
-  try {
-    clipboardText.value = (await navigator.clipboard.readText()).slice(0, 65536)
+  const text = await readBrowserClipboard()
+  if (text !== null) {
+    clipboardText.value = text.slice(0, 65536)
     clipboardMessage.value = ''
-  } catch {
+  } else {
     clipboardMessage.value = '请在文本框中使用 Ctrl+V 粘贴。'
   }
 }
 async function copyClipboard() {
-  try {
-    await navigator.clipboard.writeText(clipboardText.value)
+  if (await writeBrowserClipboard(clipboardText.value, { broadcast: false })) {
     clipboardMessage.value = '已复制到浏览器剪贴板'
-  } catch {
+  } else {
     clipboardMessage.value = '请选中文本，使用 Ctrl+C 复制。'
   }
 }
 function sendClipboard() {
   if (!viewer || state.value !== '桌面已连接') return
-  viewer.clipboardPasteFrom(clipboardText.value)
+  lastSyncedClipboard = clipboardText.value.slice(0, 65536)
+  viewer.clipboardPasteFrom(lastSyncedClipboard)
   clipboardMessage.value = '已发送到桌面，可在桌面内粘贴。'
 }
 watch(fit, value => {
@@ -134,10 +182,19 @@ watch(
     if (active) viewer?.focus()
   }
 )
-onMounted(connect)
+onMounted(() => {
+  stopClipboardSync = onClipboardSync(text => {
+    if (disposed || !viewer || state.value !== '桌面已连接' || text === lastSyncedClipboard) return
+    pushClipboardToDesktop(text)
+  })
+  window.addEventListener('focus', syncBrowserToDesktop)
+  void connect()
+})
 onBeforeUnmount(() => {
   disposed = true
   generation++
+  stopClipboardSync?.()
+  window.removeEventListener('focus', syncBrowserToDesktop)
   clearTimeout(retryTimer)
   clearTimeout(connectTimer)
   clearTimeout(stableTimer)
@@ -207,7 +264,16 @@ onBeforeUnmount(() => {
         重新连接
       </button>
     </div>
-    <div ref="host" class="desktop-host" aria-label="远程桌面" />
+    <div
+      ref="host"
+      class="desktop-host"
+      aria-label="远程桌面"
+      @pointerenter="syncBrowserToDesktop"
+      @pointerdown="syncBrowserToDesktop"
+      @focusin="syncBrowserToDesktop"
+      @paste="onDesktopPaste"
+      @copy="onDesktopCopy"
+    />
   </div>
 </template>
 

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { Copy, Check } from 'lucide-vue-next'
 import type { TargetInstance } from '~/composables/useTargetSession'
+import { writeBrowserClipboard } from '~/utils/clipboard'
 const props = defineProps<{ instance?: TargetInstance['instance'] }>()
 function host(address: string) {
   try {
@@ -27,13 +28,12 @@ const copied = ref(''),
   error = ref('')
 let timer: ReturnType<typeof setTimeout> | undefined
 async function copy(address: string) {
-  try {
-    await navigator.clipboard.writeText(address)
+  if (await writeBrowserClipboard(address)) {
     error.value = ''
     copied.value = address
     clearTimeout(timer)
     timer = setTimeout(() => (copied.value = ''), 2000)
-  } catch {
+  } else {
     error.value = '复制失败，请手动复制 IP'
   }
 }

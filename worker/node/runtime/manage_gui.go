@@ -50,10 +50,12 @@ export HOME=/home/box
 cd "$HOME"
 vnc=
 desktop=
-trap 'kill $vnc $desktop 2>/dev/null || true; rm -f /run/attackbox/gui.sock' EXIT
+vnccfg=
+trap 'kill $vnccfg $vnc $desktop 2>/dev/null || true; rm -f /run/attackbox/gui.sock' EXIT
 trap 'exit 0' TERM INT
 /usr/bin/Xtigervnc :1 -rfbunixpath /run/attackbox/gui.sock -rfbunixmode 0600 \
  -rfbport -1 -nolisten tcp -SecurityTypes None -AlwaysShared -UseBlacklist=0 \
+ -AcceptCutText=1 -SendCutText=1 -SendPrimary=1 -SetPrimary=1 \
  -FrameRate 30 -CompareFB 1 \
  -geometry 1280x800 -depth 24 &
 vnc=$!
@@ -63,6 +65,10 @@ for i in $(seq 1 80); do
  sleep 0.1
 done
 [ -S /tmp/.X11-unix/X1 ] && [ -S /run/attackbox/gui.sock ] || exit 1
+if [ -x /usr/bin/vncconfig ]; then
+ /usr/bin/vncconfig -nowin >/dev/null 2>&1 &
+ vnccfg=$!
+fi
 dbus-run-session /bin/bash -c 'gsettings set org.mate.Marco.general compositing-manager false 2>/dev/null || true; gsettings set org.mate.interface enable-animations false 2>/dev/null || true; exec /usr/bin/mate-session' &
 desktop=$!
 wait -n "$vnc" "$desktop"
