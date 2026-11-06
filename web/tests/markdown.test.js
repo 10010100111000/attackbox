@@ -184,3 +184,37 @@ test('renderMarkdown supports task lists, highlight mark, subscript, superscript
   assert.ok(result.html.includes('language-go'))
   assert.ok(result.html.includes('hljs-keyword'))
 })
+
+test('renderMarkdown supports safe HTML tags, Bilibili/YouTube iframes, @[video] embeds, and sandboxed html:demo blocks', () => {
+  const source = [
+    '<details open><summary>展开提示</summary><p>使用 <kbd>Ctrl+V</kbd> 粘贴。</p></details>',
+    '',
+    '<iframe src="//player.bilibili.com/player.html?bvid=BV1xx411c7mD&p=1" scrolling="no" frameborder="no" allowfullscreen="true"></iframe>',
+    '',
+    '@[video](https://www.bilibili.com/video/BV1xx411c7mD?p=2 "B站演示")',
+    '',
+    '@[video](https://www.youtube.com/watch?v=dQw4w9WgXcQ)',
+    '',
+    '```html:demo height=320',
+    '<button id="btn" onclick="this.textContent=\'ok\'">Run</button>',
+    '<script>console.log("sandboxed")</script>',
+    '```'
+  ].join('\n')
+
+  const result = renderMarkdown(source)
+  assert.ok(result.html.includes('<details open><summary>展开提示</summary>'))
+  assert.ok(result.html.includes('<kbd>Ctrl+V</kbd>'))
+  assert.ok(
+    result.html.includes('src="https://player.bilibili.com/player.html?bvid=BV1xx411c7mD&amp;p=1"')
+  )
+  assert.ok(
+    result.html.includes(
+      'src="https://player.bilibili.com/player.html?isOutside=true&bvid=BV1xx411c7mD&p=2&autoplay=0"'
+    )
+  )
+  assert.ok(result.html.includes('src="https://www.youtube-nocookie.com/embed/dQw4w9WgXcQ"'))
+  assert.ok(result.html.includes('class="code-block html-demo-block"'))
+  assert.ok(result.html.includes('sandbox="allow-scripts allow-forms allow-popups"'))
+  assert.ok(result.html.includes('style="height:320px"'))
+  assert.ok(result.html.includes('srcdoc="'))
+})

@@ -1,4 +1,38 @@
 import type MarkdownIt from 'markdown-it'
+import { renderMediaEmbed } from './markdown-html.ts'
+
+interface MediaEmbedEnv {
+  imageUrls?: Record<string, string>
+}
+
+function installMediaEmbeds(md: InstanceType<typeof MarkdownIt>) {
+  md.inline.ruler.before('image', 'media_embed', (state, silent) => {
+    const start = state.pos
+    const max = state.posMax
+    if (start + 9 >= max || state.src.charCodeAt(start) !== 0x40 /* @ */) return false
+    const slice = state.src.slice(start, max)
+    const match = /^\[(video|bilibili|youtube|embed)\]\(\s*([^)\s"']+)(?:\s+["']([^"']*)["'])?\s*\)/i.exec(
+      slice.slice(1)
+    )
+    if (!match) return false
+    if (!silent) {
+      const token = state.push('media_embed', 'div', 0)
+      token.meta = {
+        kind: match[1]!.toLowerCase(),
+        url: match[2]!,
+        title: match[3] || ''
+      }
+    }
+    state.pos = start + 1 + match[0].length
+    return true
+  })
+
+  md.renderer.rules.media_embed = (tokens, idx, _options, env?: MediaEmbedEnv) => {
+    const meta = tokens[idx]?.meta as { url?: string; title?: string } | undefined
+    if (!meta?.url) return ''
+    return renderMediaEmbed(meta.url, meta.title || '', env?.imageUrls) || ''
+  }
+}
 
 interface FootnoteEnv {
   footnotes?: {
@@ -192,6 +226,7 @@ function installFootnotes(md: InstanceType<typeof MarkdownIt>) {
 }
 
 export function markdownExtensions(md: InstanceType<typeof MarkdownIt>) {
+  installMediaEmbeds(md)
   installTaskLists(md)
   installInlinePair(md, 'mark', 'mark', 0x3d /* = */, true)
   installInlinePair(md, 'sub', 'sub', 0x7e /* ~ */, false)

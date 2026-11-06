@@ -2,6 +2,12 @@ import { markdownHeadings } from './markdown-headings.ts'
 import MarkdownIt from 'markdown-it'
 import { callouts } from './markdown-callouts.ts'
 import { markdownExtensions } from './markdown-extensions.ts'
+import {
+  isSafeLinkUrl,
+  normalizeMediaUrl,
+  renderSandboxedHtmlDemo,
+  sanitizeMarkdownHtml
+} from './markdown-html.ts'
 import hljs from 'highlight.js/lib/common'
 
 export interface MarkdownHeading {
@@ -27,7 +33,7 @@ interface MarkdownRenderEnv extends Record<PropertyKey, unknown> {
 
 export function createMarkdownRenderer(options: MarkdownOptions = {}) {
   const md = new MarkdownIt({
-    html: false, // 严格转义任何原生 HTML，杜绝 XSS 注入
+    html: true, // 允许书写 HTML 标签（由下方白名单清洗器严格过滤与转义危险标签）
     linkify: true,
     breaks: false,
     typographer: true
@@ -35,6 +41,14 @@ export function createMarkdownRenderer(options: MarkdownOptions = {}) {
 
   md.use(callouts)
   md.use(markdownExtensions)
+
+  md.renderer.rules.html_block = (tokens, idx, _options, env?: MarkdownRenderEnv) => {
+    return sanitizeMarkdownHtml(tokens[idx]?.content || '', env?.imageUrls)
+  }
+
+  md.renderer.rules.html_inline = (tokens, idx, _options, env?: MarkdownRenderEnv) => {
+    return sanitizeMarkdownHtml(tokens[idx]?.content || '', env?.imageUrls)
+  }
 
   // Scroll the table itself, keeping the surrounding document stationary.
   md.renderer.rules.table_open = () =>
@@ -46,8 +60,14 @@ export function createMarkdownRenderer(options: MarkdownOptions = {}) {
   md.renderer.rules.fence = (tokens, idx, _options, env?: MarkdownRenderEnv) => {
     const token = tokens[idx]!
     const str = token.content
-    const lang = token.info.trim().split(/\s+/)[0] || ''
+    const info = token.info.trim()
+    const lang = info.split(/\s+/)[0] || ''
     const langName = lang.trim().toLowerCase()
+
+    if (langName === 'html:demo' || langName === 'html:preview' || langName === 'html:run') {
+      return renderSandboxedHtmlDemo(str, info)
+    }
+
     const displayLang = md.utils.escapeHtml(langName ? langName.toUpperCase() : 'CODE')
     let highlighted: string
     if (langName && hljs.getLanguage(langName)) {
@@ -78,12 +98,7 @@ export function createMarkdownRenderer(options: MarkdownOptions = {}) {
     const hrefIndex = tokens[idx].attrIndex('href')
     if (hrefIndex >= 0) {
       const href = String(tokens[idx].attrs![hrefIndex][1])
-      const isSafe =
-        /^https?:\/\//i.test(href) ||
-        /^mailto:/i.test(href) ||
-        /^#/i.test(href) ||
-        /^\//i.test(href)
-      if (!isSafe) {
+      if (!isSafeLinkUrl(href)) {
         tokens[idx].attrs![hrefIndex][1] = '#unsafe-link-blocked'
       }
       // 外部链接追加 target="_blank" 和 rel="noopener noreferrer"
@@ -110,9 +125,9 @@ export function createMarkdownRenderer(options: MarkdownOptions = {}) {
   ) => {
     const token = tokens[index]!
     const href = String(token.attrGet('src') || '')
-    const imageUrls = env?.imageUrls
-    if (imageUrls && Object.hasOwn(imageUrls, href)) {
-      token.attrSet('src', imageUrls[href]!)
+    const normalized = normalizeMediaUrl(href, env?.imageUrls)
+    if (normalized) {
+      token.attrSet('src', normalized.url)
     }
     return defaultRenderImage(tokens, index, renderOptions, env, self)
   }
