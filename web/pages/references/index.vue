@@ -4,17 +4,18 @@ import type { ReferencePage } from '~/shared/references'
 import {
   DEFAULT_SEO_KEYWORDS,
   buildKeywords,
-  canonicalUrl
+  canonicalUrl,
+  serializeJsonLd
 } from '~/shared/seo'
 import { useSiteOrigin } from '~/composables/useSiteOrigin'
 definePageMeta({ layout: 'learning' })
 const route = useRoute()
 const page = computed(() => Number(route.query.page || 1))
 const siteOrigin = useSiteOrigin()
-const pageCanonical = computed(() => {
-  const base = canonicalUrl(siteOrigin, '/references')
-  return page.value > 1 ? `${base}?page=${page.value}` : base
-})
+const baseReferencesUrl = canonicalUrl(siteOrigin, '/references')
+const pageCanonical = computed(() =>
+  page.value > 1 ? `${baseReferencesUrl}?page=${page.value}` : baseReferencesUrl
+)
 const pageDescription = '公开的网络安全学习参考资料、技术阅读笔记与安全译文。'
 useSeoMeta({
   title: () => (page.value > 1 ? `参考资料（第 ${page.value} 页）— AttackBox` : '参考资料 — AttackBox'),
@@ -29,6 +30,36 @@ const { data, pending, error } = await useFetch<{ data: ReferencePage }>('/api/r
   key: () => `references:catalog:${page.value}`,
   query: { page }
 })
+const referencesJsonLd = computed(() =>
+  serializeJsonLd({
+    '@context': 'https://schema.org',
+    '@graph': [
+      {
+        '@type': 'CollectionPage',
+        name: page.value > 1 ? `参考资料（第 ${page.value} 页）— AttackBox` : '参考资料 — AttackBox',
+        description: pageDescription,
+        url: pageCanonical.value,
+        inLanguage: 'zh-CN',
+        mainEntity: {
+          '@type': 'ItemList',
+          itemListElement: (data.value?.data.items || []).map((item, idx) => ({
+            '@type': 'ListItem',
+            position: idx + 1,
+            name: item.title,
+            url: canonicalUrl(siteOrigin, `/references/${encodeURIComponent(item.slug)}`)
+          }))
+        }
+      },
+      {
+        '@type': 'BreadcrumbList',
+        itemListElement: [
+          { '@type': 'ListItem', position: 1, name: '首页', item: `${siteOrigin}/` },
+          { '@type': 'ListItem', position: 2, name: '参考资料', item: baseReferencesUrl }
+        ]
+      }
+    ]
+  })
+)
 useHead(() => ({
   meta: [
     {
@@ -41,7 +72,22 @@ useHead(() => ({
       )
     }
   ],
-  link: [{ rel: 'canonical', href: pageCanonical.value }]
+  link: [
+    { rel: 'canonical', href: pageCanonical.value },
+    ...(page.value > 1
+      ? [
+          {
+            rel: 'prev',
+            href:
+              page.value === 2 ? baseReferencesUrl : `${baseReferencesUrl}?page=${page.value - 1}`
+          }
+        ]
+      : []),
+    ...(data.value?.data && page.value * data.value.data.pageSize < data.value.data.total
+      ? [{ rel: 'next', href: `${baseReferencesUrl}?page=${page.value + 1}` }]
+      : [])
+  ],
+  script: [{ type: 'application/ld+json', innerHTML: referencesJsonLd.value }]
 }))
 if (import.meta.server && error.value) {
   const event = useRequestEvent()

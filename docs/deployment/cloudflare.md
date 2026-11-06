@@ -119,3 +119,30 @@ Nuxt 构建通过 `build:manifest` 关闭额外的 `rel="prefetch"` 资源提示
 Cloudflare 缓存规则只匹配 `/static-refs/`：`meta.json` 绕过边缘缓存，带内容指纹的 HTML 块允许缓存并遵循源站的 1 小时 TTL，错误响应的边缘 TTL 设为 0。不要把 `/references/` 页面、API 或整站 HTML 一并设为 Cache Everything。HTML 与 `.gz` 预压缩文件由 nginx 直接提供；首屏 Nuxt 读取本地元数据与第一块，学习章节保持现有加载方式。
 
 发布、下架和删除会同步切换或撤下源站的公开入口，服务启动时校准一次中断的发布。已经缓存的正文无法通过删除源站文件即时撤回；需要立即撤回时，手动清除该资料在 Cloudflare 的缓存，已下载到浏览器的内容仍无法收回。迁移与备份同时保留 `CONTENT_DATA_DIR` 下的私有构建产物和 `REFERENCE_PUBLIC_DIR`。
+
+## 搜索引擎收录与国内爬虫放行（百度 / 搜狗 / 360 / 神马 / 头条 / 必应）
+
+站点接入 Cloudflare 橙云后，如果开启了 **Bot Fight Mode**、**Super Bot Fight Mode** 或 **Block AI Bots**，Cloudflare 边缘节点默认常会将百度（非官方验证 ASN 节点）、搜狗（`Sogou web spider`）、360 搜索（`360Spider`）、神马（`YisouSpider`）和头条搜索（`Bytespider`）识别为未验证爬虫并返回 `403` 或 JS 质询页，导致国内搜索引擎无法抓取页面。
+
+1. **在 Cloudflare 配置自定义 WAF 放行规则（Custom Rules）**：
+   进入 Cloudflare 控制台 → **Security → WAF → Custom rules**，新建一条高优先级规则（仅针对 `GET` / `HEAD` 公开页面与站点地图，切勿放行 `/api/*`、`/admin*` 或 `POST` 请求）：
+   - **表达式（Expression）**：
+     ```text
+     (http.request.method in {"GET" "HEAD"} and not starts_with(http.request.uri.path, "/api/") and not starts_with(http.request.uri.path, "/admin") and not starts_with(http.request.uri.path, "/auth") and (http.user_agent contains "Baiduspider" or http.user_agent contains "Sogou" or http.user_agent contains "360Spider" or http.user_agent contains "HaosouSpider" or http.user_agent contains "YisouSpider" or http.user_agent contains "Bytespider" or http.user_agent contains "ToutiaoSpider" or http.user_agent contains "bingbot"))
+     ```
+   - **动作（Action）**：选择 **Skip**，勾选跳过 *All remaining custom rules*、*Super Bot Fight Mode* 与 *Browser Integrity Check*。
+2. **配置各大站长平台验证环境变量（免重构建）**：
+   在 `/etc/attackbox/web.env` 中按需填入各平台颁发的 `content` 验证码并重启 `attackbox-web`，SSR 首屏会自动输出对应的验证 `<meta>` 标签：
+   ```dotenv
+   BAIDU_SITE_VERIFICATION=百度搜索资源平台验证码
+   BING_SITE_VERIFICATION=BingWebmaster验证码
+   GOOGLE_SITE_VERIFICATION=GoogleSearchConsole验证码
+   SOGOU_SITE_VERIFICATION=搜狗站长平台验证码
+   SO360_SITE_VERIFICATION=360站长平台验证码
+   SHENMA_SITE_VERIFICATION=神马站长平台验证码
+   BYTEDANCE_SITE_VERIFICATION=头条搜索站长平台验证码
+   ```
+3. **提交三类站点地图**：
+   - XML 站点地图（Google / Bing / 百度）：`https://你的域名/sitemap.xml`
+   - TXT 纯文本站点地图（百度 / 360 / 搜狗 / 神马推荐）：`https://你的域名/sitemap.txt`
+   - RSS 2.0 订阅源：`https://你的域名/rss.xml`

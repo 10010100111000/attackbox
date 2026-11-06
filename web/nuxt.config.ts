@@ -55,6 +55,10 @@ export default defineNuxtConfig({
         },
         { name: 'keywords', content: DEFAULT_SEO_KEYWORDS },
         { name: 'applicable-device', content: 'pc,mobile' },
+        { name: 'renderer', content: 'webkit' },
+        { name: 'force-rendering', content: 'webkit' },
+        { 'http-equiv': 'Cache-Control', content: 'no-transform' },
+        { 'http-equiv': 'Cache-Control', content: 'no-siteapp' },
         { name: 'format-detection', content: 'telephone=no, email=no' },
         { property: 'og:locale', content: 'zh_CN' },
         { property: 'og:site_name', content: 'AttackBox' },
@@ -63,7 +67,13 @@ export default defineNuxtConfig({
       ],
       link: [
         { rel: 'icon', type: 'image/x-icon', href: '/favicon.ico' },
-        { rel: 'apple-touch-icon', sizes: '180x180', href: '/apple-touch-icon.png' }
+        { rel: 'apple-touch-icon', sizes: '180x180', href: '/apple-touch-icon.png' },
+        {
+          rel: 'alternate',
+          type: 'application/rss+xml',
+          title: 'AttackBox RSS 订阅',
+          href: '/rss.xml'
+        }
       ],
       // 首屏前置读取本地主题,避免 SSR 默认「深海」在 hydration 后跳变成「石墨」造成闪烁
       script: [

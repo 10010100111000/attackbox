@@ -7,6 +7,7 @@ import {
   DEFAULT_SEO_KEYWORDS,
   DEFAULT_SITE_ORIGIN,
   buildKeywords,
+  buildVerificationMeta,
   canonicalUrl,
   difficultySeoLabel,
   escapeXml,
@@ -110,8 +111,32 @@ test('SEO server routes and Chinese meta configurations are wired in Nuxt', () =
     'utf-8'
   )
   assert.ok(robotsRoute.includes('Baiduspider'))
+  assert.ok(robotsRoute.includes('Baiduspider-render'))
   assert.ok(robotsRoute.includes('Sogou web spider'))
   assert.ok(robotsRoute.includes('360Spider'))
   assert.ok(robotsRoute.includes('Bytespider'))
+  assert.ok(robotsRoute.includes('ToutiaoSpider'))
+  assert.ok(robotsRoute.includes('YisouSpider'))
   assert.ok(robotsRoute.includes('Sitemap:'))
+  assert.ok(robotsRoute.includes('/sitemap.txt'))
+
+  for (const extraRoute of [
+    'server/routes/sitemap.txt.get.ts',
+    'server/routes/rss.xml.get.ts',
+    'server/services/seo-sitemap.ts',
+    'plugins/seo-meta.server.ts'
+  ]) {
+    assert.ok(existsSync(resolve(rootDir, extraRoute)), `Expected ${extraRoute} to exist`)
+  }
+
+  const metas = buildVerificationMeta({
+    baidu: ' code-baidu ',
+    bing: 'code-bing',
+    sogou: 'code-sogou',
+    so360: 'code-360',
+    shenma: 'code-sm',
+    bytedance: 'code-tt'
+  })
+  assert.equal(metas.length, 6)
+  assert.deepEqual(metas[0], { name: 'baidu-site-verification', content: 'code-baidu' })
 })

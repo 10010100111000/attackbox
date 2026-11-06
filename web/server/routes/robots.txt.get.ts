@@ -8,6 +8,17 @@ export default defineEventHandler(event => {
   setResponseHeader(event, 'content-type', 'text/plain; charset=utf-8')
   setResponseHeader(event, 'cache-control', 'public, max-age=3600, s-maxage=3600')
 
+  const allowPaths = [
+    'Allow: /',
+    'Allow: /learn',
+    'Allow: /challenges',
+    'Allow: /references',
+    'Allow: /static-refs/',
+    'Allow: /rss.xml',
+    'Allow: /sitemap.xml',
+    'Allow: /sitemap.txt'
+  ]
+
   const disallowPaths = [
     'Disallow: /admin',
     'Disallow: /api/',
@@ -19,39 +30,28 @@ export default defineEventHandler(event => {
     'Disallow: /discuss'
   ]
 
-  const lines = [
-    'User-agent: *',
-    'Allow: /',
-    'Allow: /learn',
-    'Allow: /challenges',
-    'Allow: /references',
-    ...disallowPaths,
-    '',
-    'User-agent: Baiduspider',
-    'Allow: /',
-    'Allow: /learn',
-    'Allow: /challenges',
-    'Allow: /references',
-    ...disallowPaths,
-    '',
-    'User-agent: Sogou web spider',
-    'Allow: /',
-    ...disallowPaths,
-    '',
-    'User-agent: 360Spider',
-    'Allow: /',
-    ...disallowPaths,
-    '',
-    'User-agent: Bytespider',
-    'Allow: /',
-    ...disallowPaths,
-    '',
-    'User-agent: YisouSpider',
-    'Allow: /',
-    ...disallowPaths,
-    '',
-    `Sitemap: ${origin}/sitemap.xml`
+  const spiders = [
+    '*',
+    'Baiduspider',
+    'Baiduspider-render',
+    'Baiduspider-image',
+    'Sogou web spider',
+    'Sogou inst spider',
+    '360Spider',
+    'HaosouSpider',
+    'Bytespider',
+    'ToutiaoSpider',
+    'YisouSpider',
+    'Bingbot',
+    'Googlebot'
   ]
+
+  const lines: string[] = []
+  for (const agent of spiders) {
+    lines.push(`User-agent: ${agent}`, ...allowPaths, ...disallowPaths, '')
+  }
+
+  lines.push(`Sitemap: ${origin}/sitemap.xml`, `Sitemap: ${origin}/sitemap.txt`)
 
   return `${lines.join('\n')}\n`
 })

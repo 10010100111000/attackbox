@@ -12,11 +12,49 @@ export const DEFAULT_SEO_KEYWORDS = [
   '渗透测试教程',
   'Web安全实战',
   'CTF训练平台',
+  'CTF靶场',
   'Linux安全入门',
   '在线实验环境',
   '信息安全靶场',
+  '漏洞复现靶场',
   '攻防演练实践'
 ].join(',')
+
+export interface SiteVerificationConfig {
+  baidu?: string
+  bing?: string
+  google?: string
+  sogou?: string
+  so360?: string
+  shenma?: string
+  bytedance?: string
+}
+
+export function buildVerificationMeta(config: SiteVerificationConfig) {
+  const metas: Array<{ name: string; content: string }> = []
+  if (config.baidu?.trim()) {
+    metas.push({ name: 'baidu-site-verification', content: config.baidu.trim() })
+  }
+  if (config.bing?.trim()) {
+    metas.push({ name: 'msvalidate.01', content: config.bing.trim() })
+  }
+  if (config.google?.trim()) {
+    metas.push({ name: 'google-site-verification', content: config.google.trim() })
+  }
+  if (config.sogou?.trim()) {
+    metas.push({ name: 'sogou_site_verification', content: config.sogou.trim() })
+  }
+  if (config.so360?.trim()) {
+    metas.push({ name: '360-site-verification', content: config.so360.trim() })
+  }
+  if (config.shenma?.trim()) {
+    metas.push({ name: 'shenma-site-verification', content: config.shenma.trim() })
+  }
+  if (config.bytedance?.trim()) {
+    metas.push({ name: 'bytedance-verification-code', content: config.bytedance.trim() })
+  }
+  return metas
+}
 
 const DIFFICULTY_SEO_LABELS: { [key: string]: string } = {
   beginner: '基础入门',
@@ -64,6 +102,7 @@ export function stripMarkdownToText(markdown?: string | null): string {
     .replace(/```[\s\S]*?```/g, ' ')
     .replace(/~~~[\s\S]*?~~~/g, ' ')
     .replace(/`([^`]+)`/g, '$1')
+    .replace(/@\[[a-zA-Z]+\]\([^)]+\)/g, ' ')
     .replace(/!\[([^\]]*)\]\([^)]+\)/g, '$1')
     .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
     .replace(/\x3cscript\b[^\x3e]*\x3e[\s\S]*?\x3c\/script\x3e/gi, ' ')

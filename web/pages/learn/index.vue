@@ -51,9 +51,21 @@ const modules = computed<PublicModule[]>(() => {
   return response.value?.data || []
 })
 
-const { data: homeResponse, pending: homePending } = useCatalogData<{
+const homeQuery = useCatalogData<{
   data: Omit<import('~/shared/learn-home').LearnHome, 'lockVersion'>
 }>('learning:catalog:home', '/api/learn-home')
+const { data: homeResponse, pending: homePending } = homeQuery
+
+// Await catalogue data during SSR so domestic and international crawlers receive
+// fully populated module/route links and JSON-LD in the initial HTML response,
+// while keeping client-side route transitions non-blocking.
+if (import.meta.server) {
+  await Promise.allSettled([
+    useCatalogData('learning:catalog:routes', '/api/routes'),
+    useCatalogData('learning:catalog:modules', '/api/modules'),
+    homeQuery
+  ])
+}
 
 const activeTab = ref<'modules' | 'paths'>(useRoute().query.tab === 'routes' ? 'paths' : 'modules')
 const selectedCategory = ref('全部模块')
@@ -98,47 +110,80 @@ function resetFilters() {
 }
 
 const siteOrigin = useSiteOrigin()
-const learnCanonical = canonicalUrl(siteOrigin, '/learn')
+const learnBaseCanonical = canonicalUrl(siteOrigin, '/learn')
+const learnCanonical = computed(() =>
+  activeTab.value === 'paths' ? `${learnBaseCanonical}?tab=routes` : learnBaseCanonical
+)
+const learnTitle = computed(() =>
+  activeTab.value === 'paths' ? '学习路线 — 学习 — AttackBox' : '学习模块 — 学习 — AttackBox'
+)
 const learnDescription =
   '选择一个模块开始，或沿着学习路线循序渐进。涵盖 Web 安全、Linux 基础、渗透测试与实战演练模块。'
 const pageKeywords = computed(() =>
   buildKeywords(
     DEFAULT_SEO_KEYWORDS,
     categories.value.filter(c => c !== '全部模块'),
-    modules.value.slice(0, 8).map(m => m.title)
+    modules.value.slice(0, 8).map(m => m.title),
+    (routeResponse.value?.data || []).slice(0, 5).map(r => r.title)
   )
 )
 const learnJsonLd = computed(() =>
   serializeJsonLd({
     '@context': 'https://schema.org',
-    '@type': 'CollectionPage',
-    name: '学习模块与学习路线 — AttackBox',
-    description: learnDescription,
-    url: learnCanonical,
-    inLanguage: 'zh-CN',
-    mainEntity: {
-      '@type': 'ItemList',
-      itemListElement: modules.value.slice(0, 12).map((m, index) => ({
-        '@type': 'ListItem',
-        position: index + 1,
-        name: m.title,
-        url: canonicalUrl(siteOrigin, `/learn/modules/${encodeURIComponent(m.slug)}`)
-      }))
-    }
+    '@graph': [
+      {
+        '@type': 'CollectionPage',
+        name: learnTitle.value,
+        description: learnDescription,
+        url: learnCanonical.value,
+        inLanguage: 'zh-CN',
+        mainEntity: {
+          '@type': 'ItemList',
+          name: '学习模块列表',
+          itemListElement: modules.value.slice(0, 20).map((m, index) => ({
+            '@type': 'ListItem',
+            position: index + 1,
+            name: m.title,
+            url: canonicalUrl(siteOrigin, `/learn/modules/${encodeURIComponent(m.slug)}`)
+          }))
+        }
+      },
+      ...((routeResponse.value?.data || []).length
+        ? [
+            {
+              '@type': 'ItemList',
+              name: '网络安全学习路线',
+              itemListElement: (routeResponse.value?.data || []).map((r, index) => ({
+                '@type': 'ListItem',
+                position: index + 1,
+                name: r.title,
+                url: canonicalUrl(siteOrigin, `/learn/routes/${encodeURIComponent(r.id)}`)
+              }))
+            }
+          ]
+        : []),
+      {
+        '@type': 'BreadcrumbList',
+        itemListElement: [
+          { '@type': 'ListItem', position: 1, name: '首页', item: `${siteOrigin}/` },
+          { '@type': 'ListItem', position: 2, name: '学习', item: learnBaseCanonical }
+        ]
+      }
+    ]
   })
 )
 
 useHead(() => ({
-  title: '学习 — AttackBox',
+  title: learnTitle.value,
   meta: [
     { name: 'description', content: learnDescription },
     { name: 'keywords', content: pageKeywords.value },
-    { property: 'og:title', content: '学习 — AttackBox' },
+    { property: 'og:title', content: learnTitle.value },
     { property: 'og:description', content: learnDescription },
     { property: 'og:type', content: 'website' },
-    { property: 'og:url', content: learnCanonical }
+    { property: 'og:url', content: learnCanonical.value }
   ],
-  link: [{ rel: 'canonical', href: learnCanonical }],
+  link: [{ rel: 'canonical', href: learnCanonical.value }],
   script: [{ type: 'application/ld+json', innerHTML: learnJsonLd.value }]
 }))
 

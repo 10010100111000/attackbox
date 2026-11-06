@@ -186,6 +186,7 @@ const moduleJsonLd = computed(() => {
   })
 })
 useHead(() => ({
+  title: moduleData.value ? `${moduleData.value.title} — AttackBox` : '学习模块 — AttackBox',
   meta: [
     { name: 'description', content: moduleSeoDescription.value },
     { name: 'keywords', content: moduleKeywords.value },
@@ -205,12 +206,6 @@ useHead(() => ({
     ? [{ type: 'application/ld+json', innerHTML: moduleJsonLd.value }]
     : []
 }))
-useHead({
-  title: computed(() =>
-    moduleData.value ? `${moduleData.value.title} — AttackBox` : '学习模块 — AttackBox'
-  ),
-  meta: [{ name: 'description', content: computed(() => moduleData.value?.summary || '') }]
-})
 </script>
 
 <template>
@@ -315,11 +310,15 @@ useHead({
               >
                 {{ descriptionPreview }}
               </p>
-              <MarkdownView
-                v-else-if="!descriptionNeedsExpansion || descriptionExpanded"
-                :content="moduleData.descriptionMarkdown"
-                :image-urls="response?.data.imageUrls"
-              />
+              <div
+                v-show="!descriptionNeedsExpansion || descriptionExpanded"
+                class="description-full"
+              >
+                <MarkdownView
+                  :content="moduleData.descriptionMarkdown"
+                  :image-urls="response?.data.imageUrls"
+                />
+              </div>
             </div>
             <button
               v-if="descriptionNeedsExpansion"

@@ -6,7 +6,8 @@ import type { ChallengeSummary } from '~/shared/challenges'
 import {
   DEFAULT_SEO_KEYWORDS,
   buildKeywords,
-  canonicalUrl
+  canonicalUrl,
+  serializeJsonLd
 } from '~/shared/seo'
 import { useSiteOrigin } from '~/composables/useSiteOrigin'
 
@@ -15,10 +16,14 @@ definePageMeta({ layout: 'learning' })
 const { currentUser } = useAuth()
 const learner = computed(() => currentUser.value?.id || '')
 
-const { data, pending, error, refresh } = useCatalogData<{ data: ChallengeSummary[] }>(
+const catalogQuery = useCatalogData<{ data: ChallengeSummary[] }>(
   () => `challenges:list:${learner.value || 'guest'}`,
   '/api/challenges'
 )
+const { data, pending, error, refresh } = catalogQuery
+if (import.meta.server) {
+  await Promise.allSettled([catalogQuery])
+}
 
 const query = ref('')
 const category = ref('')
@@ -32,6 +37,36 @@ const siteOrigin = useSiteOrigin()
 const pageCanonical = canonicalUrl(siteOrigin, '/challenges')
 const pageDescription =
   '从一个目标开始，逐步找到答案。在 AttackBox 参与网络安全实战挑战与夺旗练习（CTF），在真实靶场环境中验证漏洞与权限提升。'
+const challengesJsonLd = computed(() =>
+  serializeJsonLd({
+    '@context': 'https://schema.org',
+    '@graph': [
+      {
+        '@type': 'CollectionPage',
+        name: '网络安全实战挑战（CTF）— AttackBox',
+        description: pageDescription,
+        url: pageCanonical,
+        inLanguage: 'zh-CN',
+        mainEntity: {
+          '@type': 'ItemList',
+          itemListElement: (data.value?.data || []).slice(0, 30).map((c, index) => ({
+            '@type': 'ListItem',
+            position: index + 1,
+            name: c.title,
+            url: canonicalUrl(siteOrigin, `/challenges/${encodeURIComponent(c.id)}`)
+          }))
+        }
+      },
+      {
+        '@type': 'BreadcrumbList',
+        itemListElement: [
+          { '@type': 'ListItem', position: 1, name: '首页', item: `${siteOrigin}/` },
+          { '@type': 'ListItem', position: 2, name: '挑战', item: pageCanonical }
+        ]
+      }
+    ]
+  })
+)
 
 useHead(() => ({
   title: '挑战 — AttackBox',
@@ -39,14 +74,21 @@ useHead(() => ({
     { name: 'description', content: pageDescription },
     {
       name: 'keywords',
-      content: buildKeywords(DEFAULT_SEO_KEYWORDS, '网络安全挑战', 'CTF夺旗', categories.value)
+      content: buildKeywords(
+        DEFAULT_SEO_KEYWORDS,
+        '网络安全挑战',
+        'CTF夺旗',
+        categories.value,
+        (data.value?.data || []).slice(0, 8).map(c => c.title)
+      )
     },
     { property: 'og:title', content: '挑战 — AttackBox' },
     { property: 'og:description', content: pageDescription },
     { property: 'og:type', content: 'website' },
     { property: 'og:url', content: pageCanonical }
   ],
-  link: [{ rel: 'canonical', href: pageCanonical }]
+  link: [{ rel: 'canonical', href: pageCanonical }],
+  script: [{ type: 'application/ld+json', innerHTML: challengesJsonLd.value }]
 }))
 
 const rows = computed(

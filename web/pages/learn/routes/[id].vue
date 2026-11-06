@@ -78,7 +78,9 @@ const routeJsonLd = computed(() => {
 })
 
 useHead(() => ({
+  title: route.value ? `${route.value.title} — AttackBox` : '学习路线 — AttackBox',
   meta: [
+    { name: 'description', content: routeDescription.value },
     {
       name: 'keywords',
       content: buildKeywords(
@@ -101,11 +103,6 @@ useHead(() => ({
   script: routeJsonLd.value
     ? [{ type: 'application/ld+json', innerHTML: routeJsonLd.value }]
     : []
-}))
-
-useHead(() => ({
-  title: route.value ? `${route.value.title} — AttackBox` : '学习路线 — AttackBox',
-  meta: [{ name: 'description', content: route.value?.summary || '按推荐顺序学习相关模块。' }]
 }))
 </script>
 
