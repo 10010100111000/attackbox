@@ -1,9 +1,9 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { buildHeadingTree, headingPath } from '../utils/reader-outline.ts'
+import { buildHeadingTree, collapsibleHeadingIds, headingPath } from '../utils/reader-outline.ts'
 
 const heading = (id, level) => ({ id, text: id, level })
-test('reader outline preserves document order, skipped levels and distinct duplicate-heading anchors', () => {
+test('reader outline preserves document order, skipped levels, collapsible IDs and distinct duplicate-heading anchors', () => {
   const headings = [
     heading('orphan', 3),
     heading('part', 1),
@@ -27,10 +27,12 @@ test('reader outline preserves document order, skipped levels and distinct dupli
   )
   assert.deepEqual(headingPath(nodes, 'detail'), ['part', 'setup', 'detail'])
   assert.deepEqual(headingPath(nodes, 'missing'), [])
+  assert.deepEqual(collapsibleHeadingIds(nodes), ['part', 'setup'])
   assert.equal(
     'children' in headings[0],
     false,
     'building an outline never mutates renderer output'
   )
   assert.deepEqual(buildHeadingTree([]), [])
+  assert.deepEqual(collapsibleHeadingIds([]), [])
 })

@@ -25,9 +25,10 @@ function invalid(source, pattern) {
 }
 
 test('single-file prototype parses without authored IDs and strips answers from learner data', async () => {
-  const source = `---\nsummary: 从第一条命令开始，理解 Shell、目录与文件权限。\ndescription: 面向初次使用 Linux 的学习者。\ncategory: linux\ndifficulty: beginner\naccess: authenticated\nchapters:\n  认识 Shell:\n    access: public\n    durationMinutes: 15\n  目录与路径:\n    durationMinutes: 15\n  文件权限:\n    durationMinutes: 20\n---\n\n# 认识 Shell\n\n\`\`\`quiz\nprompt: 查看当前用户名应使用什么命令？\nanswer: whoami\nnormalization: trim_casefold\nerrorHint: 这条命令的意思是“我是谁”。\n\`\`\`\n\n# 目录与路径\n\n\`\`\`quiz\nprompt: 切换到上一级目录，需要输入什么命令？\nanswer: cd ..\nnormalization: trim\n\`\`\`\n\n# 文件权限\n\n\`\`\`quiz\nprompt: 在权限字符中，表示“执行”的字母是什么？\nanswer: x\nnormalization: trim_casefold\n\`\`\`\n`
+  const source = `---\nsummary: 从第一条命令开始，理解 Shell、目录与文件权限。\ndescription: 面向初次使用 Linux 的学习者。\ncategory: linux\ndifficulty: beginner\naccess: public\nchapters:\n  认识 Shell:\n    durationMinutes: 15\n  目录与路径:\n    durationMinutes: 15\n  文件权限:\n    durationMinutes: 20\n---\n\n# 认识 Shell\n\n\`\`\`quiz\nprompt: 查看当前用户名应使用什么命令？\nanswer: whoami\nnormalization: trim_casefold\nerrorHint: 这条命令的意思是“我是谁”。\n\`\`\`\n\n# 目录与路径\n\n\`\`\`quiz\nprompt: 切换到上一级目录，需要输入什么命令？\nanswer: cd ..\nnormalization: trim\n\`\`\`\n\n# 文件权限\n\n\`\`\`quiz\nprompt: 在权限字符中，表示“执行”的字母是什么？\nanswer: x\nnormalization: trim_casefold\n\`\`\`\n`
   const parsed = parseModuleMarkdown('Linux 基础.md', source)
   assert.equal(parsed.title, 'Linux 基础')
+  assert.equal(parsed.access, 'public')
   assert.equal(parsed.chapters.length, 3)
   assert.deepEqual(
     parsed.chapters.map(c => c.questions.length),
@@ -37,21 +38,22 @@ test('single-file prototype parses without authored IDs and strips answers from 
   assert.ok(!parsed.chapters[0].bodyMarkdown.includes('normalization:'))
   assert.equal(parsed.sourceHash, parseModuleMarkdown('Linux 基础.md', source).sourceHash)
 })
-test('defaults, Git-authored category names and per-chapter overrides align with access and duration rules', () => {
+test('defaults, Git-authored category names and module-level access apply across all chapters', () => {
   const parsed = parseModuleMarkdown(
     '教程.md',
     module(
       '# A\n\n正文\n\n# B\n\n正文',
-      'chapters:\n  A:\n    access: public\n    durationMinutes: 15'
+      'access: public\nchapters:\n  A:\n    durationMinutes: 15'
     )
   )
   assert.equal(parsed.categorySlug, null)
   assert.equal(parsed.difficulty, 'beginner')
+  assert.equal(parsed.access, 'public')
   assert.deepEqual(
     parsed.chapters.map(c => [c.access, c.durationMinutes]),
     [
       ['public', 15],
-      ['authenticated', null]
+      ['public', null]
     ]
   )
   assert.equal(

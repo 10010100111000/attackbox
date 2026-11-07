@@ -12,12 +12,12 @@ summary: 模块简介
 # cover: ./images/cover.webp
 description: 模块详细介绍
 difficulty: beginner
+# 模块访问权限：public（公开模块）或 authenticated（私有模块，需登录）
 access: authenticated
 learningOutcomes:
   - 学习目标
 chapters:
   第一章:
-    access: public
     durationMinutes: 15
 ---
 

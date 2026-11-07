@@ -5,7 +5,8 @@ import {
   useFetch,
   useHead,
   useRequestEvent,
-  setResponseStatus
+  setResponseStatus,
+  navigateTo
 } from '#imports'
 import {
   ArrowRight,
@@ -79,6 +80,11 @@ const { currentUser } = useAuth()
 const learnerId = computed(() => currentUser.value?.id || '')
 const moduleSlug = computed(() => String(route.params.slug || ''))
 const chapterSlug = computed(() => String(route.params.chapterSlug || ''))
+const loginUrl = computed(() => '/auth?returnTo=' + encodeURIComponent(route.fullPath))
+
+function redirectToLogin() {
+  return navigateTo(loginUrl.value)
+}
 
 // 1. 获取章节正文与练习题
 const {
@@ -258,6 +264,10 @@ async function recordVisit() {
 }
 watch([() => chapterResponse.value?.data.chapter.id, learnerId], recordVisit, { flush: 'post' })
 async function completeChapter() {
+  if (!learnerId.value) {
+    await redirectToLogin()
+    return
+  }
   if (completing.value) return
   const generation = chapterGeneration
   const wasModuleCompleted = moduleCompleted.value
@@ -294,6 +304,10 @@ const nextChapter = computed(() => {
 })
 
 async function handleCheckAnswer(q: QuestionItem) {
+  if (!learnerId.value) {
+    await redirectToLogin()
+    return
+  }
   if (savedProgress.value.completedAt || answerFeedbacks.value[q.id]?.status === 'checking') return
   const generation = chapterGeneration
   const wasModuleCompleted = moduleCompleted.value
@@ -461,26 +475,19 @@ useHead({
           aria-hidden="true"
         /><BookOpen v-else :size="28" aria-hidden="true" />
         <h1>
-          {{
-            chapterError?.statusCode === 401
-              ? '登录后继续学习'
-              : chapterError?.statusCode === 403
-                ? '先完成前面的章节'
-                : '章节暂不可用'
-          }}
+          {{ chapterError?.statusCode === 401 ? '登录后继续学习' : '章节暂不可用' }}
         </h1>
         <p>
           {{
             chapterError?.statusCode === 401
-              ? '当前章节需要登录账号后阅读。'
-              : chapterError?.statusCode === 403
-                ? '返回模块，继续尚未完成的章节。'
-                : '该章节可能已更新或下架。'
+              ? '当前模块需要登录账号后阅读。'
+              : '该章节可能已更新或下架。'
           }}
         </p>
         <NuxtLink
           v-if="chapterError?.statusCode === 401"
-          :to="'/auth?returnTo=' + encodeURIComponent(route.fullPath)"
+          :to="loginUrl"
+          rel="nofollow"
           class="gate-btn primary"
           >登录并继续</NuxtLink
         >
@@ -577,7 +584,7 @@ useHead({
                 bare
                 type="text"
                 class="answer-input"
-                placeholder="输入你的答案"
+                :placeholder="learnerId ? '输入你的答案' : '登录后输入答案'"
                 maxlength="2000"
                 autocomplete="off"
                 autocapitalize="off"
@@ -586,6 +593,8 @@ useHead({
                 :aria-describedby="`feedback-${q.id}`"
                 :aria-invalid="answerFeedbacks[q.id]?.status === 'error'"
                 :disabled="answerFeedbacks[q.id]?.status === 'checking'"
+                @focus="!learnerId && redirectToLogin()"
+                @click="!learnerId && redirectToLogin()"
                 @input="delete answerFeedbacks[q.id]"
               />
               <UiButton
@@ -593,7 +602,7 @@ useHead({
                 variant="secondary"
                 class="answer-check-btn"
                 :loading="answerFeedbacks[q.id]?.status === 'checking'"
-                >校验答案</UiButton
+                >{{ learnerId ? '校验答案' : '登录后答题' }}</UiButton
               >
             </div>
             <div
@@ -637,9 +646,10 @@ useHead({
           <template v-if="!savedProgress.completedAt">
             <NuxtLink
               v-if="!learnerId"
-              :to="'/auth?returnTo=' + encodeURIComponent(route.fullPath)"
+              :to="loginUrl"
+              rel="nofollow"
               class="chapter-primary"
-              >{{ allAnswersCorrect ? '练习已通过 · 登录后保存进度' : '登录后保存进度' }}</NuxtLink
+              >登录后保存进度</NuxtLink
             >
             <template v-else>
               <span

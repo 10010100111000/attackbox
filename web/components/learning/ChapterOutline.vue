@@ -17,12 +17,12 @@ const props = withDefaults(
   }>(),
   { sections: () => [], activeSection: '' }
 )
-const expanded = ref(true)
+const expanded = ref(false)
 const sectionsId = useId()
 watch(
   () => props.currentSlug,
   () => {
-    expanded.value = true
+    expanded.value = false
   }
 )
 const emit = defineEmits<{ navigate: []; section: [id: string] }>()
@@ -36,36 +36,23 @@ function selectSection(id: string) {
   <nav class="chapter-outline" :class="{ collapsed }" aria-label="章节导航">
     <div v-for="(chapter, index) in chapters" :key="chapter.id" class="chapter-entry">
       <div class="chapter-row">
-        <component
-          :is="chapter.lockReason === 'prerequisite' ? 'button' : NuxtLink"
-          :disabled="chapter.lockReason === 'prerequisite' || undefined"
-          :type="chapter.lockReason === 'prerequisite' ? 'button' : undefined"
+        <NuxtLink
           :to="
-            chapter.lockReason === 'prerequisite'
-              ? undefined
-              : chapter.lockReason === 'login'
-                ? `/auth?returnTo=${encodeURIComponent(`/learn/modules/${moduleSlug}/${chapter.slug}`)}`
-                : `/learn/modules/${moduleSlug}/${chapter.slug}`
+            chapter.lockReason === 'login'
+              ? `/auth?returnTo=${encodeURIComponent(`/learn/modules/${moduleSlug}/${chapter.slug}`)}`
+              : `/learn/modules/${moduleSlug}/${chapter.slug}`
           "
+          :rel="chapter.lockReason === 'login' ? 'nofollow' : undefined"
           class="chapter-nav-btn"
           :class="{ selected: chapter.slug === currentSlug }"
           :aria-current="chapter.slug === currentSlug ? 'page' : undefined"
           :aria-label="
             collapsed
-              ? `${index + 1}. ${chapter.title}${chapter.lockReason === 'login' ? '，需登录' : chapter.lockReason === 'prerequisite' ? '，需先完成前面的章节' : ''}`
+              ? `${index + 1}. ${chapter.title}${chapter.lockReason === 'login' ? '，需登录' : ''}`
               : undefined
           "
-          :aria-disabled="chapter.lockReason === 'prerequisite' || undefined"
-          :title="
-            chapter.lockReason === 'prerequisite'
-              ? '需先完成前面的章节'
-              : collapsed
-                ? chapter.title
-                : undefined
-          "
-          @click="
-            chapter.lockReason === 'prerequisite' ? $event.preventDefault() : emit('navigate')
-          "
+          :title="collapsed ? chapter.title : undefined"
+          @click="emit('navigate')"
         >
           <span class="chapter-nav-num">{{ String(index + 1).padStart(2, '0') }}</span>
           <span v-if="!collapsed" class="chapter-nav-text"
@@ -77,9 +64,7 @@ function selectSection(id: string) {
                   ? '正在阅读'
                   : chapter.lockReason === 'login'
                     ? '需登录'
-                    : chapter.lockReason === 'prerequisite'
-                      ? '需先完成前章'
-                      : '可阅读'
+                    : '可阅读'
             }}</span></span
           >
           <CheckCircle2
@@ -88,7 +73,7 @@ function selectSection(id: string) {
             class="chapter-done"
             aria-label="已完成"
           /><LockKeyhole v-else-if="chapter.isLocked && !collapsed" :size="13" aria-hidden="true" />
-        </component>
+        </NuxtLink>
         <button
           v-if="chapter.slug === currentSlug && sections.length && !collapsed"
           class="sections-toggle"
@@ -204,10 +189,6 @@ svg {
 }
 .chapter-done {
   color: var(--success-ink);
-}
-.chapter-nav-btn[aria-disabled='true'] {
-  opacity: 0.6;
-  cursor: not-allowed;
 }
 .collapsed .chapter-nav-btn {
   justify-content: center;

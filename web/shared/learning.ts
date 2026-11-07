@@ -1,4 +1,4 @@
-export type LockReason = 'login' | 'prerequisite' | null
+export type LockReason = 'login' | null
 export interface LearningChapter {
   id: string
   slug: string
@@ -36,17 +36,9 @@ export function applyChapterAccess<T extends { access: string; completedAt: stri
   list: T[],
   authenticated: boolean
 ): (T & { lockReason: LockReason; isLocked: boolean })[] {
-  let precedingComplete = true
   return list.map(chapter => {
     const lockReason: LockReason =
-      chapter.access === 'public'
-        ? null
-        : !authenticated
-          ? 'login'
-          : chapter.completedAt || precedingComplete
-            ? null
-            : 'prerequisite'
-    precedingComplete = precedingComplete && !!chapter.completedAt
+      chapter.access === 'public' || authenticated ? null : 'login'
     return { ...chapter, lockReason, isLocked: lockReason !== null }
   })
 }

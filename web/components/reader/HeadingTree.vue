@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import type { MarkdownHeading } from '~/utils/markdown'
-import { buildHeadingTree, headingPath } from '~/utils/reader-outline'
+import { buildHeadingTree, collapsibleHeadingIds, headingPath } from '~/utils/reader-outline'
 const props = withDefaults(
   defineProps<{ headings: MarkdownHeading[]; activeId?: string; label?: string }>(),
   { activeId: '', label: '正文目录' }
@@ -8,7 +8,7 @@ const props = withDefaults(
 defineEmits<{ select: [id: string] }>()
 const tree = computed(() => buildHeadingTree(props.headings))
 const activePath = computed(() => headingPath(tree.value, props.activeId))
-const folded = ref(new Set<string>())
+const folded = ref(new Set<string>(collapsibleHeadingIds(tree.value)))
 const controlsPrefix = useId()
 function toggle(id: string) {
   if (folded.value.has(id)) folded.value.delete(id)
@@ -16,9 +16,8 @@ function toggle(id: string) {
 }
 watch(
   () => props.headings,
-  headings => {
-    const ids = new Set(headings.map(heading => heading.id))
-    folded.value = new Set([...folded.value].filter(id => ids.has(id)))
+  () => {
+    folded.value = new Set(collapsibleHeadingIds(tree.value))
   }
 )
 </script>

@@ -99,6 +99,9 @@ const hasSidebar = computed(
       moduleData.value.learningOutcomes.length > 0 ||
       moduleData.value.prerequisites.length > 0)
 )
+const isPrivateModule = computed(
+  () => !!moduleData.value?.chapters.length && moduleData.value.chapters.every(c => c.access === 'authenticated')
+)
 const firstChapter = computed(
   () =>
     moduleData.value?.chapters.find(
@@ -150,6 +153,7 @@ const moduleJsonLd = computed(() => {
         description: moduleSeoDescription.value,
         url: moduleCanonical.value,
         inLanguage: 'zh-CN',
+        isAccessibleForFree: !isPrivateModule.value,
         educationalLevel: difficultySeoLabel(moduleData.value.difficulty),
         provider: {
           '@type': 'Organization',
@@ -163,10 +167,14 @@ const moduleJsonLd = computed(() => {
           '@type': 'LearningResource',
           position: idx + 1,
           name: ch.title,
-          url: canonicalUrl(
-            siteOrigin,
-            `/learn/modules/${encodeURIComponent(slug.value)}/${encodeURIComponent(ch.slug)}`
-          )
+          ...(ch.access === 'public'
+            ? {
+                url: canonicalUrl(
+                  siteOrigin,
+                  `/learn/modules/${encodeURIComponent(slug.value)}/${encodeURIComponent(ch.slug)}`
+                )
+              }
+            : {})
         }))
       },
       {
@@ -227,6 +235,7 @@ useHead(() => ({
               moduleData.category.name
             }}</span>
             <span>{{ difficultyLabels[moduleData.difficulty] }}</span>
+            <span>{{ isPrivateModule ? '登录模块' : '公开模块' }}</span>
             <span>{{ moduleData.chapters.length }} 章节</span>
             <span v-if="totalMinutes">约 {{ totalMinutes }} 分钟</span>
           </div>
@@ -236,7 +245,12 @@ useHead(() => ({
             {{ moduleData.progress.totalChapters }} 章节
           </p>
         </div>
-        <NuxtLink v-if="firstChapter" :to="chapterLink(firstChapter)" class="start-learning-btn">
+        <NuxtLink
+          v-if="firstChapter"
+          :to="chapterLink(firstChapter)"
+          :rel="firstChapter.lockReason === 'login' ? 'nofollow' : undefined"
+          class="start-learning-btn"
+        >
           {{
             moduleData.progress?.isCompleted
               ? '回顾模块'
@@ -253,16 +267,12 @@ useHead(() => ({
         <section class="chapters-section" aria-labelledby="chapters-heading">
           <header class="chapters-header"><h2 id="chapters-heading">章节</h2></header>
           <div class="chapter-list">
-            <component
-              :is="chapter.lockReason === 'prerequisite' ? 'button' : NuxtLink"
-              :disabled="chapter.lockReason === 'prerequisite' || undefined"
-              :type="chapter.lockReason === 'prerequisite' ? 'button' : undefined"
+            <NuxtLink
               v-for="(chapter, index) in moduleData.chapters"
               :key="chapter.id"
-              :to="chapter.lockReason === 'prerequisite' ? undefined : chapterLink(chapter)"
+              :to="chapterLink(chapter)"
+              :rel="chapter.lockReason === 'login' ? 'nofollow' : undefined"
               class="chapter-row"
-              :aria-disabled="chapter.lockReason === 'prerequisite' || undefined"
-              @click="chapter.lockReason === 'prerequisite' && $event.preventDefault()"
             >
               <span class="chapter-number">{{ String(index + 1).padStart(2, '0') }}</span>
               <div class="chapter-info">
@@ -284,15 +294,13 @@ useHead(() => ({
                   >
                   <span v-if="chapter.questionsCount">{{ chapter.questionsCount }} 道练习</span>
                   <span v-if="chapter.isLocked" class="access-label"
-                    ><LockKeyhole :size="13" aria-hidden="true" />{{
-                      chapter.lockReason === 'login' ? '需登录' : '需先完成前章'
-                    }}</span
+                    ><LockKeyhole :size="13" aria-hidden="true" />需登录</span
                   ><span v-if="chapter.completedAt" class="access-label chapter-completed"
                     ><CheckCircle2 :size="13" aria-hidden="true" />已完成</span
                   >
                 </div>
               </div>
-            </component>
+            </NuxtLink>
           </div>
         </section>
 
@@ -376,10 +384,6 @@ useHead(() => ({
 }
 .chapter-completed {
   color: var(--success-ink);
-}
-.chapter-row[aria-disabled='true'] {
-  opacity: 0.55;
-  cursor: not-allowed;
 }
 .module-page {
   width: 100%;
@@ -541,7 +545,7 @@ h1 {
     transform 0.18s ease,
     box-shadow 0.18s ease;
 }
-.chapter-row:hover:not([aria-disabled='true']) {
+.chapter-row:hover {
   border-color: var(--brand-border);
   transform: translateY(-1px);
   box-shadow: var(--surface-highlight), 0 8px 20px -6px rgba(0, 0, 0, 0.5);
@@ -561,7 +565,7 @@ h1 {
   font-weight: 600;
   flex-shrink: 0;
 }
-.chapter-row:hover:not([aria-disabled='true']) .chapter-number {
+.chapter-row:hover .chapter-number {
   color: var(--brand);
   border-color: var(--brand-border);
 }
@@ -577,7 +581,7 @@ h3 {
   overflow-wrap: anywhere;
   transition: color 0.16s ease;
 }
-.chapter-row:hover:not([aria-disabled='true']) h3 {
+.chapter-row:hover h3 {
   color: var(--brand);
 }
 .chapter-meta {

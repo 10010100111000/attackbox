@@ -72,8 +72,6 @@ export async function chapterContext(
   if (!chapter) throw createError({ statusCode: 404, message: '章节不存在或尚未发布' })
   if (chapter.lockReason === 'login')
     throw createError({ statusCode: 401, message: '请登录后阅读本章节' })
-  if (chapter.lockReason === 'prerequisite')
-    throw createError({ statusCode: 403, message: '请先完成前面的章节后继续学习' })
   return { chapter, outline }
 }
 export async function savedChapterProgress(

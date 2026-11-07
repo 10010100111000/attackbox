@@ -7,7 +7,7 @@ const chapter = (slug, access = 'authenticated', completedAt = null, lastVisited
   completedAt,
   lastVisitedAt
 })
-test('public previews remain open; private chapters need login and all preceding chapters', () => {
+test('public chapters remain open; authenticated chapters require login without sequential prerequisite locks', () => {
   const rows = [chapter('a', 'public'), chapter('b'), chapter('c', 'public'), chapter('d')]
   assert.deepEqual(
     applyChapterAccess(rows, false).map(c => c.lockReason),
@@ -15,18 +15,12 @@ test('public previews remain open; private chapters need login and all preceding
   )
   assert.deepEqual(
     applyChapterAccess(rows, true).map(c => c.lockReason),
-    [null, 'prerequisite', null, 'prerequisite']
+    [null, null, null, null]
   )
   rows[0].completedAt = '2026-10-23T10:00:00Z'
   assert.deepEqual(
     applyChapterAccess(rows, true).map(c => c.lockReason),
-    [null, null, null, 'prerequisite']
-  )
-  rows[3].completedAt = '2026-10-23T10:00:00Z'
-  assert.equal(
-    applyChapterAccess(rows, true)[3].isLocked,
-    false,
-    'completed chapters stay reviewable after content reordering'
+    [null, null, null, null]
   )
   assert.equal(applyChapterAccess([chapter('first')], true)[0].isLocked, false)
 })
@@ -36,7 +30,8 @@ test('resume prefers last visited accessible unfinished chapter, skips locked co
     chapter('b', 'public', null, '2026-10-23T11:00:00Z'),
     chapter('c', 'authenticated', null, '2026-10-23T12:00:00Z')
   ]
-  assert.equal(summarizeProgress(applyChapterAccess(rows, true)).resumeChapterSlug, 'b')
+  assert.equal(summarizeProgress(applyChapterAccess(rows, false)).resumeChapterSlug, 'b')
+  assert.equal(summarizeProgress(applyChapterAccess(rows, true)).resumeChapterSlug, 'c')
   rows[0].completedAt = rows[1].completedAt = rows[2].completedAt = '2026-10-23T13:00:00Z'
   const done = summarizeProgress(applyChapterAccess(rows, true))
   assert.equal(done.percent, 100)

@@ -27,3 +27,13 @@ export function headingPath(nodes: readonly HeadingNode[], id: string): string[]
   }
   return []
 }
+
+export function collapsibleHeadingIds(nodes: readonly HeadingNode[]): string[] {
+  const ids: string[] = []
+  for (const node of nodes) {
+    if (node.children.length) {
+      ids.push(node.id, ...collapsibleHeadingIds(node.children))
+    }
+  }
+  return ids
+}

@@ -18,10 +18,11 @@ test(
         last = `${modulePath}/chapters/permissions`
       const q = d.chapters[0].questions,
         req = async (path, options = {}) => (await f.request(path, options)).data
-      const attempt = (question, answer, actor = user) =>
+      const attempt = (question, answer, actor = user, status = 200) =>
         req(first + '/attempt', {
           actor,
           method: 'POST',
+          status,
           body: { questionId: question.id, answer }
         })
       const finish = (path, actor = user, status = 200) =>
@@ -36,24 +37,17 @@ test(
       const guest = await req(modulePath)
       assert.equal(guest.progress, null)
       assert.equal(guest.chapters[1].lockReason, 'login')
-      assert.equal((await req(modulePath, { actor: user })).chapters[1].lockReason, 'prerequisite')
+      assert.equal((await req(modulePath, { actor: user })).chapters[1].lockReason, null)
       await req(second, { status: 401 })
-      await req(second, { actor: user, status: 403 })
-      for (const suffix of ['/visit', '/complete', '/attempt'])
-        await req(last + suffix, {
-          actor: user,
-          method: 'POST',
-          body: { questionId: q[0].id, answer: 'whoami' },
-          status: 403
-        })
+      await req(second, { actor: user, status: 200 })
       await req(preview)
       await req(preview, { actor: user })
       await finish(first, user, 409)
-      assert.equal((await attempt(q[0], 'WHOAMI', null)).correct, true)
+      await attempt(q[0], 'WHOAMI', null, 401)
       assert.equal(
         (await req(first, { actor: user })).progress.passedQuestionIds.length,
         0,
-        'guest attempts never save account progress'
+        'guest attempts require login and never save account progress'
       )
       await attempt(q[0], 'wrong')
       await Promise.all([attempt(q[0], 'WHOAMI'), attempt(q[0], ' whoami ')])
@@ -62,7 +56,7 @@ test(
       const completed = await attempt(q[1], 'pwd')
       assert.ok(completed.progress.completedAt)
       assert.equal((await req(modulePath, { actor: user })).chapters[1].isLocked, false)
-      assert.equal((await req(modulePath, { actor: other })).chapters[1].isLocked, true)
+      assert.equal((await req(modulePath, { actor: other })).chapters[1].isLocked, false)
       assert.equal((await req(first, { actor: user })).progress.passedQuestionIds.length, 2)
       const publicResponse = await f.request(first)
       assert.ok(!('answer' in publicResponse.data.questions[0]))
@@ -86,7 +80,6 @@ test(
       const history = await req('/api/me/learning', { actor: user })
       assert.equal(history[0].progress.completedChapters, 2)
       assert.equal(history[0].progress.resumeChapterSlug, 'preview')
-      await req(last, { actor: user, status: 403 })
       await finish(preview)
       await finish(last)
       assert.equal((await req(modulePath, { actor: user })).progress.isCompleted, true)
@@ -110,7 +103,7 @@ test(
       )
       assert.equal((await attempt(q[0], 'whoami')).correct, false)
       assert.equal((await attempt(q[0], 'id')).correct, true)
-      // Inserting an earlier private chapter re-locks unfinished later chapters, not completed ones.
+      // Inserting an earlier chapter keeps all chapters unlocked for authenticated users while marking module incomplete until all chapters finish.
       d = await f.syncModule(d.module.id, {
         chapters: [
           {
@@ -131,7 +124,7 @@ test(
       assert.equal(
         (await req(modulePath, { actor: concurrent })).chapters.find(c => c.slug === 'navigation')
           .lockReason,
-        'prerequisite'
+        null
       )
       await req(second, { actor: user })
       d = (await f.request(`/api/admin/modules/${d.module.id}`, { actor: f.admin })).data

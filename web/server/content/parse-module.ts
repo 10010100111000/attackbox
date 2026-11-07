@@ -58,6 +58,7 @@ export interface ParsedModule {
   learningOutcomes: string[]
   categorySlug: string | null
   difficulty: Difficulty
+  access: 'public' | 'authenticated'
   chapters: ParsedChapter[]
   cover: string | null
   images: ContentImage[]
@@ -217,7 +218,7 @@ export function parseModuleMarkdown(sourcePath: string, raw: string): ParsedModu
   const difficulty = meta.difficulty ?? 'beginner'
   if (!difficulties.includes(difficulty as Difficulty))
     fail(fieldLocation('difficulty'), '仅支持 beginner、intermediate 或 advanced')
-  const defaultAccess = access(meta.access, 'authenticated', fieldLocation('access'))
+  const moduleAccess = access(meta.access, 'authenticated', fieldLocation('access'))
   const categorySlug =
     meta.category === undefined || meta.category === null
       ? null
@@ -284,6 +285,9 @@ export function parseModuleMarkdown(sourcePath: string, raw: string): ParsedModu
       settingsValue === undefined ? {} : record(settingsValue, { ...location, field: 'chapters' })
     if (settingsValue !== undefined) usedConfig.add(chapterTitle)
     fields(settings, ['access', 'durationMinutes'], { ...location, field: 'chapters' })
+    if (settings.access !== undefined) {
+      access(settings.access, moduleAccess, { ...location, field: 'access' })
+    }
     const duration = settings.durationMinutes ?? null
     if (
       duration !== null &&
@@ -346,7 +350,7 @@ export function parseModuleMarkdown(sourcePath: string, raw: string): ParsedModu
       title: chapterTitle,
       matchKey,
       position: index + 1,
-      access: access(settings.access, defaultAccess, { ...location, field: 'access' }),
+      access: moduleAccess,
       durationMinutes: duration as number | null,
       bodyMarkdown: prose,
       questions,
@@ -365,6 +369,7 @@ export function parseModuleMarkdown(sourcePath: string, raw: string): ParsedModu
     learningOutcomes: outcomes.map(x => (x as string).trim()),
     categorySlug,
     difficulty: difficulty as Difficulty,
+    access: moduleAccess,
     chapters,
     cover,
     images
@@ -380,6 +385,7 @@ export function learnerContentPreview(module: ParsedModule) {
     descriptionMarkdown: module.descriptionMarkdown,
     learningOutcomes: module.learningOutcomes,
     difficulty: module.difficulty,
+    access: module.access,
     chapters: module.chapters.map(c => ({
       title: c.title,
       position: c.position,

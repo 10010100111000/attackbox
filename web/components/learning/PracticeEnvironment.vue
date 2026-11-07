@@ -56,6 +56,7 @@ async function handleStartSandbox() {
       <NuxtLink
         v-if="!currentUser"
         :to="{ path: '/auth', query: { returnTo: $route.fullPath } }"
+        rel="nofollow"
         class="login-link"
         >登录后启动环境</NuxtLink
       >

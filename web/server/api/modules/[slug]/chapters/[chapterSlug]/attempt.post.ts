@@ -3,7 +3,7 @@ import { db } from '../../../../../db'
 import { chapterQuestions, questionCompletions } from '../../../../../db/schema'
 import { eq, and } from 'drizzle-orm'
 import { verifyQuizAnswer } from '../../../../../utils/quiz'
-import { activeLearner } from '../../../../../utils/learner'
+import { requireLearner } from '../../../../../utils/learner'
 import {
   chapterContext,
   visitChapter,
@@ -12,6 +12,7 @@ import {
   hasPassedAll
 } from '../../../../../services/learning'
 export default defineEventHandler(async event => {
+  const userId = requireLearner(event, '请登录后提交答案')
   const body = (await readBody(event)) || {}
   const questionId = typeof body.questionId === 'string' ? body.questionId : ''
   const answer = typeof body.answer === 'string' ? body.answer : ''
@@ -20,7 +21,6 @@ export default defineEventHandler(async event => {
     answer.length > 2000
   )
     throw createError({ statusCode: 400, message: '无效题目标识或答案过长' })
-  const userId = activeLearner(event)
   return db.transaction(async tx => {
     const { chapter } = await chapterContext(
       tx,
@@ -39,12 +39,10 @@ export default defineEventHandler(async event => {
       .where(and(eq(chapterQuestions.chapterId, chapter.id), eq(chapterQuestions.id, questionId)))
     if (!question) throw createError({ statusCode: 404, message: '题目已更新，请刷新页面' })
     const correct = verifyQuizAnswer(answer, question.answer, question.normalization)
-    if (userId) {
-      await visitChapter(tx, userId, chapter.id)
-      if (correct) {
-        await tx.insert(questionCompletions).values({ userId, questionId }).onConflictDoNothing()
-        if (await hasPassedAll(tx, userId, chapter.id)) await finishChapter(tx, userId, chapter.id)
-      }
+    await visitChapter(tx, userId, chapter.id)
+    if (correct) {
+      await tx.insert(questionCompletions).values({ userId, questionId }).onConflictDoNothing()
+      if (await hasPassedAll(tx, userId, chapter.id)) await finishChapter(tx, userId, chapter.id)
     }
     return {
       ok: true,
